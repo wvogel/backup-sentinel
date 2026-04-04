@@ -167,6 +167,7 @@
   "settings.no_audit": "No settings changes recorded yet.",
   "settings.sync_log": "Log",
   "settings.sync_protocol": "Sync log",
+  "reports.eyebrow": "Reports",
   "reports.title": "Reports | Backup Sentinel",
   "reports.subtitle": "All available backups and backups deleted within the last 30 days.",
   "reports.ok": "OK",
