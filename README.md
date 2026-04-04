@@ -2,6 +2,8 @@
 
 Compliance-focused monitoring for Proxmox backup infrastructure. Track backup status, encryption, verification, and document restore tests across PVE clusters and PBS instances — aligned with NIST CSF 2.0 and NIS2 requirements.
 
+![Screenshot](docs/screenshot-overview.png)
+
 ![Architecture](docs/architecture-en.svg)
 
 ## Features
