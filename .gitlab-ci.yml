@@ -15,7 +15,8 @@ deploy_to_server:
   script:
     - ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "
         cd ${DEPLOY_PATH} &&
-        git pull &&
+        git fetch origin main &&
+        git reset --hard origin/main &&
         export GIT_COMMIT=\"\$(git rev-parse --short HEAD)\" &&
         docker compose down &&
         docker compose up -d --build
