@@ -18,12 +18,12 @@
     <div class="layout-shell">
       <header class="topbar">
         <a class="brand-link" href="/" aria-label="Backup Sentinel">
-          <span class="brand-logo brand-logo-light">
+          {% if brand_logo_light_url %}<span class="brand-logo brand-logo-light">
             <img src="{{ brand_logo_light_url }}" alt="Backup Sentinel">
-          </span>
-          <span class="brand-logo brand-logo-dark">
+          </span>{% endif %}
+          {% if brand_logo_dark_url %}<span class="brand-logo brand-logo-dark">
             <img src="{{ brand_logo_dark_url }}" alt="Backup Sentinel">
-          </span>
+          </span>{% endif %}
           <span class="brand-text">
             <span class="brand-kicker"><span class="proxmox-mark" aria-hidden="true"><span class="proxmox-mark-bar proxmox-mark-orange"></span><span class="proxmox-mark-bar proxmox-mark-gray"></span></span>Backup Sentinel</span>
           </span>
