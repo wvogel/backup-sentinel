@@ -1,0 +1,22 @@
+stages:
+  - deploy
+
+deploy_to_server:
+  stage: deploy
+  image: alpine:3.20
+  only:
+    - main
+  before_script:
+    - apk add --no-cache openssh
+    - mkdir -p ~/.ssh
+    - echo "$SSH_KEY" > ~/.ssh/id_ed25519
+    - chmod 600 ~/.ssh/id_ed25519
+    - ssh-keyscan "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+  script:
+    - ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "
+        cd ${DEPLOY_PATH} &&
+        git pull &&
+        export GIT_COMMIT=\"\$(git rev-parse --short HEAD)\" &&
+        docker compose down &&
+        docker compose up -d --build
+        "

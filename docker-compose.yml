@@ -1,0 +1,91 @@
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      TZ: ${BSENTINEL_DEFAULT_TIMEZONE:-Europe/Berlin}
+      POSTGRES_DB: "${DB_NAME:-backup_reports}"
+      POSTGRES_USER: "${DB_USER:-backup_reports}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-backup_reports}"
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - ./postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      retries: 10
+      timeout: 5s
+      start_period: 10s
+
+  backup-sentinel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_URL: ${APP_URL:-https://backup-sentinel.example.com}
+      TZ: ${BSENTINEL_DEFAULT_TIMEZONE:-Europe/Berlin}
+      BSENTINEL_DEFAULT_TIMEZONE: ${BSENTINEL_DEFAULT_TIMEZONE:-Europe/Berlin}
+      BSENTINEL_DATABASE_URL: ${BSENTINEL_DATABASE_URL:-postgresql://backup_reports:backup_reports@postgres:5432/backup_reports}
+      BSENTINEL_DEBUG: ${BSENTINEL_DEBUG:-false}
+      BSENTINEL_INSECURE_SSL: ${BSENTINEL_INSECURE_SSL:-true}
+      BSENTINEL_BRAND_LOGO_LIGHT_URL: ${BSENTINEL_BRAND_LOGO_LIGHT_URL:-}
+      BSENTINEL_BRAND_LOGO_DARK_URL: ${BSENTINEL_BRAND_LOGO_DARK_URL:-}
+
+      FOOTER_LINKS: "${FOOTER_LINKS:-}"
+      COPYRIGHT_TEXT: "${COPYRIGHT_TEXT:-}"
+    volumes:
+      - ./data:/data
+      - ./reports:/reports
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:80/healthz', timeout=3)"
+        ]
+      interval: 5s
+      retries: 20
+      timeout: 3s
+      start_period: 5s
+
+  oauth2-backup-sentinel:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    restart: unless-stopped
+    depends_on:
+      backup-sentinel:
+        condition: service_healthy
+    env_file:
+      - ./oauth2-proxy.env
+    environment:
+      TZ: ${BSENTINEL_DEFAULT_TIMEZONE:-Europe/Berlin}
+      OAUTH2_PROXY_SKIP_AUTH_ROUTES: ${OAUTH2_PROXY_SKIP_AUTH_ROUTES:-^/bootstrap/proxmox-agent\.sh$,^/bootstrap/pbs-agent\.sh$,POST=^/api/bootstrap/finalize$,^/api/bootstrap/pbs-finalize$}
+      OAUTH2_PROXY_SKIP_AUTH_REGEX: ${OAUTH2_PROXY_SKIP_AUTH_REGEX:-^/bootstrap/proxmox-agent\.sh$|^/bootstrap/pbs-agent\.sh$|^/api/bootstrap/finalize$|^/api/bootstrap/pbs-finalize$}
+      OAUTH2_PROXY_UPSTREAM_TIMEOUT: 30s
+    logging:
+      driver: "local"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "oauth2-proxy", "--version"]
+      interval: 30s
+      retries: 3
+      start_period: 10s
+      timeout: 5s
+    networks:
+      - default
+      - shared-valkey
+      - shared-npm
+
+networks:
+  shared-npm:
+    name: shared-npm
+    external: true
+  shared-valkey:
+    name: shared-valkey
+    external: true

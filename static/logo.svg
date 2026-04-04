@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" aria-hidden="true">
+  <g transform="translate(4 2) skewX(-18)">
+    <rect width="6" height="36" rx="3" fill="#ef7b2d"/>
+    <rect x="10" width="6" height="36" rx="3" fill="#c7ced8"/>
+  </g>
+  <text x="38" y="28" font-family="system-ui,-apple-system,sans-serif" font-size="18" font-weight="600" fill="currentColor">Backup Sentinel</text>
+</svg>

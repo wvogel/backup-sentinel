@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+{% block title %}{{ t('cluster.title', name=cluster.name) }}{% endblock %}
+{% block content %}
+{% set critical_count = vm_rows | selectattr("backup_severity", "equalto", "critical") | list | length %}
+{% set warning_count = vm_rows | selectattr("backup_severity", "equalto", "warning") | list | length %}
+{% set severity_labels = {"ok": t('common.ok'), "warning": t('common.warning'), "critical": t('common.critical'), "unknown": t('common.unknown')} %}
+{% set restore_result_labels = {"passed": t('cluster.result_passed'), "limited": t('cluster.result_limited'), "failed": t('cluster.result_failed')} %}
+{% set recovery_type_labels = {"full": t('cluster.recovery_full'), "partial": t('cluster.recovery_partial'), "file": t('cluster.recovery_file')} %}
+{% set recovery_type_icons = {"full": "●", "partial": "◐", "file": "▤"} %}
+<section class="hero-card">
+  <div class="cluster-hero-main">
+    <h2>
+      <form action="/clusters/{{ cluster.slug }}/sync" method="post" class="inline-form js-sync-form"
+            data-cluster-slug="{{ cluster.slug }}">
+        <button type="submit" class="icon-button js-sync-btn" title="{{ t('cluster.sync_now') }}">
+          <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        </button>
+      </form>
+      {{ cluster.name }}
+    </h2>
+    <div class="sync-status-block">
+      <div class="sync-status-row">
+        <button type="button"
+          class="sync-dot {% if cluster.last_pve_sync_ok is none %}sync-unknown{% elif cluster.last_pve_sync_ok %}sync-ok{% else %}sync-fail{% endif %}"
+          title="{{ t('cluster.show_sync_log') }}"
+          data-log-title="{{ t('cluster.pve_sync_log_title', name=cluster.name) }}"
+          data-log="{{ cluster.last_pve_sync_log or t('common.no_log') }}"
+          aria-label="{{ t('cluster.show_sync_log') }}">
+        </button>
+        <span class="sync-time">
+          PVE: {% if cluster.last_pve_sync_at %}{{ cluster.last_pve_sync_at|datetime_local }}{% else %}{{ t('cluster.never_synced') }}{% endif %}
+          {% if cluster.last_pve_sync_ok is sameas false and cluster.last_pve_sync_success_at %}
+            <span class="muted cluster-sync-meta">&nbsp;&middot;&nbsp;{{ t('cluster.last_sync_success') }} {{ cluster.last_pve_sync_success_at|datetime_local }}</span>
+          {% endif %}
+        </span>
+      </div>
+      {% for pbs in pbs_connections %}
+      <div class="sync-status-row pbs-sync-row">
+        <span class="pbs-sync-arrow">↳</span>
+        <button type="button"
+          class="sync-dot {% if pbs.last_sync_ok is none %}sync-unknown{% elif pbs.last_sync_ok %}sync-ok{% else %}sync-fail{% endif %}"
+          title="{{ t('cluster.show_pbs_sync_log') }}"
+          data-log-title="{{ t('cluster.pbs_sync_log_title', name=pbs.name) }}"
+          data-log="{{ pbs.last_sync_log or t('common.no_log') }}"
+          aria-label="{{ t('cluster.show_pbs_sync_log') }}">
+        </button>
+        <span class="sync-time pbs-sync-label">
+          PBS {{ pbs.name }}: {% if pbs.last_sync_at %}{{ pbs.last_sync_at|datetime_local }}{% else %}{{ t('cluster.never_synced') }}{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="cluster-row-stats js-stat-filter-tiles" data-filter-target="#vm-table">
+    <div class="cluster-stat">
+      <strong>{{ nodes|length }}</strong>
+      <span>{{ t('common.nodes') }}</span>
+    </div>
+    <div class="cluster-stat">
+      <strong>{{ vm_rows|length }}</strong>
+      <span>{{ t('common.vms') }}</span>
+    </div>
+    <div class="cluster-stat {{ 'is-critical' if critical_count }}" data-tile-filter="backup-critical">
+      <strong>{{ critical_count }}</strong>
+      <span>{{ t('common.critical') }}</span>
+    </div>
+    <div class="cluster-stat {{ 'is-warn' if warning_count }}" data-tile-filter="backup-warning">
+      <strong>{{ warning_count }}</strong>
+      <span>{{ t('common.warning') }}</span>
+    </div>
+    {% set encryption_pct = 100 if not encryption.total_backups else encryption.pct_encrypted %}
+    <div class="cluster-stat{% if encryption.total_backups and encryption_pct < 100 %} is-warn{% endif %}">
+      <strong>{{ encryption_pct }}%</strong>
+      <span>{{ t('common.encrypted') }}</span>
+    </div>
+    <div class="cluster-stat {{ 'is-warn' if compliance_summary.restore_overdue }}" data-tile-filter="restore-overdue">
+      <strong>{{ compliance_summary.restore_overdue }}</strong>
+      <span>{{ t('common.restore_due') }}</span>
+    </div>
+  </div>
+</section>
+
+{% if unencrypted_vms %}
+<details class="table-card encryption-alert-card">
+  <summary class="encryption-alert-summary">
+    <span class="badge warning">{{ t('cluster.unencrypted_vms', count=unencrypted_vms|length) }}</span>
+    <span class="muted" style="font-size:0.82rem;">{{ t('cluster.show_details') }}</span>
+  </summary>
+  <div class="encryption-alert-body">
+    <table>
+      <thead>
+        <tr><th>{{ t('cluster.vm') }}</th><th>VMID</th><th>{{ t('cluster.th_node') }}</th><th>{{ t('cluster.th_last_unencrypted') }}</th></tr>
+      </thead>
+      <tbody>
+        {% for vm in unencrypted_vms %}
+        <tr>
+          <td>{{ vm.vm_name }}</td>
+          <td>{{ vm.vmid }}</td>
+          <td>{{ vm.node_name }}</td>
+          <td>{{ vm.last_unencrypted_at|datetime_local }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+{% endif %}
+
+<section class="table-card">
+  <div class="node-filter-bar js-node-filter-list">
+    <button type="button" class="node-filter-button is-active" data-node-filter="">{{ t('cluster.all') }}</button>
+    {% for node in nodes %}
+    <button type="button" class="node-filter-button" data-node-filter="{{ node.name }}">
+      {{ node.name }}
+    </button>
+    {% endfor %}
+  </div>
+  <div class="table-scroll vm-table-scroll">
+    <table id="vm-table" class="js-sortable-table js-node-filter-table">
+      <thead>
+        <tr>
+          <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('common.node') }}</th>
+          <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('common.vm') }}</th>
+          <th aria-sort="none" class="sortable col-right" data-sort-type="number" role="button" tabindex="0">VMID</th>
+          <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('cluster.th_last_backup') }}</th>
+          <th>{{ t('cluster.th_30days') }}</th>
+          <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('cluster.th_backup') }}</th>
+          <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('cluster.th_restore_test') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in vm_rows %}
+        {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['warning', 'critical'] %}restore-overdue{% endif %}{% endset %}
+        <tr data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}">
+          <td data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
+          <td data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}</td>
+          <td class="col-right" data-sort-value="{{ row.vmid }}">{{ row.vmid }}</td>
+          <td data-sort-value="{{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
+            {% if row.in_progress_since %}
+              {% set progress = row.live_backup_progress %}
+              <span
+                class="badge-inprogress js-backup-progress"
+                data-vmid="{{ row.vmid }}"
+                data-tooltip="{% if progress and progress.title %}{{ progress.title }}{% else %}Start: {{ row.in_progress_since|datetime_local }}{% endif %}"
+                {% if progress and progress.percent is not none %}style="--pct:{{ progress.percent }}"{% endif %}
+              >{% if progress and progress.label %}{{ progress.label }}{% else %}{{ t('cluster.backup_running') }}{% endif %}</span>
+            {% endif %}
+            {% if row.last_backup_at %}
+              {{ row.last_backup_at|datetime_local }}
+            {% elif not row.in_progress_since %}
+              <span class="muted">{{ t('cluster.no_backup') }}</span>
+            {% endif %}
+          </td>
+          <td class="sparkline-cell">
+            {%- set spark = sparklines.get(row.id, []) -%}
+            <svg class="sparkline-svg" viewBox="0 0 {{ spark|length * 4 }} 10" width="{{ spark|length * 4 }}" height="10" aria-label="Backup-Trend 14 Tage">
+              {%- for s in spark -%}
+              <rect x="{{ loop.index0 * 4 }}" y="1" width="3" height="8" rx="1"
+                    class="spark-{{ s }}" />
+              {%- endfor -%}
+            </svg>
+          </td>
+          <td class="backup-cell" data-sort-value="{{ row.backup_severity }} {{ row.status_backup_kind }} {{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
+            <div class="backup-inline-grid">
+              <span class="backup-kind-slot"><span class="pill">{{ row.backup_kind_label }}</span></span>
+              <span class="backup-severity-slot"><span class="badge {{ row.backup_severity }}">{{ severity_labels.get(row.backup_severity, row.backup_severity) }}</span></span>
+              <span class="backup-source-slot">
+              {% if row.last_backup_source == 'pve' %}
+                <span class="pill pill-local" title="{{ t('cluster.local_tooltip') }}">{{ t('cluster.local') }}</span>
+              {% elif row.last_backup_source == 'pbs' %}
+                <span class="pill pill-pbs" title="{{ t('cluster.pbs_tooltip') }}">PBS</span>
+              {% endif %}
+              </span>
+              <form action="/clusters/{{ cluster.slug }}/backup-policy" method="post" class="backup-policy-form backup-policy-slot">
+                <input type="hidden" name="vm_id" value="{{ row.id }}">
+                <select name="backup_policy_override" onchange="saveScrollAndSubmit(this.form)">
+                  <option value="" {% if not row.backup_policy_override %}selected{% endif %}>{{ t('cluster.policy_auto') }}</option>
+                  <option value="daily" {% if row.backup_policy_override == 'daily' %}selected{% endif %}>{{ t('cluster.policy_daily') }}</option>
+                  <option value="weekly" {% if row.backup_policy_override == 'weekly' %}selected{% endif %}>{{ t('cluster.policy_weekly') }}</option>
+                  <option value="none" {% if row.backup_policy_override == 'none' %}selected{% endif %}>{{ t('cluster.policy_none') }}</option>
+                </select>
+              </form>
+            </div>
+          </td>
+          <td data-sort-value="{{ row.restore_due_status }} {{ row.last_restore_tested_at.isoformat() if row.last_restore_tested_at else '' }} {{ row.last_restore_result or '' }}">
+            {% if row.last_restore_tested_at %}
+              <span class="result-icon result-{{ row.last_restore_result }}">{% if row.last_restore_result == 'passed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% elif row.last_restore_result == 'failed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>{% else %}&sim;{% endif %}</span><span class="restore-type-icon" title="{{ recovery_type_labels.get(row.last_restore_recovery_type, row.last_restore_recovery_type) }}">{{ recovery_type_icons.get(row.last_restore_recovery_type, "•") }}</span>{{ row.last_restore_tested_at|datetime_local("%d.%m.%Y") }} &middot; {{ row.last_restore_duration_minutes }} min
+            {% else %}
+              {{ t('common.never') }}
+            {% endif %}
+            {% if row.restore_due_status != 'ok' %}<span class="badge {{ row.restore_due_status }}" title="{{ t('cluster.interval_days', days=row.restore_interval_days) }}{% if row.restore_age_days is not none %}, {{ t('cluster.age_days', days=row.restore_age_days) }}{% endif %}">{{ severity_labels.get(row.restore_due_status, row.restore_due_status) }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted vm-filter-empty hidden">{{ t('cluster.no_vms_visible') }}</p>
+  </div>
+</section>
+
+<section class="panel-grid">
+  <section class="table-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">{{ t('cluster.restore_tests_eyebrow') }}</p>
+        <h2>{{ t('cluster.document_restore') }}</h2>
+      </div>
+    </div>
+    <form action="/clusters/{{ cluster.slug }}/restore-tests" method="post" class="stack">
+      <label>
+        <span>{{ t('common.vm') }}</span>
+        <select name="vm_id" required>
+          {% for row in vm_rows %}
+          <option value="{{ row.id }}">{{ row.vm_name }} (#{{ row.vmid }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>{{ t('cluster.test_date') }}</span>
+        <input type="date" name="tested_at" required>
+      </label>
+      <label>
+        <span>{{ t('cluster.result') }}</span>
+        <select name="result" required>
+          <option value="passed">{{ t('cluster.result_passed') }}</option>
+          <option value="limited">{{ t('cluster.result_limited') }}</option>
+          <option value="failed">{{ t('cluster.result_failed') }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ t('cluster.recovery_type') }}</span>
+        <select name="recovery_type" required>
+          <option value="full">{{ t('cluster.recovery_full') }}</option>
+          <option value="partial">{{ t('cluster.recovery_partial') }}</option>
+          <option value="file">{{ t('cluster.recovery_file') }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ t('cluster.duration_minutes') }}</span>
+        <input type="number" name="duration_minutes" min="0" required>
+      </label>
+      <label>
+        <span>{{ t('cluster.evidence_note') }}</span>
+        <textarea name="evidence_note" rows="3" placeholder="{{ t('cluster.evidence_placeholder') }}"></textarea>
+      </label>
+      <button type="submit">{{ t('cluster.save_restore_test') }}</button>
+    </form>
+  </section>
+
+  <section class="table-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">{{ t('cluster.last_restore_tests') }}</p>
+        <h2>{{ t('cluster.last_restores') }}</h2>
+      </div>
+    </div>
+    <ul class="plain-list">
+      {% for restore in restore_tests %}
+      <li>
+        <span class="result-icon result-{{ restore.result }}">{% if restore.result == 'passed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% elif restore.result == 'failed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>{% else %}&sim;{% endif %}</span><span class="restore-type-icon" title="{{ recovery_type_labels.get(restore.recovery_type, restore.recovery_type) }}">{{ recovery_type_icons.get(restore.recovery_type, "•") }}</span>
+        <strong>{{ restore.vm_name }}</strong>
+        <span class="muted">{{ restore.tested_at|datetime_local("%d.%m.%Y") }} &middot; {{ restore_result_labels.get(restore.result, restore.result) }} &middot; {{ restore.duration_minutes }} min{% if restore.evidence_note %} &middot; {{ restore.evidence_note }}{% endif %}</span>
+      </li>
+      {% else %}
+      <li class="muted">{{ t('cluster.no_restore_tests') }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+</section>
+
+<section class="table-card hidden js-sync-log-panel" id="sync-log-panel">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">{{ t('cluster.sync_log_eyebrow') }}</p>
+      <h3 id="sync-log-title">{{ t('cluster.last_sync') }}</h3>
+    </div>
+    <div class="sync-log-actions">
+      <span id="sync-log-status" class="muted"></span>
+      <button type="button" class="button-secondary" id="sync-log-close">{{ t('common.close') }}</button>
+    </div>
+  </div>
+  <pre id="sync-log-content" class="sync-log-pre"></pre>
+</section>
+
+<script>
+function saveScrollAndSubmit(form) {
+  sessionStorage.setItem('scrollY_' + location.pathname, window.scrollY);
+  form.submit();
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var key = 'scrollY_' + location.pathname;
+  var saved = sessionStorage.getItem(key);
+  if (saved !== null) {
+    sessionStorage.removeItem(key);
+    window.scrollTo(0, parseInt(saved, 10));
+  }
+
+  var panel = document.getElementById('sync-log-panel');
+  var content = document.getElementById('sync-log-content');
+  var title = document.getElementById('sync-log-title');
+  var closeBtn = document.getElementById('sync-log-close');
+
+  for (var dot of document.querySelectorAll('.sync-dot')) {
+    dot.addEventListener('click', function() {
+      var logStatus = document.getElementById('sync-log-status');
+      if (window._liveSyncActive) {
+        // Show live log from running sync
+        content.textContent = window._liveSyncLog || '';
+        title.textContent = T('js.live_sync_log');
+        if (logStatus) { logStatus.textContent = T('js.sync_running'); logStatus.className = 'muted'; }
+      } else {
+        // Show saved log from last sync
+        content.textContent = this.dataset.log || T('js.no_log');
+        title.textContent = this.dataset.logTitle || T('js.last_sync');
+        if (logStatus) logStatus.textContent = '';
+      }
+      panel.classList.remove('hidden');
+      content.scrollTop = content.scrollHeight;
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', function() {
+      panel.classList.add('hidden');
+    });
+  }
+
+  // Check if a sync is already running (auto-sync or triggered before page load)
+  var slug = '{{ cluster.slug }}';
+  function applyBackupProgress(progressMap) {
+    var rows = document.querySelectorAll('tr[data-vmid]');
+    for (var row of rows) {
+      var vmid = row.dataset.vmid;
+      var badge = row.querySelector('.js-backup-progress');
+      var progress = progressMap && progressMap[vmid];
+      if (progress) {
+        if (!badge) {
+          var cell = row.children[3];
+          if (cell) {
+            badge = document.createElement('span');
+            badge.className = 'badge-inprogress js-backup-progress';
+            badge.dataset.vmid = vmid;
+            cell.insertBefore(badge, cell.firstChild);
+          }
+        }
+        if (badge) {
+          badge.textContent = progress.label || T('js.backup_running');
+          badge.setAttribute('data-tooltip', progress.title || '');
+          if (progress.percent != null) badge.style.setProperty('--pct', progress.percent);
+        }
+      }
+    }
+  }
+
+  function checkRunningSync() {
+    fetch('/api/clusters/' + encodeURIComponent(slug) + '/sync-status?since=0')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        applyBackupProgress(data.backup_progress || {});
+        if (data.syncing) {
+          var btn = document.querySelector('.js-sync-btn');
+          if (btn) {
+            btn.classList.add('syncing');
+            btn.title = T('js.sync_in_progress');
+          }
+          // Store log data so sync-dot click shows live log
+          window._liveSyncLog = data.log.join('\n') + (data.log.length ? '\n' : '');
+          window._liveSyncOffset = data.offset || 0;
+          window._liveSyncActive = true;
+          // Poll in background (spinner + log buffer only, no panel)
+          var poll = setInterval(function() {
+            fetch('/api/clusters/' + encodeURIComponent(slug) + '/sync-status?since=' + window._liveSyncOffset)
+              .then(function(r) { return r.json(); })
+              .then(function(d) {
+                if (d.log && d.log.length > 0) {
+                  window._liveSyncLog += d.log.join('\n') + '\n';
+                  // Update panel content if it's visible
+                  if (!panel.classList.contains('hidden') && window._liveSyncActive) {
+                    content.textContent = window._liveSyncLog;
+                    content.scrollTop = content.scrollHeight;
+                  }
+                }
+                applyBackupProgress(d.backup_progress || {});
+                window._liveSyncOffset = d.offset || window._liveSyncOffset;
+                if (!d.syncing) {
+                  clearInterval(poll);
+                  window._liveSyncActive = false;
+                  if (btn) {
+                    btn.classList.remove('syncing');
+                    btn.title = T('js.sync_now');
+                  }
+                  var logStatus = document.getElementById('sync-log-status');
+                  if (logStatus && !panel.classList.contains('hidden')) {
+                    logStatus.textContent = T('js.sync_completed');
+                    logStatus.classList.remove('muted');
+                    logStatus.classList.add('ok-text');
+                  }
+                  showSuccessLightbox(T('js.sync_completed'), T('js.data_refreshing'));
+                  setTimeout(function() { location.reload(); }, 2500);
+                }
+              }).catch(function() {});
+          }, 2000);
+        }
+      }).catch(function() {});
+  }
+  checkRunningSync();
+  setInterval(function() {
+    fetch('/api/clusters/' + encodeURIComponent(slug) + '/sync-status?since=' + (window._liveSyncOffset || 0))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        applyBackupProgress(data.backup_progress || {});
+      }).catch(function() {});
+  }, 15000);
+});
+</script>
+{% endblock %}

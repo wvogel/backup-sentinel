@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}{{ t('dashboard.title') }}{% endblock %}
+{% block content %}
+{% set recovery_type_labels = {"full": t('cluster.recovery_full'), "partial": t('cluster.recovery_partial'), "file": t('cluster.recovery_file')} %}
+
+{# ── Cluster Health Bar ──────────────────────────────────────────────── #}
+{% if health_bar %}
+<section class="health-bar">
+  {% for h in health_bar %}
+  <a href="/clusters/{{ h.slug }}" class="health-segment health-{{ h.health }}{% if h.stale %} health-stale{% endif %}"
+     title="{{ h.name }}{% if h.stale %} – {{ t('dashboard.stale_syncs', count=h.est_failures) }}{% endif %}{% if h.last_sync %} – {{ t('dashboard.last_sync_label') }} {{ h.last_sync|datetime_local }}{% endif %}{% if h.pbs_count %} – {{ t('dashboard.pbs_status', ok=h.pbs_ok, total=h.pbs_count) }}{% endif %}">
+    <span class="health-dot"></span>
+    <span class="health-label">{{ h.name }}</span>
+    {% if h.stale %}<span class="health-stale-badge">stale</span>{% endif %}
+  </a>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ── KPI Cards ───────────────────────────────────────────────────────── #}
+<section class="summary-grid report-grid">
+  {# Feature 7: Restore-Test-Abdeckung als Ring-KPI #}
+  <div class="summary-card kpi-ring-card">
+    <div class="kpi-ring-row">
+      <svg class="kpi-ring" viewBox="0 0 40 40" width="56" height="56">
+        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--line)" stroke-width="3.5"/>
+        <circle cx="20" cy="20" r="16" fill="none"
+                stroke="{% if restore_coverage.pct >= 80 %}var(--ok){% elif restore_coverage.pct >= 50 %}var(--warn){% else %}var(--critical){% endif %}"
+                stroke-width="3.5" stroke-linecap="round"
+                stroke-dasharray="{{ (restore_coverage.pct / 100 * 100.53)|round(1) }} 100.53"
+                transform="rotate(-90 20 20)"/>
+        <text x="20" y="20" text-anchor="middle" dominant-baseline="central"
+              fill="var(--ink)" font-size="9" font-weight="700">{{ restore_coverage.pct|int }}%</text>
+      </svg>
+      <div>
+        <h3 class="kpi-ring-value">{{ restore_coverage.ok }}/{{ restore_coverage.required }}</h3>
+        <p class="muted">{{ t('dashboard.restore_coverage') }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="summary-card">
+    <h3>{{ compliance_summary.restore_overdue }}</h3>
+    <p class="muted">{{ t('dashboard.restore_overdue') }}</p>
+  </div>
+  <div class="summary-card">
+    <h3>{{ compliance_summary.restore_critical }}</h3>
+    <p class="muted">{{ t('dashboard.restore_critical') }}</p>
+  </div>
+  <div class="summary-card">
+    <h3>{{ compliance_summary.tested_this_month }}</h3>
+    <p class="muted">{{ t('dashboard.restore_month') }}</p>
+  </div>
+</section>
+
+<section class="cluster-list">
+  {% for cluster in clusters %}
+  <a class="hero-card cluster-row" href="/clusters/{{ cluster.cluster_slug }}">
+    <div class="cluster-hero-main">
+      <div class="cluster-row-title">
+        <h3>{{ cluster.cluster_name }}</h3>
+        {% if cluster.critical_count %}
+        <span class="badge critical">{{ cluster.critical_count }} {{ t('common.critical') }}</span>
+        {% elif cluster.warning_count %}
+        <span class="badge warning">{{ cluster.warning_count }} {{ t('common.warning') }}</span>
+        {% else %}
+        <span class="badge ok">{{ t('common.ok') }}</span>
+        {% endif %}
+      </div>
+      <p class="muted cluster-sync-meta" style="margin:6px 0 0;">
+        {{ t('dashboard.last_sync_success') }}
+        {% if cluster.last_pve_sync_success_at %}
+          {{ cluster.last_pve_sync_success_at|datetime_local }}
+        {% else %}
+          {{ t('dashboard.never_synced_short') }}
+        {% endif %}
+        {% if cluster.last_pve_sync_failure_started_at %}
+          &middot; {{ t('dashboard.error_since') }} {{ cluster.last_pve_sync_failure_started_at|datetime_local }}
+        {% endif %}
+      </p>
+    </div>
+    <div class="cluster-row-stats">
+      <div class="cluster-stat">
+        <strong>{{ cluster.node_count }}</strong>
+        <span>{{ t('common.nodes') }}</span>
+      </div>
+      <div class="cluster-stat">
+        <strong>{{ cluster.vm_count }}</strong>
+        <span>{{ t('common.vms') }}</span>
+      </div>
+      <div class="cluster-stat {{ 'is-critical' if cluster.critical_count }}">
+        <strong>{{ cluster.critical_count }}</strong>
+        <span>{{ t('common.critical') }}</span>
+      </div>
+      <div class="cluster-stat {{ 'is-warn' if cluster.warning_count }}">
+        <strong>{{ cluster.warning_count }}</strong>
+        <span>{{ t('common.warning') }}</span>
+      </div>
+      {% set cluster_encryption_pct = 100 if not cluster.encryption.total_backups else cluster.encryption.pct_encrypted %}
+      <div class="cluster-stat{% if cluster.encryption.total_backups and cluster_encryption_pct < 100 %} is-warn{% endif %}">
+        <strong>{{ cluster_encryption_pct }}%</strong>
+        <span>{{ t('common.encrypted') }}</span>
+      </div>
+      <div class="cluster-stat {{ 'is-warn' if cluster.overdue_restore_count }}">
+        <strong>{{ cluster.overdue_restore_count }}</strong>
+        <span>{{ t('common.restore_due') }}</span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</section>
+
+<section class="table-card">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">{{ t('dashboard.last_restore_tests') }}</p>
+      <h2>{{ t('dashboard.recovery_evidence') }}</h2>
+    </div>
+  </div>
+  <ul class="plain-list">
+    {% for restore in restore_tests %}
+    <li>
+      <span class="result-icon result-{{ restore.result }}">{% if restore.result == 'passed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% elif restore.result == 'failed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>{% else %}&sim;{% endif %}</span>
+      <strong>{{ restore.cluster_name }} / {{ restore.vm_name }}</strong>
+      <span class="muted cluster-sync-meta">{{ restore.tested_at|datetime_local("%d.%m.%Y") }} &middot; {{ recovery_type_labels.get(restore.recovery_type, restore.recovery_type) }} &middot; {{ restore.duration_minutes }} min</span>
+    </li>
+    {% else %}
+    <li class="muted">{{ t('dashboard.no_restore_tests') }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}
