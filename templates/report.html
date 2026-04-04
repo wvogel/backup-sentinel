@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}{{ t('reports.title') }}{% endblock %}
+{% block content %}
+{% set trigger_mode_labels = {"auto": t('reports.trigger_auto'), "manual": t('reports.trigger_manual')} %}
+
+<section class="hero-card">
+  <div class="cluster-hero-main">
+    <p class="eyebrow">{{ t('reports.eyebrow') }}</p>
+    <p class="muted">{{ t('reports.subtitle') }}</p>
+  </div>
+  <div class="cluster-row-stats" style="grid-template-columns:repeat(5, 90px);min-width:unset;">
+    <div class="cluster-stat">
+      <strong>{{ current_report.totals.events|format_number }}</strong>
+      <span>{{ t('common.backups') }}</span>
+    </div>
+    <div class="cluster-stat is-ok">
+      <strong>{{ current_report.totals.ok|format_number }}</strong>
+      <span>{{ t('common.ok') }}</span>
+    </div>
+    <div class="cluster-stat {{ 'is-critical' if current_report.totals.failed > 0 else 'is-ok' }}">
+      <strong>{{ current_report.totals.failed|format_number }}</strong>
+      <span>{{ t('common.errors') }}</span>
+    </div>
+    <div class="cluster-stat {{ 'is-warn' if current_report.totals.deleted > 0 }}">
+      <strong>{{ current_report.totals.deleted|format_number }}</strong>
+      <span>{{ t('reports.status_deleted') }}</span>
+    </div>
+    <form action="/reports/generate" method="post" style="display:contents;">
+      <button type="submit" class="pdf-snapshot-btn">{{ t('reports.pdf_snapshot') }}</button>
+    </form>
+  </div>
+</section>
+
+{# ── Cluster-Cards (collapsible) ────────────────────────────────────────── #}
+{% for cluster_name, cluster_data in clusters_grouped.items() %}
+<section class="table-card report-cluster-card">
+  <details class="report-cluster-details">
+    <summary class="report-cluster-summary">
+      <div class="report-cluster-head">
+        <span class="report-cluster-name">{{ cluster_name }}</span>
+        <span class="report-cluster-vm-count muted">{{ cluster_data.vms | length }} {{ t('common.vms') }}</span>
+      </div>
+      <div class="report-status-cols">
+        <div class="report-stat-col"><strong>{{ cluster_data.event_count|format_number }}</strong><span>{{ t('common.backups') }}</span></div>
+        <div class="report-stat-col is-ok"><strong>{{ cluster_data.ok_count|format_number }}</strong><span>{{ t('common.ok') }}</span></div>
+        <div class="report-stat-col {{ 'is-critical' if cluster_data.failed_count > 0 else 'is-ok' }}"><strong>{{ cluster_data.failed_count|format_number }}</strong><span>{{ t('common.errors') }}</span></div>
+        <div class="report-stat-col {{ 'is-warn' if cluster_data.deleted_count > 0 }}"><strong>{{ cluster_data.deleted_count|format_number }}</strong><span>{{ t('reports.status_deleted') }}</span></div>
+        <div class="report-stat-col is-empty"></div>
+      </div>
+    </summary>
+
+    <div class="report-cluster-body">
+      {% for vm_row in cluster_data.vms %}
+      <details class="vm-backup-details" {% if vm_row.failed_count > 0 or vm_row.deleted_count > 0 %}open{% endif %}>
+        <summary class="vm-backup-summary">
+          <div class="vm-summary-row">
+            <span class="vm-name-label">{{ vm_row.vm_name }}</span>
+            <span class="muted node-label">{{ vm_row.node_name }}</span>
+            <div class="report-status-cols">
+              <span class="pill">{{ vm_row.event_count|format_number }}<span class="report-stat-label">{{ t('common.backups') }}</span></span>
+              <span class="pill ok-pill">{{ vm_row.ok_count|format_number }}<span class="report-stat-label">{{ t('common.ok') }}</span></span>
+              <span class="pill {{ 'critical-pill' if vm_row.failed_count > 0 else 'ok-pill' }}">{{ vm_row.failed_count|format_number }}<span class="report-stat-label">{{ t('common.errors') }}</span></span>
+              <span class="pill {{ 'warn-pill' if vm_row.deleted_count > 0 }}">{{ vm_row.deleted_count|format_number }}<span class="report-stat-label">{{ t('reports.status_deleted') }}</span></span>
+              <div></div>
+            </div>
+          </div>
+          <div class="inner-col-headers">
+            <span>{{ t('reports.date_col') }}</span>
+            <span class="col-right">{{ t('reports.size_col') }}</span>
+            <span class="col-center">{{ t('reports.encrypted_col') }}</span>
+            <span class="col-center">{{ t('reports.verified_col') }}</span>
+            <span class="col-center">{{ t('reports.status_col') }}</span>
+          </div>
+        </summary>
+        <table class="inner-table">
+          <tbody>
+            {% for evt in vm_row.events %}
+            <tr class="{{ 'row-failed' if evt.status_for_report == 'failed' else '' }}">
+              <td>{{ evt.started_at|datetime_local }}</td>
+              <td class="col-right">{{ evt.size_bytes|format_bytes }}</td>
+              <td class="col-center">
+                {% if evt.encrypted is none %}
+                  <span class="muted">–</span>
+                {% elif evt.encrypted %}
+                  <span class="result-icon result-passed" title="{{ t('reports.encrypted_title') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                {% else %}
+                  <span class="muted">{{ t('reports.no_label') }}</span>
+                {% endif %}
+              </td>
+              <td class="col-center">
+                {% if evt.verify_state == 'ok' %}
+                  <span class="result-icon result-passed" title="{{ t('reports.verified_ok_title') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                {% elif evt.verify_state == 'failed' %}
+                  <span class="result-icon result-failed" title="{{ t('reports.verified_failed_title') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+                {% else %}
+                  <span class="muted">–</span>
+                {% endif %}
+              </td>
+              <td class="col-center">
+                {% if evt.status_for_report == 'deleted' %}
+                  <span class="muted">{{ t('reports.status_deleted') }}</span>
+                {% else %}
+                  <span class="result-icon result-{{ 'passed' if evt.status_for_report == 'ok' else 'failed' }}">
+                    {% if evt.status_for_report == 'ok' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>{% endif %}
+                  </span>
+                  <span class="{{ 'ok-text' if evt.status_for_report == 'ok' else 'fail-text' }}">
+                    {{ t('common.ok') if evt.status_for_report == 'ok' else t('common.errors') }}
+                  </span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </details>
+      {% endfor %}
+    </div>
+  </details>
+</section>
+{% else %}
+<section class="table-card">
+  <p class="muted empty-state">{{ t('reports.no_backups') }}</p>
+</section>
+{% endfor %}
+
+{# ── Archive ──────────────────────────────────────────────────────────────── #}
+<section class="table-card">
+  <p class="eyebrow">{{ t('reports.archive') }}</p>
+  <p class="muted" style="margin: 0 0 10px;">{{ t('reports.archive_desc') }}</p>
+  <table class="archive-table">
+    <colgroup>
+      <col><!-- spacer -->
+      <col><!-- Month -->
+      <col><!-- Generated -->
+      <col><!-- Mode -->
+      <col><!-- PDF -->
+      <col><!-- JSON -->
+      <col><!-- Delete -->
+      <col><!-- empty -->
+    </colgroup>
+    <thead>
+      <tr>
+        <th></th>
+        <th>{{ t('reports.th_month') }}</th>
+        <th>{{ t('reports.th_generated') }}</th>
+        <th>{{ t('reports.th_mode') }}</th>
+        <th colspan="2">{{ t('reports.th_download') }}</th>
+        <th></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for archived in archived_reports %}
+      <tr>
+        <td></td>
+        <td>{{ archived.report_month.strftime("%m/%Y") }}</td>
+        <td>{{ archived.generated_at|datetime_local }}</td>
+        <td><span class="pill">{{ trigger_mode_labels.get(archived.trigger_mode, archived.trigger_mode) }}</span></td>
+        <td><a href="/reports/archive/{{ archived.id }}/pdf" class="archive-dl-btn" download>↓ PDF</a></td>
+        <td><a href="/reports/archive/{{ archived.id }}/json" class="archive-dl-btn" download>↓ JSON</a></td>
+        <td>
+          <button type="button" class="button-danger" style="padding: 3px 10px; font-size: 0.8rem;"
+                  onclick="document.getElementById('del-dialog-{{ archived.id }}').showModal()">
+            {{ t('common.delete') }}
+          </button>
+          <dialog id="del-dialog-{{ archived.id }}" class="confirm-dialog">
+            <p>{{ t('reports.delete_confirm', month=archived.report_month.strftime("%m/%Y")) }}</p>
+            <div class="confirm-dialog-actions">
+              <button type="button" class="button-secondary"
+                      onclick="this.closest('dialog').close()">{{ t('common.cancel') }}</button>
+              <form action="/reports/archive/{{ archived.id }}/delete" method="post" style="display:inline">
+                <button type="submit" class="button-danger">{{ t('common.delete') }}</button>
+              </form>
+            </div>
+          </dialog>
+        </td>
+        <td></td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8" class="muted">{{ t('reports.no_archived') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% endblock %}

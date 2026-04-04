@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 460">
+  <defs>
+    <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a2744"/>
+      <stop offset="100%" stop-color="#0f1b33"/>
+    </linearGradient>
+    <linearGradient id="appGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e8751a"/>
+      <stop offset="100%" stop-color="#c45e10"/>
+    </linearGradient>
+    <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="116%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity=".35"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-reverse">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#60a5fa"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-reverse">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="460" rx="12" fill="#0d1220"/>
+
+  <!-- Title -->
+  <text x="450" y="36" text-anchor="middle" fill="#e2e8f0" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="16" font-weight="700" letter-spacing=".5">Backup Sentinel  —  Architecture</text>
+
+  <!-- ── User (Admin) ──────────────────────────────────────────────── -->
+  <g filter="url(#shadow)">
+    <rect x="30" y="130" width="110" height="60" rx="8" fill="url(#boxGrad)" stroke="#334155" stroke-width="1"/>
+    <text x="85" y="157" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10">Admin</text>
+    <text x="85" y="173" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Browser</text>
+  </g>
+
+  <!-- ── OAuth2-Proxy ──────────────────────────────────────────────── -->
+  <g filter="url(#shadow)">
+    <rect x="190" y="130" width="120" height="60" rx="8" fill="url(#boxGrad)" stroke="#334155" stroke-width="1"/>
+    <text x="250" y="157" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">OAuth2-Proxy</text>
+    <text x="250" y="173" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">OIDC / Entra ID</text>
+  </g>
+
+  <!-- ── App (FastAPI) ─────────────────────────────────────────────── -->
+  <g filter="url(#shadow)">
+    <rect x="370" y="105" width="160" height="110" rx="8" fill="url(#boxGrad)" stroke="#334155" stroke-width="1"/>
+    <rect x="370" y="105" width="160" height="28" rx="8" fill="url(#appGrad)"/>
+    <rect x="370" y="123" width="160" height="10" fill="url(#appGrad)"/>
+    <text x="450" y="124" text-anchor="middle" fill="#fff" font-family="Inter,system-ui,sans-serif" font-size="11" font-weight="700">App (FastAPI)</text>
+    <text x="450" y="155" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Jinja2 Templates</text>
+    <text x="450" y="170" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Sync &amp; Reporting</text>
+    <text x="450" y="185" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Notifications</text>
+    <text x="450" y="200" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">:80 / Uvicorn</text>
+  </g>
+
+  <!-- ── PostgreSQL 18 ─────────────────────────────────────────────── -->
+  <g filter="url(#shadow)">
+    <rect x="370" y="280" width="160" height="60" rx="8" fill="url(#boxGrad)" stroke="#334155" stroke-width="1"/>
+    <text x="450" y="307" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PostgreSQL 18</text>
+    <text x="450" y="323" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Clusters, VMs, Events, Reports</text>
+  </g>
+
+  <!-- ── PVE API ───────────────────────────────────────────────────── -->
+  <g filter="url(#shadow)">
+    <rect x="620" y="70" width="140" height="60" rx="8" fill="url(#boxGrad)" stroke="#334155" stroke-width="1"/>
+    <text x="690" y="96" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PVE API</text>
+    <text x="690" y="113" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Cluster, Nodes, VMs, Backups</text>
+  </g>
+
+  <!-- ── PBS API ───────────────────────────────────────────────────── -->
+  <g filter="url(#shadow)">
+    <rect x="620" y="155" width="140" height="60" rx="8" fill="url(#boxGrad)" stroke="#334155" stroke-width="1"/>
+    <text x="690" y="181" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PBS API</text>
+    <text x="690" y="198" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Snapshots, Verify, Encryption</text>
+  </g>
+
+  <!-- ── Gotify ────────────────────────────────────────────────────── -->
+  <g filter="url(#shadow)">
+    <rect x="620" y="245" width="140" height="50" rx="8" fill="url(#boxGrad)" stroke="#334155" stroke-width="1"/>
+    <text x="690" y="268" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">Gotify</text>
+    <text x="690" y="283" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Push Notifications</text>
+  </g>
+
+  <!-- ── SMTP ──────────────────────────────────────────────────────── -->
+  <g filter="url(#shadow)">
+    <rect x="620" y="315" width="140" height="50" rx="8" fill="url(#boxGrad)" stroke="#334155" stroke-width="1"/>
+    <text x="690" y="338" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">SMTP</text>
+    <text x="690" y="353" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">E-Mail Alerts &amp; Reports</text>
+  </g>
+
+  <!-- ── Reports Volume ────────────────────────────────────────────── -->
+  <g filter="url(#shadow)">
+    <rect x="370" y="385" width="160" height="50" rx="8" fill="url(#boxGrad)" stroke="#334155" stroke-width="1"/>
+    <text x="450" y="408" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">Reports &amp; Audit</text>
+    <text x="450" y="423" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">PDF / JSON  (/reports)</text>
+  </g>
+
+  <!-- ── Auto-Sync Loop ────────────────────────────────────────────── -->
+  <g>
+    <rect x="810" y="130" width="70" height="46" rx="20" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3"/>
+    <text x="845" y="150" text-anchor="middle" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="9" font-weight="600">Auto</text>
+    <text x="845" y="164" text-anchor="middle" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="9" font-weight="600">Sync</text>
+  </g>
+
+  <!-- ═══ Arrows ════════════════════════════════════════════════════ -->
+
+  <!-- Admin → OAuth2-Proxy -->
+  <line x1="140" y1="160" x2="188" y2="160" stroke="#60a5fa" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="164" y="153" text-anchor="middle" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">HTTPS</text>
+
+  <!-- OAuth2-Proxy → App -->
+  <line x1="310" y1="160" x2="368" y2="160" stroke="#60a5fa" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="339" y="153" text-anchor="middle" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">Auth</text>
+
+  <!-- App → PostgreSQL -->
+  <line x1="450" y1="215" x2="450" y2="278" stroke="#60a5fa" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="463" y="250" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">SQL</text>
+
+  <!-- App → PVE API -->
+  <line x1="530" y1="130" x2="618" y2="100" stroke="#60a5fa" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="570" y="107" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">API</text>
+
+  <!-- App → PBS API -->
+  <line x1="530" y1="160" x2="618" y2="178" stroke="#60a5fa" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="570" y="163" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">API</text>
+
+  <!-- App → Gotify -->
+  <line x1="530" y1="190" x2="618" y2="260" stroke="#60a5fa" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="566" y="220" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">Push</text>
+
+  <!-- App → SMTP -->
+  <line x1="530" y1="200" x2="618" y2="332" stroke="#60a5fa" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="558" y="275" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">E-Mail</text>
+
+  <!-- App → Reports -->
+  <line x1="450" y1="215" x2="450" y2="383" stroke="#60a5fa" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+  <text x="433" y="370" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8" text-anchor="end">Volume</text>
+
+  <!-- Auto-Sync → PVE/PBS -->
+  <path d="M810,153 Q785,100 762,100" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arrowOrange)"/>
+  <path d="M810,153 Q785,185 762,185" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arrowOrange)"/>
+  <text x="800" y="95" text-anchor="end" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="7">every 60 min</text>
+</svg>

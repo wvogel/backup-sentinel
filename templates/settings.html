@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% block title %}{{ t('settings.title') }}{% endblock %}
+{% block content %}
+<section class="panel-grid">
+  <section class="table-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">{{ t('settings.new_cluster') }}</p>
+      </div>
+    </div>
+    <form id="cluster-form" class="stack" data-app-base-url="{{ app_base_url }}">
+      <label>
+        <span>{{ t('settings.cluster_name') }}</span>
+        <input name="name" placeholder="pve-x" required>
+      </label>
+      <label>
+        <span>{{ t('settings.api_url') }}</span>
+        <input name="api_url" placeholder="https://pve.example.internal:8006" required>
+      </label>
+      <button type="submit">{{ t('settings.prepare_cluster') }}</button>
+    </form>
+    <div id="bootstrap-result" class="bootstrap-result hidden" data-cluster-slug="">
+      <div class="section-head">
+        <div>
+          <h3>{{ t('settings.setup_script') }}</h3>
+        </div>
+        <button type="button" class="button-secondary copy-button" data-copy-target="bootstrap-commands">
+          <span aria-hidden="true">&#x2398;</span>
+          <span>Copy</span>
+        </button>
+      </div>
+      <pre id="bootstrap-commands"></pre>
+      <p class="bootstrap-poll-status muted" id="pve-poll-status">{{ t('settings.waiting_bootstrap') }}</p>
+    </div>
+  </section>
+
+  <aside class="table-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">{{ t('settings.governance') }}</p>
+        <h2>{{ t('settings.nist_title') }}</h2>
+      </div>
+    </div>
+    <ul class="plain-list">
+      <li><strong>Identify:</strong> {{ t('settings.nist_identify') }}</li>
+      <li><strong>Protect:</strong> {{ t('settings.nist_protect') }}</li>
+      <li><strong>Detect:</strong> {{ t('settings.nist_detect') }}</li>
+      <li><strong>Recover:</strong> {{ t('settings.nist_recover') }}</li>
+    </ul>
+  </aside>
+</section>
+
+<section class="table-card">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">{{ t('settings.cluster_overview') }}</p>
+    </div>
+  </div>
+  <div class="settings-cluster-list">
+    {% for cluster in clusters %}
+    <fieldset class="settings-cluster-card">
+      <legend>{{ cluster.name }}</legend>
+      <div class="settings-cluster-head">
+        <div class="settings-cluster-title">
+          <form action="/clusters/{{ cluster.slug }}/sync" method="post" class="inline-form js-sync-form"
+                data-cluster-slug="{{ cluster.slug }}">
+            <input type="hidden" name="next" value="/settings">
+            <button type="submit" class="icon-button js-sync-btn" title="{{ t('cluster.sync_now') }}"><svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></button>
+          </form>
+          <a href="/clusters/{{ cluster.slug }}" class="cluster-name-link js-cluster-name" data-cluster-slug="{{ cluster.slug }}">{{ cluster.name }}</a>
+          <button type="button" class="icon-button js-rename-cluster-btn" data-cluster-slug="{{ cluster.slug }}" data-cluster-name="{{ cluster.name }}" title="{{ t('settings.rename') }}">✎</button>
+        </div>
+        <button type="button" class="button-danger settings-action-btn js-delete-cluster-btn"
+                data-cluster-name="{{ cluster.name }}"
+                data-delete-url="/clusters/{{ cluster.slug }}/delete">{{ t('settings.delete_cluster') }}</button>
+      </div>
+
+      <div class="settings-cluster-meta">
+        <div class="settings-cluster-meta-item">
+          <span class="settings-cluster-meta-label">PVE URL</span>
+          <div class="settings-cluster-meta-value">
+            {% if cluster.last_pve_sync_ok is not none %}
+              <button type="button" class="sync-dot {{ 'sync-ok' if cluster.last_pve_sync_ok else 'sync-fail' }}"
+                      title="{{ t('settings.last_sync_ok') if cluster.last_pve_sync_ok else t('settings.last_sync_failed') }}{% if cluster.last_pve_sync_at %} – {{ cluster.last_pve_sync_at|datetime_local }}{% endif %}"
+                      {% if cluster.last_pve_sync_log %}data-log="{{ cluster.last_pve_sync_log }}" data-log-title="{{ t('settings.pve_sync_log_title', name=cluster.name) }}"{% endif %}></button>
+            {% else %}
+              <span class="sync-dot sync-unknown" title="{{ t('settings.not_synced') }}"></span>
+            {% endif %}
+            <span class="conn-url">{{ cluster.api_url }}</span>
+          </div>
+        </div>
+        <div class="settings-cluster-meta-item">
+          <span class="settings-cluster-meta-label">{{ t('settings.registered') }}</span>
+          <span class="settings-cluster-meta-value">{{ cluster.registered_at|datetime_local if cluster.registered_at else 'pending' }}</span>
+        </div>
+      </div>
+
+      <div class="settings-cluster-sublist">
+        {% for pbs in cluster.pbs_connections %}
+        <div class="settings-subcard">
+          <div class="settings-subcard-main">
+            <div class="settings-subcard-title">
+              <span class="pbs-sync-arrow">&#x21B3;</span>
+              <span class="pill ok-pill pbs-name-pill" title="PBS">{{ pbs.name }}</span>
+            </div>
+            <div class="settings-subcard-meta">
+              {% if pbs.last_sync_ok is not none %}
+                <button type="button" class="sync-dot {{ 'sync-ok' if pbs.last_sync_ok else 'sync-fail' }}"
+                        title="{{ t('settings.last_sync_ok') if pbs.last_sync_ok else t('settings.last_sync_failed') }}{% if pbs.last_sync_at %} – {{ pbs.last_sync_at|datetime_local }}{% endif %}"
+                        {% if pbs.last_sync_log %}data-log="{{ pbs.last_sync_log }}" data-log-title="{{ t('settings.pbs_sync_log_title', name=pbs.name) }}"{% endif %}></button>
+              {% else %}
+                <span class="sync-dot sync-unknown" title="{{ t('settings.not_synced') }}"></span>
+              {% endif %}
+              <span class="muted">{{ pbs.api_url }}</span>
+              <span class="muted">{{ t('settings.pbs_created') }} {{ pbs.created_at|datetime_local }}</span>
+            </div>
+          </div>
+          <form action="/clusters/{{ cluster.slug }}/pbs/{{ pbs.id }}/delete" method="post" class="inline-form js-pbs-remove-form">
+            <button type="submit" class="button-danger pbs-remove-btn">{{ t('settings.pbs_remove') }}</button>
+          </form>
+        </div>
+        {% endfor %}
+
+        <div class="settings-subcard settings-subcard-add">
+          <div class="settings-subcard-title">
+            <span class="pbs-sync-arrow">&#x21B3;</span>
+            <button type="button" class="button-secondary pbs-add-btn"
+                    data-cluster-slug="{{ cluster.slug }}"
+                    data-pbs-count="{{ cluster.pbs_connections|length }}"
+                    data-target="pbs-bootstrap-{{ cluster.id }}">
+              {{ t('settings.pbs_add') }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pbs-bootstrap-row hidden" id="pbs-bootstrap-{{ cluster.id }}">
+        <div class="pbs-bootstrap-panel">
+          <div class="section-head" style="margin-bottom:0.5rem;">
+            <div>
+              <p class="eyebrow">PBS Bootstrap – {{ cluster.name }}</p>
+            </div>
+            <button type="button" class="button-secondary copy-button" data-copy-target="pbs-cmd-{{ cluster.id }}">
+              <span aria-hidden="true">&#x2398;</span><span>Copy</span>
+            </button>
+          </div>
+          <p class="muted" style="margin:0 0 0.5rem;">{{ t('settings.pbs_note')|safe }}</p>
+          <pre id="pbs-cmd-{{ cluster.id }}" class="bootstrap-pre">bash &lt;(curl -fsSL {{ app_base_url }}/bootstrap/pbs-agent.sh) \
+  --server-url {{ app_base_url }} \
+  --cluster-slug {{ cluster.slug }} \
+  --enrollment-secret {{ cluster.enrollment_secret }}</pre>
+          <p class="bootstrap-poll-status muted js-pbs-poll-status" data-cluster-slug="{{ cluster.slug }}" data-initial-count="{{ cluster.pbs_connections|length }}">
+            {{ t('settings.waiting_bootstrap') }}
+          </p>
+        </div>
+      </div>
+    </fieldset>
+    {% else %}
+    <p class="muted">{{ t('settings.no_connections') }}</p>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- Lightbox for cluster rename -->
+<div class="lightbox-overlay hidden" id="rename-cluster-lightbox">
+  <div class="lightbox-box">
+    <h3>{{ t('settings.rename_title') }}</h3>
+    <p class="muted" style="margin-bottom:12px;">{{ t('settings.rename_note') }}</p>
+    <form method="post" id="rename-cluster-form">
+      <label>
+        <span>{{ t('settings.new_name') }}</span>
+        <input name="name" id="rename-cluster-input" required>
+      </label>
+      <div class="lightbox-actions" style="margin-top:16px;">
+        <button type="button" class="button-secondary" id="rename-cluster-cancel">{{ t('common.cancel') }}</button>
+        <button type="submit">{{ t('settings.rename') }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Lightbox for cluster deletion -->
+<div class="lightbox-overlay hidden" id="delete-cluster-lightbox">
+  <div class="lightbox-box">
+    <h3>{{ t('settings.delete_confirm_title') }}</h3>
+    <p>{{ t('settings.delete_confirm_text')|replace('{name}', '<strong id="delete-cluster-name"></strong>')|safe }}</p>
+    <div class="lightbox-actions">
+      <button type="button" class="button-secondary" id="delete-cluster-cancel">{{ t('common.cancel') }}</button>
+      <form method="post" id="delete-cluster-form" class="inline-form">
+        <button type="submit" class="button-danger">{{ t('settings.delete_final') }}</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox for success messages -->
+<div class="lightbox-overlay hidden" id="success-lightbox">
+  <div class="lightbox-box lightbox-success">
+    <div class="lightbox-success-icon">&#x2713;</div>
+    <h3 id="success-lightbox-title">{{ t('settings.success') }}</h3>
+    <p id="success-lightbox-msg"></p>
+  </div>
+</div>
+
+{# ── Notifications ──────────────────────────────────────────────── #}
+<section class="table-card" id="benachrichtigungen">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">{{ t('settings.notifications') }}</p>
+      <h2>{{ t('settings.gotify_email') }}</h2>
+    </div>
+  </div>
+  <form action="/settings/notifications" method="post" class="stack settings-form">
+    <fieldset class="toggleable-fieldset{{ '' if app_settings.get('notify_gotify_enabled', 'false') == 'true' else ' is-disabled' }}">
+      <legend class="legend-with-toggle">
+        <label class="toggle-switch">
+          <input type="hidden" name="notify_gotify_enabled" value="false">
+          <input type="checkbox" name="notify_gotify_enabled" value="true" class="js-fieldset-toggle" {{ 'checked' if app_settings.get('notify_gotify_enabled', 'false') == 'true' }}>
+          <span class="toggle-slider"></span>
+        </label>
+        <span>{{ t('settings.gotify_push') }}</span>
+      </legend>
+      <div class="fieldset-body">
+        <p class="muted" style="margin:-4px 0 8px;">{{ t('settings.gotify_desc') }}</p>
+        <div class="form-row">
+          <label>
+            <span>{{ t('settings.server_url') }}</span>
+            <input name="gotify_url" placeholder="https://gotify.example.de" value="{{ app_settings.get('gotify_url', '') }}">
+          </label>
+          <label>
+            <span>{{ t('settings.app_token') }}</span>
+            <input name="gotify_token" type="password" placeholder="{{ t('settings.unchanged') }}" autocomplete="new-password">
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="button-secondary js-test-gotify">{{ t('settings.test_connection') }}</button>
+          <span class="js-test-gotify-result muted"></span>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="toggleable-fieldset{{ '' if app_settings.get('notify_email_enabled', 'false') == 'true' else ' is-disabled' }}">
+      <legend class="legend-with-toggle">
+        <label class="toggle-switch">
+          <input type="hidden" name="notify_email_enabled" value="false">
+          <input type="checkbox" name="notify_email_enabled" value="true" class="js-fieldset-toggle" {{ 'checked' if app_settings.get('notify_email_enabled', 'false') == 'true' }}>
+          <span class="toggle-slider"></span>
+        </label>
+        <span>{{ t('settings.email_title') }}</span>
+      </legend>
+      <div class="fieldset-body">
+        <p class="muted" style="margin:-4px 0 8px;">{{ t('settings.email_desc') }}</p>
+        <div class="form-row">
+          <label>
+            <span>{{ t('settings.smtp_server') }}</span>
+            <input name="email_host" placeholder="mail.example.de" value="{{ app_settings.get('email_host', '') }}">
+          </label>
+          <label style="max-width:100px;">
+            <span>{{ t('settings.port') }}</span>
+            <input name="email_port" placeholder="465" value="{{ app_settings.get('email_port', '465') }}">
+          </label>
+          <label>
+            <span>{{ t('settings.encryption') }}</span>
+            <select name="email_tls">
+              <option value="ssl" {{ 'selected' if app_settings.get('email_tls', 'ssl') == 'ssl' }}>SSL/TLS (Port 465)</option>
+              <option value="starttls" {{ 'selected' if app_settings.get('email_tls') == 'starttls' }}>STARTTLS (Port 587)</option>
+              <option value="none" {{ 'selected' if app_settings.get('email_tls') == 'none' }}>{{ t('settings.no_encryption') }}</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>
+            <span>{{ t('settings.user') }}</span>
+            <input name="email_user" placeholder="reports@example.de" value="{{ app_settings.get('email_user', '') }}">
+          </label>
+          <label>
+            <span>{{ t('settings.password') }}</span>
+            <input name="email_password" type="password" placeholder="{{ t('settings.unchanged') }}" autocomplete="new-password">
+          </label>
+        </div>
+        <div class="form-row">
+          <label>
+            <span>{{ t('settings.sender') }}</span>
+            <input name="email_from" placeholder="Backup Sentinel <reports@example.de>" value="{{ app_settings.get('email_from', '') }}">
+          </label>
+        </div>
+        <div class="form-row">
+          <label>
+            <span>{{ t('settings.recipients') }}</span>
+            <input name="email_recipients" placeholder="admin@example.de, team@example.de" value="{{ app_settings.get('email_recipients', '') }}">
+            <span class="muted" style="font-size:0.8em;">{{ t('settings.recipients_hint') }}</span>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="button-secondary js-test-email">{{ t('settings.test_email') }}</button>
+          <span class="js-test-email-result muted"></span>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="toggleable-fieldset{{ '' if app_settings.get('notify_quiet_enabled', 'false') == 'true' else ' is-disabled' }}">
+      <legend class="legend-with-toggle">
+        <label class="toggle-switch">
+          <input type="hidden" name="notify_quiet_enabled" value="false">
+          <input type="checkbox" name="notify_quiet_enabled" value="true" class="js-fieldset-toggle" {{ 'checked' if app_settings.get('notify_quiet_enabled', 'false') == 'true' }}>
+          <span class="toggle-slider"></span>
+        </label>
+        <span>{{ t('settings.quiet_hours') }}</span>
+      </legend>
+      <div class="fieldset-body">
+        <p class="muted" style="margin:-4px 0 8px;">{{ t('settings.quiet_desc') }}</p>
+        <div class="form-row">
+          <label>
+            <span>{{ t('settings.quiet_from') }}</span>
+            <input type="time" name="notify_quiet_start" value="{{ app_settings.get('notify_quiet_start', '22:00') }}">
+          </label>
+          <label>
+            <span>{{ t('settings.quiet_until') }}</span>
+            <input type="time" name="notify_quiet_end" value="{{ app_settings.get('notify_quiet_end', '07:00') }}">
+          </label>
+        </div>
+      </div>
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="settings-action-btn">{{ t('settings.save_settings') }}</button>
+    </div>
+  </form>
+</section>
+
+<section class="table-card">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">{{ t('settings.audit') }}</p>
+      <h2>{{ t('settings.audit_title') }}</h2>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>{{ t('settings.th_time') }}</th>
+        <th>{{ t('settings.th_user') }}</th>
+        <th>{{ t('settings.th_key') }}</th>
+        <th>{{ t('settings.th_old') }}</th>
+        <th>{{ t('settings.th_new') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in settings_audit %}
+      <tr>
+        <td>{{ entry.created_at|datetime_local }}</td>
+        <td>{{ entry.actor }}</td>
+        <td><code>{{ entry.key }}</code></td>
+        <td>{{ entry.old_value or '–' }}</td>
+        <td>{{ entry.new_value or '–' }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" class="muted">{{ t('settings.no_audit') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{# ── Sync-Log-Panel ──────────────────────────────────────────────────── #}
+<section class="table-card hidden js-sync-log-panel" id="sync-log-panel">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">Log</p>
+      <h3 id="sync-log-title">{{ t('settings.sync_protocol') }}</h3>
+    </div>
+    <button type="button" class="button-secondary" id="sync-log-close">{{ t('common.close') }}</button>
+  </div>
+  <pre id="sync-log-content" class="sync-log-pre"></pre>
+</section>
+
+<script>
+document.querySelectorAll('.js-fieldset-toggle').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    var fieldset = this.closest('.toggleable-fieldset');
+    if (this.checked) {
+      fieldset.classList.remove('is-disabled');
+    } else {
+      fieldset.classList.add('is-disabled');
+    }
+    // persist via AJAX
+    fetch('/settings/notifications/toggle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: this.name, value: this.checked})
+    });
+  });
+});
+</script>
+{% endblock %}

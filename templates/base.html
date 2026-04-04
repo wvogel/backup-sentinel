@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="{{ get_language() }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Backup Sentinel{% endblock %}</title>
+    <script>
+      (function(){
+        var t = localStorage.getItem("bsentinel-theme") || "auto";
+        var dark = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+      })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css?v={{ v }}">
+  </head>
+  <body>
+    <div class="layout-shell">
+      <header class="topbar">
+        <a class="brand-link" href="/" aria-label="Backup Sentinel">
+          <span class="brand-logo brand-logo-light">
+            <img src="{{ brand_logo_light_url }}" alt="Backup Sentinel">
+          </span>
+          <span class="brand-logo brand-logo-dark">
+            <img src="{{ brand_logo_dark_url }}" alt="Backup Sentinel">
+          </span>
+          <span class="brand-text">
+            <span class="brand-kicker"><span class="proxmox-mark" aria-hidden="true"><span class="proxmox-mark-bar proxmox-mark-orange"></span><span class="proxmox-mark-bar proxmox-mark-gray"></span></span>Backup Sentinel</span>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <nav class="topnav" aria-label="{{ t('header.main_nav') }}">
+            <a class="header-nav-link{% if request.url.path == '/' or request.url.path.startswith('/clusters') %} is-active{% endif %}"
+               href="/" title="{{ t('header.home') }}">
+              <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </a>
+            <a class="header-nav-link{% if request.url.path.startswith('/reports') %} is-active{% endif %}"
+               href="/reports" title="{{ t('header.reports') }}">
+              <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </a>
+            <a class="header-nav-link{% if request.url.path == '/settings' %} is-active{% endif %}"
+               href="/settings" title="{{ t('header.settings') }}">
+              <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001.08 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1.08z"/></svg>
+            </a>
+          </nav>
+          <button type="button" class="header-lang-toggle" onclick="toggleLanguage()" title="{{ t('header.toggle_language') }}">
+            <span class="lang-label">{{ get_language()|upper }}</span>
+          </button>
+          <button type="button" class="header-theme-toggle" id="theme-toggle" onclick="cycleTheme()" title="{{ t('header.toggle_theme') }}">
+            <span class="theme-icon theme-icon-light" aria-hidden="true">&#9788;</span>
+            <span class="theme-icon theme-icon-dark" aria-hidden="true">&#9790;</span>
+            <span class="theme-icon theme-icon-auto" aria-hidden="true">&#9680;</span>
+          </button>
+          <div class="topbar-user">
+            <span class="user-name">{{ current_user }}</span>
+            <a class="logout-link" href="{{ logout_url }}" aria-label="{{ t('header.logout') }}" title="{{ t('header.logout') }}">
+              <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </a>
+          </div>
+        </div>
+      </header>
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+      <footer class="site-footer">
+        <div class="site-footer-inner">
+          {% for link in footer_links %}
+            {% if not loop.first %}<span class="footer-sep" aria-hidden="true">&middot;</span>{% endif %}
+            <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>
+          {% endfor %}
+          {% if copyright_text %}
+            {% if footer_links %}<span class="footer-sep" aria-hidden="true">&middot;</span>{% endif %}
+            {{ copyright_text }}
+          {% endif %}
+          {% if footer_links or copyright_text %}<span class="footer-sep" aria-hidden="true">&middot;</span>{% endif %}
+          <span class="footer-version">Backup Sentinel {{ app_version }}</span>
+        </div>
+      </footer>
+    </div>
+    <script>
+      var BSENTINEL_LANG = "{{ get_language() }}";
+      var BSENTINEL_TRANSLATIONS = {{ get_translations_json()|safe }};
+      function T(key) { return BSENTINEL_TRANSLATIONS[key] || key; }
+
+      function toggleLanguage() {
+        var langs = {{ supported_languages|tojson }};
+        var idx = langs.indexOf(BSENTINEL_LANG);
+        var next = langs[(idx + 1) % langs.length];
+        localStorage.setItem("bsentinel-lang", next);
+        document.cookie = "bsentinel-lang=" + next + ";path=/;max-age=31536000;SameSite=Lax";
+        location.reload();
+      }
+      (function syncLangCookie() {
+        var saved = localStorage.getItem("bsentinel-lang");
+        if (saved && saved !== BSENTINEL_LANG) {
+          document.cookie = "bsentinel-lang=" + saved + ";path=/;max-age=31536000;SameSite=Lax";
+          location.reload();
+        }
+        if (!saved) localStorage.setItem("bsentinel-lang", BSENTINEL_LANG);
+      })();
+
+      (function initThemeToggle() {
+        var states = ["light", "dark", "auto"];
+        var current = localStorage.getItem("bsentinel-theme") || "auto";
+        applyTheme(current);
+        window.cycleTheme = function() {
+          var idx = (states.indexOf(current) + 1) % states.length;
+          current = states[idx];
+          localStorage.setItem("bsentinel-theme", current);
+          applyTheme(current);
+        };
+        function applyTheme(t) {
+          var html = document.documentElement;
+          var btn = document.getElementById("theme-toggle");
+          if (t === "light") html.setAttribute("data-theme", "light");
+          else if (t === "dark") html.setAttribute("data-theme", "dark");
+          else html.setAttribute("data-theme", matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+          if (btn) btn.setAttribute("data-state", t);
+        }
+        matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function() {
+          if (current === "auto") applyTheme("auto");
+        });
+      })();
+    </script>
+    <script src="/static/app.js?v={{ v }}"></script>
+  </body>
+</html>
