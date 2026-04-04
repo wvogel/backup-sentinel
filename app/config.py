@@ -17,8 +17,8 @@ APP_BASE_URL = _raw_app_url.replace("http://", "https://", 1) if _raw_app_url.st
 DEFAULT_TIMEZONE = os.getenv("BSENTINEL_DEFAULT_TIMEZONE", "Europe/Berlin")
 APP_VERSION = "v2.0"
 LOGOUT_URL = os.getenv("BSENTINEL_LOGOUT_URL", "/oauth2/sign_out")
-BRAND_LOGO_LIGHT_URL = os.getenv("BSENTINEL_BRAND_LOGO_LIGHT_URL", "/static/logo.svg")
-BRAND_LOGO_DARK_URL = os.getenv("BSENTINEL_BRAND_LOGO_DARK_URL", "/static/logo.svg")
+BRAND_LOGO_LIGHT_URL = os.getenv("BSENTINEL_BRAND_LOGO_LIGHT_URL") or ""
+BRAND_LOGO_DARK_URL = os.getenv("BSENTINEL_BRAND_LOGO_DARK_URL") or ""
 
 FOOTER_LINKS = os.getenv("FOOTER_LINKS", "")
 COPYRIGHT_TEXT = os.getenv("COPYRIGHT_TEXT", "")
