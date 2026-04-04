@@ -1,5 +1,7 @@
 # Backup Sentinel -- Benutzerhandbuch
 
+![Screenshot](screenshot-overview.png)
+
 ## Inhaltsverzeichnis
 
 1. [Dashboard](#dashboard)
