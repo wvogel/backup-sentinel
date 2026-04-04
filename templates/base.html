@@ -9,6 +9,8 @@
         var t = localStorage.getItem("bsentinel-theme") || "auto";
         var dark = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+        var s = (Date.now() / 1000) % 60;
+        document.documentElement.style.setProperty("--brand-glow-delay", "-" + s.toFixed(1) + "s");
       })();
     </script>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
@@ -19,14 +21,13 @@
       <header class="topbar">
         <a class="brand-link" href="/" aria-label="Backup Sentinel">
           {% if brand_logo_light_url %}<span class="brand-logo brand-logo-light">
-            <img src="{{ brand_logo_light_url }}" alt="Backup Sentinel">
+            <img src="{{ brand_logo_light_url }}" alt="">
           </span>{% endif %}
           {% if brand_logo_dark_url %}<span class="brand-logo brand-logo-dark">
-            <img src="{{ brand_logo_dark_url }}" alt="Backup Sentinel">
+            <img src="{{ brand_logo_dark_url }}" alt="">
           </span>{% endif %}
-          <span class="brand-text">
-            <span class="brand-kicker"><span class="proxmox-mark" aria-hidden="true"><span class="proxmox-mark-bar proxmox-mark-orange"></span><span class="proxmox-mark-bar proxmox-mark-gray"></span></span>Backup Sentinel</span>
-          </span>
+          <span class="proxmox-mark" aria-hidden="true"><span class="proxmox-mark-bar proxmox-mark-light"></span><span class="proxmox-mark-bar proxmox-mark-mid"></span></span>
+          <span class="brand-title">Backup Sentinel</span>
         </a>
         <div class="topbar-actions">
           <nav class="topnav" aria-label="{{ t('header.main_nav') }}">

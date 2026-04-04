@@ -1,4 +1,5 @@
 :root {
+  --font-brand: Impact, "Arial Black", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --bg: #f2f5fa;
   --panel: #ffffff;
   --panel-alt: #f8faff;
@@ -113,19 +114,21 @@ aside {
 .brand-link {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: .42rem;
   min-width: 0;
-  color: inherit;
+  color: #d4e4f0;
+  text-decoration: none;
 }
 
 .brand-logo {
   display: inline-flex;
   align-items: center;
+  margin-right: .45rem;
 }
 
 .brand-logo img {
   width: auto;
-  height: 38px;
+  height: 30px;
   object-fit: contain;
 }
 
@@ -133,54 +136,49 @@ aside {
   display: none;
 }
 
-.brand-text {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.brand-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--header-link-muted);
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
 .proxmox-mark {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   flex-shrink: 0;
 }
 
 .proxmox-mark-bar {
   display: inline-block;
-  width: 4px;
-  height: 14px;
+  width: 5px;
+  height: 22px;
   border-radius: 999px;
   transform: skewX(-18deg);
 }
 
-.proxmox-mark-orange {
-  background: #ef7b2d;
-}
-
-.proxmox-mark-gray {
+.proxmox-mark-light {
   background: #c7ced8;
 }
 
+.proxmox-mark-mid {
+  background: #8899aa;
+}
+
 .brand-title {
-  max-width: 42rem;
-  overflow: hidden;
-  color: var(--header-link);
-  font-size: 1rem;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-family: var(--font-brand);
+  font-size: 1.3rem;
+  line-height: 1;
+  letter-spacing: -.02em;
+  text-transform: uppercase;
+  color: #c7ced8;
+  background: linear-gradient(105deg, #e8ecf2 0%, #c7ced8 20%, #8899aa 40%, #667788 60%, #8899aa 80%, #e8ecf2 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: brandGlow 60s ease-in-out infinite;
+  animation-delay: var(--brand-glow-delay, 0s);
+}
+
+@keyframes brandGlow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .topbar-actions {
@@ -1246,7 +1244,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 
 @media (max-width: 480px) {
-  .brand-kicker {
+  .brand-title {
     display: none;
   }
 }
