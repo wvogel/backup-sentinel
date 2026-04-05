@@ -18,11 +18,18 @@ Compliance-focused monitoring for Proxmox backup infrastructure. Track backup st
 - **Internationalization** — Full German and English UI with one-click language switching
 - **Theme** — Light, dark, and auto (system) modes
 
+## Requirements
+
+- Docker & Docker Compose
+- A reverse proxy such as [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager)
+- [OAuth2-Proxy](https://github.com/oauth2-proxy/oauth2-proxy) for authentication (included in `docker-compose.yml`)
+- An OIDC-compatible identity provider (Keycloak, Azure Entra ID, Google, etc.)
+
 ## Quick Start
 
 ```bash
 # Clone and configure
-git clone https://github.com/your-org/backup-sentinel.git
+git clone https://github.com/wvogel/backup-sentinel.git
 cd backup-sentinel
 cp .env.example .env
 cp oauth2-proxy.env.example oauth2-proxy.env
