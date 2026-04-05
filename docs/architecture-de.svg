@@ -84,17 +84,17 @@
 
   <!-- App → PBS API -->
   <line x1="530" y1="160" x2="613" y2="177" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,178 609,174 610,182" fill="#60a5fa"/>
+  <polygon points="618,178 609,180 611,172" fill="#60a5fa"/>
   <text x="570" y="163" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">API</text>
 
   <!-- App → Gotify -->
   <line x1="530" y1="190" x2="613" y2="257" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,260 608,258 611,265" fill="#60a5fa"/>
+  <polygon points="618,260 609,258 614,252" fill="#60a5fa"/>
   <text x="566" y="220" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">Push</text>
 
   <!-- App → SMTP -->
   <line x1="530" y1="200" x2="613" y2="329" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,332 608,330 611,337" fill="#60a5fa"/>
+  <polygon points="618,332 610,327 617,323" fill="#60a5fa"/>
   <text x="558" y="275" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">E-Mail</text>
 
   <!-- App → Berichte -->
