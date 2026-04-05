@@ -89,12 +89,12 @@
 
   <!-- App → Gotify -->
   <line x1="530" y1="190" x2="613" y2="257" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,260 609,256 612,263" fill="#60a5fa"/>
+  <polygon points="618,260 608,258 611,265" fill="#60a5fa"/>
   <text x="566" y="220" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">Push</text>
 
   <!-- App → SMTP -->
   <line x1="530" y1="200" x2="613" y2="329" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,332 609,328 612,335" fill="#60a5fa"/>
+  <polygon points="618,332 608,330 611,337" fill="#60a5fa"/>
   <text x="558" y="275" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">E-Mail</text>
 
   <!-- App → Reports -->
