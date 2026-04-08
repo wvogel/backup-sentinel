@@ -63,8 +63,8 @@ services:
       - ./oauth2-proxy.env
     environment:
       TZ: ${BSENTINEL_DEFAULT_TIMEZONE:-Europe/Berlin}
-      OAUTH2_PROXY_SKIP_AUTH_ROUTES: ${OAUTH2_PROXY_SKIP_AUTH_ROUTES:-^/bootstrap/proxmox-agent\.sh$,^/bootstrap/pbs-agent\.sh$,POST=^/api/bootstrap/finalize$,^/api/bootstrap/pbs-finalize$}
-      OAUTH2_PROXY_SKIP_AUTH_REGEX: ${OAUTH2_PROXY_SKIP_AUTH_REGEX:-^/bootstrap/proxmox-agent\.sh$|^/bootstrap/pbs-agent\.sh$|^/api/bootstrap/finalize$|^/api/bootstrap/pbs-finalize$}
+      OAUTH2_PROXY_SKIP_AUTH_ROUTES: ${OAUTH2_PROXY_SKIP_AUTH_ROUTES:-^/healthz$,^/bootstrap/proxmox-agent\.sh$,^/bootstrap/pbs-agent\.sh$,POST=^/api/bootstrap/finalize$,^/api/bootstrap/pbs-finalize$}
+      OAUTH2_PROXY_SKIP_AUTH_REGEX: ${OAUTH2_PROXY_SKIP_AUTH_REGEX:-^/healthz$|^/bootstrap/proxmox-agent\.sh$|^/bootstrap/pbs-agent\.sh$|^/api/bootstrap/finalize$|^/api/bootstrap/pbs-finalize$}
       OAUTH2_PROXY_UPSTREAM_TIMEOUT: 30s
     logging:
       driver: "local"
