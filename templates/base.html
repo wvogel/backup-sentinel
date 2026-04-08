@@ -65,16 +65,15 @@
       </main>
       <footer class="site-footer">
         <div class="site-footer-inner">
-          {% for link in footer_links %}
-            {% if not loop.first %}<span class="footer-sep" aria-hidden="true">&middot;</span>{% endif %}
-            <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>
-          {% endfor %}
+          <span class="footer-version">Backup Sentinel {{ app_version }}</span>
           {% if copyright_text %}
-            {% if footer_links %}<span class="footer-sep" aria-hidden="true">&middot;</span>{% endif %}
+            <span class="footer-sep" aria-hidden="true">&middot;</span>
             {{ copyright_text }}
           {% endif %}
-          {% if footer_links or copyright_text %}<span class="footer-sep" aria-hidden="true">&middot;</span>{% endif %}
-          <span class="footer-version">Backup Sentinel {{ app_version }}</span>
+          {% for link in footer_links %}
+            <span class="footer-sep" aria-hidden="true">&middot;</span>
+            <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>
+          {% endfor %}
         </div>
       </footer>
     </div>
