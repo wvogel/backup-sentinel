@@ -1,113 +1,113 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 460">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 410">
   <!-- Hintergrund -->
-  <rect width="900" height="460" rx="12" fill="#0d1220"/>
+  <rect width="900" height="410" rx="12" fill="#0d1220"/>
 
   <!-- Titel -->
-  <text x="450" y="36" text-anchor="middle" fill="#e2e8f0" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="16" font-weight="700" letter-spacing=".5">Backup Sentinel  —  Architektur</text>
+  <text x="450" y="28" text-anchor="middle" fill="#e2e8f0" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="16" font-weight="700" letter-spacing=".5">Backup Sentinel  —  Architektur</text>
 
   <!-- ── Admin ─────────────────────────────────────────────────────── -->
-  <rect x="30" y="130" width="110" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="85" y="157" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10">Admin</text>
-  <text x="85" y="173" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Browser</text>
+  <rect x="30" y="100" width="110" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
+  <text x="85" y="127" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10">Admin</text>
+  <text x="85" y="143" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Browser</text>
 
   <!-- ── OAuth2-Proxy ──────────────────────────────────────────────── -->
-  <rect x="190" y="130" width="120" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="250" y="157" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">OAuth2-Proxy</text>
-  <text x="250" y="173" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">OIDC / Entra ID</text>
+  <rect x="190" y="100" width="120" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
+  <text x="250" y="127" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">OAuth2-Proxy</text>
+  <text x="250" y="143" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">OIDC / Entra ID</text>
 
   <!-- ── App (FastAPI) ─────────────────────────────────────────────── -->
-  <rect x="370" y="105" width="160" height="110" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <rect x="370" y="105" width="160" height="28" rx="8" fill="#d4650f"/>
-  <rect x="370" y="123" width="160" height="10" fill="#d4650f"/>
-  <text x="450" y="124" text-anchor="middle" fill="#fff" font-family="Inter,system-ui,sans-serif" font-size="11" font-weight="700">App (FastAPI)</text>
-  <text x="450" y="155" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Jinja2-Templates</text>
-  <text x="450" y="170" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Sync &amp; Reporting</text>
-  <text x="450" y="185" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Benachrichtigungen</text>
-  <text x="450" y="200" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">:80 / Uvicorn</text>
+  <rect x="370" y="75" width="160" height="110" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
+  <rect x="370" y="75" width="160" height="28" rx="8" fill="#d4650f"/>
+  <rect x="370" y="93" width="160" height="10" fill="#d4650f"/>
+  <text x="450" y="94" text-anchor="middle" fill="#fff" font-family="Inter,system-ui,sans-serif" font-size="11" font-weight="700">App (FastAPI)</text>
+  <text x="450" y="125" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Jinja2-Templates</text>
+  <text x="450" y="140" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Sync &amp; Reporting</text>
+  <text x="450" y="155" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Benachrichtigungen</text>
+  <text x="450" y="170" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">:80 / Uvicorn</text>
 
   <!-- ── PostgreSQL 18 ─────────────────────────────────────────────── -->
-  <rect x="370" y="280" width="160" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="450" y="307" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PostgreSQL 18</text>
-  <text x="450" y="323" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Cluster, VMs, Events, Berichte</text>
+  <rect x="370" y="245" width="160" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
+  <text x="450" y="272" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PostgreSQL 18</text>
+  <text x="450" y="288" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Cluster, VMs, Events, Berichte</text>
 
   <!-- ── PVE API ───────────────────────────────────────────────────── -->
-  <rect x="620" y="70" width="140" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="690" y="96" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PVE API</text>
-  <text x="690" y="113" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Cluster, Nodes, VMs, Backups</text>
+  <rect x="620" y="45" width="140" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
+  <text x="690" y="71" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PVE API</text>
+  <text x="690" y="88" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Cluster, Nodes, VMs, Backups</text>
 
   <!-- ── PBS API ───────────────────────────────────────────────────── -->
-  <rect x="620" y="155" width="140" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="690" y="181" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PBS API</text>
-  <text x="690" y="198" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Snapshots, Verify, Verschl.</text>
+  <rect x="620" y="125" width="140" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
+  <text x="690" y="151" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PBS API</text>
+  <text x="690" y="168" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Snapshots, Verify, Verschl.</text>
 
   <!-- ── Gotify ────────────────────────────────────────────────────── -->
-  <rect x="620" y="245" width="140" height="50" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="690" y="268" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">Gotify</text>
-  <text x="690" y="283" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Push-Benachrichtigungen</text>
+  <rect x="620" y="210" width="140" height="50" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
+  <text x="690" y="233" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">Gotify</text>
+  <text x="690" y="248" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Push-Benachrichtigungen</text>
 
   <!-- ── SMTP ──────────────────────────────────────────────────────── -->
-  <rect x="620" y="315" width="140" height="50" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="690" y="338" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">SMTP</text>
-  <text x="690" y="353" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">E-Mail-Alarme &amp; Berichte</text>
+  <rect x="620" y="280" width="140" height="50" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
+  <text x="690" y="303" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">SMTP</text>
+  <text x="690" y="318" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">E-Mail-Alarme &amp; Berichte</text>
 
   <!-- ── Berichte & Audit ──────────────────────────────────────────── -->
-  <rect x="370" y="385" width="160" height="50" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="450" y="408" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">Berichte &amp; Audit</text>
-  <text x="450" y="423" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">PDF / JSON  (/reports)</text>
+  <rect x="370" y="345" width="160" height="50" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
+  <text x="450" y="368" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">Berichte &amp; Audit</text>
+  <text x="450" y="383" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">PDF / JSON  (/reports)</text>
 
   <!-- ── Auto-Sync Schleife ────────────────────────────────────────── -->
-  <rect x="810" y="130" width="70" height="46" rx="20" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3"/>
-  <text x="845" y="150" text-anchor="middle" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="9" font-weight="600">Auto-</text>
-  <text x="845" y="164" text-anchor="middle" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="9" font-weight="600">Sync</text>
+  <rect x="810" y="100" width="70" height="46" rx="20" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="845" y="120" text-anchor="middle" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="9" font-weight="600">Auto-</text>
+  <text x="845" y="134" text-anchor="middle" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="9" font-weight="600">Sync</text>
 
   <!-- ═══ Pfeile ════════════════════════════════════════════════════ -->
 
   <!-- Admin → OAuth2-Proxy -->
-  <line x1="140" y1="160" x2="183" y2="160" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="188,160 180,156 180,164" fill="#60a5fa"/>
-  <text x="164" y="153" text-anchor="middle" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">HTTPS</text>
+  <line x1="140" y1="130" x2="183" y2="130" stroke="#60a5fa" stroke-width="1.4"/>
+  <polygon points="188,130 180,126 180,134" fill="#60a5fa"/>
+  <text x="164" y="123" text-anchor="middle" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">HTTPS</text>
 
   <!-- OAuth2-Proxy → App -->
-  <line x1="310" y1="160" x2="363" y2="160" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="368,160 360,156 360,164" fill="#60a5fa"/>
-  <text x="339" y="153" text-anchor="middle" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">Auth</text>
+  <line x1="310" y1="130" x2="363" y2="130" stroke="#60a5fa" stroke-width="1.4"/>
+  <polygon points="368,130 360,126 360,134" fill="#60a5fa"/>
+  <text x="339" y="123" text-anchor="middle" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">Auth</text>
 
   <!-- App → PostgreSQL -->
-  <line x1="450" y1="215" x2="450" y2="273" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="450,278 446,270 454,270" fill="#60a5fa"/>
-  <text x="463" y="250" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">SQL</text>
+  <line x1="450" y1="185" x2="450" y2="238" stroke="#60a5fa" stroke-width="1.4"/>
+  <polygon points="450,243 446,235 454,235" fill="#60a5fa"/>
+  <text x="463" y="216" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">SQL</text>
 
   <!-- App → PVE API -->
-  <line x1="530" y1="130" x2="610" y2="103" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,100 609,99 611,107" fill="#60a5fa"/>
-  <text x="570" y="107" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">API</text>
+  <line x1="530" y1="100" x2="610" y2="78" stroke="#60a5fa" stroke-width="1.4"/>
+  <polygon points="618,75 609,74 611,82" fill="#60a5fa"/>
+  <text x="570" y="82" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">API</text>
 
   <!-- App → PBS API -->
-  <line x1="530" y1="160" x2="610" y2="176" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,178 609,180 611,172" fill="#60a5fa"/>
-  <text x="570" y="163" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">API</text>
+  <line x1="530" y1="130" x2="610" y2="148" stroke="#60a5fa" stroke-width="1.4"/>
+  <polygon points="618,150 609,152 611,144" fill="#60a5fa"/>
+  <text x="570" y="135" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">API</text>
 
   <!-- App → Gotify -->
-  <line x1="530" y1="190" x2="612" y2="255" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,260 609,258 614,252" fill="#60a5fa"/>
-  <text x="566" y="220" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">Push</text>
+  <line x1="530" y1="155" x2="611" y2="227" stroke="#60a5fa" stroke-width="1.4"/>
+  <polygon points="618,233 608,231 614,225" fill="#60a5fa"/>
+  <text x="566" y="187" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">Push</text>
 
   <!-- App → SMTP -->
-  <line x1="530" y1="200" x2="614" y2="325" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,332 610,327 617,323" fill="#60a5fa"/>
-  <text x="558" y="275" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">E-Mail</text>
+  <line x1="530" y1="165" x2="611" y2="296" stroke="#60a5fa" stroke-width="1.4"/>
+  <polygon points="618,302 608,299 614,293" fill="#60a5fa"/>
+  <text x="558" y="240" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">E-Mail</text>
 
   <!-- App → Berichte -->
-  <line x1="450" y1="215" x2="450" y2="378" stroke="#60a5fa" stroke-width="1.4" stroke-dasharray="4 3"/>
-  <polygon points="450,383 446,375 454,375" fill="#60a5fa"/>
-  <text x="433" y="370" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8" text-anchor="end">Volume</text>
+  <line x1="450" y1="185" x2="450" y2="338" stroke="#60a5fa" stroke-width="1.4" stroke-dasharray="4 3"/>
+  <polygon points="450,343 446,335 454,335" fill="#60a5fa"/>
+  <text x="433" y="330" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8" text-anchor="end">Volume</text>
 
   <!-- Auto-Sync → PVE -->
-  <path d="M810,148 Q785,100 767,100" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3"/>
-  <polygon points="762,100 769,96 769,104" fill="#f59e0b"/>
+  <path d="M810,118 Q785,75 767,75" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <polygon points="762,75 769,71 769,79" fill="#f59e0b"/>
 
   <!-- Auto-Sync → PBS -->
-  <path d="M810,158 Q785,185 767,185" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3"/>
-  <polygon points="762,185 769,181 769,189" fill="#f59e0b"/>
-  <text x="800" y="95" text-anchor="end" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="7">alle 60 Min.</text>
+  <path d="M810,128 Q785,155 767,155" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <polygon points="762,155 769,151 769,159" fill="#f59e0b"/>
+  <text x="800" y="68" text-anchor="end" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="7">alle 60 Min.</text>
 </svg>
