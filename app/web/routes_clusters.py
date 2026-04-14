@@ -12,7 +12,7 @@ from app.models import RestoreTestCreate
 from app.services.bootstrap import slugify_cluster
 from app.services.proxmox_progress import fetch_running_backup_progress
 from app.services.reporting import build_compliance_summary
-from app.web.common import common_context, templates
+from app.web.common import common_context, settings_actor, templates
 from app.web.sync import background_sync, sync_executor, sync_logs, syncing_clusters
 
 router = APIRouter()
@@ -23,7 +23,7 @@ _SYNC_STATUS_TTL = 2.0  # Sekunden
 
 
 @router.post("/clusters/{cluster_slug}/rename")
-def rename_cluster(cluster_slug: str, name: str = Form(...)) -> RedirectResponse:
+def rename_cluster(request: Request, cluster_slug: str, name: str = Form(...)) -> RedirectResponse:
     cluster = db.get_cluster_by_slug(cluster_slug)
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
@@ -32,15 +32,37 @@ def rename_cluster(cluster_slug: str, name: str = Form(...)) -> RedirectResponse
         existing = db.get_cluster_by_slug(new_slug)
         if existing:
             raise HTTPException(status_code=409, detail="Ein Cluster mit diesem Namen existiert bereits.")
-    db.rename_cluster(cluster["id"], name.strip(), new_slug)
+    old_name = cluster["name"]
+    new_name = name.strip()
+    db.rename_cluster(cluster["id"], new_name, new_slug)
+    try:
+        db.append_audit_event(
+            settings_actor(request),
+            "cluster.renamed",
+            cluster_slug,
+            f"old={old_name}, new={new_name}",
+        )
+    except Exception:
+        pass
     return RedirectResponse(url="/settings", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/clusters/{cluster_slug}/delete")
-def delete_cluster(cluster_slug: str) -> RedirectResponse:
+def delete_cluster(request: Request, cluster_slug: str) -> RedirectResponse:
+    cluster = db.get_cluster_by_slug(cluster_slug)
+    cluster_name = cluster["name"] if cluster else cluster_slug
     deleted = db.delete_cluster(cluster_slug)
     if not deleted:
         raise HTTPException(status_code=404, detail="Cluster not found")
+    try:
+        db.append_audit_event(
+            settings_actor(request),
+            "cluster.deleted",
+            cluster_slug,
+            f"name={cluster_name}",
+        )
+    except Exception:
+        pass
     return RedirectResponse(url="/settings", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -120,6 +142,7 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
 
 @router.post("/clusters/{cluster_slug}/restore-tests")
 def add_restore_test(
+    request: Request,
     cluster_slug: str,
     vm_id: int = Form(...),
     tested_at: str = Form(...),
@@ -144,6 +167,17 @@ def add_restore_test(
         evidence_note=evidence_note,
     )
     db.create_restore_test(**payload.model_dump())
+    try:
+        vm = db.get_vm_for_cluster(cluster["id"], vm_id)
+        vmid_value = vm["vmid"] if vm else vm_id
+        db.append_audit_event(
+            settings_actor(request),
+            "restore_test.added",
+            f"{cluster_slug}/{vmid_value}",
+            f"result={result}, recovery_type={recovery_type}, duration={duration_minutes}min",
+        )
+    except Exception:
+        pass
     return RedirectResponse(url=f"/clusters/{cluster_slug}", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -167,8 +201,27 @@ def update_backup_policy(
 
 
 @router.post("/clusters/{cluster_slug}/pbs/{pbs_id}/delete")
-def delete_pbs_connection(cluster_slug: str, pbs_id: int) -> RedirectResponse:
+def delete_pbs_connection(request: Request, cluster_slug: str, pbs_id: int) -> RedirectResponse:
+    pbs_name = str(pbs_id)
+    try:
+        cluster = db.get_cluster_by_slug(cluster_slug)
+        if cluster:
+            for conn in db.list_pbs_connections(cluster["id"]):
+                if conn["id"] == pbs_id:
+                    pbs_name = conn["name"]
+                    break
+    except Exception:
+        pass
     db.delete_pbs_connection(pbs_id)
+    try:
+        db.append_audit_event(
+            settings_actor(request),
+            "pbs.deleted",
+            cluster_slug,
+            f"pbs_name={pbs_name}",
+        )
+    except Exception:
+        pass
     return RedirectResponse(url="/settings", status_code=status.HTTP_303_SEE_OTHER)
 
 

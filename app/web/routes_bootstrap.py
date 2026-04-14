@@ -12,19 +12,29 @@ from app.models import BootstrapFinalize, BootstrapPayload, ClusterCreate
 from app.services.bootstrap import build_enrollment_bundle, slugify_cluster
 from app.services.pbs import test_pbs_connection
 from app.services.proxmox import test_proxmox_connection
+from app.web.common import settings_actor
 from app.web.sync import background_sync, sync_executor, syncing_clusters
 
 router = APIRouter()
 
 
 @router.post("/api/clusters", response_model=BootstrapPayload)
-def create_cluster(payload: ClusterCreate) -> BootstrapPayload:
+def create_cluster(request: Request, payload: ClusterCreate) -> BootstrapPayload:
     cluster_slug = slugify_cluster(payload.name)
     existing = db.get_cluster_by_slug(cluster_slug)
     if existing:
         raise HTTPException(status_code=409, detail="Cluster slug already exists")
     bundle = build_enrollment_bundle(cluster_slug)
     db.create_cluster(payload.name, cluster_slug, payload.api_url, bundle.enrollment_secret)
+    try:
+        db.append_audit_event(
+            settings_actor(request),
+            "cluster.created",
+            cluster_slug,
+            f"name={payload.name}, api_url={payload.api_url}",
+        )
+    except Exception:
+        pass
     return BootstrapPayload(
         cluster_slug=cluster_slug,
         server_url=bundle.server_url,
@@ -56,6 +66,26 @@ def finalize_bootstrap(payload: BootstrapFinalize) -> JSONResponse:
             sync_status = {"status": "started", "nodes": 0, "vms": 0}
         else:
             sync_status = {"status": "already_running", "nodes": 0, "vms": 0}
+    try:
+        node_count = 0
+        vm_count = 0
+        if cluster:
+            try:
+                node_count = len(db.list_nodes(cluster["id"]))
+            except Exception:
+                pass
+            try:
+                vm_count = len(db.vm_governance_rows(cluster["id"]))
+            except Exception:
+                pass
+        db.append_audit_event(
+            "bootstrap-agent",
+            "cluster.bootstrapped",
+            payload.cluster_slug,
+            f"node_count={node_count}, vm_count={vm_count}",
+        )
+    except Exception:
+        pass
     return JSONResponse(
         {
             "status": "ok",
@@ -83,6 +113,24 @@ def pbs_bootstrap_finalize(request: Request) -> JSONResponse:
         "fingerprint": params.get("fingerprint", ""),
     }
     db.upsert_pbs_connection(cluster["id"], payload)
+    try:
+        db.append_audit_event(
+            "bootstrap-agent",
+            "pbs.added",
+            cluster_slug,
+            f"pbs_name={payload['name']}, api_url={payload['api_url']}",
+        )
+    except Exception:
+        pass
+    try:
+        db.append_audit_event(
+            "bootstrap-agent",
+            "pbs.bootstrapped",
+            cluster_slug,
+            f"pbs_name={payload['name']}",
+        )
+    except Exception:
+        pass
     if cluster["api_user"] and cluster["token_id"] and cluster["token_secret"]:
         if cluster["id"] not in syncing_clusters:
             syncing_clusters.add(cluster["id"])
