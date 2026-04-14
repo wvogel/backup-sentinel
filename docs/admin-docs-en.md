@@ -24,6 +24,21 @@
 - A **Valkey / Redis** instance for OAuth2-Proxy session storage (can be shared)
 - Outbound HTTPS connectivity to the Proxmox PVE/PBS API endpoints
 
+### Proxmox Compatibility Matrix
+
+Backup Sentinel is tested against the following Proxmox versions:
+
+| Component                   | Tested versions   | Notes                                       |
+|-----------------------------|-------------------|---------------------------------------------|
+| Proxmox VE (PVE)            | 8.x, 9.x          | API v2 (`/api2/json`)                       |
+| Proxmox Backup Server (PBS) | 3.x, 4.x          | API v2                                      |
+
+Earlier versions may work but are not regularly tested. If you deploy Backup Sentinel against an older version, open an issue with your results.
+
+API tokens used by Backup Sentinel require:
+- On PVE: `Sys.Audit` on `/` and `VM.Audit` on `/vms` (read-only inventory) plus `Datastore.Audit` for backup storage discovery
+- On PBS: `Datastore.Audit` on the datastore(s) to be monitored
+
 ---
 
 ## Quick Start
@@ -255,6 +270,33 @@ services:
       - "traefik.http.routers.bsentinel.rule=Host(`backup-sentinel.example.com`)"
       - "traefik.http.routers.bsentinel.tls.certresolver=letsencrypt"
       - "traefik.http.services.bsentinel.loadbalancer.server.port=4180"
+```
+
+### Plain Nginx (manual)
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name backup-sentinel.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/backup-sentinel.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/backup-sentinel.example.com/privkey.pem;
+
+    # OAuth2-Proxy trusts these — must be set by the reverse proxy
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host  $host;
+
+    # Don't buffer long-running sync log streams
+    proxy_buffering off;
+    proxy_read_timeout 300s;
+
+    location / {
+        proxy_pass http://127.0.0.1:4180;
+    }
+}
 ```
 
 ### Important Headers

@@ -51,6 +51,25 @@ def append_settings_audit_entries(entries: list[dict[str, str]]) -> None:
         conn.commit()
 
 
+def append_audit_event(actor: str, event: str, target: str = "", details: str = "") -> None:
+    """Append a generic audit event (cluster/PBS/restore-test lifecycle).
+
+    Uses the same settings_audit_log table for simplicity. Events are
+    distinguished by their `key` starting with a namespace like
+    'cluster.', 'pbs.', or 'restore_test.' — whereas setting changes
+    use plain key names like 'notify_gotify_enabled'.
+    """
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO settings_audit_log (actor, key, old_value, new_value, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (actor, event, target, details, datetime.now(UTC)),
+        )
+        conn.commit()
+
+
 def list_settings_audit_entries(limit: int = 20) -> list[AuditLogRow]:
     with connect() as conn, conn.cursor() as cur:
         cur.execute(

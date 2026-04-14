@@ -25,7 +25,7 @@ def settings(request: Request) -> HTMLResponse:
         "clusters": clusters,
         "app_base_url": APP_BASE_URL.rstrip("/"),
         "app_settings": all_settings,
-        "settings_audit": db.list_settings_audit_entries(20),
+        "settings_audit": db.list_settings_audit_entries(50),
     }
     return templates.TemplateResponse("settings.html", common_context(request) | context)
 

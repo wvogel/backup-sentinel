@@ -24,6 +24,21 @@
 - Eine **Valkey-/Redis-Instanz** fuer OAuth2-Proxy-Session-Storage (kann geteilt werden)
 - Ausgehende HTTPS-Konnektivitaet zu den Proxmox-PVE/PBS-API-Endpunkten
 
+### Proxmox-Kompatibilitaet
+
+Backup Sentinel wird gegen folgende Proxmox-Versionen getestet:
+
+| Komponente                  | Getestete Versionen | Hinweise                                    |
+|-----------------------------|---------------------|---------------------------------------------|
+| Proxmox VE (PVE)            | 8.x, 9.x            | API v2 (`/api2/json`)                       |
+| Proxmox Backup Server (PBS) | 3.x, 4.x            | API v2                                      |
+
+Aeltere Versionen funktionieren moeglicherweise, werden aber nicht regelmaessig getestet. Falls Sie Backup Sentinel gegen eine aeltere Version einsetzen, oeffnen Sie gerne ein Issue mit Ihren Ergebnissen.
+
+API-Tokens benoetigen:
+- PVE: `Sys.Audit` auf `/` und `VM.Audit` auf `/vms` (Read-Only-Inventory) sowie `Datastore.Audit` fuer Backup-Storage-Erkennung
+- PBS: `Datastore.Audit` auf die zu ueberwachenden Datastores
+
 ---
 
 ## Schnellstart
@@ -255,6 +270,33 @@ services:
       - "traefik.http.routers.bsentinel.rule=Host(`backup-sentinel.example.com`)"
       - "traefik.http.routers.bsentinel.tls.certresolver=letsencrypt"
       - "traefik.http.services.bsentinel.loadbalancer.server.port=4180"
+```
+
+### Nginx (manuell)
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name backup-sentinel.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/backup-sentinel.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/backup-sentinel.example.com/privkey.pem;
+
+    # OAuth2-Proxy vertraut diesen Headern - muessen vom Reverse Proxy gesetzt werden
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host  $host;
+
+    # Sync-Log-Streams nicht puffern
+    proxy_buffering off;
+    proxy_read_timeout 300s;
+
+    location / {
+        proxy_pass http://127.0.0.1:4180;
+    }
+}
 ```
 
 ### Wichtige Header
