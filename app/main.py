@@ -52,6 +52,10 @@ async def lifespan(app: FastAPI):
     sync_task = asyncio.create_task(auto_sync_loop())
     yield
     sync_task.cancel()
+    try:
+        await sync_task
+    except asyncio.CancelledError:
+        pass
     sync_executor.shutdown(wait=True)
 
 
