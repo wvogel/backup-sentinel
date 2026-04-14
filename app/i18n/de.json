@@ -225,6 +225,7 @@
   "notifications.filter_all_channels": "Alle Kanäle",
   "notifications.filter_reset": "Filter zurücksetzen",
   "notifications.export_csv": "CSV exportieren",
+  "notifications.click_for_details": "Klicken für Details",
   "footer.imprint": "Impressum",
   "footer.privacy": "Datenschutzerklärung",
   "js.registered_success": "Erfolgreich registriert!",

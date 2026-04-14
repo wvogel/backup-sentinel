@@ -2200,6 +2200,44 @@ details[open] > .encryption-alert-summary::before {
   white-space: nowrap;
 }
 
+.notification-row {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.notification-row:hover {
+  background: var(--panel-alt);
+}
+.notification-row-expanded {
+  background: var(--panel-alt);
+}
+
+.notification-detail-row td {
+  padding: 12px 16px;
+  background: var(--panel-alt);
+  border-top: 0;
+}
+.notification-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.notification-detail-title {
+  color: var(--accent);
+  font-size: 0.95rem;
+}
+.notification-detail-message {
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
 .pagination {
   display: flex;
   align-items: center;

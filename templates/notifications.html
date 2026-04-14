@@ -44,12 +44,20 @@
       </thead>
       <tbody>
         {% for n in notifications %}
-        <tr>
+        <tr class="notification-row" data-notification-id="{{ n.id }}">
           <td>{{ n.created_at|datetime_local }}</td>
           <td><span class="badge notification-type-{{ n.notification_type }}">{{ t('notifications.type_' + n.notification_type) }}</span></td>
           <td>{{ n.cluster_name or '–' }}</td>
-          <td class="notification-message">{{ n.message }}</td>
+          <td class="notification-message" title="{{ t('notifications.click_for_details') }}">{{ n.message }}</td>
           <td><span class="pill pill-channel pill-{{ n.channel }}">{{ n.channel|capitalize }}</span></td>
+        </tr>
+        <tr class="notification-detail-row hidden" data-detail-for="{{ n.id }}">
+          <td colspan="5">
+            <div class="notification-detail">
+              <strong class="notification-detail-title">{{ n.title }}</strong>
+              <pre class="notification-detail-message">{{ n.message }}</pre>
+            </div>
+          </td>
         </tr>
         {% else %}
         <tr>
@@ -75,4 +83,15 @@
   </nav>
   {% endif %}
 </section>
+<script>
+  document.querySelectorAll('.notification-row').forEach(function(row) {
+    row.addEventListener('click', function() {
+      var id = row.dataset.notificationId;
+      var detail = document.querySelector('.notification-detail-row[data-detail-for="' + id + '"]');
+      if (!detail) return;
+      detail.classList.toggle('hidden');
+      row.classList.toggle('notification-row-expanded');
+    });
+  });
+</script>
 {% endblock %}
