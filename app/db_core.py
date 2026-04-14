@@ -205,6 +205,16 @@ def init_db() -> None:
             )
             cur.execute("CREATE INDEX IF NOT EXISTS idx_notification_log_created_at ON notification_log(created_at)")
 
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS notification_dedup (
+                    dedup_key TEXT PRIMARY KEY,
+                    sent_at TIMESTAMPTZ NOT NULL
+                );
+                """
+            )
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_notification_dedup_sent_at ON notification_dedup(sent_at)")
+
             cur.execute("UPDATE clusters SET api_url = RTRIM(api_url, '/') WHERE api_url LIKE '%/'")
             cur.execute("UPDATE pbs_connections SET api_url = RTRIM(api_url, '/') WHERE api_url LIKE '%/'")
         conn.commit()

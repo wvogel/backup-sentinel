@@ -6,6 +6,33 @@ from app.db_core import connect
 from app.types import NotificationLogRow
 
 
+def try_claim_dedup(dedup_key: str, ttl_seconds: int = 86400) -> bool:
+    """Atomically claim a dedup key. Returns True if the caller should send
+    the notification (key was not claimed in last ttl_seconds), False otherwise.
+    Uses INSERT...ON CONFLICT for atomicity across restarts and threads."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO notification_dedup (dedup_key, sent_at)
+            VALUES (%s, now())
+            ON CONFLICT (dedup_key) DO UPDATE
+              SET sent_at = EXCLUDED.sent_at
+              WHERE notification_dedup.sent_at < now() - make_interval(secs => %s)
+            RETURNING dedup_key
+            """,
+            (dedup_key, ttl_seconds),
+        )
+        row = cur.fetchone()
+        claimed = row is not None
+        if claimed:
+            cur.execute(
+                "DELETE FROM notification_dedup WHERE sent_at < now() - make_interval(secs => %s)",
+                (ttl_seconds * 7,),
+            )
+        conn.commit()
+        return claimed
+
+
 def insert_notification_log(
     notification_type: str,
     title: str,
