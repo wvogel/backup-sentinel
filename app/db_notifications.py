@@ -28,10 +28,10 @@ def insert_notification_log(
 def list_notification_logs(days: int = 30, limit: int = 50, offset: int = 0) -> tuple[list[NotificationLogRow], int]:
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT count(*) FROM notification_log WHERE created_at >= now() - make_interval(days => %s)",
+            "SELECT count(*) AS cnt FROM notification_log WHERE created_at >= now() - make_interval(days => %s)",
             (days,),
         )
-        total = cur.fetchone()[0]
+        total = cur.fetchone()["cnt"]
         cur.execute(
             """
             SELECT id, notification_type, title, message, cluster_name, channel, created_at
@@ -42,8 +42,7 @@ def list_notification_logs(days: int = 30, limit: int = 50, offset: int = 0) -> 
             """,
             (days, limit, offset),
         )
-        cols = [d[0] for d in cur.description]
-        rows = [NotificationLogRow(**dict(zip(cols, row))) for row in cur.fetchall()]
+        rows = [NotificationLogRow(**row) for row in cur.fetchall()]
         return rows, total
 
 
@@ -60,5 +59,4 @@ def list_notification_logs_for_period(
             """,
             (period_start, period_end),
         )
-        cols = [d[0] for d in cur.description]
-        return [NotificationLogRow(**dict(zip(cols, row))) for row in cur.fetchall()]
+        return [NotificationLogRow(**row) for row in cur.fetchall()]
