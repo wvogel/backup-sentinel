@@ -190,6 +190,20 @@ def init_db() -> None:
                 );
                 """
             )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS notification_log (
+                    id BIGSERIAL PRIMARY KEY,
+                    notification_type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    cluster_name TEXT,
+                    channel TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL
+                );
+                """
+            )
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_notification_log_created_at ON notification_log(created_at)")
 
             cur.execute("UPDATE clusters SET api_url = RTRIM(api_url, '/') WHERE api_url LIKE '%/'")
             cur.execute("UPDATE pbs_connections SET api_url = RTRIM(api_url, '/') WHERE api_url LIKE '%/'")

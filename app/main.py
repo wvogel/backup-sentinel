@@ -16,6 +16,7 @@ from app.i18n import SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE, set_language
 from app.web.routes_bootstrap import router as bootstrap_router
 from app.web.routes_clusters import router as clusters_router
 from app.web.routes_dashboard import router as dashboard_router
+from app.web.routes_notifications import router as notifications_router
 from app.web.routes_reports import router as reports_router
 from app.web.routes_settings import router as settings_router
 from app.web.sync import auto_sync_loop, sync_executor
@@ -52,6 +53,7 @@ app.include_router(dashboard_router)
 app.include_router(settings_router)
 app.include_router(clusters_router)
 app.include_router(reports_router)
+app.include_router(notifications_router)
 app.include_router(bootstrap_router)
 
 

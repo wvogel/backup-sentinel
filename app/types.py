@@ -104,3 +104,13 @@ class AuditLogRow(TypedDict):
 class SyncHealthRow(TypedDict):
     failures: int
     stale: bool
+
+
+class NotificationLogRow(TypedDict):
+    id: int
+    notification_type: str
+    title: str
+    message: str
+    cluster_name: str | None
+    channel: str
+    created_at: datetime

@@ -200,7 +200,14 @@ def auto_generate_monthly_report() -> None:
         timestamp_slug = report["generated_at"].strftime("%Y%m%d-%H%M%S")
         pdf_path = REPORT_DIR / f"backup-report-{month_slug}-{timestamp_slug}.pdf"
         json_path = REPORT_DIR / f"backup-report-{month_slug}-{timestamp_slug}.json"
-        write_backup_period_pdf(report, pdf_path)
+        try:
+            from app.db_notifications import list_notification_logs_for_period
+            period_start = datetime(last_month.year, last_month.month, 1, tzinfo=UTC)
+            period_end = first_of_current.astimezone(UTC)
+            notifs = list_notification_logs_for_period(period_start, period_end)
+        except Exception:
+            notifs = []
+        write_backup_period_pdf(report, pdf_path, notifications=notifs)
         json_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
         db.archive_monthly_report(last_month, "auto", pdf_path, json_path, report)
         logger.info("Auto-Report: PDF erstellt: %s", pdf_path)

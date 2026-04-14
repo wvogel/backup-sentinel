@@ -470,8 +470,78 @@ def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") ->
     return flowables
 
 
+# ── Notification section for NIS2 compliance ─────────────────────────────────
+
+_NOTIFICATION_TYPE_LABELS = {
+    "backup_critical": "Backup kritisch",
+    "size_anomaly": "Größenanomalie",
+    "sync_failed": "Sync fehlgeschlagen",
+    "sync_overdue": "Sync überfällig",
+    "restore_overdue": "Restore überfällig",
+    "unencrypted_backups": "Unverschlüsselt",
+}
+
+
+def _notifications_section(notifications: list[dict], st: dict) -> list:
+    """Build flowables for the notification log section in the PDF."""
+    flowables: list = [
+        PageBreak(),
+        Paragraph("Benachrichtigungsprotokoll", st["h1"]),
+        Paragraph(
+            f"{len(notifications)} Benachrichtigungen im Berichtszeitraum (NIST CSF Detect / NIS2 Art. 21)",
+            st["body"],
+        ),
+        Spacer(1, 3 * mm),
+    ]
+
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(DEFAULT_TIMEZONE)
+
+    header = [Paragraph(h, st["th"]) for h in ["Datum", "Typ", "Cluster", "Kanal", "Nachricht"]]
+    table_data = [header]
+    row_styles: list[tuple] = []
+
+    for i, n in enumerate(notifications):
+        row_idx = i + 1
+        created = n["created_at"]
+        if hasattr(created, "astimezone"):
+            created = created.astimezone(tz)
+        date_str = created.strftime("%d.%m.%Y %H:%M") if hasattr(created, "strftime") else str(created)
+        type_label = _NOTIFICATION_TYPE_LABELS.get(n.get("notification_type", ""), n.get("notification_type", ""))
+        cluster = n.get("cluster_name") or "–"
+        channel = (n.get("channel") or "").capitalize()
+        message = n.get("message", "")
+        if len(message) > 120:
+            message = message[:117] + "..."
+
+        table_data.append([
+            Paragraph(date_str, st["cell"]),
+            Paragraph(type_label, st["cell"]),
+            Paragraph(cluster, st["cell"]),
+            Paragraph(channel, st["cell"]),
+            Paragraph(message, st["cell"]),
+        ])
+        if row_idx % 2 == 0:
+            row_styles.append(("BACKGROUND", (0, row_idx), (-1, row_idx), C_ROW_ALT))
+
+    avail = PAGE_W - 2 * MARGIN
+    col_widths = [avail * 0.14, avail * 0.14, avail * 0.14, avail * 0.08, avail * 0.50]
+    t = Table(table_data, colWidths=col_widths, repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), C_HEADER),
+        ("TEXTCOLOR", (0, 0), (-1, 0), C_WHITE),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.4, C_LINE),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ] + row_styles))
+    flowables.append(t)
+    return flowables
+
+
 # ── Main entry point ─────────────────────────────────────────────────────────
-def write_backup_period_pdf(report: dict, target: Path) -> None:
+def write_backup_period_pdf(report: dict, target: Path, notifications: list[dict] | None = None) -> None:
     """Write a professional backup period report PDF."""
     target.parent.mkdir(parents=True, exist_ok=True)
 
@@ -516,6 +586,9 @@ def write_backup_period_pdf(report: dict, target: Path) -> None:
         story.append(Spacer(1, 4 * mm))
 
     story += _events_table(report["rows"], st)
+
+    if notifications:
+        story += _notifications_section(notifications, st)
 
     from app.config import APP_VERSION
     canvas_factory = _NumberedCanvas(generated_str, logo_normal_bytes, APP_VERSION)
