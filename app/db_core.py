@@ -226,6 +226,10 @@ def init_db() -> None:
             cur.execute("UPDATE pbs_connections SET api_url = RTRIM(api_url, '/') WHERE api_url LIKE '%/'")
         conn.commit()
 
+    # Apply any non-additive migrations registered in app.db_migrations
+    from app.db_migrations import run_migrations
+    run_migrations()
+
 
 def bootstrap_script() -> str:
     script_path = Path(__file__).resolve().parent.parent / "scripts" / "proxmox-bootstrap.sh"
