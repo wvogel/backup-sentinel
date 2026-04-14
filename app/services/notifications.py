@@ -14,7 +14,6 @@ import logging
 import smtplib
 import ssl
 import threading
-import time
 from datetime import datetime, timedelta
 from email.headerregistry import Address
 from email.message import EmailMessage
@@ -30,23 +29,19 @@ from app.services.crypto import decrypt
 logger = logging.getLogger(__name__)
 
 # ── Dedup: same alert at most once per 24h ────────────────────────────────
-_sent_alerts: dict[str, float] = {}   # key → unix timestamp (time.time)
+# Persisted in notification_dedup table so it survives restarts and is
+# atomic across threads/processes.
 _DEDUP_SECONDS = 86400  # 24 hours
 
 
 def _should_send(dedup_key: str) -> bool:
     """Return True if this alert hasn't been sent in the last 24h."""
-    now = time.time()
-    last = _sent_alerts.get(dedup_key)
-    if last is not None and (now - last) < _DEDUP_SECONDS:
-        return False
-    _sent_alerts[dedup_key] = now
-    # Housekeeping: purge old entries
-    cutoff = now - _DEDUP_SECONDS
-    stale = [k for k, v in _sent_alerts.items() if v < cutoff]
-    for k in stale:
-        del _sent_alerts[k]
-    return True
+    try:
+        from app.db_notifications import try_claim_dedup
+        return try_claim_dedup(dedup_key, _DEDUP_SECONDS)
+    except Exception as exc:
+        logger.warning("Dedup check failed (%s), allowing notification", exc)
+        return True
 
 
 # ── Enable/disable + quiet hours helpers ──────────────────────────────────
