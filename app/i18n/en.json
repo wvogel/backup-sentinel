@@ -137,6 +137,7 @@
   "settings.gotify_desc": "Alerts for failed syncs, critical backups and size anomalies.",
   "settings.server_url": "Server URL",
   "settings.app_token": "App token",
+  "settings.unchanged": "[unchanged]",
   "settings.test_connection": "Test connection",
   "settings.email_title": "Email (monthly reports & alerts)",
   "settings.email_desc": "On the first of each month, the report is generated automatically and sent to these recipients.",
