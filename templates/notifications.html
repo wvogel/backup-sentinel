@@ -7,6 +7,30 @@
       <p class="eyebrow">{{ t('notifications.eyebrow') }}</p>
     </div>
   </div>
+  <form method="get" class="notification-filters">
+    <select name="notification_type" onchange="this.form.submit()">
+      <option value="">{{ t('notifications.filter_all_types') }}</option>
+      {% for type in filter_types %}
+      <option value="{{ type }}" {% if active_filters.notification_type == type %}selected{% endif %}>{{ t('notifications.type_' + type) }}</option>
+      {% endfor %}
+    </select>
+    <select name="cluster_name" onchange="this.form.submit()">
+      <option value="">{{ t('notifications.filter_all_clusters') }}</option>
+      {% for cluster in filter_clusters %}
+      <option value="{{ cluster }}" {% if active_filters.cluster_name == cluster %}selected{% endif %}>{{ cluster }}</option>
+      {% endfor %}
+    </select>
+    <select name="channel" onchange="this.form.submit()">
+      <option value="">{{ t('notifications.filter_all_channels') }}</option>
+      {% for ch in filter_channels %}
+      <option value="{{ ch }}" {% if active_filters.channel == ch %}selected{% endif %}>{{ ch|capitalize }}</option>
+      {% endfor %}
+    </select>
+    {% if active_filters %}
+    <a href="/notifications" class="button-secondary filter-reset">{{ t('notifications.filter_reset') }}</a>
+    {% endif %}
+    <a href="/notifications.csv{% if filter_query_string %}?{{ filter_query_string }}{% endif %}" class="button-secondary csv-export">{{ t('notifications.export_csv') }}</a>
+  </form>
   <div class="table-scroll">
     <table>
       <thead>
@@ -38,13 +62,13 @@
   {% if total_pages > 1 %}
   <nav class="pagination" aria-label="Pagination">
     {% if has_prev %}
-    <a href="/notifications?page={{ page - 1 }}" class="pagination-link">{{ t('notifications.page_prev') }}</a>
+    <a href="/notifications?page={{ page - 1 }}{% if filter_query_string %}&{{ filter_query_string }}{% endif %}" class="pagination-link">{{ t('notifications.page_prev') }}</a>
     {% else %}
     <span class="pagination-link disabled">{{ t('notifications.page_prev') }}</span>
     {% endif %}
     <span class="pagination-info">{{ page }} / {{ total_pages }}</span>
     {% if has_next %}
-    <a href="/notifications?page={{ page + 1 }}" class="pagination-link">{{ t('notifications.page_next') }}</a>
+    <a href="/notifications?page={{ page + 1 }}{% if filter_query_string %}&{{ filter_query_string }}{% endif %}" class="pagination-link">{{ t('notifications.page_next') }}</a>
     {% else %}
     <span class="pagination-link disabled">{{ t('notifications.page_next') }}</span>
     {% endif %}
