@@ -228,6 +228,7 @@ def init_db() -> None:
 
     # Apply any non-additive migrations registered in app.db_migrations
     from app.db_migrations import run_migrations
+
     run_migrations()
 
 

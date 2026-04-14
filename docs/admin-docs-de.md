@@ -104,6 +104,7 @@ Ihr Reverse Proxy sollte den Traffic an den OAuth2-Proxy-Container auf Port **41
 | `COPYRIGHT_TEXT` | *(leer)* | Copyright-Text in der Fusszeile (z.B. `© 2026 Ihre Firma`). |
 | `BSENTINEL_DATA_DIR` | `/data` | Pfad fuer persistente Anwendungsdaten. |
 | `BSENTINEL_REPORT_DIR` | `/reports` | Pfad fuer generierte PDF/JSON-Berichte. |
+| `BSENTINEL_REPORT_LANGUAGE` | `de` | Sprache fuer generierte PDF-Berichte (`de` oder `en`). Andere Werte fallen auf `de` zurueck. |
 
 ### OAuth2-Proxy (`oauth2-proxy.env`)
 

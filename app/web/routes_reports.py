@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from starlette import status
 
 from app import db
-from app.config import REPORT_DIR
+from app.config import REPORT_DIR, REPORT_LANGUAGE
 from app.services.pdf_reports import write_backup_period_pdf
 from app.services.reporting import build_backup_period_report, build_month_comparison, serialize_report_payload
 from app.web.common import common_context, templates
@@ -88,7 +88,7 @@ async def generate_report() -> RedirectResponse:
             )
         except Exception:
             notifs = []
-        write_backup_period_pdf(report, pdf_path, notifications=notifs)
+        write_backup_period_pdf(report, pdf_path, notifications=notifs, lang=REPORT_LANGUAGE)
         json_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
         db.archive_monthly_report(month_date, "adhoc", pdf_path, json_path, report)
 
