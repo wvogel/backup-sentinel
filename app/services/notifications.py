@@ -278,8 +278,13 @@ def notify_sync_failed(cluster_name: str, detail: str) -> None:
     )
 
 
-def notify_sync_overdue(cluster_name: str, failure_started_at: object) -> None:
-    started = str(failure_started_at)
+def notify_sync_overdue(cluster_name: str, failure_started_at: datetime | None) -> None:
+    if failure_started_at is None:
+        started = "unbekannt"
+    elif isinstance(failure_started_at, datetime):
+        started = failure_started_at.strftime("%d.%m.%Y %H:%M")
+    else:
+        started = str(failure_started_at)
     title = f"Cluster-Sync seit 24h fehlgeschlagen: {cluster_name}"
     message = (
         f"Cluster: {cluster_name}\n"
