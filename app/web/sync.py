@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from app import db
-from app.config import DEFAULT_TIMEZONE, REPORT_DIR, SYNC_INTERVAL_MINUTES
+from app.config import DEFAULT_TIMEZONE, REPORT_DIR, REPORT_LANGUAGE, SYNC_INTERVAL_MINUTES
 from app.services.notifications import (
     notify_backup_critical,
     notify_size_anomaly,
@@ -217,7 +217,7 @@ def auto_generate_monthly_report() -> None:
             notifs = list_notification_logs_for_period(period_start, period_end)
         except Exception:
             notifs = []
-        write_backup_period_pdf(report, pdf_path, notifications=notifs)
+        write_backup_period_pdf(report, pdf_path, notifications=notifs, lang=REPORT_LANGUAGE)
         json_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
         db.archive_monthly_report(last_month, "auto", pdf_path, json_path, report)
         logger.info("Auto-Report: PDF erstellt: %s", pdf_path)

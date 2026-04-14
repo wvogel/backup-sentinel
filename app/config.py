@@ -28,4 +28,10 @@ DEBUG = os.getenv("BSENTINEL_DEBUG", "").lower() in ("1", "true", "yes", "on")
 # BSENTINEL_SECRET_KEY: Fernet-Key für verschlüsselte Secrets in der DB.
 # Generieren mit: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 SECRET_KEY = os.getenv("BSENTINEL_SECRET_KEY", "")
+
+# PDF report language (de / en). Falls back to "de" for any other value.
+REPORT_LANGUAGE = os.getenv("BSENTINEL_REPORT_LANGUAGE", "de").lower()
+if REPORT_LANGUAGE not in ("de", "en"):
+    REPORT_LANGUAGE = "de"
+
 CACHE_BUSTER = str(int(time.time()))

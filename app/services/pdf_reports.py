@@ -45,6 +45,134 @@ PAGE_W, PAGE_H = A4
 MARGIN = 18 * mm
 
 
+# ── Label dictionaries (minimal i18n for PDF reports) ────────────────────────
+# The rest of the app uses app.i18n; PDF reports intentionally use this small
+# self-contained dict so the PDF generator stays independent of the web layer.
+_PDF_LABELS_DE: dict[str, str] = {
+    "backup_report": "Backup-Report",
+    "period": "Zeitraum",
+    "vms": "VMs",
+    "events": "Ereignisse",
+    "successful": "Erfolgreich",
+    "errors": "Fehler",
+    "compare_prev_month": "Vergleich zum Vormonat",
+    "new": "neu",
+    "current": "Aktuell",
+    "prev_month": "Vormonat",
+    "change": "Veränderung",
+    "cluster_prefix": "Cluster: ",
+    "deleted": "gelöscht",
+    "deleted_status": "Gelöscht",
+    "yes": "Ja",
+    "no": "Nein",
+    "ok": "OK",
+    "error": "Fehler",
+    "date": "Datum",
+    "size": "Größe",
+    "encrypted": "Verschlüsselt",
+    "encrypted_short": "Encrypted",
+    "verified": "Verifiziert",
+    "verify_short": "Verify",
+    "status": "Status",
+    "node": "Node",
+    "vm": "VM",
+    "created_at": "Erstellt:",
+    "page_of": "Seite {n} von {total}",
+    "footer_brand": "Backup Sentinel {version}",
+    "header_banner_label": "BACKUP REPORT",
+    "notifications_title": "Benachrichtigungsprotokoll",
+    "notifications_subtitle": "{count} Benachrichtigungen im Berichtszeitraum (NIST CSF Detect / NIS2 Art. 21)",
+    "notif_col_date": "Datum",
+    "notif_col_type": "Typ",
+    "notif_col_cluster": "Cluster",
+    "notif_col_channel": "Kanal",
+    "notif_col_message": "Nachricht",
+    "notif_type_backup_critical": "Backup kritisch",
+    "notif_type_size_anomaly": "Größenanomalie",
+    "notif_type_sync_failed": "Sync fehlgeschlagen",
+    "notif_type_sync_overdue": "Sync überfällig",
+    "notif_type_restore_overdue": "Restore überfällig",
+    "notif_type_unencrypted_backups": "Unverschlüsselt",
+    # Date/time formatting strings (German style: day.month.year)
+    "fmt_datetime": "%d.%m.%Y %H:%M",
+}
+
+_PDF_LABELS_EN: dict[str, str] = {
+    "backup_report": "Backup Report",
+    "period": "Period",
+    "vms": "VMs",
+    "events": "Events",
+    "successful": "Successful",
+    "errors": "Errors",
+    "compare_prev_month": "Comparison to previous month",
+    "new": "new",
+    "current": "Current",
+    "prev_month": "Previous month",
+    "change": "Change",
+    "cluster_prefix": "Cluster: ",
+    "deleted": "deleted",
+    "deleted_status": "Deleted",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "error": "Error",
+    "date": "Date",
+    "size": "Size",
+    "encrypted": "Encrypted",
+    "encrypted_short": "Encrypted",
+    "verified": "Verified",
+    "verify_short": "Verify",
+    "status": "Status",
+    "node": "Node",
+    "vm": "VM",
+    "created_at": "Generated:",
+    "page_of": "Page {n} of {total}",
+    "footer_brand": "Backup Sentinel {version}",
+    "header_banner_label": "BACKUP REPORT",
+    "notifications_title": "Notification log",
+    "notifications_subtitle": "{count} notifications in the reporting period (NIST CSF Detect / NIS2 Art. 21)",
+    "notif_col_date": "Date",
+    "notif_col_type": "Type",
+    "notif_col_cluster": "Cluster",
+    "notif_col_channel": "Channel",
+    "notif_col_message": "Message",
+    "notif_type_backup_critical": "Backup critical",
+    "notif_type_size_anomaly": "Size anomaly",
+    "notif_type_sync_failed": "Sync failed",
+    "notif_type_sync_overdue": "Sync overdue",
+    "notif_type_restore_overdue": "Restore overdue",
+    "notif_type_unencrypted_backups": "Unencrypted",
+    # ISO-ish date style for English reports
+    "fmt_datetime": "%Y-%m-%d %H:%M",
+}
+
+
+def _labels(lang: str) -> dict[str, str]:
+    """Return the PDF label dict for the requested language (fallback: DE)."""
+    if (lang or "").lower() == "en":
+        return _PDF_LABELS_EN
+    return _PDF_LABELS_DE
+
+
+# Backward-compat: older callers and tests import this module-level dict.
+# It mirrors the German labels for the notification types. For multi-language
+# output use the per-language lookup via _labels(lang).
+_NOTIFICATION_TYPE_LABELS = {
+    "backup_critical": _PDF_LABELS_DE["notif_type_backup_critical"],
+    "size_anomaly": _PDF_LABELS_DE["notif_type_size_anomaly"],
+    "sync_failed": _PDF_LABELS_DE["notif_type_sync_failed"],
+    "sync_overdue": _PDF_LABELS_DE["notif_type_sync_overdue"],
+    "restore_overdue": _PDF_LABELS_DE["notif_type_restore_overdue"],
+    "unencrypted_backups": _PDF_LABELS_DE["notif_type_unencrypted_backups"],
+}
+
+
+def _notif_type_label(L: dict[str, str], notification_type: str) -> str:
+    """Look up a localized label for a notification type, or echo the raw key."""
+    key = f"notif_type_{notification_type}"
+    return L.get(key, notification_type)
+
+
 # ── Logo fetch ───────────────────────────────────────────────────────────────
 def _fetch_logo(url: str):
     """Fetch logo from URL. Returns bytes (PNG/JPEG) or Drawing (SVG) or None."""
@@ -97,11 +225,12 @@ def _draw_logo_on_canvas(canvas, logo, x, y, target_h) -> bool:
 
 
 class HeaderBanner(Flowable):
-    def __init__(self, title: str, subtitle: str, logo=None):
+    def __init__(self, title: str, subtitle: str, logo=None, banner_label: str = "BACKUP REPORT"):
         super().__init__()
         self._title = title
         self._subtitle = subtitle
         self._logo = logo
+        self._banner_label = banner_label
         self._h = 24 * mm
 
     def wrap(self, aW, aH):
@@ -128,20 +257,27 @@ class HeaderBanner(Flowable):
         # Subtitle right-aligned
         c.setFillColor(colors.HexColor("#93c5fd"))
         c.setFont("Helvetica", 8)
-        c.drawRightString(w - 6 * mm, h / 2 + 4, "BACKUP REPORT")
+        c.drawRightString(w - 6 * mm, h / 2 + 4, self._banner_label)
         c.setFillColor(C_WHITE)
         c.setFont("Helvetica-Bold", 9)
         c.drawRightString(w - 6 * mm, h / 2 - 7, self._subtitle)
 
 
-# ── Numbered canvas for "Seite x von y" ──────────────────────────────────────
+# ── Numbered canvas for page numbering ───────────────────────────────────────
 class _NumberedCanvas:
     """Mixin-style wrapper: collects page count, draws footer + header logo."""
 
-    def __init__(self, generated_at: str, logo_normal_bytes: bytes | None, build_version: str = ""):
+    def __init__(
+        self,
+        generated_at: str,
+        logo_normal_bytes: bytes | None,
+        build_version: str = "",
+        labels: dict[str, str] | None = None,
+    ):
         self._generated_at = generated_at
         self._logo_normal = logo_normal_bytes
         self._build_version = build_version
+        self._labels = labels or _PDF_LABELS_DE
 
     def __call__(self, filename, **kwargs):
         from reportlab.pdfgen.canvas import Canvas
@@ -155,6 +291,7 @@ class _NumberedCanvas:
                 self._gen_at = outer._generated_at
                 self._logo_normal = outer._logo_normal
                 self._build_version = outer._build_version
+                self._labels = outer._labels
 
             def showPage(self):
                 self._saved_pages.append(dict(self.__dict__))
@@ -177,9 +314,10 @@ class _NumberedCanvas:
                 self.line(MARGIN, y + 5 * mm, PAGE_W - MARGIN, y + 5 * mm)
                 self.setFont("Helvetica", 7.5)
                 self.setFillColor(C_MUTED)
-                self.drawString(MARGIN, y, f"Backup Sentinel {self._build_version}")
-                self.drawCentredString(PAGE_W / 2, y, f"Seite {page_num} von {total}")
-                self.drawRightString(PAGE_W - MARGIN, y, f"Erstellt: {self._gen_at}")
+                L = self._labels
+                self.drawString(MARGIN, y, L["footer_brand"].format(version=self._build_version))
+                self.drawCentredString(PAGE_W / 2, y, L["page_of"].format(n=page_num, total=total))
+                self.drawRightString(PAGE_W - MARGIN, y, f"{L['created_at']} {self._gen_at}")
 
                 # Normal logo top-right on pages 2+ (page 1 has the banner)
                 if page_num > 1 and self._logo_normal:
@@ -248,20 +386,23 @@ def _styles() -> dict:
     }
 
 
-# ── Number formatting (German 1.000er Punkte) ────────────────────────────────
-def _fmt_num(n: int | float) -> str:
-    """Format number with German thousand separators (dots)."""
+# ── Number formatting ────────────────────────────────────────────────────────
+def _fmt_num(n: int | float, lang: str = "de") -> str:
+    """Format integer with thousand separators.
+    DE uses '.', EN uses ','. Kept backward-compatible: default is DE."""
+    if (lang or "").lower() == "en":
+        return f"{int(n):,}"
     return f"{int(n):,}".replace(",", ".")
 
 
 # ── Summary table ─────────────────────────────────────────────────────────────
-def _summary_table(totals: dict, st: dict) -> Table:
+def _summary_table(totals: dict, st: dict, L: dict[str, str], lang: str) -> Table:
     data = [
         [
-            _stat_cell("VMs", _fmt_num(totals["vms"]), st),
-            _stat_cell("Ereignisse", _fmt_num(totals["events"]), st),
-            _stat_cell("Erfolgreich", _fmt_num(totals["ok"]), st, color=C_OK),
-            _stat_cell("Fehler", _fmt_num(totals["failed"]), st, color=C_FAIL),
+            _stat_cell(L["vms"], _fmt_num(totals["vms"], lang), st),
+            _stat_cell(L["events"], _fmt_num(totals["events"], lang), st),
+            _stat_cell(L["successful"], _fmt_num(totals["ok"], lang), st, color=C_OK),
+            _stat_cell(L["errors"], _fmt_num(totals["failed"], lang), st, color=C_FAIL),
         ]
     ]
     col_w = (PAGE_W - 2 * MARGIN) / 4
@@ -292,14 +433,14 @@ def _stat_cell(label: str, value: str, st: dict, color=None) -> list:
 
 
 # ── Month comparison section ──────────────────────────────────────────────────
-def _comparison_section(comparison: dict, st: dict) -> list:
+def _comparison_section(comparison: dict, st: dict, L: dict[str, str], lang: str) -> list:
     """Build flowables for month-over-month comparison."""
     flowables = []
-    flowables.append(Paragraph("Vergleich zum Vormonat", st["h2"]))
+    flowables.append(Paragraph(L["compare_prev_month"], st["h2"]))
 
     def _delta_str(pct: float | None) -> str:
         if pct is None:
-            return "neu"
+            return L["new"]
         sign = "+" if pct > 0 else ""
         return f"{sign}{pct:.1f}%"
 
@@ -318,17 +459,17 @@ def _comparison_section(comparison: dict, st: dict) -> list:
 
     header = [
         Paragraph("", st["th"]),
-        Paragraph("Aktuell", st["th"]),
-        Paragraph("Vormonat", st["th"]),
-        Paragraph("Veränderung", st["th"]),
+        Paragraph(L["current"], st["th"]),
+        Paragraph(L["prev_month"], st["th"]),
+        Paragraph(L["change"], st["th"]),
     ]
     rows_data = [header]
 
     metrics = [
-        ("Ereignisse", cur["total"], prev["total"], comparison["delta_total_pct"], False),
-        ("Erfolgreich", cur["ok"], prev["ok"], comparison["delta_ok_pct"], False),
-        ("Fehler", cur["failed"], prev["failed"], comparison["delta_failed_pct"], True),
-        ("VMs", cur["vms"], prev["vms"], None, False),
+        (L["events"], cur["total"], prev["total"], comparison["delta_total_pct"], False),
+        (L["successful"], cur["ok"], prev["ok"], comparison["delta_ok_pct"], False),
+        (L["errors"], cur["failed"], prev["failed"], comparison["delta_failed_pct"], True),
+        (L["vms"], cur["vms"], prev["vms"], None, False),
     ]
 
     for label, cur_val, prev_val, delta_pct, invert in metrics:
@@ -336,15 +477,15 @@ def _comparison_section(comparison: dict, st: dict) -> list:
             _delta_str(delta_pct)
             if delta_pct is not None
             else (f"+{comparison['delta_vms']}" if comparison["delta_vms"] > 0 else str(comparison["delta_vms"]))
-            if label == "VMs"
+            if label == L["vms"]
             else "–"
         )
         dc = _delta_color(delta_pct, invert) if delta_pct is not None else C_MUTED
         rows_data.append(
             [
                 Paragraph(f"<b>{label}</b>", td),
-                Paragraph(_fmt_num(cur_val), td_r),
-                Paragraph(_fmt_num(prev_val), td_r),
+                Paragraph(_fmt_num(cur_val, lang), td_r),
+                Paragraph(_fmt_num(prev_val, lang), td_r),
                 Paragraph(f"<font color='{dc.hexval()}'>{delta_text}</font>", td_r),
             ]
         )
@@ -371,15 +512,22 @@ def _comparison_section(comparison: dict, st: dict) -> list:
 
 
 # ── Backup events table ───────────────────────────────────────────────────────
-_TH_COLS = ["VM", "Node", "Datum", "Größe", "Encrypted", "Verify", "Status"]
 _COL_W = [36 * mm, 24 * mm, 26 * mm, 22 * mm, 20 * mm, 18 * mm, 24 * mm]  # total ≈ 170mm usable
 
 
-def _fmt_bytes(value: object) -> str:
+def _fmt_bytes(value: object, lang: str = "de") -> str:
     try:
         v = int(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return "–"
+    # Thousands separator depends on language; decimal stays '.'
+    if (lang or "").lower() == "en":
+        if v >= 1_073_741_824:
+            return f"{v / 1_073_741_824:,.1f} GB"
+        if v >= 1_048_576:
+            return f"{v / 1_048_576:,.0f} MB"
+        return f"{v / 1024:,.0f} KB"
+    # German: swap thousand sep to '.' (kept as in the original implementation)
     if v >= 1_073_741_824:
         return f"{v / 1_073_741_824:,.1f} GB".replace(",", ".")
     if v >= 1_048_576:
@@ -387,11 +535,12 @@ def _fmt_bytes(value: object) -> str:
     return f"{v / 1024:,.0f} KB".replace(",", ".")
 
 
-def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") -> list:
+def _events_table(rows: list[dict], st: dict, L: dict[str, str], lang: str, tz_name: str = "Europe/Berlin") -> list:
     """Return a list of flowables: per-cluster chapter with header + table."""
     from zoneinfo import ZoneInfo
 
     tz = ZoneInfo(tz_name)
+    dt_fmt = L["fmt_datetime"]
 
     def fmt_dt(dt, fmt: str) -> str:
         if dt is None:
@@ -399,6 +548,16 @@ def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") ->
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=UTC)
         return dt.astimezone(tz).strftime(fmt)
+
+    th_cols = [
+        L["vm"],
+        L["node"],
+        L["date"],
+        L["size"],
+        L["encrypted_short"],
+        L["verify_short"],
+        L["status"],
+    ]
 
     flowables = []
     clusters: dict[str, list] = {}
@@ -413,7 +572,7 @@ def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") ->
         first_cluster = False
 
         # Cluster chapter headline
-        flowables.append(Paragraph(f"Cluster: {cluster_name}", st["h1"]))
+        flowables.append(Paragraph(f"{L['cluster_prefix']}{cluster_name}", st["h1"]))
         # Cluster-level summary line
         cluster_vms = len(vm_rows)
         cluster_events = sum(r["event_count"] for r in vm_rows)
@@ -422,16 +581,16 @@ def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") ->
         cluster_deleted = sum(r.get("deleted_count", 0) for r in vm_rows)
         flowables.append(
             Paragraph(
-                f"{_fmt_num(cluster_vms)} VMs  ·  {_fmt_num(cluster_events)} Ereignisse  ·  "
-                f"<font color='#059669'>{_fmt_num(cluster_ok)} OK</font>  ·  "
-                f"<font color='#b22c3a'>{_fmt_num(cluster_fail)} Fehler</font>"
-                + (f"  ·  {_fmt_num(cluster_deleted)} gelöscht" if cluster_deleted else ""),
+                f"{_fmt_num(cluster_vms, lang)} {L['vms']}  ·  {_fmt_num(cluster_events, lang)} {L['events']}  ·  "
+                f"<font color='#059669'>{_fmt_num(cluster_ok, lang)} {L['ok']}</font>  ·  "
+                f"<font color='#b22c3a'>{_fmt_num(cluster_fail, lang)} {L['errors']}</font>"
+                + (f"  ·  {_fmt_num(cluster_deleted, lang)} {L['deleted']}" if cluster_deleted else ""),
                 st["body"],
             )
         )
         flowables.append(HRFlowable(width="100%", thickness=0.8, color=C_ACCENT, spaceAfter=3 * mm))
 
-        header = [Paragraph(h, st["th"]) for h in _TH_COLS]
+        header = [Paragraph(h, st["th"]) for h in th_cols]
         table_data = [header]
         row_styles: list[tuple] = []
         data_row_idx = 1
@@ -445,22 +604,22 @@ def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") ->
                 is_ok = status_for_report == "ok"
                 is_deleted = status_for_report == "deleted"
                 status_para = Paragraph(
-                    "Gelöscht" if is_deleted else ("OK" if is_ok else "Fehler"),
+                    L["deleted_status"] if is_deleted else (L["ok"] if is_ok else L["error"]),
                     st["muted"] if is_deleted else (st["ok"] if is_ok else st["fail"]),
                 )
 
                 enc = evt.get("encrypted")
-                enc_str = "Ja" if enc is True else ("Nein" if enc is False else "–")
+                enc_str = L["yes"] if enc is True else (L["no"] if enc is False else "–")
 
                 vs = evt.get("verify_state")
-                verify_str = "OK" if vs == "ok" else ("Fehler" if vs == "failed" else "–")
+                verify_str = L["ok"] if vs == "ok" else (L["error"] if vs == "failed" else "–")
                 verify_style = st["ok"] if vs == "ok" else (st["fail"] if vs == "failed" else st["td"])
 
                 row = [
                     Paragraph(vm_name if first else "", st["td"]),
                     Paragraph(node_name if first else "", st["td"]),
-                    Paragraph(fmt_dt(evt["started_at"], "%d.%m.%Y %H:%M"), st["td"]),
-                    Paragraph(_fmt_bytes(evt.get("size_bytes")), st["td"]),
+                    Paragraph(fmt_dt(evt["started_at"], dt_fmt), st["td"]),
+                    Paragraph(_fmt_bytes(evt.get("size_bytes"), lang), st["td"]),
                     Paragraph(enc_str, st["td"]),
                     Paragraph(verify_str, verify_style),
                     status_para,
@@ -484,8 +643,8 @@ def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") ->
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [C_WHITE, C_ROW_ALT]),
             ("GRID", (0, 0), (-1, -1), 0.3, C_LINE),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("ALIGN", (2, 0), (2, -1), "CENTER"),  # Datum centred
-            ("ALIGN", (3, 0), (3, -1), "RIGHT"),  # Größe right
+            ("ALIGN", (2, 0), (2, -1), "CENTER"),  # date centred
+            ("ALIGN", (3, 0), (3, -1), "RIGHT"),  # size right
             ("ALIGN", (4, 0), (5, -1), "CENTER"),  # Enc/Verify centred
             ("TOPPADDING", (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
@@ -500,23 +659,15 @@ def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") ->
 
 # ── Notification section for NIS2 compliance ─────────────────────────────────
 
-_NOTIFICATION_TYPE_LABELS = {
-    "backup_critical": "Backup kritisch",
-    "size_anomaly": "Größenanomalie",
-    "sync_failed": "Sync fehlgeschlagen",
-    "sync_overdue": "Sync überfällig",
-    "restore_overdue": "Restore überfällig",
-    "unencrypted_backups": "Unverschlüsselt",
-}
 
-
-def _notifications_section(notifications: list[dict], st: dict) -> list:
+def _notifications_section(notifications: list[dict], st: dict, lang: str = "de") -> list:
     """Build flowables for the notification log section in the PDF."""
+    L = _labels(lang)
     flowables: list = [
         PageBreak(),
-        Paragraph("Benachrichtigungsprotokoll", st["h1"]),
+        Paragraph(L["notifications_title"], st["h1"]),
         Paragraph(
-            f"{len(notifications)} Benachrichtigungen im Berichtszeitraum (NIST CSF Detect / NIS2 Art. 21)",
+            L["notifications_subtitle"].format(count=len(notifications)),
             st["body"],
         ),
         Spacer(1, 3 * mm),
@@ -525,18 +676,33 @@ def _notifications_section(notifications: list[dict], st: dict) -> list:
     from zoneinfo import ZoneInfo
 
     tz = ZoneInfo(DEFAULT_TIMEZONE)
+    dt_fmt = L["fmt_datetime"]
 
-    header = [Paragraph(h, st["th"]) for h in ["Datum", "Typ", "Cluster", "Kanal", "Nachricht"]]
+    header = [
+        Paragraph(h, st["th"])
+        for h in [
+            L["notif_col_date"],
+            L["notif_col_type"],
+            L["notif_col_cluster"],
+            L["notif_col_channel"],
+            L["notif_col_message"],
+        ]
+    ]
     table_data = [header]
     row_styles: list[tuple] = []
+
+    # The styles dict supplied by write_backup_period_pdf does not provide a
+    # "cell" key, but some callers/tests inject one. Prefer "cell" if present,
+    # else fall back to the standard "td" style.
+    cell_style = st.get("cell") or st["td"]
 
     for i, n in enumerate(notifications):
         row_idx = i + 1
         created = n["created_at"]
         if hasattr(created, "astimezone"):
             created = created.astimezone(tz)
-        date_str = created.strftime("%d.%m.%Y %H:%M") if hasattr(created, "strftime") else str(created)
-        type_label = _NOTIFICATION_TYPE_LABELS.get(n.get("notification_type", ""), n.get("notification_type", ""))
+        date_str = created.strftime(dt_fmt) if hasattr(created, "strftime") else str(created)
+        type_label = _notif_type_label(L, n.get("notification_type", ""))
         cluster = n.get("cluster_name") or "–"
         channel = (n.get("channel") or "").capitalize()
         message = n.get("message", "")
@@ -545,11 +711,11 @@ def _notifications_section(notifications: list[dict], st: dict) -> list:
 
         table_data.append(
             [
-                Paragraph(date_str, st["cell"]),
-                Paragraph(type_label, st["cell"]),
-                Paragraph(cluster, st["cell"]),
-                Paragraph(channel, st["cell"]),
-                Paragraph(message, st["cell"]),
+                Paragraph(date_str, cell_style),
+                Paragraph(type_label, cell_style),
+                Paragraph(cluster, cell_style),
+                Paragraph(channel, cell_style),
+                Paragraph(message, cell_style),
             ]
         )
         if row_idx % 2 == 0:
@@ -577,13 +743,23 @@ def _notifications_section(notifications: list[dict], st: dict) -> list:
 
 
 # ── Main entry point ─────────────────────────────────────────────────────────
-def write_backup_period_pdf(report: dict, target: Path, notifications: list[dict] | None = None) -> None:
-    """Write a professional backup period report PDF."""
+def write_backup_period_pdf(
+    report: dict,
+    target: Path,
+    notifications: list[dict] | None = None,
+    lang: str = "de",
+) -> None:
+    """Write a professional backup period report PDF.
+
+    lang: "de" (default) or "en" — selects the label dictionary used
+    throughout the report. Anything other than "en" falls back to German.
+    """
     target.parent.mkdir(parents=True, exist_ok=True)
 
     from zoneinfo import ZoneInfo
 
     tz = ZoneInfo(DEFAULT_TIMEZONE)
+    L = _labels(lang)
 
     # Logo invers (white on dark) for the header banner on page 1
     logo_invers_bytes = _fetch_logo(BRAND_LOGO_LIGHT_URL)
@@ -592,7 +768,7 @@ def write_backup_period_pdf(report: dict, target: Path, notifications: list[dict
 
     st = _styles()
     gen_local = report["generated_at"].astimezone(tz)
-    generated_str = gen_local.strftime("%d.%m.%Y %H:%M")
+    generated_str = gen_local.strftime(L["fmt_datetime"])
 
     doc = SimpleDocTemplate(
         str(target),
@@ -601,35 +777,36 @@ def write_backup_period_pdf(report: dict, target: Path, notifications: list[dict
         rightMargin=MARGIN,
         topMargin=MARGIN + 4 * mm,  # small extra space for page header logo
         bottomMargin=22 * mm,
-        title=f"Backup Sentinel – Report {report['period_label']}",
+        # "Backup Sentinel" is the product name — intentionally not translated.
+        title=f"Backup Sentinel – {L['backup_report']} {report['period_label']}",
         author="Backup Sentinel",
     )
 
-    company = "Backup Sentinel"
+    company = "Backup Sentinel"  # proper noun, intentionally kept
     story = [
-        HeaderBanner(company, report["period_label"], logo_invers_bytes),
+        HeaderBanner(company, report["period_label"], logo_invers_bytes, banner_label=L["header_banner_label"]),
         Spacer(1, 6 * mm),
-        Paragraph("Backup-Report", st["h1"]),
-        Paragraph(f"Zeitraum: {report['period_label']}", st["body"]),
+        Paragraph(L["backup_report"], st["h1"]),
+        Paragraph(f"{L['period']}: {report['period_label']}", st["body"]),
         Spacer(1, 4 * mm),
-        _summary_table(report["totals"], st),
+        _summary_table(report["totals"], st, L, lang),
         Spacer(1, 4 * mm),
     ]
 
     # Feature 8: Month-over-month comparison
     comparison = report.get("comparison")
     if comparison and comparison.get("has_previous"):
-        story += _comparison_section(comparison, st)
+        story += _comparison_section(comparison, st, L, lang)
         story.append(Spacer(1, 4 * mm))
 
-    story += _events_table(report["rows"], st)
+    story += _events_table(report["rows"], st, L, lang, tz_name=DEFAULT_TIMEZONE)
 
     if notifications:
-        story += _notifications_section(notifications, st)
+        story += _notifications_section(notifications, st, lang=lang)
 
     from app.config import APP_VERSION
 
-    canvas_factory = _NumberedCanvas(generated_str, logo_normal_bytes, APP_VERSION)
+    canvas_factory = _NumberedCanvas(generated_str, logo_normal_bytes, APP_VERSION, labels=L)
     doc.build(story, canvasmaker=canvas_factory)
 
 
