@@ -88,7 +88,10 @@ def api_get(
             raise APIError(f"{label} API returned HTTP {exc.code} for {path}: {detail}") from exc
         except error.URLError as exc:
             elapsed = time.monotonic() - t0
-            if attempt < _MAX_RETRIES:
+            # SSL / cert errors are never transient — fail fast.
+            reason_str = str(exc.reason)
+            is_ssl_error = isinstance(exc.reason, ssl.SSLError) or "SSL" in reason_str or "certificate" in reason_str
+            if attempt < _MAX_RETRIES and not is_ssl_error:
                 delay = _RETRY_BACKOFF * (2**attempt)
                 logger.warning(
                     "← %s %s%s → FEHLER (%.1fs): %s, retry in %.1fs",
