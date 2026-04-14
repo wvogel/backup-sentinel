@@ -16,8 +16,14 @@ def _get_pool() -> ConnectionPool:
         _pool = ConnectionPool(
             DATABASE_URL,
             kwargs={"row_factory": dict_row},
-            min_size=1,
-            max_size=10,
+            # 2 warm connections cover steady-state traffic; scale up to 15
+            # under concurrent load (auto-sync + Prometheus scrape + UI).
+            min_size=2,
+            max_size=15,
+            # Give up after 10s rather than hanging a request forever.
+            timeout=10.0,
+            # Recycle idle connections after 5 minutes to avoid stale TCP.
+            max_idle=300.0,
             open=True,
         )
     return _pool

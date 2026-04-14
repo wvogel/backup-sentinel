@@ -218,6 +218,7 @@
   "notifications.filter_all_channels": "All channels",
   "notifications.filter_reset": "Reset filters",
   "notifications.export_csv": "Export CSV",
+  "notifications.click_for_details": "Click for details",
   "footer.imprint": "Legal notice",
   "footer.privacy": "Privacy policy",
   "js.registered_success": "Successfully registered!",
