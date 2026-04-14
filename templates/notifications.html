@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ t('notifications.title') }}{% endblock %}
+{% block content %}
+<section class="table-card">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">{{ t('notifications.eyebrow') }}</p>
+    </div>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('notifications.th_time') }}</th>
+          <th>{{ t('notifications.th_type') }}</th>
+          <th>{{ t('notifications.th_cluster') }}</th>
+          <th>{{ t('notifications.th_message') }}</th>
+          <th>{{ t('notifications.th_channel') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in notifications %}
+        <tr>
+          <td>{{ n.created_at|datetime_local }}</td>
+          <td><span class="badge notification-type-{{ n.notification_type }}">{{ t('notifications.type_' + n.notification_type) }}</span></td>
+          <td>{{ n.cluster_name or '–' }}</td>
+          <td class="notification-message">{{ n.message }}</td>
+          <td><span class="pill pill-channel pill-{{ n.channel }}">{{ n.channel|capitalize }}</span></td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="muted">{{ t('notifications.no_notifications') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_pages > 1 %}
+  <nav class="pagination" aria-label="Pagination">
+    {% if has_prev %}
+    <a href="/notifications?page={{ page - 1 }}" class="pagination-link">{{ t('notifications.page_prev') }}</a>
+    {% else %}
+    <span class="pagination-link disabled">{{ t('notifications.page_prev') }}</span>
+    {% endif %}
+    <span class="pagination-info">{{ page }} / {{ total_pages }}</span>
+    {% if has_next %}
+    <a href="/notifications?page={{ page + 1 }}" class="pagination-link">{{ t('notifications.page_next') }}</a>
+    {% else %}
+    <span class="pagination-link disabled">{{ t('notifications.page_next') }}</span>
+    {% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

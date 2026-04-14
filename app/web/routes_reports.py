@@ -72,7 +72,14 @@ async def generate_report() -> RedirectResponse:
         timestamp_slug = report["generated_at"].strftime("%Y%m%d-%H%M%S")
         pdf_path = REPORT_DIR / f"backup-report-{month_slug}-{timestamp_slug}.pdf"
         json_path = REPORT_DIR / f"backup-report-{month_slug}-{timestamp_slug}.json"
-        write_backup_period_pdf(report, pdf_path)
+        try:
+            from app.db_notifications import list_notification_logs_for_period
+            notifs = list_notification_logs_for_period(
+                datetime(month_date.year, month_date.month, 1, tzinfo=UTC), now,
+            )
+        except Exception:
+            notifs = []
+        write_backup_period_pdf(report, pdf_path, notifications=notifs)
         json_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
         db.archive_monthly_report(month_date, "adhoc", pdf_path, json_path, report)
 

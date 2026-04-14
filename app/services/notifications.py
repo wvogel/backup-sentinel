@@ -143,7 +143,20 @@ def _flush_gotify_queue() -> None:
             parts.append(f"── {m['title']} ──\n{m['message']}")
         body = "\n\n".join(parts)
 
-    _send_gotify_raw(title, body, prio)
+    if _send_gotify_raw(title, body, prio):
+        try:
+            from app.db_notifications import insert_notification_log
+            for m in msgs:
+                if m.get("notification_type"):
+                    insert_notification_log(
+                        notification_type=m["notification_type"],
+                        title=m["title"],
+                        message=m["message"],
+                        channel="gotify",
+                        cluster_name=m.get("cluster_name"),
+                    )
+        except Exception as exc:
+            logger.warning("Notification log insert failed: %s", exc)
 
 
 def _send_gotify_raw(title: str, message: str, priority: int) -> bool:
@@ -176,7 +189,8 @@ def _send_gotify_raw(title: str, message: str, priority: int) -> bool:
         return False
 
 
-def send_gotify(title: str, message: str, priority: int = 5) -> bool:
+def send_gotify(title: str, message: str, priority: int = 5, *,
+                notification_type: str = "", cluster_name: str | None = None) -> bool:
     """Queue a Gotify notification for batched delivery.
 
     Messages are held for 5 min. If no new messages arrive, all queued
@@ -188,7 +202,10 @@ def send_gotify(title: str, message: str, priority: int = 5) -> bool:
         return False
 
     with _gotify_lock:
-        _gotify_queue.append({"title": title, "message": message, "priority": priority})
+        _gotify_queue.append({
+            "title": title, "message": message, "priority": priority,
+            "notification_type": notification_type, "cluster_name": cluster_name,
+        })
         _schedule_gotify_flush()
     return True
 
@@ -212,6 +229,7 @@ def notify_backup_critical(cluster_name: str, vm_name: str, vmid: int, age_days:
         title=f"Backup kritisch: {vm_name}",
         message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\nLetztes Backup: {age_str}",
         priority=8,
+        notification_type="backup_critical", cluster_name=cluster_name,
     )
 
 
@@ -231,6 +249,7 @@ def notify_size_anomaly(cluster_name: str, vm_name: str, vmid: int,
             f"{deviation * 100:.0f}% {direction} als üblich"
         ),
         priority=5,
+        notification_type="size_anomaly", cluster_name=cluster_name,
     )
 
 
@@ -242,6 +261,7 @@ def notify_sync_failed(cluster_name: str, detail: str) -> None:
         title=f"Sync fehlgeschlagen: {cluster_name}",
         message=f"Cluster: {cluster_name}\n{detail[:500]}",
         priority=7,
+        notification_type="sync_failed", cluster_name=cluster_name,
     )
 
 
@@ -253,15 +273,21 @@ def notify_sync_overdue(cluster_name: str, failure_started_at: object) -> None:
         f"Fehlerzustand seit: {started}\n"
         "Seit mindestens 24 Stunden war kein erfolgreicher Cluster-Sync mehr möglich."
     )
-    send_gotify(title=title, message=message, priority=9)
-    send_email(
+    send_gotify(title=title, message=message, priority=9,
+                notification_type="sync_overdue", cluster_name=cluster_name)
+    if send_email(
         subject=title,
         body=(
             f"Der Cluster-Sync für '{cluster_name}' ist seit mindestens 24 Stunden im Fehlerzustand.\n\n"
             f"Fehlerzustand seit: {started}\n"
             "Bitte PVE/PBS-Erreichbarkeit, Credentials und API-Fehler prüfen."
         ),
-    )
+    ):
+        try:
+            from app.db_notifications import insert_notification_log
+            insert_notification_log("sync_overdue", title, message, "email", cluster_name)
+        except Exception:
+            pass
 
 
 def notify_restore_overdue(cluster_name: str, vm_name: str, vmid: int, days_overdue: int) -> None:
@@ -272,6 +298,7 @@ def notify_restore_overdue(cluster_name: str, vm_name: str, vmid: int, days_over
         title=f"Restore-Test überfällig: {vm_name}",
         message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\n{days_overdue} Tage überfällig",
         priority=6,
+        notification_type="restore_overdue", cluster_name=cluster_name,
     )
 
 
@@ -290,6 +317,7 @@ def notify_unencrypted_backups(cluster_name: str, unencrypted_count: int, vm_nam
             f"{vm_list}"
         ),
         priority=6,
+        notification_type="unencrypted_backups", cluster_name=cluster_name,
     )
 
 

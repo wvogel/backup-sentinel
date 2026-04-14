@@ -2163,3 +2163,68 @@ details[open] > .encryption-alert-summary::before {
   animation: none;
   opacity: 1;
 }
+
+/* ── Notification page ───────────────────────────────────────────────────── */
+.notification-type-backup_critical,
+.notification-type-sync_overdue {
+  background: var(--critical-soft);
+  color: var(--critical);
+}
+.notification-type-sync_failed {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.notification-type-size_anomaly,
+.notification-type-restore_overdue,
+.notification-type-unencrypted_backups {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.pill-channel {
+  font-size: 0.72rem;
+}
+.pill-gotify {
+  background: color-mix(in srgb, var(--panel-alt) 86%, #7c3aed 14%);
+  color: #7c3aed;
+}
+.pill-email {
+  background: color-mix(in srgb, var(--panel-alt) 86%, #0ea5e9 14%);
+  color: #0ea5e9;
+}
+
+.notification-message {
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 0;
+}
+.pagination-link {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--accent);
+  background: var(--chip);
+  border: 1px solid var(--chip-border);
+}
+.pagination-link:hover {
+  text-decoration: none;
+}
+.pagination-link.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.pagination-info {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
