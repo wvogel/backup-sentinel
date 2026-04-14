@@ -7,8 +7,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-
-logger = logging.getLogger(__name__)
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from starlette import status
 
@@ -18,6 +16,7 @@ from app.services.pdf_reports import write_backup_period_pdf
 from app.services.reporting import build_backup_period_report, build_month_comparison, serialize_report_payload
 from app.web.common import common_context, templates
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -31,7 +30,11 @@ def reports_page(request: Request) -> HTMLResponse:
         cluster_name = vm_row["cluster_name"]
         if cluster_name not in clusters_grouped:
             clusters_grouped[cluster_name] = {
-                "vms": [], "event_count": 0, "ok_count": 0, "failed_count": 0, "deleted_count": 0,
+                "vms": [],
+                "event_count": 0,
+                "ok_count": 0,
+                "failed_count": 0,
+                "deleted_count": 0,
             }
         group = clusters_grouped[cluster_name]
         group["vms"].append(vm_row)
@@ -39,11 +42,15 @@ def reports_page(request: Request) -> HTMLResponse:
         group["ok_count"] += vm_row["ok_count"]
         group["failed_count"] += vm_row["failed_count"]
         group["deleted_count"] += vm_row["deleted_count"]
-    return templates.TemplateResponse("report.html", common_context(request) | {
-        "current_report": current_report,
-        "clusters_grouped": clusters_grouped,
-        "archived_reports": db.list_monthly_reports(),
-    })
+    return templates.TemplateResponse(
+        "report.html",
+        common_context(request)
+        | {
+            "current_report": current_report,
+            "clusters_grouped": clusters_grouped,
+            "archived_reports": db.list_monthly_reports(),
+        },
+    )
 
 
 @router.post("/reports/generate")
@@ -74,8 +81,10 @@ async def generate_report() -> RedirectResponse:
         json_path = REPORT_DIR / f"backup-report-{month_slug}-{timestamp_slug}.json"
         try:
             from app.db_notifications import list_notification_logs_for_period
+
             notifs = list_notification_logs_for_period(
-                datetime(month_date.year, month_date.month, 1, tzinfo=UTC), now,
+                datetime(month_date.year, month_date.month, 1, tzinfo=UTC),
+                now,
             )
         except Exception:
             notifs = []

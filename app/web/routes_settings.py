@@ -73,12 +73,14 @@ def save_notification_settings(
         old_value = existing.get(key, "")
         if old_value == new_value:
             continue
-        audit_entries.append({
-            "actor": actor,
-            "key": key,
-            "old_value": mask_setting_value(key, old_value),
-            "new_value": mask_setting_value(key, new_value),
-        })
+        audit_entries.append(
+            {
+                "actor": actor,
+                "key": key,
+                "old_value": mask_setting_value(key, old_value),
+                "new_value": mask_setting_value(key, new_value),
+            }
+        )
     db.save_settings(new_settings)
     db.append_settings_audit_entries(audit_entries)
     return RedirectResponse(url="/settings#benachrichtigungen", status_code=status.HTTP_303_SEE_OTHER)
@@ -97,12 +99,16 @@ async def toggle_notification_setting(request: Request) -> JSONResponse:
     old_value = existing.get(key, "")
     if old_value != clean_value:
         db.save_settings({key: clean_value})
-        db.append_settings_audit_entries([{
-            "actor": settings_actor(request),
-            "key": key,
-            "old_value": old_value,
-            "new_value": clean_value,
-        }])
+        db.append_settings_audit_entries(
+            [
+                {
+                    "actor": settings_actor(request),
+                    "key": key,
+                    "old_value": old_value,
+                    "new_value": clean_value,
+                }
+            ]
+        )
     return JSONResponse({"ok": True, "key": key, "value": clean_value})
 
 

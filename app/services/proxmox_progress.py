@@ -1,4 +1,5 @@
 """Running backup progress parsing for Proxmox VE."""
+
 from __future__ import annotations
 
 import logging
@@ -34,8 +35,18 @@ def _parse_size_to_bytes(value: str | None) -> int | None:
     unit = match.group("unit").upper()
     factors = {
         "B": 1,
-        "KIB": 1024, "MIB": 1024**2, "GIB": 1024**3, "TIB": 1024**4, "PIB": 1024**5, "EIB": 1024**6,
-        "KB": 1000, "MB": 1000**2, "GB": 1000**3, "TB": 1000**4, "PB": 1000**5, "EB": 1000**6,
+        "KIB": 1024,
+        "MIB": 1024**2,
+        "GIB": 1024**3,
+        "TIB": 1024**4,
+        "PIB": 1024**5,
+        "EIB": 1024**6,
+        "KB": 1000,
+        "MB": 1000**2,
+        "GB": 1000**3,
+        "TB": 1000**4,
+        "PB": 1000**5,
+        "EB": 1000**6,
     }
     return int(number * factors[unit]) if unit in factors else None
 
@@ -142,16 +153,14 @@ def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -
                 progress["eta_label"] = eta.astimezone().strftime("%d.%m.%Y %H:%M")
             break
 
-    progress["label"] = (
-        f"Backup {progress['percent']}%"
-        if progress.get("percent") is not None
-        else "Backup läuft"
-    )
+    progress["label"] = f"Backup {progress['percent']}%" if progress.get("percent") is not None else "Backup läuft"
     progress["title"] = _build_progress_title(progress)
     return progress
 
 
-def fetch_running_backup_progress(cluster: dict[str, Any], nodes: list[str], timeout: float = 5.0) -> dict[int, dict[str, Any]]:
+def fetch_running_backup_progress(
+    cluster: dict[str, Any], nodes: list[str], timeout: float = 5.0
+) -> dict[int, dict[str, Any]]:
     if not cluster.get("api_user") or not cluster.get("token_id") or not cluster.get("token_secret"):
         return {}
 

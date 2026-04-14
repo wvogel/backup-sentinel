@@ -6,6 +6,7 @@ Features:
 - Gotify batching: alerts queued for 5 min cooldown, then sent as one combined message
 - 24h dedup per alert key
 """
+
 from __future__ import annotations
 
 import base64
@@ -14,7 +15,7 @@ import logging
 import smtplib
 import ssl
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 from email.headerregistry import Address
 from email.message import EmailMessage
 from email.utils import getaddresses, parseaddr
@@ -38,6 +39,7 @@ def _should_send(dedup_key: str) -> bool:
     """Return True if this alert hasn't been sent in the last 24h."""
     try:
         from app.db_notifications import try_claim_dedup
+
         return try_claim_dedup(dedup_key, _DEDUP_SECONDS)
     except Exception as exc:
         logger.warning("Dedup check failed (%s), allowing notification", exc)
@@ -45,6 +47,7 @@ def _should_send(dedup_key: str) -> bool:
 
 
 # ── Enable/disable + quiet hours helpers ──────────────────────────────────
+
 
 def _notify_settings() -> dict[str, str]:
     return db.get_settings_dict("notify_")
@@ -72,6 +75,7 @@ def _in_quiet_hours() -> bool:
         return False
     try:
         from app.config import DEFAULT_TIMEZONE
+
         tz = ZoneInfo(DEFAULT_TIMEZONE)
         now = datetime.now(tz).time()
         start = datetime.strptime(start_s, "%H:%M").time()
@@ -92,7 +96,7 @@ def _in_quiet_hours() -> bool:
 # combined into one Gotify notification. During quiet hours, messages stay
 # queued until quiet hours end.
 
-_gotify_queue: list[dict[str, Any]] = []   # [{title, message, priority}]
+_gotify_queue: list[dict[str, Any]] = []  # [{title, message, priority}]
 _gotify_lock = threading.Lock()
 _gotify_timer: threading.Timer | None = None
 _BATCH_COOLDOWN = 300  # 5 minutes
@@ -141,6 +145,7 @@ def _flush_gotify_queue() -> None:
     if _send_gotify_raw(title, body, prio):
         try:
             from app.db_notifications import insert_notification_log
+
             for m in msgs:
                 if m.get("notification_type"):
                     insert_notification_log(
@@ -162,11 +167,13 @@ def _send_gotify_raw(title: str, message: str, priority: int) -> bool:
     if not url or not token:
         return False
 
-    payload = json.dumps({
-        "title": title,
-        "message": message,
-        "priority": priority,
-    }).encode()
+    payload = json.dumps(
+        {
+            "title": title,
+            "message": message,
+            "priority": priority,
+        }
+    ).encode()
 
     req = request.Request(
         f"{url}/message?token={token}",
@@ -184,8 +191,9 @@ def _send_gotify_raw(title: str, message: str, priority: int) -> bool:
         return False
 
 
-def send_gotify(title: str, message: str, priority: int = 5, *,
-                notification_type: str = "", cluster_name: str | None = None) -> bool:
+def send_gotify(
+    title: str, message: str, priority: int = 5, *, notification_type: str = "", cluster_name: str | None = None
+) -> bool:
     """Queue a Gotify notification for batched delivery.
 
     Messages are held for 5 min. If no new messages arrive, all queued
@@ -197,10 +205,15 @@ def send_gotify(title: str, message: str, priority: int = 5, *,
         return False
 
     with _gotify_lock:
-        _gotify_queue.append({
-            "title": title, "message": message, "priority": priority,
-            "notification_type": notification_type, "cluster_name": cluster_name,
-        })
+        _gotify_queue.append(
+            {
+                "title": title,
+                "message": message,
+                "priority": priority,
+                "notification_type": notification_type,
+                "cluster_name": cluster_name,
+            }
+        )
         _schedule_gotify_flush()
     return True
 
@@ -215,6 +228,7 @@ def test_gotify_notification() -> tuple[bool, str]:
 
 # ── Alert helpers (all go through send_gotify → queue) ────────────────────
 
+
 def notify_backup_critical(cluster_name: str, vm_name: str, vmid: int, age_days: int | None) -> None:
     key = f"backup-critical:{cluster_name}:{vmid}"
     if not _should_send(key):
@@ -224,12 +238,14 @@ def notify_backup_critical(cluster_name: str, vm_name: str, vmid: int, age_days:
         title=f"Backup kritisch: {vm_name}",
         message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\nLetztes Backup: {age_str}",
         priority=8,
-        notification_type="backup_critical", cluster_name=cluster_name,
+        notification_type="backup_critical",
+        cluster_name=cluster_name,
     )
 
 
-def notify_size_anomaly(cluster_name: str, vm_name: str, vmid: int,
-                        latest_size: int, avg_size: float, deviation: float) -> None:
+def notify_size_anomaly(
+    cluster_name: str, vm_name: str, vmid: int, latest_size: int, avg_size: float, deviation: float
+) -> None:
     key = f"size-anomaly:{cluster_name}:{vmid}"
     if not _should_send(key):
         return
@@ -244,7 +260,8 @@ def notify_size_anomaly(cluster_name: str, vm_name: str, vmid: int,
             f"{deviation * 100:.0f}% {direction} als üblich"
         ),
         priority=5,
-        notification_type="size_anomaly", cluster_name=cluster_name,
+        notification_type="size_anomaly",
+        cluster_name=cluster_name,
     )
 
 
@@ -256,7 +273,8 @@ def notify_sync_failed(cluster_name: str, detail: str) -> None:
         title=f"Sync fehlgeschlagen: {cluster_name}",
         message=f"Cluster: {cluster_name}\n{detail[:500]}",
         priority=7,
-        notification_type="sync_failed", cluster_name=cluster_name,
+        notification_type="sync_failed",
+        cluster_name=cluster_name,
     )
 
 
@@ -268,8 +286,7 @@ def notify_sync_overdue(cluster_name: str, failure_started_at: object) -> None:
         f"Fehlerzustand seit: {started}\n"
         "Seit mindestens 24 Stunden war kein erfolgreicher Cluster-Sync mehr möglich."
     )
-    send_gotify(title=title, message=message, priority=9,
-                notification_type="sync_overdue", cluster_name=cluster_name)
+    send_gotify(title=title, message=message, priority=9, notification_type="sync_overdue", cluster_name=cluster_name)
     if send_email(
         subject=title,
         body=(
@@ -280,6 +297,7 @@ def notify_sync_overdue(cluster_name: str, failure_started_at: object) -> None:
     ):
         try:
             from app.db_notifications import insert_notification_log
+
             insert_notification_log("sync_overdue", title, message, "email", cluster_name)
         except Exception:
             pass
@@ -293,7 +311,8 @@ def notify_restore_overdue(cluster_name: str, vm_name: str, vmid: int, days_over
         title=f"Restore-Test überfällig: {vm_name}",
         message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\n{days_overdue} Tage überfällig",
         priority=6,
-        notification_type="restore_overdue", cluster_name=cluster_name,
+        notification_type="restore_overdue",
+        cluster_name=cluster_name,
     )
 
 
@@ -306,17 +325,15 @@ def notify_unencrypted_backups(cluster_name: str, unencrypted_count: int, vm_nam
         vm_list += f" (+{len(vm_names) - 10} weitere)"
     send_gotify(
         title=f"Unverschlüsselte Backups: {cluster_name}",
-        message=(
-            f"Cluster: {cluster_name}\n"
-            f"{unencrypted_count} VMs mit unverschlüsselten Backups:\n"
-            f"{vm_list}"
-        ),
+        message=(f"Cluster: {cluster_name}\n{unencrypted_count} VMs mit unverschlüsselten Backups:\n{vm_list}"),
         priority=6,
-        notification_type="unencrypted_backups", cluster_name=cluster_name,
+        notification_type="unencrypted_backups",
+        cluster_name=cluster_name,
     )
 
 
 # ── E-Mail ────────────────────────────────────────────────────────────────
+
 
 def _email_config() -> dict[str, str]:
     return db.get_settings_dict("email_")
@@ -335,7 +352,7 @@ def _encode_address(addr: str, display_name: str | None = None) -> Address | str
 
 
 def _smtp_auth_plain_utf8(smtp: smtplib.SMTP, user: str, password: str) -> tuple[int, bytes]:
-    payload = f"\0{user}\0{password}".encode("utf-8")
+    payload = f"\0{user}\0{password}".encode()
     encoded = base64.b64encode(payload)
     smtp.send(b"AUTH PLAIN " + encoded + b"\r\n")
     return smtp.getreply()
@@ -400,11 +417,7 @@ def _send_email_raw(subject: str, body: str, attachments: list[Path] | None = No
     user = cfg.get("email_user", "")
     password = decrypt(cfg.get("email_password", ""))
     tls_mode = cfg.get("email_tls", "ssl").lower()
-    parsed_recipients = [
-        _encode_address(addr, name)
-        for name, addr in getaddresses([recipients])
-        if addr.strip()
-    ]
+    parsed_recipients = [_encode_address(addr, name) for name, addr in getaddresses([recipients]) if addr.strip()]
 
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -421,8 +434,7 @@ def _send_email_raw(subject: str, body: str, attachments: list[Path] | None = No
                 subtype = path.suffix.lstrip(".") or "octet-stream"
                 if subtype == "pdf":
                     maintype = "application"
-                msg.add_attachment(data, maintype=maintype, subtype=subtype,
-                                   filename=path.name)
+                msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=path.name)
 
     try:
         context = ssl.create_default_context()

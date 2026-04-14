@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
-import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
@@ -58,7 +55,9 @@ def init_db() -> None:
             cur.execute("ALTER TABLE clusters ADD COLUMN IF NOT EXISTS last_pve_sync_success_at TIMESTAMPTZ")
             cur.execute("ALTER TABLE clusters ADD COLUMN IF NOT EXISTS last_pve_sync_failure_started_at TIMESTAMPTZ")
             cur.execute("ALTER TABLE clusters ADD COLUMN IF NOT EXISTS last_pve_sync_failure_notified_at TIMESTAMPTZ")
-            cur.execute("ALTER TABLE clusters ADD COLUMN IF NOT EXISTS consecutive_sync_failures INTEGER NOT NULL DEFAULT 0")
+            cur.execute(
+                "ALTER TABLE clusters ADD COLUMN IF NOT EXISTS consecutive_sync_failures INTEGER NOT NULL DEFAULT 0"
+            )
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS nodes (
@@ -148,7 +147,9 @@ def init_db() -> None:
                 """
             )
             cur.execute("CREATE INDEX IF NOT EXISTS idx_backup_events_started_at ON backup_events(started_at)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_backup_events_vm_status ON backup_events(vm_id, status, removed_at)")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_backup_events_vm_status ON backup_events(vm_id, status, removed_at)"
+            )
             cur.execute("CREATE INDEX IF NOT EXISTS idx_vms_cluster_vmid ON vms(cluster_id, vmid)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_nodes_cluster ON nodes(cluster_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_clusters_slug ON clusters(slug)")

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import contextvars
 import json
 import os
-import contextvars
-from typing import Optional
 
 _translations: dict[str, dict[str, str]] = {}
 _i18n_dir = os.path.dirname(__file__)
@@ -11,16 +10,14 @@ _i18n_dir = os.path.dirname(__file__)
 SUPPORTED_LANGUAGES = ["en", "de"]
 DEFAULT_LANGUAGE = "de"
 
-_current_lang: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "current_lang", default=DEFAULT_LANGUAGE
-)
+_current_lang: contextvars.ContextVar[str] = contextvars.ContextVar("current_lang", default=DEFAULT_LANGUAGE)
 
 
 def _load_lang(lang: str) -> dict[str, str]:
     if lang not in _translations:
         path = os.path.join(_i18n_dir, f"{lang}.json")
         if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 _translations[lang] = json.load(f)
         else:
             _translations[lang] = {}
@@ -41,7 +38,7 @@ def t(key: str, **kwargs) -> str:
     return text
 
 
-def get_translations(lang: Optional[str] = None) -> dict[str, str]:
+def get_translations(lang: str | None = None) -> dict[str, str]:
     if lang is None:
         lang = _current_lang.get()
     return dict(_load_lang(lang))

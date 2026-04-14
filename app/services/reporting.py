@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
 
 from app.services.backup_status import assess_backup_status
 
@@ -89,16 +88,18 @@ def build_backup_period_report(
 
     rows = []
     for (cluster_name, vm_name, node_name), evts in sorted(vm_groups.items()):
-        rows.append({
-            "cluster_name": cluster_name,
-            "vm_name": vm_name,
-            "node_name": node_name,
-            "event_count": len(evts),
-            "ok_count": sum(1 for e in evts if e["status_for_report"] == "ok"),
-            "failed_count": sum(1 for e in evts if e["status_for_report"] == "failed"),
-            "deleted_count": sum(1 for e in evts if e["status_for_report"] == "deleted"),
-            "events": sorted(evts, key=lambda e: e["started_at"], reverse=True),
-        })
+        rows.append(
+            {
+                "cluster_name": cluster_name,
+                "vm_name": vm_name,
+                "node_name": node_name,
+                "event_count": len(evts),
+                "ok_count": sum(1 for e in evts if e["status_for_report"] == "ok"),
+                "failed_count": sum(1 for e in evts if e["status_for_report"] == "failed"),
+                "deleted_count": sum(1 for e in evts if e["status_for_report"] == "deleted"),
+                "events": sorted(evts, key=lambda e: e["started_at"], reverse=True),
+            }
+        )
 
     return {
         "period_start": period_start,

@@ -16,9 +16,14 @@ router = APIRouter()
 def dashboard(request: Request) -> HTMLResponse:
     clusters = db.cluster_summaries()
     vm_rows = db.vm_governance_rows()
-    vm_rows.sort(key=lambda row: (
-        row["backup_severity"], row["restore_due_status"], row["cluster_name"], row["vm_name"],
-    ))
+    vm_rows.sort(
+        key=lambda row: (
+            row["backup_severity"],
+            row["restore_due_status"],
+            row["cluster_name"],
+            row["vm_name"],
+        )
+    )
     restore_tests = db.recent_restore_tests()
     compliance_summary = build_compliance_summary(vm_rows, restore_tests)
 
@@ -43,16 +48,18 @@ def dashboard(request: Request) -> HTMLResponse:
         else:
             health = "ok"
         sync_health = db.get_cluster_sync_health(cluster["id"])
-        health_bar.append({
-            "name": cluster["name"],
-            "slug": cluster["slug"],
-            "health": health,
-            "last_sync": cluster.get("last_pve_sync_at"),
-            "pbs_count": len(pbs_conns),
-            "pbs_ok": sum(1 for p in pbs_conns if p.get("last_sync_ok")),
-            "stale": sync_health["stale"],
-            "est_failures": sync_health["failures"],
-        })
+        health_bar.append(
+            {
+                "name": cluster["name"],
+                "slug": cluster["slug"],
+                "health": health,
+                "last_sync": cluster.get("last_pve_sync_at"),
+                "pbs_count": len(pbs_conns),
+                "pbs_ok": sum(1 for p in pbs_conns if p.get("last_sync_ok")),
+                "stale": sync_health["stale"],
+                "est_failures": sync_health["failures"],
+            }
+        )
 
     context = {
         "clusters": clusters,

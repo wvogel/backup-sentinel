@@ -34,9 +34,9 @@ def _is_encrypted(files: list[dict[str, Any]] | None) -> bool | None:
     if not files:
         return None
     data_files = [
-        f for f in files
-        if isinstance(f, dict)
-        and not str(f.get("filename", "")).endswith((".log.blob", ".catalog.pcat1.didx"))
+        f
+        for f in files
+        if isinstance(f, dict) and not str(f.get("filename", "")).endswith((".log.blob", ".catalog.pcat1.didx"))
     ]
     if not data_files:
         return None
@@ -57,7 +57,9 @@ def test_pbs_connection(conn: dict[str, Any], timeout: float = 5.0) -> None:
     try:
         api_test_connection(
             f"{base_url}/api2/json/status/datastore-usage",
-            auth_header, timeout=timeout, label="PBS",
+            auth_header,
+            timeout=timeout,
+            label="PBS",
         )
     except APIError as exc:
         raise PBSSyncError(str(exc)) from exc
@@ -170,22 +172,27 @@ def fetch_pbs_backups(
             vs = str(verification.get("state") or "")
             verify_state = vs if vs else None
 
-        events.append({
-            "vmid": vmid,
-            "upid": "",
-            "started_at": started_at,
-            "finished_at": None,
-            "duration_seconds": None,
-            "size_bytes": size_bytes,
-            "encrypted": encrypted,
-            "verify_state": verify_state,
-            "status": "ok",
-        })
+        events.append(
+            {
+                "vmid": vmid,
+                "upid": "",
+                "started_at": started_at,
+                "finished_at": None,
+                "duration_seconds": None,
+                "size_bytes": size_bytes,
+                "encrypted": encrypted,
+                "verify_state": verify_state,
+                "status": "ok",
+            }
+        )
 
     logger.info(
         "PBS %s: %d events for %d VMs (skipped: %d not-in-cluster, %d too-old)",
-        conn_label, len(events), len({e["vmid"] for e in events}),
-        skipped_vmid, skipped_old,
+        conn_label,
+        len(events),
+        len({e["vmid"] for e in events}),
+        skipped_vmid,
+        skipped_old,
     )
     return events
 

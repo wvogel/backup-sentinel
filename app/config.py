@@ -4,7 +4,6 @@ import os
 import time
 from pathlib import Path
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.getenv("BSENTINEL_DATA_DIR", BASE_DIR / "data"))
 REPORT_DIR = Path(os.getenv("BSENTINEL_REPORT_DIR", BASE_DIR / "reports"))

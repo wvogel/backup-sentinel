@@ -1,4 +1,5 @@
 """Shared TypedDict definitions for database row types."""
+
 from __future__ import annotations
 
 from datetime import date, datetime

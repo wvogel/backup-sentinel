@@ -5,11 +5,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 BackupKind = Literal["daily", "weekly", "none"]
 Severity = Literal["ok", "warning", "critical", "unknown"]
 Criticality = Literal["low", "medium", "high", "critical"]
 RestoreResult = Literal["passed", "failed", "limited"]
+
 
 class ClusterCreate(BaseModel):
     name: str = Field(min_length=2, max_length=120)
@@ -62,5 +62,3 @@ class RestoreTestCreate(BaseModel):
     recovery_type: str = Field(min_length=3, max_length=80)
     duration_minutes: int = Field(ge=0, le=10080)
     evidence_note: str = Field(default="", max_length=500)
-
-
