@@ -25,6 +25,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
     environment:
       APP_URL: ${APP_URL:-https://backup-sentinel.example.com}
       TZ: ${BSENTINEL_DEFAULT_TIMEZONE:-Europe/Berlin}
