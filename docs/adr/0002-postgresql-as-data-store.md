@@ -40,4 +40,4 @@ Use PostgreSQL 18 as the primary data store. Access via `psycopg[binary]` with `
 - No embedded fallback — cannot run the app without a reachable Postgres
 
 **Neutral:**
-- Schema is managed via `CREATE TABLE IF NOT EXISTS` statements in `app/db_core.py` rather than a migrations framework. This is sufficient for additive changes but will require migration to a proper framework (e.g. Alembic) if we ever need `ALTER TABLE` drops or column renames.
+- The base schema is managed via `CREATE TABLE IF NOT EXISTS` statements in `app/db_core.py`. Non-additive changes (`DROP COLUMN`, data migrations, schema refactors) are handled by a lightweight numbered-ledger migrations system in `app/db_migrations.py` that records applied migrations in a `schema_migrations` table. If migration complexity ever outgrows this approach, moving to Alembic is a drop-in replacement.
