@@ -2,10 +2,10 @@ import unittest
 from datetime import UTC, datetime
 
 from app.services.proxmox import (
-    _parse_running_backup_progress,
     classify_schedule,
     infer_backup_kind_by_vmid,
 )
+from app.services.proxmox_progress import _parse_running_backup_progress
 
 
 class ProxmoxHelpersTests(unittest.TestCase):
