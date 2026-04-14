@@ -7,7 +7,8 @@ RUN groupadd --system --gid 1000 app \
     && useradd --system --uid 1000 --gid app --no-create-home app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --no-deps svglib==1.6.0
 
 COPY app ./app
 COPY templates ./templates
