@@ -8,7 +8,9 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 
 from app import db
-from app.config import REPORT_DIR, SYNC_INTERVAL_MINUTES
+from zoneinfo import ZoneInfo
+
+from app.config import DEFAULT_TIMEZONE, REPORT_DIR, SYNC_INTERVAL_MINUTES
 from app.services.notifications import (
     notify_backup_critical,
     notify_size_anomaly,
@@ -175,13 +177,11 @@ def auto_generate_monthly_report() -> None:
     from datetime import timedelta
     from app.services.reporting import build_month_comparison
 
-    now = datetime.now(UTC)
-    if now.day != 1:
-        return
-    last_month = (now.replace(day=1) - timedelta(days=1)).replace(day=1).date()
+    now = datetime.now(tz=ZoneInfo(DEFAULT_TIMEZONE))
+    first_of_current = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_month = (first_of_current - timedelta(days=1)).replace(day=1).date()
     existing = db.get_monthly_report_for_month(last_month)
     if existing:
-        logger.info("Auto-Report: Report für %s existiert bereits, überspringe", last_month)
         return
     logger.info("Auto-Report: Generiere Report für %s", last_month)
     try:
