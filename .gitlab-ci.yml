@@ -1,5 +1,33 @@
 stages:
+  - lint
+  - test
   - deploy
+
+lint:
+  stage: lint
+  image: python:3.12-slim
+  before_script:
+    - pip install --quiet ruff==0.14.0
+  script:
+    - ruff check app tests scripts
+    - ruff format --check app tests scripts
+
+test:
+  stage: test
+  image: python:3.12-slim
+  services:
+    - name: postgres:18
+      alias: postgres
+  variables:
+    POSTGRES_DB: backup_reports
+    POSTGRES_USER: backup_reports
+    POSTGRES_PASSWORD: backup_reports
+    BSENTINEL_DATABASE_URL: "postgresql://backup_reports:backup_reports@postgres:5432/backup_reports"
+    BSENTINEL_SECRET_KEY: "dUwD46AT9M2L9EYpKahkU8mC7A5pvxjFTqX5hxBbdcQ="
+  before_script:
+    - pip install --quiet -r requirements.txt pytest
+  script:
+    - pytest tests/ -v
 
 deploy:
   stage: deploy

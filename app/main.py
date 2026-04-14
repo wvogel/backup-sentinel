@@ -6,12 +6,13 @@ import os as _os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from app import db
+from app.config import SECRET_KEY
 from app.i18n import SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE, set_language
 from app.web.routes_bootstrap import router as bootstrap_router
 from app.web.routes_clusters import router as clusters_router
@@ -25,6 +26,22 @@ logging.basicConfig(
     level=logging.DEBUG if _os.getenv("BSENTINEL_DEBUG", "").lower() in ("1", "true", "yes", "on") else logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
+
+
+def _validate_config() -> None:
+    if not SECRET_KEY or SECRET_KEY == "changeme":
+        raise RuntimeError(
+            "BSENTINEL_SECRET_KEY is not set. Generate with: "
+            "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        )
+    try:
+        from cryptography.fernet import Fernet
+        Fernet(SECRET_KEY.encode() if isinstance(SECRET_KEY, str) else SECRET_KEY)
+    except Exception as exc:
+        raise RuntimeError(f"BSENTINEL_SECRET_KEY is not a valid Fernet key: {exc}")
+
+
+_validate_config()
 
 
 @asynccontextmanager
@@ -55,6 +72,11 @@ app.include_router(clusters_router)
 app.include_router(reports_router)
 app.include_router(notifications_router)
 app.include_router(bootstrap_router)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> FileResponse:
+    return FileResponse("static/favicon.ico", media_type="image/x-icon")
 
 
 @app.get("/healthz")
