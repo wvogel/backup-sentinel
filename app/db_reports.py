@@ -185,6 +185,41 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
         conn.commit()
 
 
+def cleanup_stale_inprogress_backups(cluster_id: int, max_age_hours: int = 6) -> int:
+    """Mark aborted/stale in-progress backup records as failed.
+
+    PVE sometimes leaves stub `backup_events` rows with `size_bytes <= 1`
+    and `finished_at IS NULL` when a backup task is aborted, the node
+    crashes, or networking drops. These rows keep the VM showing a
+    "Backup running" badge forever. This function closes them out.
+
+    Returns the number of rows updated.
+    """
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE backup_events
+            SET finished_at = now(),
+                status = 'failed'
+            WHERE id IN (
+                SELECT be.id
+                FROM backup_events be
+                JOIN vms v ON v.id = be.vm_id
+                WHERE v.cluster_id = %s
+                  AND be.finished_at IS NULL
+                  AND be.removed_at IS NULL
+                  AND COALESCE(be.size_bytes, 0) <= 1
+                  AND be.started_at < now() - make_interval(hours => %s)
+            )
+            RETURNING id
+            """,
+            (cluster_id, max_age_hours),
+        )
+        updated = len(cur.fetchall())
+        conn.commit()
+        return updated
+
+
 def upsert_backup_events(cluster_id: int, events: list[dict[str, Any]]) -> None:
     if not events:
         return

@@ -106,6 +106,12 @@ def sync_cluster_backups(cluster: dict) -> None:
 
         db.sync_backup_events_for_source(cluster["id"], "pbs", all_pbs_events)
 
+        # Mark stub in-progress events older than N hours as aborted so the
+        # UI stops showing a "Backup running" badge for crashed/cancelled jobs.
+        stale = db.cleanup_stale_inprogress_backups(cluster["id"], max_age_hours=6)
+        if stale:
+            pve_log.append(f"Verwaiste In-Progress-Events bereinigt: {stale}")
+
         db.update_vm_last_backup_from_events(cluster["id"])
     except Exception as exc:
         pve_log.append(f"Fehler: {exc}")
