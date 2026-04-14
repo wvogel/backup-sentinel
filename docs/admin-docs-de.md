@@ -312,6 +312,29 @@ curl -s https://backup-sentinel.example.com/healthz
 
 Der `backup-sentinel`-Container hat einen eingebauten Health Check, der `/healthz` alle 5 Sekunden abfragt. Verwenden Sie `docker compose ps`, um zu pruefen, ob der Container `healthy` ist.
 
+### Prometheus-Metriken
+
+Backup Sentinel stellt Prometheus-kompatible Metriken unter `/metrics` bereit (keine Authentifizierung erforderlich).
+
+Verfuegbare Metriken:
+
+- `backup_sentinel_cluster_sync_ok{cluster="..."}` -- Ob die letzte Synchronisation erfolgreich war (1/0)
+- `backup_sentinel_cluster_sync_age_seconds{cluster="..."}` -- Sekunden seit der letzten Synchronisation
+- `backup_sentinel_cluster_sync_failures_total{cluster="..."}` -- Aufeinanderfolgende Sync-Fehlschlaege
+- `backup_sentinel_vm_backup_severity_count{cluster="...",severity="..."}` -- VMs pro Schweregrad
+- `backup_sentinel_unencrypted_backups_count{cluster="..."}` -- VMs mit unverschluesselten Backups
+- `backup_sentinel_restore_overdue_count{cluster="..."}` -- VMs mit ueberfaelligen Restore-Tests
+
+Ergaenzen Sie in Ihrer Prometheus-Konfiguration unter `scrape_configs`:
+
+```yaml
+- job_name: backup-sentinel
+  static_configs:
+    - targets: ['backup-sentinel.example.com']
+  metrics_path: /metrics
+  scheme: https
+```
+
 ### Logging
 
 Standardmaessig protokolliert die Anwendung auf `INFO`-Level. Setzen Sie `BSENTINEL_DEBUG=true` fuer `DEBUG`-Level. Logs werden auf stdout geschrieben und koennen eingesehen werden mit:

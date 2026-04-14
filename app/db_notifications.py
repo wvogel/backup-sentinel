@@ -52,25 +52,73 @@ def insert_notification_log(
         conn.commit()
 
 
-def list_notification_logs(days: int = 30, limit: int = 50, offset: int = 0) -> tuple[list[NotificationLogRow], int]:
+def list_notification_logs(
+    days: int = 30,
+    limit: int = 50,
+    offset: int = 0,
+    notification_type: str | None = None,
+    cluster_name: str | None = None,
+    channel: str | None = None,
+) -> tuple[list[NotificationLogRow], int]:
+    where_clauses = ["created_at >= now() - make_interval(days => %s)"]
+    params: list[object] = [days]
+    if notification_type:
+        where_clauses.append("notification_type = %s")
+        params.append(notification_type)
+    if cluster_name:
+        where_clauses.append("cluster_name = %s")
+        params.append(cluster_name)
+    if channel:
+        where_clauses.append("channel = %s")
+        params.append(channel)
+    where_sql = " AND ".join(where_clauses)
+
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT count(*) AS cnt FROM notification_log WHERE created_at >= now() - make_interval(days => %s)",
-            (days,),
+            f"SELECT count(*) AS cnt FROM notification_log WHERE {where_sql}",
+            tuple(params),
         )
         total = cur.fetchone()["cnt"]
         cur.execute(
-            """
+            f"""
             SELECT id, notification_type, title, message, cluster_name, channel, created_at
             FROM notification_log
-            WHERE created_at >= now() - make_interval(days => %s)
+            WHERE {where_sql}
             ORDER BY created_at DESC
             LIMIT %s OFFSET %s
             """,
-            (days, limit, offset),
+            tuple(params) + (limit, offset),
         )
         rows = [NotificationLogRow(**row) for row in cur.fetchall()]
         return rows, total
+
+
+def list_distinct_filters(days: int = 30) -> dict[str, list[str]]:
+    """Return distinct values for filter dropdowns."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """SELECT DISTINCT notification_type FROM notification_log
+               WHERE created_at >= now() - make_interval(days => %s)
+               ORDER BY notification_type""",
+            (days,)
+        )
+        types = [r["notification_type"] for r in cur.fetchall()]
+        cur.execute(
+            """SELECT DISTINCT cluster_name FROM notification_log
+               WHERE created_at >= now() - make_interval(days => %s)
+                 AND cluster_name IS NOT NULL
+               ORDER BY cluster_name""",
+            (days,)
+        )
+        clusters = [r["cluster_name"] for r in cur.fetchall()]
+        cur.execute(
+            """SELECT DISTINCT channel FROM notification_log
+               WHERE created_at >= now() - make_interval(days => %s)
+               ORDER BY channel""",
+            (days,)
+        )
+        channels = [r["channel"] for r in cur.fetchall()]
+        return {"types": types, "clusters": clusters, "channels": channels}
 
 
 def list_notification_logs_for_period(
