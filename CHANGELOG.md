@@ -5,6 +5,44 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2] — 2026-04-14
+
+### Added
+
+**Documentation & Community**
+- `SECURITY.md` with vulnerability disclosure policy and supported versions
+- README badges (License, Python, FastAPI, PostgreSQL, Docker, ruff)
+- `.github/dependabot.yml` for weekly pip, docker, and github-actions updates
+- Proxmox compatibility matrix (PVE 8.x/9.x, PBS 3.x/4.x) + required token permissions
+- Plain Nginx reverse-proxy config snippet in admin docs (EN + DE)
+
+**Audit**
+- `db.append_audit_event()` helper for lifecycle events
+- New audit events: `cluster.created`, `cluster.renamed`, `cluster.deleted`, `cluster.bootstrapped`, `pbs.added`, `pbs.deleted`, `pbs.bootstrapped`, `restore_test.added`
+- Settings audit view increased from 20 to 50 entries
+
+**Database**
+- Lightweight migrations framework in `app/db_migrations.py` with numbered ledger (`schema_migrations` table)
+- Connection pool tuned: `min_size=2`, `max_size=15`, 10s acquire timeout, 5min max idle
+
+**PDF Report**
+- Full i18n support via `BSENTINEL_REPORT_LANGUAGE` (de / en)
+- Language-specific date/number formatting (DE: 1.234, EN: 1,234)
+
+**Frontend**
+- `/notifications` click-to-expand rows reveal full title + message with monospace formatting
+
+**Tests**
+- `test_i18n.py` — translation fallback chain, placeholder substitution
+- `test_footer_parsing.py` — `_parse_footer_links` edge cases
+- `test_api_client.py` — retry status code classification
+- `test_notification_pdf.py` — label dict completeness + section assembly
+
+### Changed
+
+- `static/app.js` (528 lines) split into 6 thematic modules under `static/js/`: `common.js`, `bootstrap.js`, `lightboxes.js`, `tables.js`, `sync.js`, `settings.js`
+- Admin docs updated with `BSENTINEL_REPORT_LANGUAGE` env var
+
 ## [v2.1] — 2026-04-14
 
 ### Added
