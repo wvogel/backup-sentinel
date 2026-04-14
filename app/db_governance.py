@@ -50,6 +50,8 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             FROM backup_events be
             WHERE be.vm_id = v.id
               AND be.removed_at IS NULL
+              AND be.finished_at IS NULL
+              AND be.status != 'failed'
               AND COALESCE(be.size_bytes, 0) <= 1
             ORDER BY be.started_at DESC
             LIMIT 1
