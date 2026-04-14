@@ -42,7 +42,10 @@ def finalize_bootstrap(payload: BootstrapFinalize) -> JSONResponse:
     if cluster["enrollment_secret"] != payload.enrollment_secret:
         raise HTTPException(status_code=403, detail="Enrollment secret mismatch")
     if cluster["registered_at"] is not None:
-        raise HTTPException(status_code=409, detail="Cluster bereits registriert. Neues Enrollment-Secret in den Einstellungen generieren.")
+        raise HTTPException(
+            status_code=409,
+            detail="Cluster bereits registriert. Neues Enrollment-Secret in den Einstellungen generieren.",
+        )
     db.finalize_cluster_registration(payload.model_dump())
     cluster = db.get_cluster_by_slug(payload.cluster_slug)
     sync_status = {"status": "skipped", "nodes": 0, "vms": 0}
@@ -53,11 +56,13 @@ def finalize_bootstrap(payload: BootstrapFinalize) -> JSONResponse:
             sync_status = {"status": "started", "nodes": 0, "vms": 0}
         else:
             sync_status = {"status": "already_running", "nodes": 0, "vms": 0}
-    return JSONResponse({
-        "status": "ok",
-        "registered_at": datetime.now(UTC).isoformat(),
-        "inventory_sync": sync_status,
-    })
+    return JSONResponse(
+        {
+            "status": "ok",
+            "registered_at": datetime.now(UTC).isoformat(),
+            "inventory_sync": sync_status,
+        }
+    )
 
 
 @router.get("/api/bootstrap/pbs-finalize")

@@ -8,6 +8,7 @@ Without BSENTINEL_SECRET_KEY, values are stored and returned as-is (no encryptio
 When a key is set, existing unencrypted values are transparently returned as-is
 on decrypt (migration path), and all new saves are encrypted.
 """
+
 from __future__ import annotations
 
 import logging
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 def _fernet():
     from cryptography.fernet import Fernet
+
     return Fernet(SECRET_KEY.encode())
 
 

@@ -246,8 +246,13 @@ def upsert_pbs_connection(cluster_id: int, payload: dict[str, Any]) -> None:
                 fingerprint = EXCLUDED.fingerprint
             """,
             (
-                cluster_id, payload["name"], payload["api_url"].rstrip("/"),
-                payload["api_token_id"], payload["api_token_secret"], payload.get("fingerprint", ""), now,
+                cluster_id,
+                payload["name"],
+                payload["api_url"].rstrip("/"),
+                payload["api_token_id"],
+                payload["api_token_secret"],
+                payload.get("fingerprint", ""),
+                now,
             ),
         )
         conn.commit()

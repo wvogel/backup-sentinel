@@ -13,7 +13,7 @@ from starlette.requests import Request
 
 from app import db
 from app.config import SECRET_KEY
-from app.i18n import SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE, set_language
+from app.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, set_language
 from app.web.routes_bootstrap import router as bootstrap_router
 from app.web.routes_clusters import router as clusters_router
 from app.web.routes_dashboard import router as dashboard_router
@@ -33,13 +33,14 @@ def _validate_config() -> None:
     if not SECRET_KEY or SECRET_KEY == "changeme":
         raise RuntimeError(
             "BSENTINEL_SECRET_KEY is not set. Generate with: "
-            "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
         )
     try:
         from cryptography.fernet import Fernet
+
         Fernet(SECRET_KEY.encode() if isinstance(SECRET_KEY, str) else SECRET_KEY)
     except Exception as exc:
-        raise RuntimeError(f"BSENTINEL_SECRET_KEY is not a valid Fernet key: {exc}")
+        raise RuntimeError(f"BSENTINEL_SECRET_KEY is not a valid Fernet key: {exc}") from exc
 
 
 _validate_config()
@@ -83,7 +84,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "connect-src 'self'; "
             "frame-ancestors 'none'; "
             "base-uri 'self'; "
-            "form-action 'self'"
+            "form-action 'self'",
         )
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
@@ -97,6 +98,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         import uuid
+
         rid = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
         response = await call_next(request)
         response.headers["X-Request-ID"] = rid

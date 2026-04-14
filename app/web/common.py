@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
-from zoneinfo import ZoneInfo
 
 from app.config import (
     APP_VERSION,
@@ -17,7 +17,7 @@ from app.config import (
     FOOTER_LINKS,
     LOGOUT_URL,
 )
-from app.i18n import t, get_language, get_translations, SUPPORTED_LANGUAGES
+from app.i18n import SUPPORTED_LANGUAGES, get_language, get_translations, t
 
 templates = Jinja2Templates(directory="templates")
 APP_TIMEZONE = ZoneInfo(DEFAULT_TIMEZONE)
@@ -58,6 +58,7 @@ def format_number(value: object) -> str:
 templates.env.filters["datetime_local"] = datetime_local
 templates.env.filters["format_bytes"] = format_bytes
 templates.env.filters["format_number"] = format_number
+
 
 def _parse_footer_links(s: str) -> list[dict[str, str]]:
     if not s:

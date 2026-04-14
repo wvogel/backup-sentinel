@@ -97,7 +97,9 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
     vm_rows = db.vm_governance_rows(cluster["id"])
-    live_backup_progress = fetch_running_backup_progress(cluster, [node["name"] for node in db.list_nodes(cluster["id"])])
+    live_backup_progress = fetch_running_backup_progress(
+        cluster, [node["name"] for node in db.list_nodes(cluster["id"])]
+    )
     for row in vm_rows:
         row["live_backup_progress"] = live_backup_progress.get(row["vmid"])
     restore_tests = db.recent_restore_tests(cluster["id"])
@@ -176,8 +178,10 @@ def bootstrap_status(cluster_slug: str) -> JSONResponse:
     if not cluster:
         raise HTTPException(status_code=404)
     pbs_conns = db.list_pbs_connections(cluster["id"])
-    return JSONResponse({
-        "pve_registered": cluster["registered_at"] is not None,
-        "pbs_count": len(pbs_conns),
-        "last_pve_sync_ok": cluster.get("last_pve_sync_ok"),
-    })
+    return JSONResponse(
+        {
+            "pve_registered": cluster["registered_at"] is not None,
+            "pbs_count": len(pbs_conns),
+            "last_pve_sync_ok": cluster.get("last_pve_sync_ok"),
+        }
+    )

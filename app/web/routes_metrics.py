@@ -14,7 +14,14 @@ def _fmt_metric(name: str, help_text: str, metric_type: str, samples: list[tuple
     lines = [f"# HELP {name} {help_text}", f"# TYPE {name} {metric_type}"]
     for labels, value in samples:
         if labels:
-            label_str = "{" + ",".join(f'{k}="{str(v).replace(chr(92), chr(92)*2).replace(chr(34), chr(92)+chr(34))}"' for k, v in labels.items()) + "}"
+            label_str = (
+                "{"
+                + ",".join(
+                    f'{k}="{str(v).replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))}"'
+                    for k, v in labels.items()
+                )
+                + "}"
+            )
         else:
             label_str = ""
         lines.append(f"{name}{label_str} {value}")
@@ -42,24 +49,30 @@ def metrics() -> PlainTextResponse:
                 sync_age_samples.append((labels, age))
             failures_samples.append((labels, c.get("consecutive_sync_failures", 0) or 0))
 
-        output_parts.append(_fmt_metric(
-            "backup_sentinel_cluster_sync_ok",
-            "Whether last cluster sync succeeded (1=ok, 0=failed or never)",
-            "gauge",
-            sync_ok_samples,
-        ))
-        output_parts.append(_fmt_metric(
-            "backup_sentinel_cluster_sync_age_seconds",
-            "Seconds since last cluster sync attempt",
-            "gauge",
-            sync_age_samples,
-        ))
-        output_parts.append(_fmt_metric(
-            "backup_sentinel_cluster_sync_failures_total",
-            "Consecutive sync failures per cluster",
-            "counter",
-            failures_samples,
-        ))
+        output_parts.append(
+            _fmt_metric(
+                "backup_sentinel_cluster_sync_ok",
+                "Whether last cluster sync succeeded (1=ok, 0=failed or never)",
+                "gauge",
+                sync_ok_samples,
+            )
+        )
+        output_parts.append(
+            _fmt_metric(
+                "backup_sentinel_cluster_sync_age_seconds",
+                "Seconds since last cluster sync attempt",
+                "gauge",
+                sync_age_samples,
+            )
+        )
+        output_parts.append(
+            _fmt_metric(
+                "backup_sentinel_cluster_sync_failures_total",
+                "Consecutive sync failures per cluster",
+                "counter",
+                failures_samples,
+            )
+        )
     except Exception:
         pass
 
@@ -92,26 +105,32 @@ def metrics() -> PlainTextResponse:
             restore_overdue_samples.append(({"cluster": c["name"]}, restore_overdue))
 
         if severity_samples:
-            output_parts.append(_fmt_metric(
-                "backup_sentinel_vm_backup_severity_count",
-                "Number of VMs by backup severity per cluster",
-                "gauge",
-                severity_samples,
-            ))
+            output_parts.append(
+                _fmt_metric(
+                    "backup_sentinel_vm_backup_severity_count",
+                    "Number of VMs by backup severity per cluster",
+                    "gauge",
+                    severity_samples,
+                )
+            )
         if unencrypted_samples:
-            output_parts.append(_fmt_metric(
-                "backup_sentinel_unencrypted_backups_count",
-                "Number of VMs with unencrypted backups",
-                "gauge",
-                unencrypted_samples,
-            ))
+            output_parts.append(
+                _fmt_metric(
+                    "backup_sentinel_unencrypted_backups_count",
+                    "Number of VMs with unencrypted backups",
+                    "gauge",
+                    unencrypted_samples,
+                )
+            )
         if restore_overdue_samples:
-            output_parts.append(_fmt_metric(
-                "backup_sentinel_restore_overdue_count",
-                "Number of VMs with overdue restore tests",
-                "gauge",
-                restore_overdue_samples,
-            ))
+            output_parts.append(
+                _fmt_metric(
+                    "backup_sentinel_restore_overdue_count",
+                    "Number of VMs with overdue restore tests",
+                    "gauge",
+                    restore_overdue_samples,
+                )
+            )
     except Exception:
         pass
 

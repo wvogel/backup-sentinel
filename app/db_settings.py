@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
 
 from app.db_core import connect
 from app.types import AuditLogRow

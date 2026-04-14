@@ -1,4 +1,5 @@
 """Shared HTTP client for Proxmox PVE and PBS API calls."""
+
 from __future__ import annotations
 
 import json
@@ -75,9 +76,10 @@ def api_get(
         except error.HTTPError as exc:
             elapsed = time.monotonic() - t0
             if attempt < _MAX_RETRIES and _is_retryable_http(exc.code):
-                delay = _RETRY_BACKOFF * (2 ** attempt)
-                logger.warning("← %s %s%s → HTTP %d (%.1fs), retry in %.1fs",
-                               label, short_path, qs_short, exc.code, elapsed, delay)
+                delay = _RETRY_BACKOFF * (2**attempt)
+                logger.warning(
+                    "← %s %s%s → HTTP %d (%.1fs), retry in %.1fs", label, short_path, qs_short, exc.code, elapsed, delay
+                )
                 time.sleep(delay)
                 last_exc = exc
                 continue
@@ -87,9 +89,16 @@ def api_get(
         except error.URLError as exc:
             elapsed = time.monotonic() - t0
             if attempt < _MAX_RETRIES:
-                delay = _RETRY_BACKOFF * (2 ** attempt)
-                logger.warning("← %s %s%s → FEHLER (%.1fs): %s, retry in %.1fs",
-                               label, short_path, qs_short, elapsed, exc.reason, delay)
+                delay = _RETRY_BACKOFF * (2**attempt)
+                logger.warning(
+                    "← %s %s%s → FEHLER (%.1fs): %s, retry in %.1fs",
+                    label,
+                    short_path,
+                    qs_short,
+                    elapsed,
+                    exc.reason,
+                    delay,
+                )
                 time.sleep(delay)
                 last_exc = exc
                 continue

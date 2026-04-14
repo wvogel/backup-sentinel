@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from urllib import parse
-
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from app.config import API_TIMEOUT
 from app.services.api_client import APIError, api_get, api_get_dict, api_get_json, api_test_connection
@@ -68,8 +67,13 @@ def fetch_cluster_inventory(cluster: dict[str, Any], timeout: float = API_TIMEOU
 
     logger.info("Cluster resources: %d items, backup jobs: %d", len(resources), len(backup_jobs))
     for job in backup_jobs:
-        logger.debug("Backup job: id=%s schedule=%r vmid=%r enabled=%s",
-                     job.get("id"), job.get("schedule"), job.get("vmid"), job.get("enabled", 1))
+        logger.debug(
+            "Backup job: id=%s schedule=%r vmid=%r enabled=%s",
+            job.get("id"),
+            job.get("schedule"),
+            job.get("vmid"),
+            job.get("enabled", 1),
+        )
 
     nodes: list[dict[str, str]] = []
     vms: list[dict[str, Any]] = []
@@ -113,10 +117,17 @@ def fetch_cluster_inventory(cluster: dict[str, Any], timeout: float = API_TIMEOU
         vm["last_backup_at"] = latest_backup_by_vmid.get(vm["vmid"])
         logger.debug(
             "VM %s (vmid=%d): backup_kind=%s last_backup_at=%s",
-            vm["name"], vm["vmid"], vm["backup_kind"], vm["last_backup_at"],
+            vm["name"],
+            vm["vmid"],
+            vm["backup_kind"],
+            vm["last_backup_at"],
         )
 
-    return ProxmoxInventory(nodes=dedupe_nodes(nodes), vms=sorted(vms, key=lambda item: (item["node_name"], item["vmid"])), backup_events=backup_events)
+    return ProxmoxInventory(
+        nodes=dedupe_nodes(nodes),
+        vms=sorted(vms, key=lambda item: (item["node_name"], item["vmid"])),
+        backup_events=backup_events,
+    )
 
 
 def test_proxmox_connection(cluster: dict[str, Any], timeout: float = 5.0) -> None:
@@ -168,7 +179,11 @@ def infer_backup_kind_by_vmid(vms: list[dict[str, Any]], jobs: list[dict[str, An
             vmids -= _parse_vmid_set(exclude_spec)
         logger.debug(
             "Job %s: schedule=%r → %s, specific=%s, covers %d VMIDs",
-            job.get("id"), schedule, backup_kind, is_specific, len(vmids),
+            job.get("id"),
+            schedule,
+            backup_kind,
+            is_specific,
+            len(vmids),
         )
         for vmid in vmids:
             if is_specific:
@@ -284,18 +299,12 @@ def fetch_backup_details(
         except ProxmoxSyncError as exc:
             logger.warning("Cannot list storages for node %s: %s", node_name, exc)
             raw = []
-        storages = [
-            s for s in raw
-            if "backup" in str(s.get("content", "")) and s.get("storage")
-        ]
-        logger.info("Node %s: backup storages: %s",
-                    node_name, [s["storage"] for s in storages])
+        storages = [s for s in raw if "backup" in str(s.get("content", "")) and s.get("storage")]
+        logger.info("Node %s: backup storages: %s", node_name, [s["storage"] for s in storages])
         return node_name, storages
 
     with ThreadPoolExecutor(max_workers=len(nodes) or 1) as pool:
-        for node_name, storages in pool.map(
-            _fetch_node_storages, all_node_names
-        ):
+        for node_name, storages in pool.map(_fetch_node_storages, all_node_names):
             node_storages[node_name] = storages
 
     storage_query_node: dict[str, str] = {}
@@ -312,14 +321,16 @@ def fetch_backup_details(
     bulk_items_by_vmid: dict[int, list[dict[str, Any]]] = {}
 
     def _bulk_fetch_storage(storage_id: str, primary_node: str) -> tuple[str, list[dict[str, Any]]]:
-        for query_node in dict.fromkeys([primary_node] + all_node_names):
+        for query_node in dict.fromkeys([primary_node, *all_node_names]):
             path = (
                 f"/api2/json/nodes/{parse.quote(query_node, safe='')}"
                 f"/storage/{parse.quote(storage_id, safe='')}/content"
             )
             try:
                 items = _pve_get_json(
-                    base_url, path, auth_header,
+                    base_url,
+                    path,
+                    auth_header,
                     timeout=max(timeout, 60.0),
                     query={"content": "backup"},
                 )
@@ -332,10 +343,7 @@ def fetch_backup_details(
         return storage_id, []
 
     with ThreadPoolExecutor(max_workers=len(storage_query_node) or 1) as pool:
-        futures = [
-            pool.submit(_bulk_fetch_storage, sid, node)
-            for sid, node in storage_query_node.items()
-        ]
+        futures = [pool.submit(_bulk_fetch_storage, sid, node) for sid, node in storage_query_node.items()]
         for future in as_completed(futures):
             storage_id, items = future.result()
             for item in items:
@@ -389,15 +397,15 @@ def fetch_backup_details(
             verify_state = vs if vs else None
 
         return {
-            "vmid":             vmid,
-            "upid":             "",
-            "started_at":       started_at,
-            "finished_at":      None,
+            "vmid": vmid,
+            "upid": "",
+            "started_at": started_at,
+            "finished_at": None,
             "duration_seconds": None,
-            "size_bytes":       size_bytes,
-            "encrypted":        encrypted,
-            "verify_state":     verify_state,
-            "status":           "ok",
+            "size_bytes": size_bytes,
+            "encrypted": encrypted,
+            "verify_state": verify_state,
+            "status": "ok",
         }
 
     for vm in vms:
@@ -418,7 +426,8 @@ def fetch_backup_details(
 
     logger.info(
         "Backup scan complete: %d backups across %d VMs",
-        len(events), len({e["vmid"] for e in events}),
+        len(events),
+        len({e["vmid"] for e in events}),
     )
     return latest, events
 

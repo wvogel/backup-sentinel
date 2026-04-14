@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import io
 import logging
-from datetime import UTC, datetime
+from datetime import UTC
 from pathlib import Path
 from urllib import request as urllib_request
 
+from reportlab.graphics import renderPDF
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (
@@ -22,23 +23,22 @@ from reportlab.platypus import (
     TableStyle,
 )
 from reportlab.platypus.flowables import Flowable
-from reportlab.graphics import renderPDF
 from svglib.svglib import svg2rlg
 
-from app.config import BRAND_LOGO_LIGHT_URL, BRAND_LOGO_DARK_URL, DEFAULT_TIMEZONE
+from app.config import BRAND_LOGO_LIGHT_URL, DEFAULT_TIMEZONE
 
 logger = logging.getLogger(__name__)
 
 # ── Colour palette ──────────────────────────────────────────────────────────
-C_HEADER  = colors.HexColor("#141450")
-C_ACCENT  = colors.HexColor("#1e3a8a")
-C_OK      = colors.HexColor("#059669")
-C_FAIL    = colors.HexColor("#b22c3a")
-C_MUTED   = colors.HexColor("#64748b")
+C_HEADER = colors.HexColor("#141450")
+C_ACCENT = colors.HexColor("#1e3a8a")
+C_OK = colors.HexColor("#059669")
+C_FAIL = colors.HexColor("#b22c3a")
+C_MUTED = colors.HexColor("#64748b")
 C_ROW_ALT = colors.HexColor("#f1f5f9")
-C_LINE    = colors.HexColor("#e2e8f0")
-C_WHITE   = colors.white
-C_BLACK   = colors.HexColor("#1e293b")
+C_LINE = colors.HexColor("#e2e8f0")
+C_WHITE = colors.white
+C_BLACK = colors.HexColor("#1e293b")
 C_CLUSTER = colors.HexColor("#dbeafe")
 
 PAGE_W, PAGE_H = A4
@@ -78,12 +78,12 @@ def _logo_url_normal() -> str:
 def _draw_logo_on_canvas(canvas, logo, x, y, target_h) -> bool:
     """Draw a logo (bytes or SVG Drawing) on a canvas at (x, y) with given height."""
     from reportlab.graphics.shapes import Drawing
+
     if not logo:
         return False
     if isinstance(logo, bytes):
         reader = ImageReader(io.BytesIO(logo))
-        canvas.drawImage(reader, x, y, height=target_h,
-                         preserveAspectRatio=True, mask="auto")
+        canvas.drawImage(reader, x, y, height=target_h, preserveAspectRatio=True, mask="auto")
         return True
     if isinstance(logo, Drawing):
         scale = target_h / logo.height if logo.height else 1
@@ -185,6 +185,7 @@ class _NumberedCanvas:
                 if page_num > 1 and self._logo_normal:
                     try:
                         from reportlab.graphics.shapes import Drawing
+
                         logo_h = 8 * mm
                         logo = self._logo_normal
                         if isinstance(logo, bytes):
@@ -192,19 +193,22 @@ class _NumberedCanvas:
                             iw, ih = reader.getSize()
                             logo_w = logo_h * (iw / ih) if ih else 20 * mm
                             self.setFillAlpha(0.6)
-                            self.drawImage(reader,
-                                           PAGE_W - MARGIN - logo_w,
-                                           PAGE_H - MARGIN + 1 * mm,
-                                           width=logo_w, height=logo_h,
-                                           preserveAspectRatio=True, mask="auto")
+                            self.drawImage(
+                                reader,
+                                PAGE_W - MARGIN - logo_w,
+                                PAGE_H - MARGIN + 1 * mm,
+                                width=logo_w,
+                                height=logo_h,
+                                preserveAspectRatio=True,
+                                mask="auto",
+                            )
                             self.setFillAlpha(1.0)
                         elif isinstance(logo, Drawing):
                             scale = logo_h / logo.height if logo.height else 1
                             logo_w = logo.width * scale
                             self.saveState()
                             self.setFillAlpha(0.6)
-                            self.translate(PAGE_W - MARGIN - logo_w,
-                                           PAGE_H - MARGIN + 1 * mm)
+                            self.translate(PAGE_W - MARGIN - logo_w, PAGE_H - MARGIN + 1 * mm)
                             self.scale(scale, scale)
                             renderPDF.draw(logo, self, 0, 0)
                             self.restoreState()
@@ -218,22 +222,29 @@ class _NumberedCanvas:
 
 # ── Style helpers ─────────────────────────────────────────────────────────────
 def _styles() -> dict:
-    base = getSampleStyleSheet()
     return {
-        "h1": ParagraphStyle("h1", fontName="Helvetica-Bold", fontSize=20, textColor=C_HEADER,
-                             spaceAfter=2 * mm, leading=24),
-        "h2": ParagraphStyle("h2", fontName="Helvetica-Bold", fontSize=13, textColor=C_HEADER,
-                             spaceBefore=4 * mm, spaceAfter=1 * mm, leading=16),
+        "h1": ParagraphStyle(
+            "h1", fontName="Helvetica-Bold", fontSize=20, textColor=C_HEADER, spaceAfter=2 * mm, leading=24
+        ),
+        "h2": ParagraphStyle(
+            "h2",
+            fontName="Helvetica-Bold",
+            fontSize=13,
+            textColor=C_HEADER,
+            spaceBefore=4 * mm,
+            spaceAfter=1 * mm,
+            leading=16,
+        ),
         "body": ParagraphStyle("body", fontName="Helvetica", fontSize=9, textColor=C_BLACK, leading=13),
         "muted": ParagraphStyle("muted", fontName="Helvetica", fontSize=8, textColor=C_MUTED, leading=11),
         "ok": ParagraphStyle("ok", fontName="Helvetica-Bold", fontSize=9, textColor=C_OK),
         "fail": ParagraphStyle("fail", fontName="Helvetica-Bold", fontSize=9, textColor=C_FAIL),
         "th": ParagraphStyle("th", fontName="Helvetica-Bold", fontSize=8, textColor=C_WHITE, leading=10),
         "td": ParagraphStyle("td", fontName="Helvetica", fontSize=8, textColor=C_BLACK, leading=11),
-        "cluster_hd": ParagraphStyle("cluster_hd", fontName="Helvetica-Bold", fontSize=9,
-                                     textColor=C_ACCENT, leading=12),
-        "center": ParagraphStyle("center", fontName="Helvetica", fontSize=9, alignment=TA_CENTER,
-                                 textColor=C_BLACK),
+        "cluster_hd": ParagraphStyle(
+            "cluster_hd", fontName="Helvetica-Bold", fontSize=9, textColor=C_ACCENT, leading=12
+        ),
+        "center": ParagraphStyle("center", fontName="Helvetica", fontSize=9, alignment=TA_CENTER, textColor=C_BLACK),
     }
 
 
@@ -255,22 +266,28 @@ def _summary_table(totals: dict, st: dict) -> Table:
     ]
     col_w = (PAGE_W - 2 * MARGIN) / 4
     t = Table(data, colWidths=[col_w] * 4, rowHeights=[22 * mm])
-    t.setStyle(TableStyle([
-        ("BOX",        (0, 0), (-1, -1), 0.5, C_LINE),
-        ("INNERGRID",  (0, 0), (-1, -1), 0.5, C_LINE),
-        ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN",      (0, 0), (-1, -1), "CENTER"),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
-        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.HexColor("#f8fafc")]),
-    ]))
+    t.setStyle(
+        TableStyle(
+            [
+                ("BOX", (0, 0), (-1, -1), 0.5, C_LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, C_LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.HexColor("#f8fafc")]),
+            ]
+        )
+    )
     return t
 
 
 def _stat_cell(label: str, value: str, st: dict, color=None) -> list:
-    val_style = ParagraphStyle("sv", fontName="Helvetica-Bold", fontSize=18,
-                               textColor=color or C_HEADER, alignment=TA_CENTER, leading=22)
-    lbl_style = ParagraphStyle("sl", fontName="Helvetica", fontSize=8,
-                               textColor=C_MUTED, alignment=TA_CENTER, leading=10)
+    val_style = ParagraphStyle(
+        "sv", fontName="Helvetica-Bold", fontSize=18, textColor=color or C_HEADER, alignment=TA_CENTER, leading=22
+    )
+    lbl_style = ParagraphStyle(
+        "sl", fontName="Helvetica", fontSize=8, textColor=C_MUTED, alignment=TA_CENTER, leading=10
+    )
     return [Paragraph(value, val_style), Paragraph(label, lbl_style)]
 
 
@@ -315,37 +332,47 @@ def _comparison_section(comparison: dict, st: dict) -> list:
     ]
 
     for label, cur_val, prev_val, delta_pct, invert in metrics:
-        delta_text = _delta_str(delta_pct) if delta_pct is not None else (
-            f"+{comparison['delta_vms']}" if comparison["delta_vms"] > 0 else str(comparison["delta_vms"])
-        ) if label == "VMs" else "–"
+        delta_text = (
+            _delta_str(delta_pct)
+            if delta_pct is not None
+            else (f"+{comparison['delta_vms']}" if comparison["delta_vms"] > 0 else str(comparison["delta_vms"]))
+            if label == "VMs"
+            else "–"
+        )
         dc = _delta_color(delta_pct, invert) if delta_pct is not None else C_MUTED
-        rows_data.append([
-            Paragraph(f"<b>{label}</b>", td),
-            Paragraph(_fmt_num(cur_val), td_r),
-            Paragraph(_fmt_num(prev_val), td_r),
-            Paragraph(f"<font color='{dc.hexval()}'>{delta_text}</font>", td_r),
-        ])
+        rows_data.append(
+            [
+                Paragraph(f"<b>{label}</b>", td),
+                Paragraph(_fmt_num(cur_val), td_r),
+                Paragraph(_fmt_num(prev_val), td_r),
+                Paragraph(f"<font color='{dc.hexval()}'>{delta_text}</font>", td_r),
+            ]
+        )
 
     col_w = (PAGE_W - 2 * MARGIN) / 4
     t = Table(rows_data, colWidths=[col_w] * 4)
-    t.setStyle(TableStyle([
-        ("BACKGROUND",   (0, 0), (-1, 0), C_HEADER),
-        ("TEXTCOLOR",    (0, 0), (-1, 0), C_WHITE),
-        ("GRID",         (0, 0), (-1, -1), 0.3, C_LINE),
-        ("VALIGN",       (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING",   (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING",(0, 0), (-1, -1), 4),
-        ("LEFTPADDING",  (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [C_WHITE, C_ROW_ALT]),
-    ]))
+    t.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), C_HEADER),
+                ("TEXTCOLOR", (0, 0), (-1, 0), C_WHITE),
+                ("GRID", (0, 0), (-1, -1), 0.3, C_LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [C_WHITE, C_ROW_ALT]),
+            ]
+        )
+    )
     flowables.append(t)
     return flowables
 
 
 # ── Backup events table ───────────────────────────────────────────────────────
 _TH_COLS = ["VM", "Node", "Datum", "Größe", "Encrypted", "Verify", "Status"]
-_COL_W   = [36*mm, 24*mm, 26*mm, 22*mm, 20*mm, 18*mm, 24*mm]  # total ≈ 170mm usable
+_COL_W = [36 * mm, 24 * mm, 26 * mm, 22 * mm, 20 * mm, 18 * mm, 24 * mm]  # total ≈ 170mm usable
 
 
 def _fmt_bytes(value: object) -> str:
@@ -363,6 +390,7 @@ def _fmt_bytes(value: object) -> str:
 def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") -> list:
     """Return a list of flowables: per-cluster chapter with header + table."""
     from zoneinfo import ZoneInfo
+
     tz = ZoneInfo(tz_name)
 
     def fmt_dt(dt, fmt: str) -> str:
@@ -392,13 +420,15 @@ def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") ->
         cluster_ok = sum(r["ok_count"] for r in vm_rows)
         cluster_fail = sum(r["failed_count"] for r in vm_rows)
         cluster_deleted = sum(r.get("deleted_count", 0) for r in vm_rows)
-        flowables.append(Paragraph(
-            f"{_fmt_num(cluster_vms)} VMs  ·  {_fmt_num(cluster_events)} Ereignisse  ·  "
-            f"<font color='#059669'>{_fmt_num(cluster_ok)} OK</font>  ·  "
-            f"<font color='#b22c3a'>{_fmt_num(cluster_fail)} Fehler</font>"
-            + (f"  ·  {_fmt_num(cluster_deleted)} gelöscht" if cluster_deleted else ""),
-            st["body"],
-        ))
+        flowables.append(
+            Paragraph(
+                f"{_fmt_num(cluster_vms)} VMs  ·  {_fmt_num(cluster_events)} Ereignisse  ·  "
+                f"<font color='#059669'>{_fmt_num(cluster_ok)} OK</font>  ·  "
+                f"<font color='#b22c3a'>{_fmt_num(cluster_fail)} Fehler</font>"
+                + (f"  ·  {_fmt_num(cluster_deleted)} gelöscht" if cluster_deleted else ""),
+                st["body"],
+            )
+        )
         flowables.append(HRFlowable(width="100%", thickness=0.8, color=C_ACCENT, spaceAfter=3 * mm))
 
         header = [Paragraph(h, st["th"]) for h in _TH_COLS]
@@ -437,11 +467,9 @@ def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") ->
                 ]
                 table_data.append(row)
                 if status_for_report == "failed":
-                    row_styles.append(("BACKGROUND", (0, data_row_idx), (-1, data_row_idx),
-                                       colors.HexColor("#fef2f2")))
+                    row_styles.append(("BACKGROUND", (0, data_row_idx), (-1, data_row_idx), colors.HexColor("#fef2f2")))
                 elif is_deleted:
-                    row_styles.append(("BACKGROUND", (0, data_row_idx), (-1, data_row_idx),
-                                       colors.HexColor("#f8fafc")))
+                    row_styles.append(("BACKGROUND", (0, data_row_idx), (-1, data_row_idx), colors.HexColor("#f8fafc")))
                 elif data_row_idx % 2 == 0:
                     row_styles.append(("BACKGROUND", (0, data_row_idx), (-1, data_row_idx), C_ROW_ALT))
                 first = False
@@ -449,19 +477,19 @@ def _events_table(rows: list[dict], st: dict, tz_name: str = "Europe/Berlin") ->
 
         t = Table(table_data, colWidths=_COL_W, repeatRows=1)
         base_style = [
-            ("BACKGROUND",   (0, 0), (-1, 0),  C_HEADER),
-            ("TEXTCOLOR",    (0, 0), (-1, 0),  C_WHITE),
-            ("FONTNAME",     (0, 0), (-1, 0),  "Helvetica-Bold"),
-            ("FONTSIZE",     (0, 0), (-1, -1), 8),
+            ("BACKGROUND", (0, 0), (-1, 0), C_HEADER),
+            ("TEXTCOLOR", (0, 0), (-1, 0), C_WHITE),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [C_WHITE, C_ROW_ALT]),
-            ("GRID",         (0, 0), (-1, -1), 0.3, C_LINE),
-            ("VALIGN",       (0, 0), (-1, -1), "MIDDLE"),
-            ("ALIGN",        (2, 0), (2, -1),  "CENTER"),  # Datum centred
-            ("ALIGN",        (3, 0), (3, -1),  "RIGHT"),   # Größe right
-            ("ALIGN",        (4, 0), (5, -1),  "CENTER"),  # Enc/Verify centred
-            ("TOPPADDING",   (0, 0), (-1, -1), 3),
+            ("GRID", (0, 0), (-1, -1), 0.3, C_LINE),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (2, 0), (2, -1), "CENTER"),  # Datum centred
+            ("ALIGN", (3, 0), (3, -1), "RIGHT"),  # Größe right
+            ("ALIGN", (4, 0), (5, -1), "CENTER"),  # Enc/Verify centred
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("LEFTPADDING",  (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
             ("RIGHTPADDING", (0, 0), (-1, -1), 4),
         ]
         t.setStyle(TableStyle(base_style + row_styles))
@@ -495,6 +523,7 @@ def _notifications_section(notifications: list[dict], st: dict) -> list:
     ]
 
     from zoneinfo import ZoneInfo
+
     tz = ZoneInfo(DEFAULT_TIMEZONE)
 
     header = [Paragraph(h, st["th"]) for h in ["Datum", "Typ", "Cluster", "Kanal", "Nachricht"]]
@@ -514,28 +543,35 @@ def _notifications_section(notifications: list[dict], st: dict) -> list:
         if len(message) > 120:
             message = message[:117] + "..."
 
-        table_data.append([
-            Paragraph(date_str, st["cell"]),
-            Paragraph(type_label, st["cell"]),
-            Paragraph(cluster, st["cell"]),
-            Paragraph(channel, st["cell"]),
-            Paragraph(message, st["cell"]),
-        ])
+        table_data.append(
+            [
+                Paragraph(date_str, st["cell"]),
+                Paragraph(type_label, st["cell"]),
+                Paragraph(cluster, st["cell"]),
+                Paragraph(channel, st["cell"]),
+                Paragraph(message, st["cell"]),
+            ]
+        )
         if row_idx % 2 == 0:
             row_styles.append(("BACKGROUND", (0, row_idx), (-1, row_idx), C_ROW_ALT))
 
     avail = PAGE_W - 2 * MARGIN
     col_widths = [avail * 0.14, avail * 0.14, avail * 0.14, avail * 0.08, avail * 0.50]
     t = Table(table_data, colWidths=col_widths, repeatRows=1)
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), C_HEADER),
-        ("TEXTCOLOR", (0, 0), (-1, 0), C_WHITE),
-        ("FONTSIZE", (0, 0), (-1, -1), 7),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("LINEBELOW", (0, 0), (-1, -1), 0.4, C_LINE),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ] + row_styles))
+    t.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), C_HEADER),
+                ("TEXTCOLOR", (0, 0), (-1, 0), C_WHITE),
+                ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LINEBELOW", (0, 0), (-1, -1), 0.4, C_LINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                *row_styles,
+            ]
+        )
+    )
     flowables.append(t)
     return flowables
 
@@ -546,6 +582,7 @@ def write_backup_period_pdf(report: dict, target: Path, notifications: list[dict
     target.parent.mkdir(parents=True, exist_ok=True)
 
     from zoneinfo import ZoneInfo
+
     tz = ZoneInfo(DEFAULT_TIMEZONE)
 
     # Logo invers (white on dark) for the header banner on page 1
@@ -591,6 +628,7 @@ def write_backup_period_pdf(report: dict, target: Path, notifications: list[dict
         story += _notifications_section(notifications, st)
 
     from app.config import APP_VERSION
+
     canvas_factory = _NumberedCanvas(generated_str, logo_normal_bytes, APP_VERSION)
     doc.build(story, canvasmaker=canvas_factory)
 

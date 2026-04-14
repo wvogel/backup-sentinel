@@ -6,10 +6,9 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
-
-from app import db
 from zoneinfo import ZoneInfo
 
+from app import db
 from app.config import DEFAULT_TIMEZONE, REPORT_DIR, SYNC_INTERVAL_MINUTES
 from app.services.notifications import (
     notify_backup_critical,
@@ -57,8 +56,9 @@ def sync_cluster_backups(cluster: dict) -> None:
         inventory = fetch_cluster_inventory(cluster)
         pve_events: list[dict] = []
         all_pbs_events: list[dict] = []
-        logger.info("  PVE-Inventory: %d Nodes, %d VMs (%.1fs)",
-                    len(inventory.nodes), len(inventory.vms), time.monotonic() - t0)
+        logger.info(
+            "  PVE-Inventory: %d Nodes, %d VMs (%.1fs)", len(inventory.nodes), len(inventory.vms), time.monotonic() - t0
+        )
         pve_log.append(f"Nodes: {len(inventory.nodes)}, VMs: {len(inventory.vms)}")
         db.sync_cluster_inventory(cluster["id"], inventory.nodes, inventory.vms)
 
@@ -85,8 +85,9 @@ def sync_cluster_backups(cluster: dict) -> None:
                 logger.info("  PBS-Sync: %s …", conn.get("name"))
                 try:
                     events, ds_logs = fetch_all_pbs_backups(conn, vmids, cutoff)
-                    logger.info("  PBS-Sync: %s → %d Events (%.1fs)",
-                                conn.get("name"), len(events), time.monotonic() - t_pbs)
+                    logger.info(
+                        "  PBS-Sync: %s → %d Events (%.1fs)", conn.get("name"), len(events), time.monotonic() - t_pbs
+                    )
                     pbs_log.extend(ds_logs)
                     for event in events:
                         event["source"] = "pbs"
@@ -94,13 +95,13 @@ def sync_cluster_backups(cluster: dict) -> None:
                 except PBSSyncError as exc:
                     pbs_ok = False
                     pbs_log.append(f"Fehler: {exc}")
-                    logger.error("PBS sync failed for cluster %s / PBS %s: %s",
-                                 cluster["name"], conn.get("name"), exc)
+                    logger.error("PBS sync failed for cluster %s / PBS %s: %s", cluster["name"], conn.get("name"), exc)
                 except Exception as exc:
                     pbs_ok = False
                     pbs_log.append(f"Unerwarteter Fehler: {exc}")
-                    logger.error("PBS unexpected error for cluster %s / PBS %s: %s",
-                                 cluster["name"], conn.get("name"), exc)
+                    logger.error(
+                        "PBS unexpected error for cluster %s / PBS %s: %s", cluster["name"], conn.get("name"), exc
+                    )
                 db.update_pbs_sync_status(conn["id"], pbs_ok, "\n".join(pbs_log))
 
         db.sync_backup_events_for_source(cluster["id"], "pbs", all_pbs_events)
@@ -120,8 +121,12 @@ def sync_cluster_backups(cluster: dict) -> None:
             pve_log.append(f"Größen-Anomalien: {len(anomalies)} VMs")
             for anomaly in anomalies:
                 notify_size_anomaly(
-                    cluster["name"], anomaly["vm_name"], anomaly["vmid"],
-                    anomaly["latest_size"], anomaly["avg_size"], anomaly["deviation"],
+                    cluster["name"],
+                    anomaly["vm_name"],
+                    anomaly["vmid"],
+                    anomaly["latest_size"],
+                    anomaly["avg_size"],
+                    anomaly["deviation"],
                 )
     except Exception as exc:
         logger.warning("Anomaly detection failed for %s: %s", cluster["name"], exc)
@@ -131,7 +136,10 @@ def sync_cluster_backups(cluster: dict) -> None:
         for row in governance:
             if row["backup_severity"] == "critical" and row["status_backup_kind"] != "none":
                 notify_backup_critical(
-                    cluster["name"], row["vm_name"], row["vmid"], row["backup_age_days"],
+                    cluster["name"],
+                    row["vm_name"],
+                    row["vmid"],
+                    row["backup_age_days"],
                 )
     except Exception as exc:
         logger.warning("Critical notification check failed: %s", exc)
@@ -175,6 +183,7 @@ def sync_all_clusters() -> None:
 
 def auto_generate_monthly_report() -> None:
     from datetime import timedelta
+
     from app.services.reporting import build_month_comparison
 
     now = datetime.now(tz=ZoneInfo(DEFAULT_TIMEZONE))
@@ -202,6 +211,7 @@ def auto_generate_monthly_report() -> None:
         json_path = REPORT_DIR / f"backup-report-{month_slug}-{timestamp_slug}.json"
         try:
             from app.db_notifications import list_notification_logs_for_period
+
             period_start = datetime(last_month.year, last_month.month, 1, tzinfo=UTC)
             period_end = first_of_current.astimezone(UTC)
             notifs = list_notification_logs_for_period(period_start, period_end)
@@ -221,8 +231,9 @@ def notify_overdue_cluster_syncs() -> None:
     for cluster in overdue_clusters:
         notify_sync_overdue(cluster["name"], cluster["last_pve_sync_failure_started_at"])
         db.mark_cluster_sync_overdue_notified(cluster["id"])
-        logger.warning("24h-Sync-Ausfall gemeldet: %s (seit %s)",
-                       cluster["name"], cluster["last_pve_sync_failure_started_at"])
+        logger.warning(
+            "24h-Sync-Ausfall gemeldet: %s (seit %s)", cluster["name"], cluster["last_pve_sync_failure_started_at"]
+        )
 
 
 async def auto_sync_loop() -> None:

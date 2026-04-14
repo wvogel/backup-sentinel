@@ -6,9 +6,9 @@ from typing import Any
 
 from psycopg.types.json import Jsonb
 
-from app.db_clusters import list_clusters, list_nodes
+from app.db_clusters import list_clusters
 from app.db_core import connect
-from app.db_governance import encryption_audit, vm_governance_rows
+from app.db_governance import vm_governance_rows
 from app.services.reporting import serialize_report_payload
 from app.types import MonthlyReportRow
 
@@ -53,7 +53,9 @@ def cluster_summaries() -> list[dict[str, Any]]:
             encrypted = row["encrypted_backups"] or 0
             pct = round(encrypted / total * 100) if total else 100
             enc_by_cluster[row["cluster_id"]] = {
-                "total_backups": total, "encrypted_backups": encrypted, "pct_encrypted": pct,
+                "total_backups": total,
+                "encrypted_backups": encrypted,
+                "pct_encrypted": pct,
             }
 
     summaries: list[dict[str, Any]] = []
@@ -63,25 +65,31 @@ def cluster_summaries() -> list[dict[str, Any]]:
         warning_count = sum(int(vm["backup_severity"] == "warning") for vm in vms)
         critical_count = sum(int(vm["backup_severity"] == "critical") for vm in vms)
         overdue_restore_count = sum(int(vm["restore_due_status"] in {"warning", "critical"}) for vm in vms)
-        summaries.append({
-            "cluster_name": cluster["name"],
-            "cluster_slug": cluster["slug"],
-            "api_url": cluster["api_url"],
-            "registered_at": cluster["registered_at"],
-            "last_pve_sync_at": cluster.get("last_pve_sync_at"),
-            "last_pve_sync_success_at": cluster.get("last_pve_sync_success_at"),
-            "last_pve_sync_failure_started_at": cluster.get("last_pve_sync_failure_started_at"),
-            "node_count": node_counts.get(cid, 0),
-            "vm_count": len(vms),
-            "warning_count": warning_count,
-            "critical_count": critical_count,
-            "encryption": enc_by_cluster.get(cid, {"total_backups": 0, "encrypted_backups": 0, "pct_encrypted": 100}),
-            "overdue_restore_count": overdue_restore_count,
-        })
+        summaries.append(
+            {
+                "cluster_name": cluster["name"],
+                "cluster_slug": cluster["slug"],
+                "api_url": cluster["api_url"],
+                "registered_at": cluster["registered_at"],
+                "last_pve_sync_at": cluster.get("last_pve_sync_at"),
+                "last_pve_sync_success_at": cluster.get("last_pve_sync_success_at"),
+                "last_pve_sync_failure_started_at": cluster.get("last_pve_sync_failure_started_at"),
+                "node_count": node_counts.get(cid, 0),
+                "vm_count": len(vms),
+                "warning_count": warning_count,
+                "critical_count": critical_count,
+                "encryption": enc_by_cluster.get(
+                    cid, {"total_backups": 0, "encrypted_backups": 0, "pct_encrypted": 100}
+                ),
+                "overdue_restore_count": overdue_restore_count,
+            }
+        )
     return summaries
 
 
-def archive_monthly_report(report_month: date, trigger_mode: str, pdf_path: Any, json_path: Any, report: dict[str, Any]) -> None:
+def archive_monthly_report(
+    report_month: date, trigger_mode: str, pdf_path: Any, json_path: Any, report: dict[str, Any]
+) -> None:
     now = datetime.now(UTC)
     snapshot = serialize_report_payload(report)
     with connect() as conn, conn.cursor() as cur:
@@ -144,9 +152,16 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
                     removed_at    = NULL
                 """,
                 (
-                    vm_id, started_at, event.get("finished_at"), event.get("duration_seconds"),
-                    event.get("size_bytes"), event.get("encrypted"), event.get("verify_state"),
-                    event["status"], event.get("upid", ""), source,
+                    vm_id,
+                    started_at,
+                    event.get("finished_at"),
+                    event.get("duration_seconds"),
+                    event.get("size_bytes"),
+                    event.get("encrypted"),
+                    event.get("verify_state"),
+                    event["status"],
+                    event.get("upid", ""),
+                    source,
                 ),
             )
 
@@ -179,7 +194,9 @@ def upsert_backup_events(cluster_id: int, events: list[dict[str, Any]]) -> None:
     sync_backup_events_for_source(cluster_id, source, events)
 
 
-def list_backup_events_for_period(period_start: datetime, period_end: datetime, cluster_id: int | None = None) -> list[dict[str, Any]]:
+def list_backup_events_for_period(
+    period_start: datetime, period_end: datetime, cluster_id: int | None = None
+) -> list[dict[str, Any]]:
     params: list[Any] = [period_start, period_end]
     query = """
         SELECT
