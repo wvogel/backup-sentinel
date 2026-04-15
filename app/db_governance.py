@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+from app.config import BACKUP_DAY_OFFSET_HOURS, DEFAULT_TIMEZONE
 from app.db_core import connect
 from app.services.backup_status import assess_backup_status
 from app.types import RestoreTestRow
@@ -236,13 +237,20 @@ def unencrypted_vms(cluster_id: int | None = None) -> list[dict[str, Any]]:
 
 
 def vm_backup_sparkline_data(cluster_id: int, days: int = 31) -> dict[int, list[str]]:
+    """Return a per-VM array of daily backup statuses for the last `days` days.
+
+    The "backup day" boundary is shifted by BACKUP_DAY_OFFSET_HOURS (default: 6h)
+    so a job that finishes at 00:30 still counts for the previous evening's run.
+    Timestamps are evaluated in DEFAULT_TIMEZONE so the day boundary matches
+    the operator's wall clock, not UTC.
+    """
     start = datetime.now(UTC) - timedelta(days=days - 1)
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
             SELECT
                 be.vm_id,
-                DATE(be.started_at) AS backup_date,
+                ((be.started_at - make_interval(hours => %s)) AT TIME ZONE %s)::date AS backup_date,
                 BOOL_OR(be.status = 'ok' AND be.removed_at IS NULL AND COALESCE(be.size_bytes, 0) > 1) AS has_ok,
                 BOOL_OR(be.status = 'ok' AND be.removed_at IS NOT NULL AND COALESCE(be.size_bytes, 0) > 1) AS has_deleted,
                 BOOL_OR(be.status != 'ok') AS has_failed
@@ -250,9 +258,9 @@ def vm_backup_sparkline_data(cluster_id: int, days: int = 31) -> dict[int, list[
             JOIN vms v ON v.id = be.vm_id
             WHERE v.cluster_id = %s
               AND be.started_at >= %s
-            GROUP BY be.vm_id, DATE(be.started_at)
+            GROUP BY be.vm_id, backup_date
             """,
-            (cluster_id, start),
+            (BACKUP_DAY_OFFSET_HOURS, DEFAULT_TIMEZONE, cluster_id, start),
         )
         rows = list(cur.fetchall())
     day_status: dict[tuple[int, date], str] = {}
@@ -268,11 +276,20 @@ def vm_backup_sparkline_data(cluster_id: int, days: int = 31) -> dict[int, list[
         cur.execute("SELECT id FROM vms WHERE cluster_id = %s", (cluster_id,))
         vm_ids = [row["id"] for row in cur.fetchall()]
 
+    # Build the per-day array using the same shifted, local-time boundary.
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(DEFAULT_TIMEZONE)
+    # "today" in backup-day terms: the day that the current moment falls into
+    # after shifting back by the offset.
+    now_shifted = datetime.now(tz) - timedelta(hours=BACKUP_DAY_OFFSET_HOURS)
+    today = now_shifted.date()
+
     result: dict[int, list[str]] = {}
     for vm_id in vm_ids:
         spark = []
         for i in range(days):
-            d = (start + timedelta(days=i)).date()
+            d = today - timedelta(days=days - 1 - i)
             spark.append(day_status.get((vm_id, d), "none"))
         result[vm_id] = spark
     return result

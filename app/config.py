@@ -34,4 +34,11 @@ REPORT_LANGUAGE = os.getenv("BSENTINEL_REPORT_LANGUAGE", "de").lower()
 if REPORT_LANGUAGE not in ("de", "en"):
     REPORT_LANGUAGE = "de"
 
+# Sparkline / report "backup day" boundary offset in hours.
+# A backup finishing after midnight still belongs to the previous evening's
+# backup run. With the default of 6h, the "backup day" runs from 06:00 to
+# 06:00 the next morning — so a job ending at 00:30 is grouped with the
+# day before. Set to 0 to align with wall-clock midnight.
+BACKUP_DAY_OFFSET_HOURS = int(os.getenv("BSENTINEL_BACKUP_DAY_OFFSET_HOURS", "6"))
+
 CACHE_BUSTER = str(int(time.time()))
