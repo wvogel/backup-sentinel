@@ -185,17 +185,57 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
         conn.commit()
 
 
-def cleanup_stale_inprogress_backups(cluster_id: int, max_age_hours: int = 6) -> int:
-    """Mark aborted/stale in-progress backup records as failed.
+def cleanup_stale_inprogress_backups(cluster_id: int, max_age_hours: int = 48) -> int:
+    """Reconcile stub in-progress backup rows with their real outcome.
 
-    PVE sometimes leaves stub `backup_events` rows with `size_bytes <= 1`
-    and `finished_at IS NULL` when a backup task is aborted, the node
-    crashes, or networking drops. These rows keep the VM showing a
-    "Backup running" badge forever. This function closes them out.
+    PVE emits a row per VM with a pre-job placeholder (`size_bytes <= 1`,
+    `finished_at IS NULL`) and later writes a real row once the backup
+    finishes. When the backup job runs overnight — or succeeds in pieces —
+    the stubs from the first half of the job can still be sitting in the
+    DB while later VMs are already complete.
 
-    Returns the number of rows updated.
+    Strategy:
+      1. If the stub has a later OK + size>1 row for the same VM within
+         36 hours, delete the stub — it's the same successful job.
+         This also repairs rows that an earlier buggy version of this
+         function marked as `status='failed'`.
+      2. Only truly orphaned stubs — no newer OK row AND started >48h ago —
+         are marked as failed. 48h safely covers even the longest real
+         backup jobs while still catching genuinely abandoned runs.
+
+    Returns the total number of rows affected (deleted + marked failed).
     """
     with connect() as conn, conn.cursor() as cur:
+        # 1. Drop stubs (including previously mis-marked 'failed' stubs)
+        #    when a later successful backup exists for the same VM.
+        cur.execute(
+            """
+            DELETE FROM backup_events
+            WHERE id IN (
+                SELECT be.id
+                FROM backup_events be
+                JOIN vms v ON v.id = be.vm_id
+                WHERE v.cluster_id = %s
+                  AND be.removed_at IS NULL
+                  AND COALESCE(be.size_bytes, 0) <= 1
+                  AND EXISTS (
+                      SELECT 1
+                      FROM backup_events be2
+                      WHERE be2.vm_id = be.vm_id
+                        AND be2.started_at > be.started_at
+                        AND be2.started_at < be.started_at + interval '36 hours'
+                        AND be2.status = 'ok'
+                        AND COALESCE(be2.size_bytes, 0) > 1
+                        AND be2.removed_at IS NULL
+                  )
+            )
+            RETURNING id
+            """,
+            (cluster_id,),
+        )
+        merged = len(cur.fetchall())
+
+        # 2. Mark genuinely orphaned stubs as failed — no successor, old enough.
         cur.execute(
             """
             UPDATE backup_events
@@ -208,6 +248,7 @@ def cleanup_stale_inprogress_backups(cluster_id: int, max_age_hours: int = 6) ->
                 WHERE v.cluster_id = %s
                   AND be.finished_at IS NULL
                   AND be.removed_at IS NULL
+                  AND be.status != 'failed'
                   AND COALESCE(be.size_bytes, 0) <= 1
                   AND be.started_at < now() - make_interval(hours => %s)
             )
@@ -215,9 +256,9 @@ def cleanup_stale_inprogress_backups(cluster_id: int, max_age_hours: int = 6) ->
             """,
             (cluster_id, max_age_hours),
         )
-        updated = len(cur.fetchall())
+        aborted = len(cur.fetchall())
         conn.commit()
-        return updated
+        return merged + aborted
 
 
 def upsert_backup_events(cluster_id: int, events: list[dict[str, Any]]) -> None:

@@ -35,10 +35,15 @@ if REPORT_LANGUAGE not in ("de", "en"):
     REPORT_LANGUAGE = "de"
 
 # Sparkline / report "backup day" boundary offset in hours.
-# A backup finishing after midnight still belongs to the previous evening's
-# backup run. With the default of 6h, the "backup day" runs from 06:00 to
-# 06:00 the next morning — so a job ending at 00:30 is grouped with the
-# day before. Set to 0 to align with wall-clock midnight.
-BACKUP_DAY_OFFSET_HOURS = int(os.getenv("BSENTINEL_BACKUP_DAY_OFFSET_HOURS", "6"))
+# Backup jobs routinely start in the evening and can run well into the next
+# morning — especially when the job contains many VMs that are backed up
+# sequentially. A single "backup day" should cover that whole run.
+#
+# With the default of 12h, the "backup day" runs from 12:00 noon to 12:00
+# noon the next day. A job starting at 20:00 and ending at 09:30 the next
+# morning is entirely grouped with the evening it started.
+#
+# Set to 0 for strict wall-clock midnight.
+BACKUP_DAY_OFFSET_HOURS = int(os.getenv("BSENTINEL_BACKUP_DAY_OFFSET_HOURS", "12"))
 
 CACHE_BUSTER = str(int(time.time()))

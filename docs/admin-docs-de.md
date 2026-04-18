@@ -105,7 +105,7 @@ Ihr Reverse Proxy sollte den Traffic an den OAuth2-Proxy-Container auf Port **41
 | `BSENTINEL_DATA_DIR` | `/data` | Pfad fuer persistente Anwendungsdaten. |
 | `BSENTINEL_REPORT_DIR` | `/reports` | Pfad fuer generierte PDF/JSON-Berichte. |
 | `BSENTINEL_REPORT_LANGUAGE` | `de` | Sprache fuer generierte PDF-Berichte (`de` oder `en`). Andere Werte fallen auf `de` zurueck. |
-| `BSENTINEL_BACKUP_DAY_OFFSET_HOURS` | `6` | Verschiebung der "Backup-Tag"-Grenze in der Sparkline. Ein Job, der um 00:30 endet, zaehlt fuer den vorherigen Abend. `0` = echter Mitternachtswechsel. |
+| `BSENTINEL_BACKUP_DAY_OFFSET_HOURS` | `12` | Verschiebung der "Backup-Tag"-Grenze in der Sparkline. Lange Jobs, deren letzte VMs erst am naechsten Morgen fertig werden, zaehlen fuer den Abend, an dem der Job startete. `0` = echter Mitternachtswechsel. |
 
 ### OAuth2-Proxy (`oauth2-proxy.env`)
 
