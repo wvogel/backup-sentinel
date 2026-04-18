@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract release notes
+        id: notes
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "Extracting notes for $TAG"
+          # Grab the section between "## [<tag>]" and the next "## [" header
+          awk -v tag="$TAG" '
+            $0 ~ "^## \\[" tag "\\]" { flag=1; next }
+            flag && /^## \[/ { flag=0 }
+            flag { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "No CHANGELOG entry found for $TAG — using fallback."
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." > release-notes.md
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.notes.outputs.tag }}
+          name: ${{ steps.notes.outputs.tag }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: false

@@ -1,11 +1,16 @@
 # Backup Sentinel
 
+[![CI](https://github.com/wvogel/backup-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/wvogel/backup-sentinel/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/wvogel/backup-sentinel/actions/workflows/codeql.yml/badge.svg)](https://github.com/wvogel/backup-sentinel/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/wvogel/backup-sentinel)](https://github.com/wvogel/backup-sentinel/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.116-009688.svg)](https://fastapi.tiangolo.com/)
 [![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-336791.svg)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED.svg)](https://www.docker.com/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://docs.astral.sh/ruff/)
+[![Last commit](https://img.shields.io/github/last-commit/wvogel/backup-sentinel)](https://github.com/wvogel/backup-sentinel/commits/main)
+[![Stars](https://img.shields.io/github/stars/wvogel/backup-sentinel?style=social)](https://github.com/wvogel/backup-sentinel/stargazers)
 
 Compliance-focused monitoring for Proxmox backup infrastructure. Track backup status, encryption, verification, and document restore tests across PVE clusters and PBS instances — aligned with NIST CSF 2.0 and NIS2 requirements.
 

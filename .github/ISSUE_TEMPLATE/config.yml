@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Questions & Discussions
+    url: https://github.com/wvogel/backup-sentinel/discussions
+    about: Ask questions, share setups, or discuss ideas with the community.
+  - name: 🔒 Security Vulnerability
+    url: https://github.com/wvogel/backup-sentinel/security/advisories/new
+    about: Report a security issue privately via a GitHub Security Advisory.

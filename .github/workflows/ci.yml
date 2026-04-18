@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install ruff
+        run: pip install --quiet ruff==0.14.0
+
+      - name: ruff check
+        run: ruff check app tests scripts
+
+      - name: ruff format --check
+        run: ruff format --check app tests scripts
+
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: backup_reports
+          POSTGRES_USER: backup_reports
+          POSTGRES_PASSWORD: backup_reports
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      BSENTINEL_DATABASE_URL: postgresql://backup_reports:backup_reports@localhost:5432/backup_reports
+      BSENTINEL_SECRET_KEY: dUwD46AT9M2L9EYpKahkU8mC7A5pvxjFTqX5hxBbdcQ=
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --quiet -r requirements.txt pytest
+          pip install --quiet --no-deps svglib==1.6.0
+
+      - name: Run tests
+        run: pytest tests/ -v

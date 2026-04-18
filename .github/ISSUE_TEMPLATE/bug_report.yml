@@ -1,0 +1,78 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug! Please fill in as much detail as you can.
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: Version
+      description: Which version of Backup Sentinel are you running?
+      options:
+        - v2.2 (latest)
+        - v2.1
+        - v2.0
+        - main (git)
+        - other / unsure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      placeholder: Describe what you observed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: What did you expect?
+      placeholder: Describe the behavior you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click on …
+        3. See error
+    validations:
+      required: true
+
+  - type: input
+    id: pve-version
+    attributes:
+      label: Proxmox VE version
+      placeholder: e.g. 8.4.1 or 9.1.7
+
+  - type: input
+    id: pbs-version
+    attributes:
+      label: Proxmox Backup Server version
+      placeholder: e.g. 3.4.0 or 4.0.1
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste container or app logs. Redact credentials, tokens, and internal hostnames.
+      render: shell
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: I redacted credentials and secrets from any pasted logs
+          required: true
