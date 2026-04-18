@@ -43,6 +43,7 @@ def reports_page(request: Request) -> HTMLResponse:
         group["failed_count"] += vm_row["failed_count"]
         group["deleted_count"] += vm_row["deleted_count"]
     return templates.TemplateResponse(
+        request,
         "report.html",
         common_context(request)
         | {

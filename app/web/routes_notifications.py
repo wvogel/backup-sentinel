@@ -56,7 +56,7 @@ def notifications_page(
         "active_filters": filter_params,
         "filter_query_string": urlencode(filter_params),
     }
-    return templates.TemplateResponse("notifications.html", common_context(request) | context)
+    return templates.TemplateResponse(request, "notifications.html", common_context(request) | context)
 
 
 @router.get("/notifications.csv")

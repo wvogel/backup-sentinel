@@ -27,7 +27,7 @@ def settings(request: Request) -> HTMLResponse:
         "app_settings": all_settings,
         "settings_audit": db.list_settings_audit_entries(50),
     }
-    return templates.TemplateResponse("settings.html", common_context(request) | context)
+    return templates.TemplateResponse(request, "settings.html", common_context(request) | context)
 
 
 @router.post("/settings/notifications")

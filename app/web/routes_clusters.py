@@ -137,7 +137,7 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
         "encryption": encryption,
         "unencrypted_vms": db.unencrypted_vms(cluster["id"]) if encryption["pct_encrypted"] < 100 else [],
     }
-    return templates.TemplateResponse("cluster.html", common_context(request) | context)
+    return templates.TemplateResponse(request, "cluster.html", common_context(request) | context)
 
 
 @router.post("/clusters/{cluster_slug}/restore-tests")
