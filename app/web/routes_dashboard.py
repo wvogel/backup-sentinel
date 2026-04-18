@@ -71,4 +71,4 @@ def dashboard(request: Request) -> HTMLResponse:
         "encryption": db.encryption_audit(),
         "restore_coverage": db.restore_test_coverage(),
     }
-    return templates.TemplateResponse("dashboard.html", common_context(request) | context)
+    return templates.TemplateResponse(request, "dashboard.html", common_context(request) | context)
