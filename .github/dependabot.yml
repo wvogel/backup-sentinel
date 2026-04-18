@@ -29,6 +29,11 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
+    # Never auto-bump the Python base image across minor versions —
+    # Jinja2/FastAPI compatibility with Python 3.13+ needs manual testing.
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
