@@ -11,4 +11,4 @@ tinycss2==1.5.1
 # svglib is installed separately with --no-deps because 1.6.0+ pulls in
 # rlpycairo → pycairo, which requires a C compiler. See Dockerfile / CI.
 python-multipart==0.0.26
-cryptography==46.0.7
+cryptography==47.0.0
