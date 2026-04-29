@@ -276,14 +276,14 @@ def vm_backup_sparkline_data(cluster_id: int, days: int = 31) -> dict[int, list[
         cur.execute("SELECT id FROM vms WHERE cluster_id = %s", (cluster_id,))
         vm_ids = [row["id"] for row in cur.fetchall()]
 
-    # Build the per-day array using the same shifted, local-time boundary.
+    # The day-axis is the operator's wall clock — "today" is today, not a
+    # shifted day. The offset only affects how individual events are bucketed
+    # (long-running overnight jobs whose last VMs finish in the morning still
+    # land on the day they started), not which day the rightmost dot represents.
     from zoneinfo import ZoneInfo
 
     tz = ZoneInfo(DEFAULT_TIMEZONE)
-    # "today" in backup-day terms: the day that the current moment falls into
-    # after shifting back by the offset.
-    now_shifted = datetime.now(tz) - timedelta(hours=BACKUP_DAY_OFFSET_HOURS)
-    today = now_shifted.date()
+    today = datetime.now(tz).date()
 
     result: dict[int, list[str]] = {}
     for vm_id in vm_ids:
