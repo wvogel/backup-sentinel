@@ -75,6 +75,7 @@
   "cluster.live_sync_log": "Live Sync-Log",
   "cluster.sync_running": "Sync läuft …",
   "cluster.show_sync_log": "Sync-Log anzeigen",
+  "cluster.show_log": "Log anzeigen",
   "cluster.show_pbs_sync_log": "PBS Sync-Log anzeigen",
   "cluster.pve_sync_log_title": "PVE Sync-Log",
   "cluster.pbs_sync_log_title": "PBS Sync-Log",
