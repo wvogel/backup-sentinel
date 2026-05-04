@@ -1,15 +1,17 @@
 // ── Sync-related interactions ────────────────────────────────────────────────
 
-// ── Sync-Dot Klick → Log-Panel anzeigen (global, funktioniert auf allen Seiten) ──
+// ── Klick auf alles mit data-log → Log-Panel anzeigen
+//    (Sync-Dots auf der Settings-Seite, Restore-Test-Logs etc.)
 document.addEventListener("click", (event) => {
-  const dot = event.target.closest("button.sync-dot[data-log]");
-  if (!dot) return;
+  const trigger = event.target.closest("[data-log]");
+  if (!trigger) return;
+  event.preventDefault();
   const panel = document.getElementById("sync-log-panel");
   const content = document.getElementById("sync-log-content");
   const title = document.getElementById("sync-log-title");
   if (!panel || !content) return;
-  if (title) title.textContent = dot.dataset.logTitle || T('js.sync_log');
-  content.textContent = dot.dataset.log;
+  if (title) title.textContent = trigger.dataset.logTitle || T('js.sync_log');
+  content.textContent = trigger.dataset.log;
   panel.classList.remove("hidden");
   panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });

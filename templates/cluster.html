@@ -259,7 +259,8 @@
       <li>
         <span class="result-icon result-{{ restore.result }}">{% if restore.result == 'passed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% elif restore.result == 'failed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>{% else %}&sim;{% endif %}</span><span class="restore-type-icon" title="{{ recovery_type_labels.get(restore.recovery_type, restore.recovery_type) }}">{{ recovery_type_icons.get(restore.recovery_type, "•") }}</span>
         <strong>{{ restore.vm_name }}</strong>
-        <span class="muted">{{ restore.tested_at|datetime_local("%d.%m.%Y") }} &middot; {{ restore_result_labels.get(restore.result, restore.result) }} &middot; {{ restore.duration_minutes }} min{% if restore.evidence_note %} &middot; {{ restore.evidence_note }}{% endif %}</span>
+        <span class="muted">{{ restore.tested_at|datetime_local("%d.%m.%Y") }} &middot; {{ restore_result_labels.get(restore.result, restore.result) }} &middot; {{ restore.duration_minutes }} min</span>{% if restore.evidence_note %}
+        <a href="#sync-log-panel" class="restore-log-link" data-log="{{ restore.evidence_note }}" data-log-title="{{ t('cluster.evidence_note') }} – {{ restore.vm_name }}">{{ t('cluster.show_log') }}</a>{% endif %}
       </li>
       {% else %}
       <li class="muted">{{ t('cluster.no_restore_tests') }}</li>

@@ -75,6 +75,7 @@
   "cluster.live_sync_log": "Live sync log",
   "cluster.sync_running": "Sync running …",
   "cluster.show_sync_log": "Show sync log",
+  "cluster.show_log": "Show log",
   "cluster.th_node": "Node",
   "cluster.th_vm": "VM",
   "cluster.th_vmid": "VMID",

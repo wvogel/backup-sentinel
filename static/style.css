@@ -925,6 +925,21 @@ pre {
   flex-wrap: wrap;
 }
 
+.restore-log-link {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--chip);
+  border: 1px solid var(--chip-border);
+}
+.restore-log-link:hover {
+  text-decoration: none;
+  background: color-mix(in srgb, var(--chip) 70%, var(--accent) 10%);
+}
+
 .result-icon {
   font-weight: 700;
   font-size: 0.95rem;
