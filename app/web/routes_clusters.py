@@ -5,6 +5,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from pydantic import ValidationError as PydanticValidationError
 from starlette import status
 
 from app import db
@@ -158,14 +159,22 @@ def add_restore_test(
         parsed_date = datetime.fromisoformat(tested_at).date()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Ungültiges Datum") from exc
-    payload = RestoreTestCreate(
-        vm_id=vm_id,
-        tested_at=parsed_date,
-        result=result,
-        recovery_type=recovery_type,
-        duration_minutes=duration_minutes,
-        evidence_note=evidence_note,
-    )
+    try:
+        payload = RestoreTestCreate(
+            vm_id=vm_id,
+            tested_at=parsed_date,
+            result=result,
+            recovery_type=recovery_type,
+            duration_minutes=duration_minutes,
+            evidence_note=evidence_note,
+        )
+    except PydanticValidationError as exc:
+        # Surface the first validation problem to the user instead of a 500.
+        first = exc.errors()[0]
+        raise HTTPException(
+            status_code=400,
+            detail=f"{'.'.join(str(p) for p in first['loc'])}: {first['msg']}",
+        ) from exc
     db.create_restore_test(**payload.model_dump())
     try:
         vm = db.get_vm_for_cluster(cluster["id"], vm_id)
