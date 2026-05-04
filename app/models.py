@@ -61,4 +61,4 @@ class RestoreTestCreate(BaseModel):
     result: RestoreResult
     recovery_type: str = Field(min_length=3, max_length=80)
     duration_minutes: int = Field(ge=0, le=10080)
-    evidence_note: str = Field(default="", max_length=500)
+    evidence_note: str = Field(default="", max_length=50000)
