@@ -5,6 +5,21 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.2] — 2026-05-04
+
+### Fixed
+
+- **Successful backups stuck as "failed"** for VMs whose in-progress stub had been marked failed by cleanup before the real PBS snapshot rolled in. The `ON CONFLICT` rule in `sync_backup_events_for_source` now lets a real `size_bytes > 1` event override a stale failed status, and migration #1 backfills the existing DB to flip those rows from `failed` → `ok`.
+- **Restore-test save crashed with HTTP 500** when the operator pasted a multi-KB Proxmox task log into `evidence_note`. The Pydantic `max_length` was 500 — raised to 50 000 (the DB column is `TEXT` anyway). Validation errors now return HTTP 400 with a readable message instead of bubbling up as a 500.
+- **Cluster detail page dumped the full restore-test log inline.** Each restore entry now shows only date / result / duration plus a small "Log anzeigen" / "Show log" pill that opens the existing sync-log panel.
+- **`backup_kind_label` rendered hardcoded German on the EN locale.** "täglich" / "wöchentlich" / "nie" now go through `t("cluster.policy_*")`, so the EN UI sees "daily" / "weekly" / "never" / "auto".
+- **Sparkline showed yesterday as the rightmost dot** when viewed in the morning. The day-axis is now wall-clock today; the 12 h backup-day offset still applies to event bucketing, not to the axis itself.
+- **Restore-test inline log click handler** generalized — any element with `data-log` now opens `#sync-log-panel`.
+
+### Added
+
+- DB migrations framework now has its first migration (re-classify failed-but-large `backup_events` as `ok`).
+
 ## [v2.2.1] — 2026-04-19
 
 ### Fixed
