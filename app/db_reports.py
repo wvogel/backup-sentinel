@@ -148,7 +148,19 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
                     verify_state  = COALESCE(EXCLUDED.verify_state, backup_events.verify_state),
                     source        = CASE WHEN backup_events.source = 'pbs' AND EXCLUDED.source = 'pve' THEN 'pbs'
                                          ELSE COALESCE(EXCLUDED.source, backup_events.source) END,
-                    status        = CASE WHEN backup_events.status = 'failed' THEN backup_events.status ELSE EXCLUDED.status END,
+                    -- A real backup with size > 1 byte is the source of truth — even if an
+                    -- earlier sync (or stale-stub cleanup) flagged the row as failed.
+                    -- Only preserve `failed` when no real size has been reported yet.
+                    status        = CASE
+                        WHEN COALESCE(EXCLUDED.size_bytes, 0) > 1 THEN EXCLUDED.status
+                        WHEN backup_events.status = 'failed' THEN backup_events.status
+                        ELSE EXCLUDED.status
+                    END,
+                    finished_at   = CASE
+                        WHEN COALESCE(EXCLUDED.size_bytes, 0) > 1
+                          THEN COALESCE(EXCLUDED.finished_at, backup_events.finished_at)
+                        ELSE backup_events.finished_at
+                    END,
                     removed_at    = NULL
                 """,
                 (

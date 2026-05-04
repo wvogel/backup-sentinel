@@ -32,9 +32,15 @@ logger = logging.getLogger(__name__)
 
 
 MIGRATIONS: list[tuple[int, str, list[str]]] = [
-    # (version, description, [sql_statements])
-    # Example (leave commented until you add a real one):
-    # (1, "drop legacy notes column", ["ALTER TABLE clusters DROP COLUMN IF EXISTS notes_legacy"]),
+    (
+        1,
+        "Re-classify failed-but-large backup_events as ok",
+        # An earlier ON CONFLICT rule preserved status='failed' even when a
+        # later sync reported a real size > 1 byte — leaving genuine
+        # successful backups stuck as 'failed'. Reverse that for any row
+        # where the size proves the backup completed.
+        ["UPDATE backup_events SET status = 'ok' WHERE status = 'failed' AND COALESCE(size_bytes, 0) > 1"],
+    ),
 ]
 
 
