@@ -86,13 +86,15 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         severity, age_days = assess_backup_status(status_backup_kind, row["last_backup_at"], now)
         row["backup_severity"] = severity
         row["backup_age_days"] = age_days
+        from app.i18n import t
+
         if status_backup_kind == "unconfigured":
-            row["backup_kind_label"] = "auto"
+            row["backup_kind_label"] = t("cluster.policy_auto")
         else:
             row["backup_kind_label"] = {
-                "daily": "täglich",
-                "weekly": "wöchentlich",
-                "none": "nie",
+                "daily": t("cluster.policy_daily"),
+                "weekly": t("cluster.policy_weekly"),
+                "none": t("cluster.policy_none"),
             }.get(effective_backup_kind, effective_backup_kind)
 
         if row["restore_required"] and status_backup_kind != "none":
