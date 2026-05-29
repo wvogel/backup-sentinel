@@ -898,10 +898,18 @@ html[data-theme="dark"] select {
 }
 
 @media (max-width: 1100px) {
+  /* Not enough width for a single row: lay the cell out as a tidy two-line
+     card — status badges (kind · severity · source) on top, the policy control
+     on its own row below — instead of a cramped 2×2 grid. */
   .backup-inline-grid {
-    /* max-content (not minmax(0, …)) so the two columns never collapse below
-       their content and overlap when the column is squeezed. */
-    grid-template-columns: repeat(2, max-content);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .backup-policy-slot {
+    flex-basis: 100%;
   }
 }
 

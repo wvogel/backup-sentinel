@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.8] — 2026-05-29
+
+### Changed
+
+- **Backup-status cell reads as a clean two-line card on mid-width screens (≤ 1100 px)** instead of a cramped 2×2 grid: the status badges (kind · severity · source) sit on the first row, the policy selector on its own row below. Wide screens keep the single-row layout; the mobile cards inherit the same tidy two-line arrangement.
+
 ## [v2.2.7] — 2026-05-29
 
 ### Fixed
