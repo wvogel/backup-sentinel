@@ -38,6 +38,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
         for key, value in self.headers.items():
             if key.lower() not in HOP_BY_HOP and key.lower() != "host":
                 req.add_header(key, value)
+        force_email = os.environ.get("PREVIEW_FORCE_EMAIL")
+        if force_email:
+            req.add_header("X-Forwarded-Email", force_email)
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 self._relay(resp.status, resp.headers, resp.read())
