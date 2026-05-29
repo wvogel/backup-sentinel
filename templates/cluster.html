@@ -132,10 +132,10 @@
         {% for row in vm_rows %}
         {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['warning', 'critical'] %}restore-overdue{% endif %}{% endset %}
         <tr data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}">
-          <td data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
-          <td data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}</td>
-          <td class="col-right" data-sort-value="{{ row.vmid }}">{{ row.vmid }}</td>
-          <td data-sort-value="{{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
+          <td data-label="{{ t('common.node') }}" data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
+          <td data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}</td>
+          <td class="col-right" data-label="VMID" data-sort-value="{{ row.vmid }}">{{ row.vmid }}</td>
+          <td data-label="{{ t('cluster.th_last_backup') }}" data-sort-value="{{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
             {% if row.in_progress_since %}
               {% set progress = row.live_backup_progress %}
               <span
@@ -151,7 +151,7 @@
               <span class="muted">{{ t('cluster.no_backup') }}</span>
             {% endif %}
           </td>
-          <td class="sparkline-cell">
+          <td class="sparkline-cell" data-label="{{ t('cluster.th_30days') }}">
             {%- set spark = sparklines.get(row.id, []) -%}
             <svg class="sparkline-svg" viewBox="0 0 {{ spark|length * 4 }} 10" width="{{ spark|length * 4 }}" height="10" aria-label="Backup-Trend 14 Tage">
               {%- for s in spark -%}
@@ -160,7 +160,7 @@
               {%- endfor -%}
             </svg>
           </td>
-          <td class="backup-cell" data-sort-value="{{ row.backup_severity }} {{ row.status_backup_kind }} {{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
+          <td class="backup-cell" data-label="{{ t('cluster.th_backup') }}" data-sort-value="{{ row.backup_severity }} {{ row.status_backup_kind }} {{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
             <div class="backup-inline-grid">
               <span class="backup-kind-slot"><span class="pill">{{ row.backup_kind_label }}</span></span>
               <span class="backup-severity-slot"><span class="badge {{ row.backup_severity }}">{{ severity_labels.get(row.backup_severity, row.backup_severity) }}</span></span>
@@ -182,7 +182,7 @@
               </form>
             </div>
           </td>
-          <td data-sort-value="{{ row.restore_due_status }} {{ row.last_restore_tested_at.isoformat() if row.last_restore_tested_at else '' }} {{ row.last_restore_result or '' }}">
+          <td class="restore-cell" data-label="{{ t('cluster.th_restore_test') }}" data-sort-value="{{ row.restore_due_status }} {{ row.last_restore_tested_at.isoformat() if row.last_restore_tested_at else '' }} {{ row.last_restore_result or '' }}">
             {% if row.last_restore_tested_at %}
               <span class="result-icon result-{{ row.last_restore_result }}">{% if row.last_restore_result == 'passed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% elif row.last_restore_result == 'failed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>{% else %}&sim;{% endif %}</span><span class="restore-type-icon" title="{{ recovery_type_labels.get(row.last_restore_recovery_type, row.last_restore_recovery_type) }}">{{ recovery_type_icons.get(row.last_restore_recovery_type, "•") }}</span>{{ row.last_restore_tested_at|datetime_local("%d.%m.%Y") }} &middot; {{ row.last_restore_duration_minutes }} min
             {% else %}
