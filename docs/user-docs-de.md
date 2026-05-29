@@ -85,13 +85,17 @@ Die Haupttabelle listet jede VM im Cluster mit sortierbaren Spalten:
 | Letztes Backup | Zeitstempel des juengsten Backups; zeigt eine Fortschrittsanzeige bei laufendem Backup |
 | 30 Tage        | Sparkline mit taeglichem Backup-Status der letzten 30 Tage (gruen = OK, rot = fehlgeschlagen, grau = kein Backup) |
 | Backup         | Backup-Art (Snapshot/Stop/Suspend), Schweregrad-Badge, Quelle (Lokal/PBS) und Policy-Override-Dropdown |
-| Restore-Test   | Letztes Restore-Test-Ergebnis (bestanden/eingeschraenkt/fehlgeschlagen), Recovery-Typ-Icon, Datum und Dauer |
+| Restore-Test   | Letztes Restore-Test-Ergebnis (bestanden/eingeschraenkt/fehlgeschlagen), Recovery-Typ-Icon, Datum und Dauer; dazu ein Faelligkeits-Badge (Warnung/Kritisch) |
 
 **Node-Filterleiste** -- Buttons oberhalb der Tabelle filtern VMs nach Node.
 
 **Sortierung** -- Klicken Sie auf einen Spaltenkopf, um auf-/absteigend zu sortieren.
 
 **Backup-Policy-Override** -- Verwenden Sie das Dropdown in der Backup-Spalte, um die automatisch erkannte Policy fuer eine VM zu ueberschreiben (taeglich / woechentlich / nie / automatisch).
+
+**Restore-Test-Faelligkeit** -- Das Badge in der Restore-Test-Spalte warnt rechtzeitig vor Ablauf des Test-Intervalls. Der Vorlauf richtet sich nach dem Intervall: bei **jaehrlichen** Intervallen erscheint die **Warnung 1 Monat** vorher, bei **quartalsweisen** (oder kuerzeren) Intervallen **2 Wochen** vorher. Nach Ablauf des Intervalls wechselt der Status auf **Kritisch**. Fahren Sie mit der Maus ueber das Badge, um Intervall und Alter in Tagen zu sehen.
+
+**Mobile Ansicht** -- Auf schmalen Bildschirmen (Smartphone) wird die Tabelle automatisch in Karten umgewandelt: pro VM eine Karte mit beschrifteten Feldern, sodass nichts horizontal weggescrollt werden muss.
 
 ### Restore-Test-Formular
 

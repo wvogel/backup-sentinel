@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.9] — 2026-05-29
+
+### Documentation
+
+- Updated the user guides (DE/EN) to cover the recent UI behaviour: the **restore-test due badge** and its interval-aware warning lead time (1 month for yearly, 2 weeks for quarterly intervals), and the **mobile card layout** of the VM table on narrow screens.
+
 ## [v2.2.8] — 2026-05-29
 
 ### Changed
