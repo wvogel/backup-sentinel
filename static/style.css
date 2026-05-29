@@ -1273,6 +1273,72 @@ html[data-theme="dark"] .node-filter-button.is-active {
   .vm-table-scroll {
     max-height: calc(100vh - 170px);
   }
+
+  /* VM table → one card per row on phones. A 7-column table forced into
+     horizontal scroll hides most of each row; cards keep everything visible. */
+  #vm-table {
+    display: block;
+    overflow: visible;
+  }
+
+  #vm-table thead {
+    display: none;
+  }
+
+  #vm-table tbody {
+    display: block;
+  }
+
+  #vm-table tr {
+    display: block;
+    margin-bottom: 10px;
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel-alt);
+  }
+
+  #vm-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 0;
+    text-align: right;
+    border-bottom: 1px solid var(--line);
+    white-space: normal !important;
+  }
+
+  #vm-table td:last-child {
+    border-bottom: 0;
+  }
+
+  #vm-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    text-align: left;
+  }
+
+  /* Rich cells: label as a block on top, content flowing normally below so
+     inline icons/badges stay on one line instead of each taking a row. */
+  #vm-table td.sparkline-cell,
+  #vm-table td.backup-cell,
+  #vm-table td.restore-cell {
+    display: block;
+    text-align: left;
+  }
+
+  #vm-table td.sparkline-cell::before,
+  #vm-table td.backup-cell::before,
+  #vm-table td.restore-cell::before {
+    display: block;
+    margin-bottom: 8px;
+  }
 }
 
 @media (max-width: 480px) {

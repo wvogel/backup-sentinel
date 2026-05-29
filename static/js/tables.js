@@ -168,6 +168,13 @@ function autosizeTable(table) {
     return;
   }
 
+  // On phones the table is restyled into stacked cards (see CSS); column sizing
+  // is meaningless there, so clear any inline wrapping styles and bail.
+  if (window.matchMedia && window.matchMedia("(max-width: 640px)").matches) {
+    setColumnWrap(table, () => true);
+    return;
+  }
+
   // Columns allowed to wrap, ordered so the lowest priority gives way first.
   const wrapOrder = Array.from(head.cells)
     .map((header, index) => ({ index, priority: Number(header.dataset.wrappable) }))

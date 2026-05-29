@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.6] — 2026-05-29
+
+### Changed
+
+- **VM table becomes one card per row on phones (≤ 640 px).** Horizontal scrolling of a 7-column table hid most of each row; each row is now a labelled card (Node / VM / VMID / last backup / 30-day trend / backup / restore-test), so nothing is off-screen. Simple fields show label-left / value-right; rich cells (sparkline, backup controls, restore-test) put the label on top with the content below. The column auto-sizer stands down in this mode.
+
 ## [v2.2.5] — 2026-05-29
 
 ### Fixed
