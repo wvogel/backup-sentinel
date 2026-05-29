@@ -1193,12 +1193,21 @@ html[data-theme="dark"] .node-filter-button.is-active {
 @media (max-width: 920px) {
   .hero-card,
   .section-head,
-  .card-head,
-  .topbar,
-  .topbar-actions,
-  .topbar-user {
+  .card-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  /* Keep the header a single horizontal bar — its actions are compact icons,
+     so it never needs to stack into a column. */
+  .topbar-actions {
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .topnav {
+    gap: 4px;
   }
 
   .panel-grid {
@@ -1207,12 +1216,6 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
   .cluster-overview-grid {
     grid-template-columns: 1fr;
-  }
-
-  .brand-link,
-  .topbar-actions,
-  .topbar-user {
-    width: 100%;
   }
 
   .hero-meta {
@@ -1248,8 +1251,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
     white-space: normal;
   }
 
+  /* Drop the user label on small screens — the logout icon stays. */
   .user-name {
-    max-width: 100%;
+    display: none;
   }
 
   .summary-grid {

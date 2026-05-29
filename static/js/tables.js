@@ -188,9 +188,14 @@ function autosizeTable(table) {
     wrapped.add(index);
     setColumnWrap(table, (i) => wrapped.has(i));
     if (table.scrollWidth <= wrapper.clientWidth + 1) {
-      break;
+      return;
     }
   }
+
+  // Even wrapping every wrappable column isn't enough (e.g. narrow phone): a
+  // clean single-line layout with horizontal scroll beats cells that break
+  // character-by-character, so revert to no wrapping and let the container scroll.
+  setColumnWrap(table, () => false);
 }
 
 let autosizeFrame = 0;

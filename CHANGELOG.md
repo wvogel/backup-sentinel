@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.5] — 2026-05-29
+
+### Fixed
+
+- **Header collapsed into a broken vertical column on narrow screens.** A `@media (max-width: 920px)` rule forced `.topbar`/`.topbar-actions`/`.topbar-user` to `flex-direction: column`, stacking the logo, nav icons, language/theme toggles and logout into a left-hand column. The header now stays a single horizontal bar at every width (its actions are compact icons); the user label is hidden below 640 px, leaving the logout icon.
+- **VM table wrapped character-by-character on phones.** With the new column auto-sizer, very narrow viewports (e.g. 375 px) where even fully-wrapped columns can't fit caused names to break one letter per line. The auto-sizer now falls back to clean single-line cells with horizontal scroll when wrapping can't make the table fit.
+
 ## [v2.2.4] — 2026-05-29
 
 ### Fixed
