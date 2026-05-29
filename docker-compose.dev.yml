@@ -1,0 +1,15 @@
+# Local dev overlay — NOT loaded by plain `docker compose` (that's the deploy
+# path on the server). Use it explicitly:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres backup-sentinel
+# or just run ./scripts/dev.sh
+#
+# It exposes the app directly on :8081 (no oauth2-proxy, so no login wall) and
+# injects a throwaway dev secret key. Never use these values in production.
+services:
+  backup-sentinel:
+    ports:
+      - "8081:80"
+    environment:
+      BSENTINEL_SECRET_KEY: "dUwD46AT9M2L9EYpKahkU8mC7A5pvxjFTqX5hxBbdcQ="
+      APP_URL: "http://localhost:8081"
+      BSENTINEL_DEBUG: "true"
