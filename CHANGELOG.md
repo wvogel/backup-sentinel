@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.7] — 2026-05-29
+
+### Fixed
+
+- **Header wrapped onto a second row on medium screens** when the logged-in user's name was a long email. The user label is now hidden at ≤ 920 px (the logout icon stays) and the header actions never wrap, so the bar stays a single row at every width.
+- **Backup-status pills overlapped** (`täglich`/`ok`, `PBS`/select) when the column was squeezed: the responsive 2-column grid used `minmax(0, …)` and could collapse below its content. Switched to `max-content` columns.
+
+### Changed
+
+- **Mobile cards are more compact.** Rich fields now sit horizontally (label left, value right) instead of label-on-top, so each card is shorter. The 30-day sparkline stretches to fill the row and is finally legible; the restore-test info stays on as few lines as possible.
+
 ## [v2.2.6] — 2026-05-29
 
 ### Changed

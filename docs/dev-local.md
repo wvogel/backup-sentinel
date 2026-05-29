@@ -39,3 +39,8 @@ The app holds port 8081, so the Claude preview tool can't own it directly.
 reverse proxy on the preview-assigned port that forwards to 8081 and rewrites
 `/` to the seeded cluster page — so a screenshot of `/` lands on the table.
 Override the landing path with `PREVIEW_ROOT` if needed.
+
+Set `PREVIEW_FORCE_EMAIL` to inject an `X-Forwarded-Email` header (the proxy
+otherwise passes none, so the app shows the "logged in" fallback). Useful for
+testing the header with a realistically long username, e.g.
+`PREVIEW_FORCE_EMAIL=first.last@example.com`.
