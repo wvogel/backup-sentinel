@@ -85,13 +85,17 @@ The main table lists every VM in the cluster with sortable columns:
 | Last Backup    | Timestamp of the most recent backup; shows a progress indicator if a backup is currently running |
 | 30 Days        | Sparkline showing daily backup status over the last 30 days (green = OK, red = failed, grey = no backup) |
 | Backup         | Backup kind (snapshot/stop/suspend), severity badge, source (Local/PBS), and policy override dropdown |
-| Restore Test   | Last restore test result (passed/limited/failed), recovery type icon, date, and duration |
+| Restore Test   | Last restore test result (passed/limited/failed), recovery type icon, date, and duration; plus a due badge (warning/critical) |
 
 **Node filter bar** -- Buttons above the table let you filter VMs by node.
 
 **Sorting** -- Click any column header to sort ascending/descending.
 
 **Backup policy override** -- Use the dropdown in the Backup column to override the auto-detected policy for a VM (daily / weekly / none / auto).
+
+**Restore-test due dates** -- The badge in the Restore Test column warns ahead of the test interval expiring. The lead time scales with the interval: **yearly** intervals warn **1 month** early, **quarterly** (or shorter) ones **2 weeks** early. Once the interval has elapsed the status turns **critical**. Hover the badge to see interval and age in days.
+
+**Mobile view** -- On narrow screens (phones) the table is automatically turned into cards: one card per VM with labelled fields, so nothing is hidden behind horizontal scrolling.
 
 ### Restore Test Form
 
