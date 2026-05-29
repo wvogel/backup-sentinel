@@ -5,6 +5,18 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.4] — 2026-05-29
+
+### Fixed
+
+- **Restore-test warning fired far too early.** The warning lead time was a flat 30 days before the due date regardless of interval. It is now interval-aware: **1 month** ahead for yearly intervals (≥ 180 days), **2 weeks** ahead for quarterly (or shorter) ones.
+- **Missing translations `common.node` / `common.vm`.** The cluster VM-table headers used the singular keys, but only the plural `common.nodes` / `common.vms` existed, so the raw keys showed up. Added "Node" / "VM" in both locales.
+- **Seven keys were missing from `en.json`** (`cluster.{pve,pbs}_sync_log_title`, `cluster.show_pbs_sync_log`, `cluster.{restore_tests,sync_log}_eyebrow`, `settings.{pve,pbs}_sync_log_title`). English users saw the raw keys because the fallback only resolves de→en. Both locales are now fully in sync (266 keys each).
+
+### Changed
+
+- **VM-table column layout now auto-sizes via JavaScript** to minimise wrapping. Every column is kept on a single line; only when the table is wider than its container do columns wrap, lowest-priority first (node → VM → restore-test), so as little wraps as necessary. Recomputed on load, resize, font load, and node/stat filtering.
+
 ## [v2.2.3] — 2026-05-29
 
 ### Fixed

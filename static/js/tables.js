@@ -95,6 +95,8 @@ for (const list of document.querySelectorAll(".js-node-filter-list")) {
       const visibleRows = rows.filter((r) => !r.classList.contains("hidden")).length;
       emptyState.classList.toggle("hidden", visibleRows !== 0);
     }
+
+    scheduleAutosize();
   };
 
   for (const button of list.querySelectorAll(".node-filter-button")) {
@@ -128,6 +130,8 @@ for (const tileGroup of document.querySelectorAll(".js-stat-filter-tiles")) {
     for (const tile of tileGroup.querySelectorAll("[data-tile-filter]")) {
       tile.classList.toggle("is-filter-active", activeTags.has(tile.dataset.tileFilter));
     }
+
+    scheduleAutosize();
   };
 
   for (const tile of tileGroup.querySelectorAll("[data-tile-filter]")) {
@@ -142,4 +146,68 @@ for (const tileGroup of document.querySelectorAll(".js-stat-filter-tiles")) {
       applyStatFilter();
     });
   }
+}
+
+// ── Auto-fit column widths (minimize wrapping) ───────────────────────────────
+// Sizes every column to its natural single-line width. Only when the table is
+// wider than its container do we let designated columns wrap — the ones with the
+// lowest `data-wrappable` priority give way first — so as little wraps as needed.
+function setColumnWrap(table, shouldWrap) {
+  for (const row of table.rows) {
+    const cells = row.cells;
+    for (let i = 0; i < cells.length; i++) {
+      cells[i].style.whiteSpace = shouldWrap(i) ? "" : "nowrap";
+    }
+  }
+}
+
+function autosizeTable(table) {
+  const wrapper = table.closest(".table-scroll") || table.parentElement;
+  const head = table.tHead?.rows?.[0];
+  if (!wrapper || !head || !table.tBodies[0]) {
+    return;
+  }
+
+  // Columns allowed to wrap, ordered so the lowest priority gives way first.
+  const wrapOrder = Array.from(head.cells)
+    .map((header, index) => ({ index, priority: Number(header.dataset.wrappable) }))
+    .filter((entry) => Number.isFinite(entry.priority) && entry.priority > 0)
+    .sort((a, b) => a.priority - b.priority)
+    .map((entry) => entry.index);
+
+  // Start with everything on a single line so the browser sizes each column to
+  // its natural width.
+  setColumnWrap(table, () => false);
+  if (table.scrollWidth <= wrapper.clientWidth + 1) {
+    return; // fits already — no wrapping needed
+  }
+
+  // Too wide: enable wrapping one column at a time until it fits.
+  const wrapped = new Set();
+  for (const index of wrapOrder) {
+    wrapped.add(index);
+    setColumnWrap(table, (i) => wrapped.has(i));
+    if (table.scrollWidth <= wrapper.clientWidth + 1) {
+      break;
+    }
+  }
+}
+
+let autosizeFrame = 0;
+function scheduleAutosize() {
+  if (autosizeFrame) {
+    cancelAnimationFrame(autosizeFrame);
+  }
+  autosizeFrame = requestAnimationFrame(() => {
+    autosizeFrame = 0;
+    for (const table of document.querySelectorAll(".js-autosize-table")) {
+      autosizeTable(table);
+    }
+  });
+}
+
+scheduleAutosize();
+window.addEventListener("resize", scheduleAutosize);
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(scheduleAutosize);
 }

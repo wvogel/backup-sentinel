@@ -107,9 +107,12 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             else:
                 restore_age = (now.date() - row["last_restore_tested_at"]).days
                 row["restore_age_days"] = restore_age
+                # Warn ahead of the due date: 1 month for yearly intervals,
+                # 2 weeks for quarterly (or shorter) ones.
+                warn_lead_days = 30 if interval_days >= 180 else 14
                 if restore_age >= interval_days:
                     row["restore_due_status"] = "critical"
-                elif restore_age >= max(1, interval_days - 30):
+                elif restore_age >= max(1, interval_days - warn_lead_days):
                     row["restore_due_status"] = "warning"
                 else:
                     row["restore_due_status"] = "ok"
