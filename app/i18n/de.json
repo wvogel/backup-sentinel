@@ -12,6 +12,8 @@
   "common.unknown": "unbekannt",
   "common.never": "nie",
   "common.stale": "stale",
+  "common.node": "Node",
+  "common.vm": "VM",
   "common.nodes": "Nodes",
   "common.vms": "VMs",
   "common.encrypted": "verschlüsselt",

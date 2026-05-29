@@ -116,16 +116,16 @@
     {% endfor %}
   </div>
   <div class="table-scroll vm-table-scroll">
-    <table id="vm-table" class="js-sortable-table js-node-filter-table">
+    <table id="vm-table" class="js-sortable-table js-node-filter-table js-autosize-table">
       <thead>
         <tr>
-          <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('common.node') }}</th>
-          <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('common.vm') }}</th>
+          <th aria-sort="none" class="sortable" data-sort-type="text" data-wrappable="1" role="button" tabindex="0">{{ t('common.node') }}</th>
+          <th aria-sort="none" class="sortable" data-sort-type="text" data-wrappable="2" role="button" tabindex="0">{{ t('common.vm') }}</th>
           <th aria-sort="none" class="sortable col-right" data-sort-type="number" role="button" tabindex="0">VMID</th>
           <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('cluster.th_last_backup') }}</th>
           <th>{{ t('cluster.th_30days') }}</th>
           <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('cluster.th_backup') }}</th>
-          <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('cluster.th_restore_test') }}</th>
+          <th aria-sort="none" class="sortable" data-sort-type="text" data-wrappable="3" role="button" tabindex="0">{{ t('cluster.th_restore_test') }}</th>
         </tr>
       </thead>
       <tbody>

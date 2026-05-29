@@ -858,6 +858,12 @@ html[data-theme="dark"] select {
   min-width: 0;
 }
 
+/* When the auto-sizer lets the node/VM columns wrap, break long unhyphenated
+   names gracefully instead of overflowing. */
+#vm-table td[data-sort-value] {
+  overflow-wrap: anywhere;
+}
+
 .backup-inline-grid {
   display: grid;
   grid-template-columns: 68px 70px 42px minmax(96px, 1fr);
