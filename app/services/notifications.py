@@ -233,7 +233,7 @@ def notify_backup_critical(cluster_name: str, vm_name: str, vmid: int, age_days:
     key = f"backup-critical:{cluster_name}:{vmid}"
     if not _should_send(key):
         return
-    age_str = f"seit {age_days} Tagen" if age_days is not None else "nie"
+    age_str = f"vor {age_days} Tagen" if age_days is not None else "nie"
     send_gotify(
         title=f"Backup kritisch: {vm_name}",
         message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\nLetztes Backup: {age_str}",

@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.3] — 2026-05-29
+
+### Fixed
+
+- **Restore-due hover tooltip showed raw placeholders** (`Intervall: {interval} Tage, Alter: {age} Tage`) on the cluster detail page. The `cluster.interval_days` / `cluster.age_days` strings used `{interval}` / `{age}`, but the template passes `days=…`, so nothing was substituted. Both strings now use `{days}` to match the call site.
+- **Gotify "backup critical" notification said "Letztes Backup: seit 3 Tagen".** Corrected to the grammatically right "vor 3 Tagen".
+
 ## [v2.2.2] — 2026-05-04
 
 ### Fixed
