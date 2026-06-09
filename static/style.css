@@ -864,6 +864,18 @@ html[data-theme="dark"] select {
   overflow-wrap: anywhere;
 }
 
+/* The wrappable text columns (Node, VM) must not collapse to a couple of
+   characters when the auto-sizer squeezes them — e.g. a restore "Warnung" badge
+   widens its own column and the node name would otherwise wrap into ~5 lines.
+   A floor keeps them at ≤2 lines; the auto-sizer then moves on to wrap VM and
+   finally the restore cell (badge drops below the date) for a balanced result. */
+#vm-table th:nth-child(1),
+#vm-table td:nth-child(1),
+#vm-table th:nth-child(2),
+#vm-table td:nth-child(2) {
+  min-width: 5.5rem;
+}
+
 .backup-inline-grid {
   display: grid;
   grid-template-columns: 68px 70px 42px minmax(96px, 1fr);
@@ -1318,6 +1330,12 @@ html[data-theme="dark"] .node-filter-button.is-active {
     text-align: right;
     border-bottom: 1px solid var(--line);
     white-space: normal !important;
+  }
+
+  /* Card rows are full width — drop the desktop column-floor min-widths. */
+  #vm-table td:nth-child(1),
+  #vm-table td:nth-child(2) {
+    min-width: 0;
   }
 
   #vm-table td:last-child {

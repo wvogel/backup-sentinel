@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.10] — 2026-06-09
+
+### Fixed
+
+- **Setting a VM's backup policy to "auto" returned a raw JSON error** (`422 … backup_policy_override Field required`). The "auto" option submits an empty value, which the required `Form(...)` field rejected. The field now defaults to an empty string (`Form("")`); the handler already normalises `""` to "no override".
+- **The Node column collapsed to ~5 lines when a restore "Warnung"/"Kritisch" badge appeared.** The badge widened the restore column, and the auto-sizer squeezed the first column with no lower bound (its `overflow-wrap: anywhere` let it shrink to a couple of characters). The wrappable text columns (Node, VM) now have a `min-width` floor, so they wrap to at most two lines and the restore badge drops below the date instead — a balanced layout. The mobile card view is unaffected.
+
 ## [v2.2.9] — 2026-05-29
 
 ### Documentation
