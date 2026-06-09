@@ -194,7 +194,7 @@ def add_restore_test(
 def update_backup_policy(
     cluster_slug: str,
     vm_id: int = Form(...),
-    backup_policy_override: str = Form(...),
+    backup_policy_override: str = Form(""),
 ) -> RedirectResponse:
     cluster = db.get_cluster_by_slug(cluster_slug)
     if not cluster:
