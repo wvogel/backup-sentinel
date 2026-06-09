@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.11] — 2026-06-09
+
+### Changed
+
+- **Restore-Test column in the cluster overview now shows just a status badge** (`ok` / `Warnung` / `kritisch`) instead of the full result icon, recovery-type icon, date and duration. That detail was too noisy for an at-a-glance table; the date, duration, recovery type, interval and age are now in the badge's hover tooltip, and the full history remains in the "Letzte Restore-Tests" panel below.
+
 ## [v2.2.10] — 2026-06-09
 
 ### Fixed

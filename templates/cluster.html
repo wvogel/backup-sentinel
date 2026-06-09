@@ -184,12 +184,7 @@
           </td>
           <td class="restore-cell" data-label="{{ t('cluster.th_restore_test') }}" data-sort-value="{{ row.restore_due_status }} {{ row.last_restore_tested_at.isoformat() if row.last_restore_tested_at else '' }} {{ row.last_restore_result or '' }}">
             <span class="cell-inner">
-            {% if row.last_restore_tested_at %}
-              <span class="result-icon result-{{ row.last_restore_result }}">{% if row.last_restore_result == 'passed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% elif row.last_restore_result == 'failed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>{% else %}&sim;{% endif %}</span><span class="restore-type-icon" title="{{ recovery_type_labels.get(row.last_restore_recovery_type, row.last_restore_recovery_type) }}">{{ recovery_type_icons.get(row.last_restore_recovery_type, "•") }}</span>{{ row.last_restore_tested_at|datetime_local("%d.%m.%Y") }} &middot; {{ row.last_restore_duration_minutes }} min
-            {% else %}
-              {{ t('common.never') }}
-            {% endif %}
-            {% if row.restore_due_status != 'ok' %}<span class="badge {{ row.restore_due_status }}" title="{{ t('cluster.interval_days', days=row.restore_interval_days) }}{% if row.restore_age_days is not none %}, {{ t('cluster.age_days', days=row.restore_age_days) }}{% endif %}">{{ severity_labels.get(row.restore_due_status, row.restore_due_status) }}</span>{% endif %}
+              <span class="badge {{ row.restore_due_status }}" title="{% if row.last_restore_tested_at %}{{ row.last_restore_tested_at|datetime_local('%d.%m.%Y') }} · {{ row.last_restore_duration_minutes }} min · {{ recovery_type_labels.get(row.last_restore_recovery_type, row.last_restore_recovery_type) }}{% else %}{{ t('common.never') }}{% endif %}{% if row.restore_interval_days is not none %} · {{ t('cluster.interval_days', days=row.restore_interval_days) }}{% endif %}{% if row.restore_age_days is not none %}, {{ t('cluster.age_days', days=row.restore_age_days) }}{% endif %}">{{ severity_labels.get(row.restore_due_status, row.restore_due_status) }}</span>
             </span>
           </td>
         </tr>
