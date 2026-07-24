@@ -103,10 +103,10 @@ aside {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 48px;
+  min-height: 34px;
   width: 100vw;
   margin: -16px calc(50% - 50vw) 16px;
-  padding: 8px max(18px, calc(50vw - 575px + 18px));
+  padding: 5px max(18px, calc(50vw - 575px + 18px));
   background: var(--header-bg);
   border-bottom: 1px solid var(--header-border);
 }
@@ -128,7 +128,7 @@ aside {
 
 .brand-logo img {
   width: auto;
-  height: 30px;
+  height: 20px;
   object-fit: contain;
 }
 
