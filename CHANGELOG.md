@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.3] — 2026-10-10
+
+### Fixed
+
+- **Backup progress tooltip showed a start time and ETA in the past.** "Start" was the start of the whole vzdump job and the ETA was job start + the current VM's extrapolated runtime — wrong for every VM but the first in a multi-VM job (e.g. "Start 19:30, ETA 19:36" while the backup was still at 25 % at 21:3x). Start and ETA now refer to the VM currently being backed up (start = now − its runtime, ETA = now + remaining time). The job start is still shown until the VM reports its first progress line.
+- Tooltip times and the "sync failing for 24h" notification are now formatted explicitly in `BSENTINEL_DEFAULT_TIMEZONE`, like the rest of the UI, instead of relying on the container's local time zone.
+
 ## [v2.3.2] — 2026-10-10
 
 ### Fixed
