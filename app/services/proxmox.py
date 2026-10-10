@@ -9,6 +9,7 @@ from typing import Any
 from urllib import parse
 
 from app.config import API_TIMEOUT
+from app.i18n import ts
 from app.services.api_client import APIError, api_get, api_get_dict, api_get_json, api_test_connection
 
 logger = logging.getLogger(__name__)
@@ -316,7 +317,7 @@ def fetch_backup_details(
             )
         except ProxmoxSyncError as exc:
             logger.warning("Cannot list storages for node %s: %s", node_name, exc)
-            errors.append(f"Node {node_name}: {exc}")
+            errors.append(ts("synclog.node_storages_failed", node=node_name, error=exc))
             raw = []
         storages = [s for s in raw if "backup" in str(s.get("content", "")) and s.get("storage")]
         logger.info("Node %s: backup storages: %s", node_name, [s["storage"] for s in storages])
@@ -359,7 +360,7 @@ def fetch_backup_details(
             logger.info("Bulk fetch %s via %s: %d items", storage_id, query_node, len(items))
             return storage_id, items
         logger.warning("Could not fetch backup list from storage %s on any node", storage_id)
-        errors.append(f"Storage {storage_id}: auf keinem Node abrufbar")
+        errors.append(ts("synclog.storage_unreachable", storage=storage_id))
         return storage_id, []
 
     with ThreadPoolExecutor(max_workers=len(storage_query_node) or 1) as pool:
@@ -435,12 +436,13 @@ def fetch_backup_details(
             parsed = _parse_item(item, vmid)
             if parsed is None:
                 continue
-            parsed["storage_type"] = storage_types.get(item.get("_storage_id", ""), "")
+            parsed["storage"] = item.get("_storage_id", "")
+            parsed["storage_type"] = storage_types.get(parsed["storage"], "")
             events.append(parsed)
             vm_count += 1
-            ts = parsed["started_at"]
-            if vmid not in latest or ts > latest[vmid]:
-                latest[vmid] = ts
+            started_at = parsed["started_at"]
+            if vmid not in latest or started_at > latest[vmid]:
+                latest[vmid] = started_at
         logger.debug("VMID %d: %d backups found", vmid, vm_count)
 
     logger.info(

@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from app import db
 from app.config import DEFAULT_TIMEZONE, REPORT_DIR, REPORT_LANGUAGE, SYNC_INTERVAL_MINUTES
+from app.i18n import ts
 from app.services.notifications import (
     notify_backup_critical,
     notify_size_anomaly,
@@ -61,12 +62,18 @@ def sync_cluster_backups(cluster: dict) -> None:
         pve_events: list[dict] = []
         all_pbs_events: list[dict] = []
         logger.info(
-            "  PVE-Inventory: %d Nodes, %d VMs (%.1fs)", len(inventory.nodes), len(inventory.vms), time.monotonic() - t0
+            "  %s",
+            ts(
+                "synclog.pve_inventory",
+                nodes=len(inventory.nodes),
+                vms=len(inventory.vms),
+                secs=f"{time.monotonic() - t0:.1f}",
+            ),
         )
         pve_log.append(f"Nodes: {len(inventory.nodes)}, VMs: {len(inventory.vms)}")
         db.sync_cluster_inventory(cluster["id"], inventory.nodes, inventory.vms)
         if not inventory.vms:
-            prune_blockers.append("PVE lieferte 0 VMs")
+            prune_blockers.append(ts("synclog.pve_zero_vms"))
         prune_blockers.extend(f"PVE {err}" for err in inventory.fetch_errors)
 
         if inventory.backup_events:
@@ -74,15 +81,15 @@ def sync_cluster_backups(cluster: dict) -> None:
                 event["source"] = "pbs" if event.get("storage_type") == "pbs" else "pve"
             pve_events = [event for event in inventory.backup_events if event.get("source") == "pve"]
             all_pbs_events.extend(event for event in inventory.backup_events if event.get("source") == "pbs")
-            pve_log.append(f"PVE-direkte Events: {len(inventory.backup_events)}")
+            pve_log.append(ts("synclog.pve_events", count=len(inventory.backup_events)))
         else:
-            pve_log.append("PVE-direkte Events: 0")
+            pve_log.append(ts("synclog.pve_events", count=0))
 
         db.sync_backup_events_for_source(cluster["id"], "pve", pve_events)
 
         pbs_conns = db.list_pbs_connections(cluster["id"])
         if not pbs_conns:
-            pve_log.append("Kein PBS konfiguriert.")
+            pve_log.append(ts("synclog.no_pbs"))
         else:
             # Include VMs deleted from PVE so their remaining PBS snapshots
             # are still tracked instead of being flagged as removed.
@@ -91,13 +98,19 @@ def sync_cluster_backups(cluster: dict) -> None:
                 pbs_log: list[str] = []
                 pbs_ok = True
                 t_pbs = time.monotonic()
-                logger.info("  PBS-Sync: %s …", conn.get("name"))
+                logger.info("  %s", ts("synclog.pbs_start", name=conn.get("name")))
                 try:
                     events, ds_logs, pbs_complete = fetch_all_pbs_backups(conn, vmids, cutoff)
                     if not pbs_complete:
                         pbs_ok = False
                     logger.info(
-                        "  PBS-Sync: %s → %d Events (%.1fs)", conn.get("name"), len(events), time.monotonic() - t_pbs
+                        "  %s",
+                        ts(
+                            "synclog.pbs_done",
+                            name=conn.get("name"),
+                            count=len(events),
+                            secs=f"{time.monotonic() - t_pbs:.1f}",
+                        ),
                     )
                     pbs_log.extend(ds_logs)
                     for event in events:
@@ -105,38 +118,40 @@ def sync_cluster_backups(cluster: dict) -> None:
                     all_pbs_events.extend(events)
                 except PBSSyncError as exc:
                     pbs_ok = False
-                    pbs_log.append(f"Fehler: {exc}")
+                    pbs_log.append(ts("synclog.error", error=exc))
                     logger.error("PBS sync failed for cluster %s / PBS %s: %s", cluster["name"], conn.get("name"), exc)
                 except Exception as exc:
                     pbs_ok = False
-                    pbs_log.append(f"Unerwarteter Fehler: {exc}")
+                    pbs_log.append(ts("synclog.unexpected_error", error=exc))
                     logger.error(
                         "PBS unexpected error for cluster %s / PBS %s: %s", cluster["name"], conn.get("name"), exc
                     )
                 db.update_pbs_sync_status(conn["id"], pbs_ok, "\n".join(pbs_log))
                 if not pbs_ok:
-                    prune_blockers.append(f"PBS {conn.get('name')} fehlgeschlagen")
+                    prune_blockers.append(ts("synclog.pbs_failed", name=conn.get("name")))
 
         db.sync_backup_events_for_source(cluster["id"], "pbs", all_pbs_events)
+        db.update_backup_event_storages(cluster["id"], pve_events + all_pbs_events)
 
         # Mark stub in-progress events older than N hours as aborted so the
         # UI stops showing a "Backup running" badge for crashed/cancelled jobs.
         stale = db.cleanup_stale_inprogress_backups(cluster["id"], max_age_hours=6)
         if stale:
-            pve_log.append(f"Verwaiste In-Progress-Events bereinigt: {stale}")
+            pve_log.append(ts("synclog.stale_cleaned", count=stale))
 
         db.update_vm_last_backup_from_events(cluster["id"])
 
         if prune_blockers:
-            logger.warning("  Gelöschte VMs nicht bereinigt: %s", "; ".join(prune_blockers))
-            pve_log.append(f"Gelöschte VMs nicht bereinigt: {'; '.join(prune_blockers)}")
+            skipped = ts("synclog.prune_skipped", reasons="; ".join(prune_blockers))
+            logger.warning("  %s", skipped)
+            pve_log.append(skipped)
         else:
             pruned = db.prune_gone_vms_without_backups(cluster["id"])
             if pruned:
-                logger.info("  Gelöschte VMs ohne Backups entfernt: %d", pruned)
-            pve_log.append(f"Gelöschte VMs ohne Backups entfernt: {pruned}")
+                logger.info("  %s", ts("synclog.pruned", count=pruned))
+            pve_log.append(ts("synclog.pruned", count=pruned))
     except Exception as exc:
-        pve_log.append(f"Fehler: {exc}")
+        pve_log.append(ts("synclog.error", error=exc))
         logger.error("Sync failed for cluster %s: %s", cluster["name"], exc)
         db.update_cluster_sync_status(cluster["id"], False, "\n".join(pve_log))
         notify_sync_failed(cluster["name"], str(exc))
@@ -145,8 +160,8 @@ def sync_cluster_backups(cluster: dict) -> None:
     try:
         anomalies = db.detect_backup_size_anomalies(cluster["id"])
         if anomalies:
-            logger.info("  Größen-Anomalien erkannt: %d VMs", len(anomalies))
-            pve_log.append(f"Größen-Anomalien: {len(anomalies)} VMs")
+            logger.info("  %s", ts("synclog.size_anomalies", count=len(anomalies)))
+            pve_log.append(ts("synclog.size_anomalies", count=len(anomalies)))
             for anomaly in anomalies:
                 notify_size_anomaly(
                     cluster["name"],
@@ -175,15 +190,15 @@ def sync_cluster_backups(cluster: dict) -> None:
     try:
         unenc_vms = db.unencrypted_vms(cluster["id"])
         if unenc_vms:
-            logger.info("  Unverschlüsselte Backups: %d VMs", len(unenc_vms))
-            pve_log.append(f"Unverschlüsselte Backups: {len(unenc_vms)} VMs")
+            logger.info("  %s", ts("synclog.unencrypted", count=len(unenc_vms)))
+            pve_log.append(ts("synclog.unencrypted", count=len(unenc_vms)))
             notify_unencrypted_backups(cluster["name"], len(unenc_vms), [v["vm_name"] for v in unenc_vms])
     except Exception as exc:
         logger.warning("Encryption audit notification failed: %s", exc)
 
     elapsed_total = time.monotonic() - t_start
     logger.info("══ Sync DONE: %s (%.1fs gesamt) ══", cluster["name"], elapsed_total)
-    pve_log.append(f"Dauer: {elapsed_total:.1f}s")
+    pve_log.append(ts("synclog.duration", secs=f"{elapsed_total:.1f}"))
     db.update_cluster_sync_status(cluster["id"], True, "\n".join(pve_log))
 
 
@@ -192,7 +207,7 @@ def sync_all_clusters() -> None:
         if not cluster["api_user"] or not cluster["token_id"] or not cluster["token_secret"]:
             continue
         if cluster["id"] in syncing_clusters:
-            logger.info("Auto-sync: %s wird bereits synchronisiert, überspringe", cluster["name"])
+            logger.info("%s", ts("synclog.already_running", cluster=cluster["name"]))
             continue
         syncing_clusters.add(cluster["id"])
         sync_logs[cluster["id"]] = []
@@ -224,7 +239,7 @@ def auto_generate_monthly_report() -> None:
     try:
         events = db.list_all_report_backup_events()
         report = build_backup_period_report(datetime.min.replace(tzinfo=UTC), now, events)
-        report["period_label"] = f"Monatsreport {last_month.strftime('%m/%Y')}"
+        report["period_label"] = ts("report.monthly_period", month=last_month.strftime("%m/%Y"))
         try:
             cur_month_events = db.backup_events_for_month(last_month.year, last_month.month)
             prev_month = (last_month.replace(day=1) - timedelta(days=1)).replace(day=1)

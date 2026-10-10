@@ -12,6 +12,7 @@ from starlette import status
 
 from app import db
 from app.config import REPORT_DIR, REPORT_LANGUAGE
+from app.i18n import t, ts
 from app.services.pdf_reports import write_backup_period_pdf
 from app.services.reporting import build_backup_period_report, build_month_comparison, serialize_report_payload
 from app.web.common import common_context, templates
@@ -24,7 +25,7 @@ router = APIRouter()
 def reports_page(request: Request) -> HTMLResponse:
     events = db.list_all_report_backup_events()
     current_report = build_backup_period_report(datetime.min.replace(tzinfo=UTC), datetime.now(UTC), events)
-    current_report["period_label"] = "Alle wiederherstellbaren Backups"
+    current_report["period_label"] = t("report.all_recoverable")
     clusters_grouped: dict[str, dict] = OrderedDict()
     for vm_row in current_report["rows"]:
         cluster_name = vm_row["cluster_name"]
@@ -65,7 +66,7 @@ async def generate_report() -> RedirectResponse:
         now = datetime.now(UTC)
         events = db.list_all_report_backup_events()
         report = build_backup_period_report(datetime.min.replace(tzinfo=UTC), now, events)
-        report["period_label"] = "Alle wiederherstellbaren Backups"
+        report["period_label"] = ts("report.all_recoverable")
         try:
             cur_month = now.date().replace(day=1)
             cur_events = db.backup_events_for_month(cur_month.year, cur_month.month)

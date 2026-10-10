@@ -133,7 +133,7 @@
         {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['warning', 'critical'] %}restore-overdue {% endif %}{% if row.vm_gone %}vm-gone{% endif %}{% endset %}
         <tr{% if row.vm_gone %} class="vm-gone-row"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}">
           <td data-label="{{ t('common.node') }}" data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
-          <td data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}{% if row.vm_gone %} <span class="badge unknown vm-gone-badge" title="{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}">{{ t('cluster.vm_gone') }}</span>{% endif %}</td>
+          <td data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}{% if row.vm_gone %} <span class="badge unknown vm-gone-badge" title="{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}{% if row.remaining_storages %}&#10;{{ t('cluster.vm_gone_storages', storages=row.remaining_storages|join(', ')) }}{% endif %}">{{ t('cluster.vm_gone') }}</span>{% endif %}</td>
           <td class="col-right" data-label="VMID" data-sort-value="{{ row.vmid }}">{{ row.vmid }}</td>
           <td data-label="{{ t('cluster.th_last_backup') }}" data-sort-value="{{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
             {% if row.in_progress_since %}
