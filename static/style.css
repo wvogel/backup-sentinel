@@ -24,6 +24,9 @@
   --unknown-soft: #edf1f7;
   --shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
   --progress-fill: rgba(29, 111, 80, 0.28);
+  --running: #1f5fbf;
+  --running-soft: rgba(31, 95, 191, 0.10);
+  --running-fill: rgba(31, 95, 191, 0.18);
   --btn-bg: #141450;
   --btn-text: #f5f7ff;
   --btn-border: color-mix(in srgb, #141450 78%, white 22%);
@@ -54,6 +57,9 @@ html[data-theme="dark"] {
   --unknown-soft: rgba(148, 163, 184, 0.16);
   --shadow: none;
   --progress-fill: rgba(52, 211, 153, 0.35);
+  --running: #7cb4ff;
+  --running-soft: rgba(124, 180, 255, 0.10);
+  --running-fill: rgba(124, 180, 255, 0.22);
   --btn-bg: #e2e8f0;
   --btn-text: #0f172a;
   --btn-border: #e2e8f0;
@@ -2112,7 +2118,7 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
 .spark-ok   { fill: var(--ok); }
 .spark-deleted { fill: var(--warn); opacity: 0.7; }
 .spark-failed { fill: var(--critical); }
-.spark-none { fill: var(--line); opacity: 0.5; }
+.spark-none { fill: var(--line); opacity: 0.7; }
 
 /* ── Feature 5: Encryption audit ─────────────────────────────────────── */
 .encryption-alert-card {
@@ -2245,24 +2251,6 @@ details[open] > .encryption-alert-summary::before {
   outline-offset: 2px;
 }
 
-/* ── In-progress backup badge ────────────────────────────────────────── */
-.badge-inprogress {
-  display: inline-block;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--accent);
-  background: linear-gradient(
-    90deg,
-    var(--progress-fill) calc(var(--pct, 0) * 1%),
-    var(--chip) calc(var(--pct, 0) * 1%)
-  );
-  border: 1px solid var(--chip-border);
-  padding: 1px 7px;
-  border-radius: 6px;
-  animation: inprogress-pulse 1.8s ease-in-out infinite;
-  margin-right: 4px;
-}
-
 .restore-type-icon {
   display: inline-flex;
   align-items: center;
@@ -2272,10 +2260,6 @@ details[open] > .encryption-alert-summary::before {
   font-size: 0.8rem;
   color: var(--muted);
   vertical-align: baseline;
-}
-@keyframes inprogress-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
 }
 
 /* ── Instant tooltip (replaces native title delay) ──────────────────── */
@@ -2304,10 +2288,6 @@ details[open] > .encryption-alert-summary::before {
 }
 [data-tooltip=""]:hover::after {
   display: none;
-}
-.badge-inprogress:hover {
-  animation: none;
-  opacity: 1;
 }
 
 /* ── Notification page ───────────────────────────────────────────────────── */
@@ -2433,4 +2413,117 @@ details[open] > .encryption-alert-summary::before {
 }
 .notification-filters .csv-export {
   margin-left: auto;
+}
+
+/* ── Running backups ─────────────────────────────────────────────────── */
+@keyframes running-spin { to { transform: rotate(360deg); } }
+.running-spinner {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  stroke: currentColor;
+  animation: running-spin 1.1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .running-spinner { animation: none; }
+}
+
+/* Row: tinted up to the current percentage, accent bar on the left. JS sizes
+   each cell's background to the full row so the fill reads as one bar. */
+#vm-table tr.is-running > td {
+  background-image: linear-gradient(
+    90deg,
+    var(--running-fill) calc(var(--pct, 0) * 1%),
+    var(--running-soft) calc(var(--pct, 0) * 1%)
+  );
+  background-repeat: no-repeat;
+  background-size: var(--row-w, 100%) 100%;
+  background-position: var(--cell-x, 0) 0;
+}
+#vm-table tr.is-running > td:first-child { box-shadow: inset 4px 0 0 var(--running); }
+#vm-table tr.is-running > td:nth-child(2) { font-weight: 700; }
+#vm-table tr.running-flash > td { animation: running-flash 1.4s ease-out; }
+@keyframes running-flash { from { box-shadow: inset 0 0 0 999px var(--running-fill); } }
+
+.running-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--running);
+  color: var(--panel);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.running-chip.hidden { display: none; }
+.last-backup-date { white-space: nowrap; }
+tr.is-running .last-backup-date { color: var(--muted); }
+#vm-table td.last-backup-cell { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; }
+#vm-table td.last-backup-cell::before { margin-right: auto; }
+
+/* Status bar above the VM table. */
+.running-banner {
+  margin-bottom: 16px;
+  padding: 14px 18px;
+  border: 1px solid var(--running);
+  border-radius: 16px;
+  background: var(--running-soft);
+  color: var(--running);
+}
+.running-banner.hidden { display: none; }
+.running-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+}
+.running-banner-head .running-spinner { width: 18px; height: 18px; }
+.running-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.running-item {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 14px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.running-item:hover { background: var(--running-fill); }
+.running-item-name { font-weight: 700; }
+.running-item-meta { color: var(--muted); font-size: 0.88rem; }
+.running-bar {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--running-fill);
+  overflow: hidden;
+}
+.running-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--running);
+  transition: width 0.6s ease;
+}
+
+/* Dashboard cluster card. */
+.badge.running-badge {
+  gap: 6px;
+  background: var(--running-soft);
+  color: var(--running);
+  border: 1px solid var(--running);
 }

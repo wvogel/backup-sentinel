@@ -141,6 +141,13 @@ def _fmt_local(value: datetime) -> str:
     return value.astimezone(APP_TIMEZONE).strftime("%d.%m.%Y %H:%M")
 
 
+def _fmt_short(value: datetime, now: datetime | None = None) -> str:
+    """Time only for today, otherwise day and time — for compact labels."""
+    local = value.astimezone(APP_TIMEZONE)
+    today = (now or datetime.now(UTC)).astimezone(APP_TIMEZONE).date()
+    return local.strftime("%H:%M") if local.date() == today else local.strftime("%d.%m. %H:%M")
+
+
 def _vm_started_at(log_lines: list[str]) -> datetime | None:
     for line in log_lines:
         match = _PBS_ARCHIVE_RE.search(line)
@@ -197,6 +204,7 @@ def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -
                 eta = started_at + timedelta(seconds=total_seconds)
                 progress["eta"] = eta
                 progress["eta_label"] = _fmt_local(eta)
+                progress["eta_short"] = _fmt_short(eta)
             break
 
     progress["label"] = (

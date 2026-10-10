@@ -83,7 +83,7 @@ Die Haupttabelle listet jede VM im Cluster mit sortierbaren Spalten:
 | VM             | Gastname                                                    |
 | VMID           | Proxmox-VM-ID                                               |
 | Letztes Backup | Zeitstempel des jüngsten Backups; zeigt eine Fortschrittsanzeige bei laufendem Backup |
-| 30 Tage        | Sparkline mit täglichem Backup-Status der letzten 30 Tage (grün = OK, rot = fehlgeschlagen, grau = kein Backup) |
+| 30 Tage        | Sparkline mit täglichem Backup-Status der letzten 30 Tage (grün = OK, orange = inzwischen gelöscht, rot = fehlgeschlagen, grau = kein Backup) |
 | Backup         | Backup-Art (Snapshot/Stop/Suspend), Schweregrad-Badge, Quelle (Lokal/PBS) und Policy-Override-Dropdown |
 | Restore-Test   | Letztes Restore-Test-Ergebnis (bestanden/eingeschränkt/fehlgeschlagen), Recovery-Typ-Icon, Datum und Dauer; dazu ein Fälligkeits-Badge (Warnung/Kritisch) |
 
@@ -94,6 +94,8 @@ Die Haupttabelle listet jede VM im Cluster mit sortierbaren Spalten:
 **Backup-Policy-Override** -- Verwenden Sie das Dropdown in der Backup-Spalte, um die automatisch erkannte Policy für eine VM zu überschreiben (täglich / wöchentlich / nie / automatisch).
 
 **Restore-Test-Fälligkeit** -- Das Badge in der Restore-Test-Spalte warnt rechtzeitig vor Ablauf des Test-Intervalls. Der Vorlauf richtet sich nach dem Intervall: bei **jährlichen** Intervallen erscheint die **Warnung 1 Monat** vorher, bei **quartalsweisen** (oder kürzeren) Intervallen **2 Wochen** vorher. Nach Ablauf des Intervalls wechselt der Status auf **Kritisch**. Fahren Sie mit der Maus über das Badge, um Intervall und Alter in Tagen zu sehen.
+
+**Laufende Backups** -- Über der Tabelle erscheint eine Statusleiste mit allen gerade laufenden Backups: Fortschritt, geschriebene Datenmenge und voraussichtliches Ende. Ein Klick springt zur VM. In der Tabelle ist die Zeile bis zum aktuellen Prozentwert eingefärbt und links blau markiert; der Hinweis zeigt Start, ETA und Datenmenge. Die Anzeige aktualisiert sich alle 30 Sekunden, ohne die Seite neu zu laden. Auf der Übersicht zeigt jede Cluster-Karte, wie viele Backups laufen (Stand des letzten Syncs).
 
 **Gelöschte VMs** -- VMs, die im Proxmox-Cluster nicht mehr existieren, erscheinen ausgegraut mit dem Badge **gelöscht** (Tooltip: seit wann), solange noch Backups von ihnen vorhanden sind. Sie lösen keine Backup- oder Restore-Warnungen aus. Sobald keine Backups mehr existieren, wird die VM beim nächsten Sync samt Restore-Test-Historie aus der Datenbank entfernt -- allerdings nur, wenn in diesem Sync alle PVE-Nodes, -Speicher und PBS-Datastores erreichbar waren.
 

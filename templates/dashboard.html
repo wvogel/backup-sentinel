@@ -66,6 +66,9 @@
         {% else %}
         <span class="badge ok">{{ t('common.ok') }}</span>
         {% endif %}
+        {% if cluster.running_vms %}
+        <span class="badge running-badge" title="{{ cluster.running_vms|join(', ') }}"><svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg>{{ t('cluster.running_one' if cluster.running_vms|length == 1 else 'cluster.running_other', count=cluster.running_vms|length) }}</span>
+        {% endif %}
       </div>
       <p class="muted cluster-sync-meta" style="margin:6px 0 0;">
         {{ t('dashboard.last_sync_success') }}

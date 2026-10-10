@@ -82,6 +82,8 @@ def cluster_summaries() -> list[dict[str, Any]]:
                     cid, {"total_backups": 0, "encrypted_backups": 0, "pct_encrypted": 100}
                 ),
                 "overdue_restore_count": overdue_restore_count,
+                # From the last sync's in-progress markers (no live PVE call on the dashboard).
+                "running_vms": [vm["vm_name"] for vm in vms if vm["in_progress_since"]],
             }
         )
     return summaries

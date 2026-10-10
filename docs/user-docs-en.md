@@ -83,7 +83,7 @@ The main table lists every VM in the cluster with sortable columns:
 | VM             | Guest name                                                 |
 | VMID           | Proxmox VM ID                                             |
 | Last Backup    | Timestamp of the most recent backup; shows a progress indicator if a backup is currently running |
-| 30 Days        | Sparkline showing daily backup status over the last 30 days (green = OK, red = failed, grey = no backup) |
+| 30 Days        | Sparkline showing daily backup status over the last 30 days (green = OK, orange = since deleted, red = failed, grey = no backup) |
 | Backup         | Backup kind (snapshot/stop/suspend), severity badge, source (Local/PBS), and policy override dropdown |
 | Restore Test   | Last restore test result (passed/limited/failed), recovery type icon, date, and duration; plus a due badge (warning/critical) |
 
@@ -94,6 +94,8 @@ The main table lists every VM in the cluster with sortable columns:
 **Backup policy override** -- Use the dropdown in the Backup column to override the auto-detected policy for a VM (daily / weekly / none / auto).
 
 **Restore-test due dates** -- The badge in the Restore Test column warns ahead of the test interval expiring. The lead time scales with the interval: **yearly** intervals warn **1 month** early, **quarterly** (or shorter) ones **2 weeks** early. Once the interval has elapsed the status turns **critical**. Hover the badge to see interval and age in days.
+
+**Running backups** -- A status bar above the table lists all backups currently running: progress, data written and expected finish. Clicking an entry jumps to the VM. In the table the row is filled up to the current percentage and marked blue on the left; its tooltip shows start, ETA and data volume. The display refreshes every 30 seconds without reloading the page. On the overview, each cluster card shows how many backups are running (as of the last sync).
 
 **Deleted VMs** -- VMs that no longer exist in the Proxmox cluster are shown greyed out with a **deleted** badge (tooltip: since when) as long as backups of them remain. They raise no backup or restore warnings. Once no backups are left, the VM is removed from the database on the next sync, including its restore-test history -- but only if every PVE node, storage and PBS datastore was reachable during that sync.
 
