@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.4] — 2026-10-10
+
+### Fixed
+
+- **Backup progress start time was off for large VMs** (e.g. 20:35 instead of 20:05). v2.3.3 derived the VM start as "now − elapsed", assuming the latest progress line had just been written — but large VMs log progress only every ~30 minutes. The VM start is now read from its own log section: the PBS archive name (`vm/103/2026-10-09T18:05:06Z`, UTC) or, for non-PBS targets, `Backup started at …` (node local time). The ETA is VM start + elapsed × 100 / percent and no longer depends on when the page is viewed.
+
 ## [v2.3.3] — 2026-10-10
 
 ### Fixed

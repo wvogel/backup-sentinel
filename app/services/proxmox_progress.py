@@ -28,6 +28,10 @@ _DIRTY_RE = re.compile(
     re.IGNORECASE,
 )
 _START_RE = re.compile(r"Starting Backup of (?:VM|CT)\s+(?P<vmid>\d+)", re.IGNORECASE)
+# Start of the current VM's backup. The PBS archive name carries it in UTC;
+# "Backup started at" is the node's local time (assumed to be the app zone).
+_PBS_ARCHIVE_RE = re.compile(r"archive '(?:vm|ct)/\d+/(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z'")
+_BACKUP_STARTED_RE = re.compile(r"Backup started at (?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 _VMID_RE = re.compile(r"\b(?:VM|CT)\s+(?P<vmid>\d+)\b|\b(?:qemu|lxc)[/-](?P<vmid2>\d+)\b", re.IGNORECASE)
 
 
@@ -137,11 +141,20 @@ def _fmt_local(value: datetime) -> str:
     return value.astimezone(APP_TIMEZONE).strftime("%d.%m.%Y %H:%M")
 
 
-def _parse_running_backup_progress(
-    task: dict[str, Any], log_lines: list[str], now: datetime | None = None
-) -> dict[str, Any]:
+def _vm_started_at(log_lines: list[str]) -> datetime | None:
+    for line in log_lines:
+        match = _PBS_ARCHIVE_RE.search(line)
+        if match:
+            return datetime.fromisoformat(match.group("ts")).replace(tzinfo=UTC)
+    for line in log_lines:
+        match = _BACKUP_STARTED_RE.search(line)
+        if match:
+            return datetime.fromisoformat(match.group("ts")).replace(tzinfo=APP_TIMEZONE)
+    return None
+
+
+def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -> dict[str, Any]:
     progress: dict[str, Any] = {}
-    now = now or datetime.now(UTC)
 
     start_raw = task.get("starttime") or task.get("start-time")
     started_at: datetime | None = None
@@ -150,6 +163,9 @@ def _parse_running_backup_progress(
             started_at = datetime.fromtimestamp(int(start_raw), UTC)
         except (TypeError, ValueError, OSError):
             started_at = None
+    # The task start is the start of the whole job; in a multi-VM job other
+    # VMs ran before. Prefer the current VM's own start from its log section.
+    started_at = _vm_started_at(log_lines) or started_at
     if started_at is not None:
         progress["started_at"] = started_at
         progress["started_at_label"] = _fmt_local(started_at)
@@ -174,18 +190,13 @@ def _parse_running_backup_progress(
             progress["target_bytes"] = _parse_size_to_bytes(target_label)
             progress["written_label"] = written_label
             progress["target_label"] = target_label
-            if elapsed_seconds is not None:
-                # The task start is the start of the whole job; a multi-VM job
-                # has backed up other VMs before. "elapsed" is the current VM's
-                # runtime, so derive its start and the ETA from now.
-                vm_started_at = now - timedelta(seconds=elapsed_seconds)
-                progress["started_at"] = vm_started_at
-                progress["started_at_label"] = _fmt_local(vm_started_at)
-                if percent > 0:
-                    remaining_seconds = math.ceil(elapsed_seconds * (100 - percent) / percent)
-                    eta = now + timedelta(seconds=remaining_seconds)
-                    progress["eta"] = eta
-                    progress["eta_label"] = _fmt_local(eta)
+            # "elapsed" counts from the VM's start, not from when the line was
+            # written — large VMs log progress only every ~30 min.
+            if percent > 0 and elapsed_seconds is not None and started_at is not None:
+                total_seconds = math.ceil(elapsed_seconds * 100 / percent)
+                eta = started_at + timedelta(seconds=total_seconds)
+                progress["eta"] = eta
+                progress["eta_label"] = _fmt_local(eta)
             break
 
     progress["label"] = (
