@@ -11,7 +11,7 @@
      title="{{ h.name }}{% if h.stale %} – {{ t('dashboard.stale_syncs', count=h.est_failures) }}{% endif %}{% if h.last_sync %} – {{ t('dashboard.last_sync_label') }} {{ h.last_sync|datetime_local }}{% endif %}{% if h.pbs_count %} – {{ t('dashboard.pbs_status', ok=h.pbs_ok, total=h.pbs_count) }}{% endif %}">
     <span class="health-dot"></span>
     <span class="health-label">{{ h.name }}</span>
-    {% if h.stale %}<span class="health-stale-badge">stale</span>{% endif %}
+    {% if h.stale %}<span class="health-stale-badge">{{ t('common.stale') }}</span>{% endif %}
   </a>
   {% endfor %}
 </section>
@@ -62,7 +62,7 @@
         {% if cluster.critical_count %}
         <span class="badge critical">{{ cluster.critical_count }} {{ t('common.critical') }}</span>
         {% elif cluster.warning_count %}
-        <span class="badge warning">{{ cluster.warning_count }} {{ t('common.warning') }}</span>
+        <span class="badge warning">{{ t('common.warning_count_one' if cluster.warning_count == 1 else 'common.warning_count_other', count=cluster.warning_count) }}</span>
         {% else %}
         <span class="badge ok">{{ t('common.ok') }}</span>
         {% endif %}
@@ -94,7 +94,7 @@
       </div>
       <div class="cluster-stat {{ 'is-warn' if cluster.warning_count }}">
         <strong>{{ cluster.warning_count }}</strong>
-        <span>{{ t('common.warning') }}</span>
+        <span>{{ t('common.warnings') }}</span>
       </div>
       {% set cluster_encryption_pct = 100 if not cluster.encryption.total_backups else cluster.encryption.pct_encrypted %}
       <div class="cluster-stat{% if cluster.encryption.total_backups and cluster_encryption_pct < 100 %} is-warn{% endif %}">
