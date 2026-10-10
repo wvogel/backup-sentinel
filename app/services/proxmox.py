@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 from urllib import parse
@@ -23,6 +23,8 @@ class ProxmoxInventory:
     nodes: list[dict[str, str]]
     vms: list[dict[str, Any]]
     backup_events: list[dict[str, Any]]
+    # Storages/nodes that could not be queried — backup data is incomplete.
+    fetch_errors: list[str] = field(default_factory=list)
 
 
 def build_token_header(api_user: str, token_id: str, token_secret: str) -> str:
@@ -56,7 +58,14 @@ proxmox_get_json = _pve_get_json
 proxmox_get_dict = _pve_get_dict
 
 
-def fetch_cluster_inventory(cluster: dict[str, Any], timeout: float = API_TIMEOUT) -> ProxmoxInventory:
+def fetch_cluster_inventory(
+    cluster: dict[str, Any], timeout: float = API_TIMEOUT, known_vmids: set[int] | None = None
+) -> ProxmoxInventory:
+    """Fetch nodes, VMs and storage backups.
+
+    `known_vmids` are VMIDs seen in earlier syncs; backups of those are still
+    collected even if the VM itself no longer exists in PVE.
+    """
     base_url = cluster["api_url"].rstrip("/")
     auth_header = build_token_header(cluster["api_user"], cluster["token_id"], cluster["token_secret"])
 
@@ -109,7 +118,9 @@ def fetch_cluster_inventory(cluster: dict[str, Any], timeout: float = API_TIMEOU
     backup_kind_by_vmid = infer_backup_kind_by_vmid(vms, backup_jobs)
     logger.info("Backup kind by VMID: %s", backup_kind_by_vmid)
 
-    latest_backup_by_vmid, backup_events = fetch_backup_details(base_url, auth_header, nodes, vms, timeout=timeout)
+    latest_backup_by_vmid, backup_events, fetch_errors = fetch_backup_details(
+        base_url, auth_header, nodes, vms, timeout=timeout, extra_vmids=known_vmids
+    )
     logger.info("Latest backups found for VMIDs: %s", sorted(latest_backup_by_vmid.keys()))
 
     for vm in vms:
@@ -127,6 +138,7 @@ def fetch_cluster_inventory(cluster: dict[str, Any], timeout: float = API_TIMEOU
         nodes=dedupe_nodes(nodes),
         vms=sorted(vms, key=lambda item: (item["node_name"], item["vmid"])),
         backup_events=backup_events,
+        fetch_errors=fetch_errors,
     )
 
 
@@ -278,12 +290,18 @@ def fetch_backup_details(
     nodes: list[dict[str, str]],
     vms: list[dict[str, Any]],
     timeout: float = 10.0,
-) -> tuple[dict[int, datetime], list[dict[str, Any]]]:
-    """Fetch backup inventory using BULK queries per storage (not per VM)."""
+    extra_vmids: set[int] | None = None,
+) -> tuple[dict[int, datetime], list[dict[str, Any]], list[str]]:
+    """Fetch backup inventory using BULK queries per storage (not per VM).
+
+    Returns (latest backup per VMID, events, errors); `errors` lists nodes or
+    storages that could not be queried, i.e. the event list is incomplete.
+    """
     events: list[dict[str, Any]] = []
+    errors: list[str] = []
     seen_volids: set[str] = set()
     latest: dict[int, datetime] = {}
-    all_vmids = {vm["vmid"] for vm in vms}
+    all_vmids = {vm["vmid"] for vm in vms} | (extra_vmids or set())
 
     node_storages: dict[str, list[dict[str, Any]]] = {}
     all_node_names = [n["name"] for n in nodes]
@@ -298,6 +316,7 @@ def fetch_backup_details(
             )
         except ProxmoxSyncError as exc:
             logger.warning("Cannot list storages for node %s: %s", node_name, exc)
+            errors.append(f"Node {node_name}: {exc}")
             raw = []
         storages = [s for s in raw if "backup" in str(s.get("content", "")) and s.get("storage")]
         logger.info("Node %s: backup storages: %s", node_name, [s["storage"] for s in storages])
@@ -340,6 +359,7 @@ def fetch_backup_details(
             logger.info("Bulk fetch %s via %s: %d items", storage_id, query_node, len(items))
             return storage_id, items
         logger.warning("Could not fetch backup list from storage %s on any node", storage_id)
+        errors.append(f"Storage {storage_id}: auf keinem Node abrufbar")
         return storage_id, []
 
     with ThreadPoolExecutor(max_workers=len(storage_query_node) or 1) as pool:
@@ -408,8 +428,7 @@ def fetch_backup_details(
             "status": "ok",
         }
 
-    for vm in vms:
-        vmid = vm["vmid"]
+    for vmid in sorted(all_vmids):
         vm_items = bulk_items_by_vmid.get(vmid, [])
         vm_count = 0
         for item in vm_items:
@@ -422,14 +441,14 @@ def fetch_backup_details(
             ts = parsed["started_at"]
             if vmid not in latest or ts > latest[vmid]:
                 latest[vmid] = ts
-        logger.debug("VM %s (vmid=%d): %d backups found", vm["name"], vmid, vm_count)
+        logger.debug("VMID %d: %d backups found", vmid, vm_count)
 
     logger.info(
         "Backup scan complete: %d backups across %d VMs",
         len(events),
         len({e["vmid"] for e in events}),
     )
-    return latest, events
+    return latest, events, errors
 
 
 # ── VMID / datetime extraction helpers ──────────────────────────────────────

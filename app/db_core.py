@@ -89,6 +89,7 @@ def init_db() -> None:
                 );
                 """
             )
+            cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS missing_since TIMESTAMPTZ")
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS monthly_reports (

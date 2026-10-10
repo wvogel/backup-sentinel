@@ -7,6 +7,17 @@ from app.config import SYNC_INTERVAL_MINUTES
 from app.db_core import connect
 from app.types import ClusterRow, NodeRow, PBSConnectionRow, SyncHealthRow, VMRow
 
+# A VM row is shown while it exists in PVE, or — once deleted — as long as at
+# least one real backup of it is still present on a storage/PBS.
+VISIBLE_VM_SQL = """(
+    v.missing_since IS NULL
+    OR EXISTS (
+        SELECT 1 FROM backup_events be
+        WHERE be.vm_id = v.id AND be.status = 'ok' AND be.removed_at IS NULL
+          AND COALESCE(be.size_bytes, 0) > 1
+    )
+)"""
+
 
 def create_cluster(name: str, slug: str, api_url: str, enrollment_secret: str) -> None:
     now = datetime.now(UTC)
@@ -64,6 +75,7 @@ def finalize_cluster_registration(payload: dict[str, str]) -> None:
 
 
 def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: list[dict[str, Any]]) -> None:
+    now = datetime.now(UTC)
     with connect() as conn, conn.cursor() as cur:
         cur.execute("DELETE FROM nodes WHERE cluster_id = %s", (cluster_id,))
         for node in nodes:
@@ -80,11 +92,54 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
                     node_name = EXCLUDED.node_name,
                     name = EXCLUDED.name,
                     backup_kind = EXCLUDED.backup_kind,
-                    last_backup_at = COALESCE(EXCLUDED.last_backup_at, vms.last_backup_at)
+                    last_backup_at = COALESCE(EXCLUDED.last_backup_at, vms.last_backup_at),
+                    missing_since = NULL
                 """,
                 (cluster_id, vm["node_name"], vm["vmid"], vm["name"], vm["backup_kind"], vm["last_backup_at"]),
             )
+        # VMs we still know but PVE no longer reports have been deleted (or
+        # moved to another cluster). Keep the rows so their remaining backups
+        # stay visible, but flag them from the first sync they went missing.
+        cur.execute(
+            """
+            UPDATE vms SET missing_since = COALESCE(missing_since, %s)
+            WHERE cluster_id = %s AND NOT (vmid = ANY(%s))
+            """,
+            (now, cluster_id, [vm["vmid"] for vm in vms]),
+        )
         conn.commit()
+
+
+def prune_gone_vms_without_backups(cluster_id: int) -> int:
+    """Delete VMs gone from PVE that have no real backup left.
+
+    Cascades to policies, restore tests and backup events. Callers must only
+    run this after a sync where every PVE/PBS source was fully readable.
+    """
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM vms
+            WHERE cluster_id = %s
+              AND missing_since IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM backup_events be
+                  WHERE be.vm_id = vms.id AND be.status = 'ok' AND be.removed_at IS NULL
+                    AND COALESCE(be.size_bytes, 0) > 1
+              )
+            """,
+            (cluster_id,),
+        )
+        deleted = cur.rowcount
+        conn.commit()
+        return deleted
+
+
+def list_known_vmids(cluster_id: int) -> set[int]:
+    """All VMIDs ever seen in this cluster, including ones no longer in PVE."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT vmid FROM vms WHERE cluster_id = %s", (cluster_id,))
+        return {row["vmid"] for row in cur.fetchall()}
 
 
 def update_vm_last_backup_from_events(cluster_id: int) -> None:
@@ -199,10 +254,11 @@ def list_nodes(cluster_id: int) -> list[NodeRow]:
 
 
 def list_vms(cluster_id: int | None = None) -> list[VMRow]:
-    query = "SELECT * FROM vms"
+    # Skip VMs that are gone from PVE and have no backups left — pure leftovers.
+    query = f"SELECT * FROM vms v WHERE {VISIBLE_VM_SQL}"
     params: tuple[Any, ...] = ()
     if cluster_id is not None:
-        query += " WHERE cluster_id = %s"
+        query += " AND cluster_id = %s"
         params = (cluster_id,)
     query += " ORDER BY backup_kind, name"
     with connect() as conn, conn.cursor() as cur:

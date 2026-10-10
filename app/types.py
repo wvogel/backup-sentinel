@@ -42,6 +42,7 @@ class VMRow(TypedDict):
     name: str
     backup_kind: str
     last_backup_at: datetime | None
+    missing_since: datetime | None
 
 
 class PBSConnectionRow(TypedDict):
