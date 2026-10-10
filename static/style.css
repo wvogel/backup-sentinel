@@ -621,8 +621,16 @@ thead th {
   overflow: auto;
 }
 
+/* No inner vertical scroll box — the page scrolls anyway. */
 .vm-table-scroll {
-  max-height: calc(100vh - 190px);
+  overflow-y: hidden;
+}
+
+/* Wide screens: the table always fits, so drop the scroll box entirely and let
+   the header stick below the topbar while the page scrolls. */
+@media (min-width: 1200px) {
+  .vm-table-scroll { overflow: visible; }
+  #vm-table thead th { top: var(--topbar-h, 46px); }
 }
 
 .sortable {
@@ -1318,10 +1326,6 @@ html[data-theme="dark"] .node-filter-button.is-active {
     grid-template-columns: 1fr;
   }
 
-  .vm-table-scroll {
-    max-height: calc(100vh - 170px);
-  }
-
   /* VM table → one card per row on phones. A 7-column table forced into
      horizontal scroll hides most of each row; cards keep everything visible. */
   #vm-table {
@@ -1957,7 +1961,7 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
   gap: 12px;
   padding: 14px 16px;
   position: sticky;
-  top: 52px;
+  top: var(--topbar-h, 52px);
   z-index: 3;
   background: var(--panel);
   border-radius: 14px;

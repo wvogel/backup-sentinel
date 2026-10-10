@@ -42,13 +42,14 @@ document.addEventListener("click", (event) => {
 
 // ── Sticky VM headers: measure cluster summary height ────────────────────────
 (function () {
-  const TOPBAR_H = 52;
+  const topbar = document.querySelector(".topbar");
   document.querySelectorAll(".report-cluster-details").forEach((details) => {
     const clusterSummary = details.querySelector(":scope > summary");
     if (!clusterSummary) return;
     const update = () => {
       const h = clusterSummary.getBoundingClientRect().height;
-      details.style.setProperty("--vm-sticky-top", (TOPBAR_H + h) + "px");
+      const topbarH = topbar ? topbar.getBoundingClientRect().height : 0;
+      details.style.setProperty("--vm-sticky-top", (topbarH + h) + "px");
     };
     update();
     window.addEventListener("resize", update);

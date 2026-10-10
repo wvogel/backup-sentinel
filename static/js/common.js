@@ -29,6 +29,16 @@ async function copyText(targetId, button) {
   }
 }
 
+// ── Topbar height → --topbar-h (sticky elements sit right below it) ─────────
+(function () {
+  const topbar = document.querySelector(".topbar");
+  if (!topbar) return;
+  const update = () =>
+    document.documentElement.style.setProperty("--topbar-h", topbar.getBoundingClientRect().height + "px");
+  update();
+  window.addEventListener("resize", update);
+})();
+
 // Expose globally for other modules
 window.showSuccessLightbox = showSuccessLightbox;
 window.copyText = copyText;
