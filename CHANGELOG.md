@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.2] — 2026-10-10
+
+### Fixed
+
+- **Running-backup indicator showed the wrong VM.** A scheduled vzdump job backs up several VMs one after another in one task; the VMID was taken from the *first* "Starting Backup of VM …" line, so e.g. VM 100 was shown as running while VM 103 was being backed up. Progress, delta and ETA were also read from the whole job log and could show a finished VM's 100 %. Only the log section of the VM currently running is evaluated now.
+
+### Added
+
+- **Deleted VMs show where their remaining backups are.** The "gelöscht"/"deleted" badge tooltip lists the storages still holding a backup (e.g. `Backups noch auf: pbs-fh-muc`). Each backup now records the set of storages it was seen on in the last sync (new column `backup_events.storages`) — one backup can sit on several storages, such as a PBS datastore plus an offsite sync copy attached in PVE.
+- **Notifications and sync logs in English.** Gotify/email alerts, the monthly report email, the PVE/PBS sync logs and the auto-generated report title follow `BSENTINEL_REPORT_LANGUAGE` (`de`/`en`), which now acts as the server-side language for everything generated without a browser. Request-bound texts (Gotify/email test results, backup progress tooltip, report page title) follow the user's UI language.
+
 ## [v2.3.1] — 2026-10-10
 
 ### Fixed

@@ -9,6 +9,7 @@ from pydantic import ValidationError as PydanticValidationError
 from starlette import status
 
 from app import db
+from app.i18n import t
 from app.models import RestoreTestCreate
 from app.services.bootstrap import slugify_cluster
 from app.services.proxmox_progress import fetch_running_backup_progress
@@ -95,7 +96,7 @@ def get_sync_status(cluster_slug: str, since: int = 0):
         progress = fetch_running_backup_progress(cluster, [node["name"] for node in db.list_nodes(cluster["id"])])
         serializable_progress = {
             str(vmid): {
-                "label": item.get("label", "Backup läuft"),
+                "label": item.get("label", t("progress.running")),
                 "title": item.get("title", ""),
                 "percent": item.get("percent"),
             }

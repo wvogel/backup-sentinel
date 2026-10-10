@@ -197,6 +197,42 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
         conn.commit()
 
 
+def update_backup_event_storages(cluster_id: int, events: list[dict[str, Any]]) -> None:
+    """Record on which storages each backup currently lies.
+
+    The same backup can sit on several storages (e.g. a PBS plus an offsite
+    sync copy) but is one row per VM and start minute. Pass ALL events of a
+    sync (PVE and PBS); each row's set is replaced with what was seen now.
+    """
+    storages_by_key: dict[tuple[int, datetime], set[str]] = {}
+    for event in events:
+        storage = event.get("storage")
+        started_at = event.get("started_at")
+        if not storage or started_at is None:
+            continue
+        key = (event["vmid"], started_at.replace(second=0, microsecond=0))
+        storages_by_key.setdefault(key, set()).add(storage)
+
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT id, vmid FROM vms WHERE cluster_id = %s", (cluster_id,))
+        vmid_to_id = {row["vmid"]: row["id"] for row in cur.fetchall()}
+        cur.execute(
+            "UPDATE backup_events SET storages = NULL WHERE vm_id = ANY(%s) AND storages IS NOT NULL",
+            (list(vmid_to_id.values()),),
+        )
+        rows = [
+            (sorted(storages), vmid_to_id[vmid], started_at)
+            for (vmid, started_at), storages in storages_by_key.items()
+            if vmid in vmid_to_id
+        ]
+        if rows:
+            cur.executemany(
+                "UPDATE backup_events SET storages = %s WHERE vm_id = %s AND started_at = %s",
+                rows,
+            )
+        conn.commit()
+
+
 def cleanup_stale_inprogress_backups(cluster_id: int, max_age_hours: int = 48) -> int:
     """Reconcile stub in-progress backup rows with their real outcome.
 

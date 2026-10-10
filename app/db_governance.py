@@ -21,6 +21,15 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             v.name AS vm_name,
             v.backup_kind,
             v.missing_since,
+            CASE WHEN v.missing_since IS NOT NULL THEN (
+                SELECT ARRAY(
+                    SELECT DISTINCT unnest(be.storages)
+                    FROM backup_events be
+                    WHERE be.vm_id = v.id AND be.status = 'ok' AND be.removed_at IS NULL
+                      AND COALESCE(be.size_bytes, 0) > 1
+                    ORDER BY 1
+                )
+            ) END AS remaining_storages,
             COALESCE(p.backup_policy_override, v.backup_kind) AS effective_backup_kind,
             be_latest.started_at AS last_backup_at,
             be_latest.source AS last_backup_source,

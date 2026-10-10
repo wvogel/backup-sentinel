@@ -25,7 +25,23 @@ def _load_lang(lang: str) -> dict[str, str]:
 
 
 def t(key: str, **kwargs) -> str:
-    lang = _current_lang.get()
+    """Translate into the current request's language (cookie-based)."""
+    return tl(_current_lang.get(), key, **kwargs)
+
+
+def ts(key: str, **kwargs) -> str:
+    """Translate into the server language (`BSENTINEL_REPORT_LANGUAGE`).
+
+    For text produced outside a request — notifications, sync logs, PDFs —
+    where there is no user to take the language from.
+    """
+    from app.config import REPORT_LANGUAGE
+
+    return tl(REPORT_LANGUAGE, key, **kwargs)
+
+
+def tl(lang: str, key: str, **kwargs) -> str:
+    """Translate into an explicit language, falling back to English, then the key."""
     strings = _load_lang(lang)
     text = strings.get(key)
     if text is None and lang != "en":

@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib import parse
 
+from app.i18n import t
 from app.services.proxmox import ProxmoxSyncError, _pve_get, _pve_get_dict, _pve_get_json, build_token_header
 
 logger = logging.getLogger(__name__)
@@ -82,33 +83,48 @@ def _extract_log_lines(data: Any) -> list[str]:
     return lines
 
 
+def _current_vm_log(log_lines: list[str]) -> list[str]:
+    """Return the log section of the VM currently being backed up.
+
+    A scheduled vzdump job backs up several VMs one after another in a single
+    task; progress lines of VMs that already finished must not be attributed
+    to the running one. Logs without a "Starting Backup" line are returned as is.
+    """
+    for i in range(len(log_lines) - 1, -1, -1):
+        if _START_RE.search(log_lines[i]):
+            return log_lines[i:]
+    return log_lines
+
+
 def _extract_vmid_from_task(task: dict[str, Any], log_lines: list[str]) -> int | None:
+    # The last "Starting Backup" line names the VM that is running right now —
+    # earlier ones belong to VMs of the same job that are already done.
+    for line in reversed(log_lines):
+        match = _START_RE.search(line)
+        if match:
+            return int(match.group("vmid"))
     for key in ("id", "upid", "worker_id"):
         value = str(task.get(key) or "")
         match = _VMID_RE.search(value)
         if match:
             return int(match.group("vmid") or match.group("vmid2"))
-    for line in log_lines:
-        match = _START_RE.search(line)
-        if match:
-            return int(match.group("vmid"))
     return None
 
 
 def _build_progress_title(progress: dict[str, Any]) -> str:
     lines = []
     if progress.get("started_at_label"):
-        lines.append(f"Start: {progress['started_at_label']}")
+        lines.append(t("progress.start", time=progress["started_at_label"]))
     if progress.get("eta_label"):
-        lines.append(f"ETA: {progress['eta_label']}")
+        lines.append(t("progress.eta", time=progress["eta_label"]))
     if progress.get("written_label") and progress.get("target_label"):
-        lines.append(f"{progress['written_label']} von {progress['target_label']}")
+        lines.append(t("progress.written_of", written=progress["written_label"], total=progress["target_label"]))
     elif progress.get("written_label"):
-        lines.append(f"Bisher: {progress['written_label']}")
+        lines.append(t("progress.written_so_far", written=progress["written_label"]))
     if progress.get("delta_label"):
-        lines.append(f"Delta: {progress['delta_label']}")
+        lines.append(t("progress.delta", size=progress["delta_label"]))
     if progress.get("full_label"):
-        lines.append(f"VM gesamt: {progress['full_label']}")
+        lines.append(t("progress.vm_total", size=progress["full_label"]))
     return "\n".join(lines)
 
 
@@ -153,7 +169,9 @@ def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -
                 progress["eta_label"] = eta.astimezone().strftime("%d.%m.%Y %H:%M")
             break
 
-    progress["label"] = f"Backup {progress['percent']}%" if progress.get("percent") is not None else "Backup läuft"
+    progress["label"] = (
+        f"Backup {progress['percent']}%" if progress.get("percent") is not None else t("progress.running")
+    )
     progress["title"] = _build_progress_title(progress)
     return progress
 
@@ -209,7 +227,7 @@ def fetch_running_backup_progress(
             vmid = _extract_vmid_from_task({**task, **status}, log_lines)
             if vmid is None:
                 continue
-            progress = _parse_running_backup_progress({**task, **status}, log_lines)
+            progress = _parse_running_backup_progress({**task, **status}, _current_vm_log(log_lines))
             if progress:
                 result[vmid] = progress
 

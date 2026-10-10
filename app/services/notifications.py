@@ -25,6 +25,8 @@ from urllib import error, request
 from zoneinfo import ZoneInfo
 
 from app import db
+from app.config import REPORT_LANGUAGE
+from app.i18n import t, ts
 from app.services.crypto import decrypt
 
 logger = logging.getLogger(__name__)
@@ -136,7 +138,7 @@ def _flush_gotify_queue() -> None:
         prio = msgs[0]["priority"]
     else:
         prio = max(m["priority"] for m in msgs)
-        title = f"Backup Sentinel: {len(msgs)} Meldungen"
+        title = ts("notify.batch_title", count=len(msgs))
         parts = []
         for m in msgs:
             parts.append(f"── {m['title']} ──\n{m['message']}")
@@ -220,10 +222,10 @@ def send_gotify(
 
 def test_gotify_notification() -> tuple[bool, str]:
     """Send a test notification directly (bypasses queue + enable check)."""
-    ok = _send_gotify_raw("Test", "Backup Sentinel: Gotify-Verbindung erfolgreich!", 3)
+    ok = _send_gotify_raw("Test", ts("notify.gotify_test_message"), 3)
     if ok:
-        return True, "Gotify-Nachricht erfolgreich gesendet."
-    return False, "Gotify-Nachricht konnte nicht gesendet werden. URL, Token und Erreichbarkeit prüfen."
+        return True, t("notify.gotify_test_ok")
+    return False, t("notify.gotify_test_failed")
 
 
 # ── Alert helpers (all go through send_gotify → queue) ────────────────────
@@ -234,12 +236,12 @@ def notify_backup_critical(cluster_name: str, vm_name: str, vmid: int, age_days:
     if not _should_send(key):
         return
     if age_days is None:
-        age_str = "nie"
+        age_str = ts("notify.never")
     else:
-        age_str = f"vor {age_days} Tag" if age_days == 1 else f"vor {age_days} Tagen"
+        age_str = ts("notify.days_ago_one" if age_days == 1 else "notify.days_ago_other", count=age_days)
     send_gotify(
-        title=f"Backup kritisch: {vm_name}",
-        message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\nLetztes Backup: {age_str}",
+        title=ts("notify.backup_critical_title", vm=vm_name),
+        message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\n{ts('notify.last_backup', age=age_str)}",
         priority=8,
         notification_type="backup_critical",
         cluster_name=cluster_name,
@@ -252,15 +254,15 @@ def notify_size_anomaly(
     key = f"size-anomaly:{cluster_name}:{vmid}"
     if not _should_send(key):
         return
-    direction = "größer" if latest_size > avg_size else "kleiner"
+    direction_key = "notify.size_larger" if latest_size > avg_size else "notify.size_smaller"
     send_gotify(
-        title=f"Backup-Größenanomalie: {vm_name}",
+        title=ts("notify.size_anomaly_title", vm=vm_name),
         message=(
             f"Cluster: {cluster_name}\n"
             f"VM: {vm_name} (VMID {vmid})\n"
-            f"Aktuell: {latest_size / 1_073_741_824:.1f} GB\n"
-            f"Durchschnitt: {avg_size / 1_073_741_824:.1f} GB\n"
-            f"{deviation * 100:.0f}% {direction} als üblich"
+            f"{ts('notify.size_current', size=f'{latest_size / 1_073_741_824:.1f}')}\n"
+            f"{ts('notify.size_average', size=f'{avg_size / 1_073_741_824:.1f}')}\n"
+            f"{ts(direction_key, pct=f'{deviation * 100:.0f}')}"
         ),
         priority=5,
         notification_type="size_anomaly",
@@ -273,7 +275,7 @@ def notify_sync_failed(cluster_name: str, detail: str) -> None:
     if not _should_send(key):
         return
     send_gotify(
-        title=f"Sync fehlgeschlagen: {cluster_name}",
+        title=ts("notify.sync_failed_title", cluster=cluster_name),
         message=f"Cluster: {cluster_name}\n{detail[:500]}",
         priority=7,
         notification_type="sync_failed",
@@ -283,24 +285,20 @@ def notify_sync_failed(cluster_name: str, detail: str) -> None:
 
 def notify_sync_overdue(cluster_name: str, failure_started_at: datetime | None) -> None:
     if failure_started_at is None:
-        started = "unbekannt"
+        started = ts("notify.unknown")
     elif isinstance(failure_started_at, datetime):
-        started = failure_started_at.strftime("%d.%m.%Y %H:%M")
+        started = failure_started_at.strftime("%Y-%m-%d %H:%M" if REPORT_LANGUAGE == "en" else "%d.%m.%Y %H:%M")
     else:
         started = str(failure_started_at)
-    title = f"Cluster-Sync seit 24h fehlgeschlagen: {cluster_name}"
-    message = (
-        f"Cluster: {cluster_name}\n"
-        f"Fehlerzustand seit: {started}\n"
-        "Seit mindestens 24 Stunden war kein erfolgreicher Cluster-Sync mehr möglich."
-    )
+    title = ts("notify.sync_overdue_title", cluster=cluster_name)
+    message = f"Cluster: {cluster_name}\n{ts('notify.error_since', since=started)}\n{ts('notify.sync_overdue_message')}"
     send_gotify(title=title, message=message, priority=9, notification_type="sync_overdue", cluster_name=cluster_name)
     if send_email(
         subject=title,
         body=(
-            f"Der Cluster-Sync für '{cluster_name}' ist seit mindestens 24 Stunden im Fehlerzustand.\n\n"
-            f"Fehlerzustand seit: {started}\n"
-            "Bitte Erreichbarkeit von PVE/PBS, Zugangsdaten und API-Fehler prüfen."
+            f"{ts('notify.sync_overdue_email', cluster=cluster_name)}\n\n"
+            f"{ts('notify.error_since', since=started)}\n"
+            f"{ts('notify.sync_overdue_hint')}"
         ),
     ):
         try:
@@ -316,8 +314,11 @@ def notify_restore_overdue(cluster_name: str, vm_name: str, vmid: int, days_over
     if not _should_send(key):
         return
     send_gotify(
-        title=f"Restore-Test überfällig: {vm_name}",
-        message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\n{days_overdue} {'Tag' if days_overdue == 1 else 'Tage'} überfällig",
+        title=ts("notify.restore_overdue_title", vm=vm_name),
+        message=(
+            f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\n"
+            + ts("notify.days_overdue_one" if days_overdue == 1 else "notify.days_overdue_other", count=days_overdue)
+        ),
         priority=6,
         notification_type="restore_overdue",
         cluster_name=cluster_name,
@@ -330,10 +331,10 @@ def notify_unencrypted_backups(cluster_name: str, unencrypted_count: int, vm_nam
         return
     vm_list = ", ".join(vm_names[:10])
     if len(vm_names) > 10:
-        vm_list += f" (+{len(vm_names) - 10} weitere)"
+        vm_list += f" ({ts('notify.more', count=len(vm_names) - 10)})"
     send_gotify(
-        title=f"Unverschlüsselte Backups: {cluster_name}",
-        message=(f"Cluster: {cluster_name}\n{unencrypted_count} VMs mit unverschlüsselten Backups:\n{vm_list}"),
+        title=ts("notify.unencrypted_title", cluster=cluster_name),
+        message=f"Cluster: {cluster_name}\n{ts('notify.unencrypted_message', count=unencrypted_count)}\n{vm_list}",
         priority=6,
         notification_type="unencrypted_backups",
         cluster_name=cluster_name,
@@ -471,19 +472,16 @@ def _send_email_raw(subject: str, body: str, attachments: list[Path] | None = No
 
 def test_email_delivery() -> tuple[bool, str]:
     """Send a test email directly (bypasses enable check)."""
-    ok = _send_email_raw("Test – Backup Sentinel", "Dies ist eine Test-E-Mail vom Backup Sentinel.")
+    ok = _send_email_raw(ts("notify.email_test_subject"), ts("notify.email_test_body"))
     if ok:
-        return True, "Test-E-Mail wurde erfolgreich versendet."
-    return False, "Test-E-Mail konnte nicht gesendet werden. SMTP, Zugangsdaten und Empfänger prüfen."
+        return True, t("notify.email_test_ok")
+    return False, t("notify.email_test_failed")
 
 
 def send_monthly_report_email(pdf_path: Path, month_label: str) -> bool:
     """Send the monthly backup report PDF via email."""
     return send_email(
-        subject=f"Backup Sentinel – Report {month_label}",
-        body=(
-            f"Im Anhang der automatisch generierte Backup-Report für {month_label}.\n\n"
-            "Dieser Report wurde automatisch vom Backup Sentinel erstellt."
-        ),
+        subject=ts("notify.report_subject", month=month_label),
+        body=ts("notify.report_body", month=month_label),
         attachments=[pdf_path],
     )

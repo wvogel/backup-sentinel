@@ -8,7 +8,7 @@ from app.services.proxmox import (
     fetch_backup_details,
     infer_backup_kind_by_vmid,
 )
-from app.services.proxmox_progress import _parse_running_backup_progress
+from app.services.proxmox_progress import _current_vm_log, _extract_vmid_from_task, _parse_running_backup_progress
 
 
 class ProxmoxHelpersTests(unittest.TestCase):
@@ -77,6 +77,33 @@ class ProxmoxHelpersTests(unittest.TestCase):
         self.assertIn("Delta: 26.0 GiB", progress["title"])
 
 
+# One scheduled vzdump task backs up several VMs one after another.
+MULTI_VM_LOG = [
+    "INFO: starting new backup job: vzdump 100 103 --storage pbs",
+    "INFO: Starting Backup of VM 100 (qemu)",
+    "INFO: using fast incremental mode (dirty-bitmap), 1.0 GiB dirty of 32.0 GiB total",
+    "INFO: 100% (1.0 GiB of 1.0 GiB) in 10s, read: 100.0 MiB/s, write: 100.0 MiB/s",
+    "INFO: Finished Backup of VM 100 (00:00:12)",
+    "INFO: Starting Backup of VM 103 (qemu)",
+    "INFO: using fast incremental mode (dirty-bitmap), 4.0 GiB dirty of 64.0 GiB total",
+]
+MULTI_VM_TASK = {"upid": "UPID:pve1:0001:0002:6700:vzdump::root@pam:", "id": ""}
+
+
+class MultiVMBackupJobTests(unittest.TestCase):
+    def test_vmid_is_the_vm_currently_being_backed_up(self) -> None:
+        self.assertEqual(_extract_vmid_from_task(MULTI_VM_TASK, MULTI_VM_LOG), 103)
+
+    def test_progress_ignores_previous_vms_in_the_job(self) -> None:
+        progress = _parse_running_backup_progress(MULTI_VM_TASK, _current_vm_log(MULTI_VM_LOG))
+        self.assertNotIn("percent", progress)
+        self.assertEqual(progress["delta_label"], "4.0 GiB")
+
+    def test_single_vm_log_is_used_as_is(self) -> None:
+        lines = ["INFO: 42% (1.0 GiB of 2.4 GiB) in 5s, read: 1 MiB/s, write: 1 MiB/s"]
+        self.assertEqual(_current_vm_log(lines), lines)
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -99,6 +126,7 @@ class FetchBackupDetailsTests(unittest.TestCase):
         self.assertEqual({e["vmid"] for e in events}, {100, 200})
         self.assertEqual(set(latest), {100, 200})
         self.assertEqual(errors, [])
+        self.assertEqual({e["storage"] for e in events}, {"nfs"})
 
     def test_reports_unreachable_storage_as_error(self) -> None:
         def fake(base_url, path, auth_header, **kwargs):

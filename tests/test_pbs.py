@@ -32,3 +32,9 @@ class FetchAllPBSBackupsTests(unittest.TestCase):
             events, _logs, complete = pbs.fetch_all_pbs_backups(CONN, {100})
         self.assertEqual(events, [])
         self.assertTrue(complete)
+
+    def test_events_carry_pbs_and_datastore_as_storage(self) -> None:
+        snapshots = [{"backup-type": "vm", "backup-id": "121", "backup-time": 1_760_000_000, "size": 10}]
+        with mock.patch.object(pbs, "_pbs_get_json", return_value=snapshots):
+            events = pbs.fetch_pbs_backups({**CONN, "name": "pbs-fh-muc"}, {121}, datastore="nas-b1")
+        self.assertEqual([e["storage"] for e in events], ["pbs-fh-muc/nas-b1"])

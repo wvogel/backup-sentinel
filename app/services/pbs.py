@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib import parse
 
+from app.i18n import ts
 from app.services.api_client import APIError, api_get_json, api_test_connection
 
 logger = logging.getLogger(__name__)
@@ -186,6 +187,7 @@ def fetch_pbs_backups(
                 "encrypted": encrypted,
                 "verify_state": verify_state,
                 "status": "ok",
+                "storage": f"{conn.get('name') or base_url}/{datastore}",
             }
         )
 
@@ -215,22 +217,22 @@ def fetch_all_pbs_backups(
     datastores, debug_info, complete = fetch_pbs_datastores(conn)
     log_lines.append(f"DEBUG: {debug_info}")
     if not datastores:
-        log_lines.append("Keine Datastores auf dem PBS gefunden.")
+        log_lines.append(ts("synclog.pbs_no_datastores"))
         return [], log_lines, complete
 
-    log_lines.append(f"Datastores: {', '.join(datastores)}")
+    log_lines.append(ts("synclog.pbs_datastores", names=", ".join(datastores)))
     all_events: list[dict[str, Any]] = []
 
     for ds in datastores:
         try:
             events = fetch_pbs_backups(conn, vmids, cutoff, datastore=ds)
             all_events.extend(events)
-            log_lines.append(f"  {ds}: {len(events)} Snapshots verarbeitet")
+            log_lines.append(ts("synclog.pbs_datastore_done", ds=ds, count=len(events)))
         except PBSSyncError as exc:
             complete = False
-            log_lines.append(f"  {ds}: Fehler – {exc}")
+            log_lines.append(ts("synclog.pbs_datastore_failed", ds=ds, error=exc))
             logger.error("PBS datastore %s/%s failed: %s", conn["api_url"], ds, exc)
 
     pbs_vmids = {e["vmid"] for e in all_events}
-    log_lines.append(f"Gesamt: {len(all_events)} Events für {len(pbs_vmids)} VMs")
+    log_lines.append(ts("synclog.pbs_total", events=len(all_events), vms=len(pbs_vmids)))
     return all_events, log_lines, complete

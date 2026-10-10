@@ -157,6 +157,7 @@ def init_db() -> None:
             cur.execute(
                 "CREATE INDEX IF NOT EXISTS idx_backup_events_vm_status ON backup_events(vm_id, status, removed_at)"
             )
+            cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS storages TEXT[]")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_vms_cluster_vmid ON vms(cluster_id, vmid)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_nodes_cluster ON nodes(cluster_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_clusters_slug ON clusters(slug)")

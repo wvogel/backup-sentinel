@@ -104,7 +104,7 @@ Your reverse proxy should forward traffic to the OAuth2-Proxy container on port 
 | `COPYRIGHT_TEXT` | *(empty)* | Copyright text in the footer (e.g. `© 2026 Your Company`). |
 | `BSENTINEL_DATA_DIR` | `/data` | Path for persistent application data. |
 | `BSENTINEL_REPORT_DIR` | `/reports` | Path for generated PDF/JSON reports. |
-| `BSENTINEL_REPORT_LANGUAGE` | `de` | Language for generated PDF reports (`de` or `en`). Any other value falls back to `de`. |
+| `BSENTINEL_REPORT_LANGUAGE` | `de` | Server-side language (`de` or `en`) for everything generated without a browser: PDF reports, Gotify/email notifications and sync logs. The web UI follows each user's language switch instead. Any other value falls back to `de`. |
 | `BSENTINEL_BACKUP_DAY_OFFSET_HOURS` | `12` | Boundary offset for the "backup day" in the sparkline. A long-running job whose last VMs finish the next morning still counts for the evening the job started. Set to `0` for wall-clock midnight. |
 
 ### OAuth2-Proxy (`oauth2-proxy.env`)
