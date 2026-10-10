@@ -175,7 +175,7 @@
               <span class="backup-kind-slot"></span>
               <span class="backup-severity-slot"><span class="badge unknown">{{ t('cluster.vm_gone') }}</span></span>
               {% else %}
-              <span class="backup-kind-slot"><span class="pill pill-kind" title="{{ row.backup_kind_label }}">{{ row.backup_kind_short }}</span></span>
+              <span class="backup-kind-slot"><span class="pill pill-kind" data-tooltip="{{ row.backup_kind_label }}" aria-label="{{ row.backup_kind_label }}">{{ row.backup_kind_short }}</span></span>
               <span class="backup-severity-slot"><span class="badge {{ row.backup_severity }}">{{ severity_labels.get(row.backup_severity, row.backup_severity) }}</span></span>
               {% endif %}
               <span class="backup-source-slot">
