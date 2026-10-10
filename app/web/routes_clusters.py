@@ -12,7 +12,7 @@ from app import db
 from app.i18n import t
 from app.models import RestoreTestCreate
 from app.services.bootstrap import slugify_cluster
-from app.services.proxmox_progress import fetch_running_backup_progress
+from app.services.proxmox_progress import running_backup_progress_cached
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, settings_actor, templates
 from app.web.sync import background_sync, sync_executor, sync_logs, syncing_clusters
@@ -113,7 +113,7 @@ def get_sync_status(cluster_slug: str, since: int = 0):
     cache_entry = _sync_status_cache.get(cluster_slug)
     if cache_entry is None or (now - cache_entry[0]) >= _SYNC_STATUS_TTL:
         buf = list(sync_logs.get(cid, []))
-        progress = fetch_running_backup_progress(cluster, [node["name"] for node in db.list_nodes(cluster["id"])])
+        progress, _ = running_backup_progress_cached(cluster, [node["name"] for node in db.list_nodes(cluster["id"])])
         serializable_progress = {str(vmid): running_backup_info(item) for vmid, item in progress.items()}
         cached = {
             "syncing": cid in syncing_clusters,
@@ -135,7 +135,7 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
     vm_rows = db.vm_governance_rows(cluster["id"])
-    live_backup_progress = fetch_running_backup_progress(
+    live_backup_progress, _ = running_backup_progress_cached(
         cluster, [node["name"] for node in db.list_nodes(cluster["id"])]
     )
     running_backups = []

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from app import db
+from app.services.proxmox_progress import running_backups_for_clusters
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, templates
 
@@ -60,6 +61,21 @@ def dashboard(request: Request) -> HTMLResponse:
                 "est_failures": sync_health["failures"],
             }
         )
+
+    # Running backups live from PVE: the sync's in-progress markers expire
+    # after 6 h, so long backups would vanish. Unreachable clusters keep them.
+    registered = [c for c in all_clusters if c.get("token_secret")]
+    live = running_backups_for_clusters([(c, [n["name"] for n in db.list_nodes(c["id"])]) for c in registered])
+    slug_by_id = {c["id"]: c["slug"] for c in all_clusters}
+    names = {(row["cluster_id"], row["vmid"]): row["vm_name"] for row in vm_rows}
+    running_by_slug = {
+        slug_by_id[cid]: [names.get((cid, vmid), str(vmid)) for vmid in sorted(progress)]
+        for cid, progress in live.items()
+        if progress is not None
+    }
+    for summary in clusters:
+        if summary["cluster_slug"] in running_by_slug:
+            summary["running_vms"] = running_by_slug[summary["cluster_slug"]]
 
     context = {
         "clusters": clusters,
