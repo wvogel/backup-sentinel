@@ -149,26 +149,22 @@
       <tbody>
         {% for row in vm_rows %}
         {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['warning', 'critical'] %}restore-overdue {% endif %}{% if row.vm_gone %}vm-gone{% endif %}{% endset %}
-        <tr class="{% if row.vm_gone %}vm-gone-row{% endif %}{% if row.running %} is-running{% endif %}"{% if row.running and row.running.percent is not none %} style="--pct:{{ row.running.percent }}"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}" data-vm-name="{{ row.vm_name }}"{% if row.live_backup_progress %} data-live="1"{% endif %}>
+        <tr class="{% if row.vm_gone %}vm-gone-row{% endif %}{% if row.running %} is-running{% endif %}"{% if row.running and row.running.percent is not none %} style="--pct:{{ row.running.percent }}"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}" data-vm-name="{{ row.vm_name }}"{% if row.live_backup_progress %} data-live="1"{% endif %}{% if row.running %} title="{{ row.running.line }}{% if row.running.title %}&#10;{{ row.running.title }}{% elif row.in_progress_since %}&#10;{{ t('progress.start', time=row.in_progress_since|datetime_local) }}{% endif %}"{% endif %}>
           <td data-label="{{ t('common.node') }}" data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
           <td data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}{% if row.vm_gone %} <span class="badge unknown vm-gone-badge" title="{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}{% if row.remaining_storages %}&#10;{{ t('cluster.vm_gone_storages', storages=row.remaining_storages|join(', ')) }}{% endif %}">{{ t('cluster.vm_gone') }}</span>{% endif %}</td>
           <td class="col-right" data-label="VMID" data-sort-value="{{ row.vmid }}">{{ row.vmid }}</td>
-          <td class="last-backup-cell" data-label="{{ t('cluster.th_last_backup') }}" data-sort-value="{{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
-            <span class="running-chip js-running-chip{% if not row.running %} hidden{% endif %}"
-              data-tooltip="{% if row.running and row.running.title %}{{ row.running.title }}{% elif row.in_progress_since %}{{ t('progress.start', time=row.in_progress_since|datetime_local) }}{% endif %}">
-              <svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg><span class="js-running-label">{{ row.running.chip if row.running else '' }}</span>
-            </span>
+          <td data-label="{{ t('cluster.th_last_backup') }}" data-sort-value="{{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
             {% if row.last_backup_at %}
               <span class="last-backup-date">{{ row.last_backup_at|datetime_local }}</span>
-            {% elif not row.running %}
+            {% else %}
               <span class="muted">{{ t('cluster.no_backup') }}</span>
             {% endif %}
           </td>
           <td class="sparkline-cell" data-label="{{ t('cluster.th_30days') }}">
             {%- set spark = sparklines.get(row.id, []) -%}
-            <svg class="sparkline-svg" viewBox="0 0 {{ spark|length * 8 - 2 }} 16" width="{{ spark|length * 8 - 2 }}" height="16" preserveAspectRatio="none" aria-label="{{ t('cluster.backup_trend') }}">
+            <svg class="sparkline-svg" viewBox="0 0 {{ spark|length * 11 - 3 }} 22" width="{{ spark|length * 11 - 3 }}" height="22" preserveAspectRatio="none" aria-label="{{ t('cluster.backup_trend') }}">
               {%- for s in spark -%}
-              <rect x="{{ loop.index0 * 8 }}" y="0" width="6" height="16" rx="1.5"
+              <rect x="{{ loop.index0 * 11 }}" y="0" width="8" height="22" rx="2"
                     class="spark-{{ s }}" />
               {%- endfor -%}
             </svg>

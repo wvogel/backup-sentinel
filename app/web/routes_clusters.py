@@ -83,22 +83,17 @@ def sync_cluster(cluster_slug: str, next: str = Form(default="")) -> RedirectRes
 
 
 def running_backup_info(progress: dict | None) -> dict:
-    """Labels for a running backup: row chip, status-bar line and tooltip."""
+    """Labels for a running backup: status-bar line and row tooltip."""
     progress = progress or {}
     percent = progress.get("percent")
-    chip = t("cluster.running_percent", pct=percent) if percent is not None else t("cluster.backup_running")
-    meta_parts: list[str] = []
+    parts: list[str] = [t("cluster.running_percent", pct=percent)] if percent is not None else []
     if progress.get("written_label") and progress.get("target_label"):
-        meta_parts.append(t("progress.written_of", written=progress["written_label"], total=progress["target_label"]))
+        parts.append(t("progress.written_of", written=progress["written_label"], total=progress["target_label"]))
     if progress.get("eta_short"):
-        until = t("cluster.running_until", time=progress["eta_short"])
-        chip = f"{chip} · {until}"
-        meta_parts.append(until)
-    line_parts = ([t("cluster.running_percent", pct=percent)] if percent is not None else []) + meta_parts
+        parts.append(t("cluster.running_until", time=progress["eta_short"]))
     return {
         "percent": percent,
-        "chip": chip,
-        "line": " · ".join(line_parts) or t("cluster.backup_running"),
+        "line": " · ".join(parts) or t("cluster.backup_running"),
         "title": progress.get("title", ""),
     }
 

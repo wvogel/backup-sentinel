@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.1] — 2026-10-10
+
+### Changed
+
+- **"Last backup" column shows only the date.** The running-backup chip is gone; percentage, data written and ETA live in the status bar above the table, the row fill shows progress, and hovering the row shows start, ETA and data volume.
+- **Much larger 30-day sparkline:** 8 × 22 px per day with 3 px gaps. It takes the freed width and scales with its column (200–338 px), so the table never scrolls horizontally.
+
+### Fixed
+
+- Badges and pills no longer wrap mid-word when a column gets narrow (e.g. "kritisc/h" in the restore column).
+
 ## [v2.4.0] — 2026-10-10
 
 ### Added

@@ -660,6 +660,7 @@ tbody tr:last-child td {
   font-size: 0.78rem;
   font-weight: 700;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .pill {
@@ -2114,6 +2115,11 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
 }
 .sparkline-svg {
   display: block;
+  /* Scales with the column: as large as the table allows, never tiny. */
+  width: 100%;
+  min-width: 200px;
+  max-width: 338px;
+  height: 22px;
 }
 .spark-ok   { fill: var(--ok); }
 .spark-deleted { fill: var(--warn); opacity: 0.7; }
@@ -2445,24 +2451,7 @@ details[open] > .encryption-alert-summary::before {
 #vm-table tr.running-flash > td { animation: running-flash 1.4s ease-out; }
 @keyframes running-flash { from { box-shadow: inset 0 0 0 999px var(--running-fill); } }
 
-.running-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: 8px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--running);
-  color: var(--panel);
-  font-size: 0.8rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.running-chip.hidden { display: none; }
 .last-backup-date { white-space: nowrap; }
-tr.is-running .last-backup-date { color: var(--muted); }
-#vm-table td.last-backup-cell { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; }
-#vm-table td.last-backup-cell::before { margin-right: auto; }
 
 /* Status bar above the VM table. */
 .running-banner {

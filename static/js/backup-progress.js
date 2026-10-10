@@ -65,24 +65,20 @@
   function applyProgress(progress) {
     for (const tr of table.querySelectorAll("tbody tr[data-vmid]")) {
       const info = progress[tr.dataset.vmid];
-      const chip = tr.querySelector(".js-running-chip");
-      if (!chip) continue;
       if (info) {
         tr.classList.add("is-running");
         tr.dataset.live = "1";
         tr.dataset.runningLine = info.line;
         if (info.percent === null || info.percent === undefined) tr.style.removeProperty("--pct");
         else tr.style.setProperty("--pct", info.percent);
-        chip.classList.remove("hidden");
-        chip.dataset.tooltip = info.title || "";
-        chip.querySelector(".js-running-label").textContent = info.chip;
+        tr.title = info.title ? `${info.line}\n${info.title}` : info.line;
       } else if (tr.dataset.live === "1") {
         // Finished since the last poll; the new backup date arrives with the next sync.
         tr.classList.remove("is-running");
         tr.style.removeProperty("--pct");
         delete tr.dataset.live;
         delete tr.dataset.runningLine;
-        chip.classList.add("hidden");
+        tr.removeAttribute("title");
       }
     }
     renderBanner();
