@@ -22,6 +22,9 @@
   --critical-soft: #fde7ea;
   --unknown: #5b667a;
   --unknown-soft: #edf1f7;
+  --spark-ok: var(--ok);
+  --spark-deleted: var(--warn);
+  --spark-failed: var(--critical);
   --shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
   --progress-fill: rgba(29, 111, 80, 0.28);
   --running: #1f5fbf;
@@ -55,6 +58,9 @@ html[data-theme="dark"] {
   --critical-soft: rgba(244, 63, 94, 0.16);
   --unknown: #c5ceda;
   --unknown-soft: rgba(148, 163, 184, 0.16);
+  --spark-ok: #2e7356;
+  --spark-deleted: #8a6428;
+  --spark-failed: #9b3a46;
   --shadow: none;
   --progress-fill: rgba(52, 211, 153, 0.35);
   --running: #7cb4ff;
@@ -2123,9 +2129,9 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
   max-width: 338px;
   height: 22px;
 }
-.spark-ok   { fill: var(--ok); }
-.spark-deleted { fill: var(--warn); opacity: 0.7; }
-.spark-failed { fill: var(--critical); }
+.spark-ok   { fill: var(--spark-ok); }
+.spark-deleted { fill: var(--spark-deleted); opacity: 0.85; }
+.spark-failed { fill: var(--spark-failed); }
 .spark-none { fill: var(--line); opacity: 0.7; }
 
 /* ── Feature 5: Encryption audit ─────────────────────────────────────── */
