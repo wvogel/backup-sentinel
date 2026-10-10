@@ -49,6 +49,8 @@
   "cluster.sync_now": "Jetzt synchronisieren",
   "cluster.never_synced": "nie synchronisiert",
   "cluster.no_backup": "kein Backup",
+  "cluster.vm_gone": "gelöscht",
+  "cluster.vm_gone_tooltip": "VM existiert im Cluster nicht mehr (seit {date}). Wird angezeigt, solange noch Backups vorhanden sind.",
   "cluster.backup_running": "Backup läuft",
   "cluster.all": "Alle",
   "cluster.no_vms_visible": "Keine VMs für diesen Node sichtbar.",

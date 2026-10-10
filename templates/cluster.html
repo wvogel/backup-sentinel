@@ -130,10 +130,10 @@
       </thead>
       <tbody>
         {% for row in vm_rows %}
-        {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['warning', 'critical'] %}restore-overdue{% endif %}{% endset %}
-        <tr data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}">
+        {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['warning', 'critical'] %}restore-overdue {% endif %}{% if row.vm_gone %}vm-gone{% endif %}{% endset %}
+        <tr{% if row.vm_gone %} class="vm-gone-row"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}">
           <td data-label="{{ t('common.node') }}" data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
-          <td data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}</td>
+          <td data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}{% if row.vm_gone %} <span class="badge unknown vm-gone-badge" title="{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}">{{ t('cluster.vm_gone') }}</span>{% endif %}</td>
           <td class="col-right" data-label="VMID" data-sort-value="{{ row.vmid }}">{{ row.vmid }}</td>
           <td data-label="{{ t('cluster.th_last_backup') }}" data-sort-value="{{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
             {% if row.in_progress_since %}
@@ -162,8 +162,13 @@
           </td>
           <td class="backup-cell" data-label="{{ t('cluster.th_backup') }}" data-sort-value="{{ row.backup_severity }} {{ row.status_backup_kind }} {{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
             <div class="backup-inline-grid">
+              {% if row.vm_gone %}
+              <span class="backup-kind-slot"></span>
+              <span class="backup-severity-slot"><span class="badge unknown">{{ t('cluster.vm_gone') }}</span></span>
+              {% else %}
               <span class="backup-kind-slot"><span class="pill">{{ row.backup_kind_label }}</span></span>
               <span class="backup-severity-slot"><span class="badge {{ row.backup_severity }}">{{ severity_labels.get(row.backup_severity, row.backup_severity) }}</span></span>
+              {% endif %}
               <span class="backup-source-slot">
               {% if row.last_backup_source == 'pve' %}
                 <span class="pill pill-local" title="{{ t('cluster.local_tooltip') }}">{{ t('cluster.local') }}</span>
@@ -171,6 +176,7 @@
                 <span class="pill pill-pbs" title="{{ t('cluster.pbs_tooltip') }}">PBS</span>
               {% endif %}
               </span>
+              {% if not row.vm_gone %}
               <form action="/clusters/{{ cluster.slug }}/backup-policy" method="post" class="backup-policy-form backup-policy-slot">
                 <input type="hidden" name="vm_id" value="{{ row.id }}">
                 <select name="backup_policy_override" onchange="saveScrollAndSubmit(this.form)">
@@ -180,11 +186,16 @@
                   <option value="none" {% if row.backup_policy_override == 'none' %}selected{% endif %}>{{ t('cluster.policy_none') }}</option>
                 </select>
               </form>
+              {% endif %}
             </div>
           </td>
           <td class="restore-cell" data-label="{{ t('cluster.th_restore_test') }}" data-sort-value="{{ row.restore_due_status }} {{ row.last_restore_tested_at.isoformat() if row.last_restore_tested_at else '' }} {{ row.last_restore_result or '' }}">
             <span class="cell-inner">
+              {% if row.vm_gone %}
+              <span class="muted">–</span>
+              {% else %}
               <span class="badge {{ row.restore_due_status }}" title="{% if row.last_restore_tested_at %}{{ row.last_restore_tested_at|datetime_local('%d.%m.%Y') }} · {{ row.last_restore_duration_minutes }} min · {{ recovery_type_labels.get(row.last_restore_recovery_type, row.last_restore_recovery_type) }}{% else %}{{ t('common.never') }}{% endif %}{% if row.restore_interval_days is not none %} · {{ t('cluster.interval_days', days=row.restore_interval_days) }}{% endif %}{% if row.restore_age_days is not none %}, {{ t('cluster.age_days', days=row.restore_age_days) }}{% endif %}">{{ severity_labels.get(row.restore_due_status, row.restore_due_status) }}</span>
+              {% endif %}
             </span>
           </td>
         </tr>

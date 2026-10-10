@@ -95,6 +95,8 @@ Die Haupttabelle listet jede VM im Cluster mit sortierbaren Spalten:
 
 **Restore-Test-Faelligkeit** -- Das Badge in der Restore-Test-Spalte warnt rechtzeitig vor Ablauf des Test-Intervalls. Der Vorlauf richtet sich nach dem Intervall: bei **jaehrlichen** Intervallen erscheint die **Warnung 1 Monat** vorher, bei **quartalsweisen** (oder kuerzeren) Intervallen **2 Wochen** vorher. Nach Ablauf des Intervalls wechselt der Status auf **Kritisch**. Fahren Sie mit der Maus ueber das Badge, um Intervall und Alter in Tagen zu sehen.
 
+**Geloeschte VMs** -- VMs, die im Proxmox-Cluster nicht mehr existieren, erscheinen ausgegraut mit dem Badge **geloescht** (Tooltip: seit wann), solange noch Backups von ihnen vorhanden sind. Sie loesen keine Backup- oder Restore-Warnungen aus. Sobald keine Backups mehr existieren, wird die VM beim naechsten Sync samt Restore-Test-Historie aus der Datenbank entfernt -- allerdings nur, wenn in diesem Sync alle PVE-Nodes, -Speicher und PBS-Datastores erreichbar waren.
+
 **Mobile Ansicht** -- Auf schmalen Bildschirmen (Smartphone) wird die Tabelle automatisch in Karten umgewandelt: pro VM eine Karte mit beschrifteten Feldern, sodass nichts horizontal weggescrollt werden muss.
 
 ### Restore-Test-Formular

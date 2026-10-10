@@ -65,11 +65,12 @@ def test_pbs_connection(conn: dict[str, Any], timeout: float = 5.0) -> None:
         raise PBSSyncError(str(exc)) from exc
 
 
-def fetch_pbs_datastores(conn: dict[str, Any]) -> tuple[list[str], str]:
+def fetch_pbs_datastores(conn: dict[str, Any]) -> tuple[list[str], str, bool]:
     """Fetch the list of datastore names from PBS.
 
     Tries three API endpoints in order and returns the first that yields results.
-    Returns (names, debug_info) so callers can include raw response in sync logs.
+    Returns (names, debug_info, ok) so callers can include raw response in sync
+    logs; `ok` is False when no names were found and an endpoint errored.
     """
     base_url = conn["api_url"].rstrip("/")
     token_id = conn["api_token_id"]
@@ -82,6 +83,7 @@ def fetch_pbs_datastores(conn: dict[str, Any]) -> tuple[list[str], str]:
     ]
 
     debug_lines: list[str] = []
+    had_error = False
     for path, key in endpoints:
         try:
             data = _pbs_get_json(base_url, path, token_id, token_secret)
@@ -95,12 +97,13 @@ def fetch_pbs_datastores(conn: dict[str, Any]) -> tuple[list[str], str]:
                     if name:
                         names.append(str(name))
                 if names:
-                    return names, " | ".join(debug_lines)
+                    return names, " | ".join(debug_lines), True
         except PBSSyncError as exc:
+            had_error = True
             debug_lines.append(f"{path}: ERROR {exc}")
             logger.warning("PBS %s %s failed: %s", base_url, path, exc)
 
-    return [], " | ".join(debug_lines)
+    return [], " | ".join(debug_lines), not had_error
 
 
 def fetch_pbs_backups(
@@ -201,15 +204,19 @@ def fetch_all_pbs_backups(
     conn: dict[str, Any],
     vmids: set[int],
     cutoff: datetime | None = None,
-) -> tuple[list[dict[str, Any]], list[str]]:
-    """Fetch backups from all datastores on this PBS."""
+) -> tuple[list[dict[str, Any]], list[str], bool]:
+    """Fetch backups from all datastores on this PBS.
+
+    Returns (events, log_lines, complete); `complete` is False when the
+    datastore list or any datastore could not be read.
+    """
     log_lines: list[str] = []
 
-    datastores, debug_info = fetch_pbs_datastores(conn)
+    datastores, debug_info, complete = fetch_pbs_datastores(conn)
     log_lines.append(f"DEBUG: {debug_info}")
     if not datastores:
         log_lines.append("Keine Datastores auf dem PBS gefunden.")
-        return [], log_lines
+        return [], log_lines, complete
 
     log_lines.append(f"Datastores: {', '.join(datastores)}")
     all_events: list[dict[str, Any]] = []
@@ -220,9 +227,10 @@ def fetch_all_pbs_backups(
             all_events.extend(events)
             log_lines.append(f"  {ds}: {len(events)} Snapshots verarbeitet")
         except PBSSyncError as exc:
+            complete = False
             log_lines.append(f"  {ds}: Fehler – {exc}")
             logger.error("PBS datastore %s/%s failed: %s", conn["api_url"], ds, exc)
 
     pbs_vmids = {e["vmid"] for e in all_events}
     log_lines.append(f"Gesamt: {len(all_events)} Events für {len(pbs_vmids)} VMs")
-    return all_events, log_lines
+    return all_events, log_lines, complete

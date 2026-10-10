@@ -53,7 +53,11 @@ def sync_cluster_backups(cluster: dict) -> None:
 
     try:
         t0 = time.monotonic()
-        inventory = fetch_cluster_inventory(cluster)
+        # Reasons not to delete gone VMs this run — any unreachable source
+        # could make existing backups look missing.
+        prune_blockers: list[str] = []
+        known_vmids = db.list_known_vmids(cluster["id"])
+        inventory = fetch_cluster_inventory(cluster, known_vmids=known_vmids)
         pve_events: list[dict] = []
         all_pbs_events: list[dict] = []
         logger.info(
@@ -61,6 +65,9 @@ def sync_cluster_backups(cluster: dict) -> None:
         )
         pve_log.append(f"Nodes: {len(inventory.nodes)}, VMs: {len(inventory.vms)}")
         db.sync_cluster_inventory(cluster["id"], inventory.nodes, inventory.vms)
+        if not inventory.vms:
+            prune_blockers.append("PVE lieferte 0 VMs")
+        prune_blockers.extend(f"PVE {err}" for err in inventory.fetch_errors)
 
         if inventory.backup_events:
             for event in inventory.backup_events:
@@ -77,14 +84,18 @@ def sync_cluster_backups(cluster: dict) -> None:
         if not pbs_conns:
             pve_log.append("Kein PBS konfiguriert.")
         else:
-            vmids = {vm["vmid"] for vm in inventory.vms}
+            # Include VMs deleted from PVE so their remaining PBS snapshots
+            # are still tracked instead of being flagged as removed.
+            vmids = {vm["vmid"] for vm in inventory.vms} | known_vmids
             for conn in pbs_conns:
                 pbs_log: list[str] = []
                 pbs_ok = True
                 t_pbs = time.monotonic()
                 logger.info("  PBS-Sync: %s …", conn.get("name"))
                 try:
-                    events, ds_logs = fetch_all_pbs_backups(conn, vmids, cutoff)
+                    events, ds_logs, pbs_complete = fetch_all_pbs_backups(conn, vmids, cutoff)
+                    if not pbs_complete:
+                        pbs_ok = False
                     logger.info(
                         "  PBS-Sync: %s → %d Events (%.1fs)", conn.get("name"), len(events), time.monotonic() - t_pbs
                     )
@@ -103,6 +114,8 @@ def sync_cluster_backups(cluster: dict) -> None:
                         "PBS unexpected error for cluster %s / PBS %s: %s", cluster["name"], conn.get("name"), exc
                     )
                 db.update_pbs_sync_status(conn["id"], pbs_ok, "\n".join(pbs_log))
+                if not pbs_ok:
+                    prune_blockers.append(f"PBS {conn.get('name')} fehlgeschlagen")
 
         db.sync_backup_events_for_source(cluster["id"], "pbs", all_pbs_events)
 
@@ -113,6 +126,15 @@ def sync_cluster_backups(cluster: dict) -> None:
             pve_log.append(f"Verwaiste In-Progress-Events bereinigt: {stale}")
 
         db.update_vm_last_backup_from_events(cluster["id"])
+
+        if prune_blockers:
+            logger.warning("  Gelöschte VMs nicht bereinigt: %s", "; ".join(prune_blockers))
+            pve_log.append(f"Gelöschte VMs nicht bereinigt: {'; '.join(prune_blockers)}")
+        else:
+            pruned = db.prune_gone_vms_without_backups(cluster["id"])
+            if pruned:
+                logger.info("  Gelöschte VMs ohne Backups entfernt: %d", pruned)
+            pve_log.append(f"Gelöschte VMs ohne Backups entfernt: {pruned}")
     except Exception as exc:
         pve_log.append(f"Fehler: {exc}")
         logger.error("Sync failed for cluster %s: %s", cluster["name"], exc)

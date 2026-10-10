@@ -1,8 +1,11 @@
 import unittest
 from datetime import UTC, datetime
+from unittest import mock
 
+from app.services import proxmox
 from app.services.proxmox import (
     classify_schedule,
+    fetch_backup_details,
     infer_backup_kind_by_vmid,
 )
 from app.services.proxmox_progress import _parse_running_backup_progress
@@ -76,3 +79,35 @@ class ProxmoxHelpersTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FetchBackupDetailsTests(unittest.TestCase):
+    def _fake_pve(self, base_url, path, auth_header, **kwargs):
+        if path.endswith("/storage"):
+            return [{"storage": "nfs", "content": "backup", "type": "nfs"}]
+        return [
+            {"volid": "nfs:backup/vzdump-qemu-100.vma", "vmid": 100, "ctime": 1_700_000_000, "size": 10},
+            {"volid": "nfs:backup/vzdump-qemu-200.vma", "vmid": 200, "ctime": 1_700_000_000, "size": 10},
+            {"volid": "nfs:backup/vzdump-qemu-300.vma", "vmid": 300, "ctime": 1_700_000_000, "size": 10},
+        ]
+
+    def test_includes_backups_of_known_but_deleted_vms(self) -> None:
+        nodes = [{"name": "pve1", "status": "online"}]
+        vms = [{"vmid": 100, "name": "alive"}]
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=self._fake_pve):
+            latest, events, errors = fetch_backup_details("https://pve", "auth", nodes, vms, extra_vmids={200})
+        self.assertEqual({e["vmid"] for e in events}, {100, 200})
+        self.assertEqual(set(latest), {100, 200})
+        self.assertEqual(errors, [])
+
+    def test_reports_unreachable_storage_as_error(self) -> None:
+        def fake(base_url, path, auth_header, **kwargs):
+            if path.endswith("/storage"):
+                return [{"storage": "nfs", "content": "backup", "type": "nfs"}]
+            raise proxmox.ProxmoxSyncError("timeout")
+
+        nodes = [{"name": "pve1", "status": "online"}]
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=fake):
+            _latest, events, errors = fetch_backup_details("https://pve", "auth", nodes, [{"vmid": 100}])
+        self.assertEqual(events, [])
+        self.assertEqual(len(errors), 1)

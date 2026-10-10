@@ -95,6 +95,8 @@ The main table lists every VM in the cluster with sortable columns:
 
 **Restore-test due dates** -- The badge in the Restore Test column warns ahead of the test interval expiring. The lead time scales with the interval: **yearly** intervals warn **1 month** early, **quarterly** (or shorter) ones **2 weeks** early. Once the interval has elapsed the status turns **critical**. Hover the badge to see interval and age in days.
 
+**Deleted VMs** -- VMs that no longer exist in the Proxmox cluster are shown greyed out with a **deleted** badge (tooltip: since when) as long as backups of them remain. They raise no backup or restore warnings. Once no backups are left, the VM is removed from the database on the next sync, including its restore-test history -- but only if every PVE node, storage and PBS datastore was reachable during that sync.
+
 **Mobile view** -- On narrow screens (phones) the table is automatically turned into cards: one card per VM with labelled fields, so nothing is hidden behind horizontal scrolling.
 
 ### Restore Test Form

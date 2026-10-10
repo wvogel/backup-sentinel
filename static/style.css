@@ -681,6 +681,16 @@ tbody tr:last-child td {
   color: var(--unknown);
 }
 
+.vm-gone-row td {
+  opacity: 0.6;
+}
+
+.vm-gone-badge {
+  min-height: 22px;
+  margin-left: 6px;
+  padding: 2px 8px;
+}
+
 .stack {
   display: grid;
   gap: 14px;

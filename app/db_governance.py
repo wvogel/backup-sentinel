@@ -20,6 +20,7 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             v.vmid,
             v.name AS vm_name,
             v.backup_kind,
+            v.missing_since,
             COALESCE(p.backup_policy_override, v.backup_kind) AS effective_backup_kind,
             be_latest.started_at AS last_backup_at,
             be_latest.source AS last_backup_source,
@@ -64,10 +65,11 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             ORDER BY tested_at DESC, created_at DESC
             LIMIT 1
         ) rt ON TRUE
+        WHERE (v.missing_since IS NULL OR be_latest.started_at IS NOT NULL)
     """
     params: list[Any] = []
     if cluster_id is not None:
-        query += " WHERE v.cluster_id = %s"
+        query += " AND v.cluster_id = %s"
         params.append(cluster_id)
     query += " ORDER BY c.name, v.name"
 
@@ -82,6 +84,11 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         status_backup_kind = effective_backup_kind
         if status_backup_kind == "none" and not row["backup_policy_override"]:
             status_backup_kind = "unconfigured"
+        # Deleted VMs only linger for their remaining backups — no new backups
+        # or restore tests are expected, so they never raise warnings.
+        row["vm_gone"] = row["missing_since"] is not None
+        if row["vm_gone"]:
+            status_backup_kind = "none"
         row["status_backup_kind"] = status_backup_kind
         severity, age_days = assess_backup_status(status_backup_kind, row["last_backup_at"], now)
         row["backup_severity"] = severity

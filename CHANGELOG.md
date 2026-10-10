@@ -5,6 +5,22 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.0] — 2026-10-10
+
+### Added
+
+- **VMs deleted from Proxmox are now detected.** Each sync flags VMs that PVE no longer reports (new column `vms.missing_since`; cleared again if the VMID reappears). While backups of such a VM still exist it stays in the cluster table, greyed out with a **gelöscht**/**deleted** badge; it no longer counts as critical, triggers no backup-critical notifications and needs no restore tests.
+- **Deleted VMs without any remaining backup are removed from the database** at the end of the sync (cascading to policies, restore tests and backup events). The cleanup is skipped — with the reason in the sync log — if PVE returned 0 VMs or any PVE node, PVE backup storage, PBS connection, PBS datastore list or PBS datastore could not be read in that sync. As a second safeguard, such VMs are also filtered out of all views.
+
+### Fixed
+
+- **Backups of deleted VMs were wrongly flagged as removed.** Both the PVE storage scan and the PBS snapshot scan only considered VMIDs currently present in PVE, so snapshots of deleted VMs that still existed on a storage or PBS were marked `removed_at` on every sync. All VMIDs ever seen in the cluster are now included; affected backups are restored on the next sync.
+
+### Changed
+
+- A PBS connection whose datastore list or any single datastore fails is now reported as failed instead of OK.
+- Slimmer header bar and smaller brand logo.
+
 ## [v2.2.11] — 2026-06-09
 
 ### Changed
