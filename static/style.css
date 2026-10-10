@@ -663,6 +663,8 @@ tbody tr:last-child td {
   white-space: nowrap;
 }
 
+.pill-kind { min-width: 28px; }
+
 .pill {
   background: color-mix(in srgb, var(--panel-alt) 86%, var(--accent) 14%);
   color: var(--accent);
@@ -895,7 +897,7 @@ html[data-theme="dark"] select {
 
 .backup-inline-grid {
   display: grid;
-  grid-template-columns: 68px 70px 42px minmax(96px, 1fr);
+  grid-template-columns: 44px 70px 42px minmax(120px, 1fr);
   align-items: center;
   gap: 4px;
 }
@@ -2446,7 +2448,10 @@ details[open] > .encryption-alert-summary::before {
   background-size: var(--row-w, 100%) 100%;
   background-position: var(--cell-x, 0) 0;
 }
-#vm-table tr.is-running > td:first-child { box-shadow: inset 4px 0 0 var(--running); }
+#vm-table tr.is-running > td:first-child {
+  box-shadow: inset 4px 0 0 var(--running);
+  padding-left: 12px;
+}
 #vm-table tr.is-running > td:nth-child(2) { font-weight: 700; }
 #vm-table tr.running-flash > td { animation: running-flash 1.4s ease-out; }
 @keyframes running-flash { from { box-shadow: inset 0 0 0 999px var(--running-fill); } }
