@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.2] — 2026-10-10
+
+### Changed
+
+- **Compact backup-policy badges** in the VM table: `d` (daily), `w` (weekly), `–` (never); the full label is in the tooltip. The freed width goes to the policy dropdown, which now shows "wöchentlich" in full.
+
+### Fixed
+
+- The accent bar of a running backup's row covered the start of the node name; the first cell is now indented in running rows.
+
 ## [v2.4.1] — 2026-10-10
 
 ### Changed

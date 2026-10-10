@@ -112,6 +112,10 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
                 "weekly": t("cluster.policy_weekly"),
                 "none": t("cluster.policy_none"),
             }.get(effective_backup_kind, effective_backup_kind)
+        # Compact badge text; the full label stays in the tooltip.
+        row["backup_kind_short"] = {"daily": "d", "weekly": "w", "none": "–"}.get(
+            effective_backup_kind if status_backup_kind != "unconfigured" else "", row["backup_kind_label"]
+        )
 
         if row["restore_required"] and status_backup_kind != "none":
             default_interval = 365 if status_backup_kind == "weekly" else 90
