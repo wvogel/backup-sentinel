@@ -141,6 +141,37 @@ class ProgressTimesTests(unittest.TestCase):
         self.assertNotIn("eta", progress)
 
 
+class RunningBackupsForClustersTests(unittest.TestCase):
+    def setUp(self) -> None:
+        proxmox_progress._cache.clear()
+
+    def test_live_result_per_cluster_with_fallback_markers(self) -> None:
+        import time as _time
+
+        def fake_fetch(cluster, nodes, timeout=5.0):
+            if cluster["id"] == 1:
+                return {103: {"percent": 48}}, True
+            if cluster["id"] == 2:
+                return {}, False  # a node's task list failed
+            if cluster["id"] == 3:
+                raise RuntimeError("boom")
+            _time.sleep(0.5)  # slower than the deadline
+            return {}, True
+
+        clusters = [({"id": i}, ["n1"]) for i in (1, 2, 3, 4)]
+        with mock.patch.object(proxmox_progress, "_fetch_running_backup_progress", side_effect=fake_fetch):
+            result = proxmox_progress.running_backups_for_clusters(clusters, deadline=0.2)
+        self.assertEqual(result, {1: {103: {"percent": 48}}, 2: None, 3: None, 4: None})
+
+    def test_cache_avoids_a_second_pve_call(self) -> None:
+        fetch = mock.Mock(return_value=({101: {}}, True))
+        with mock.patch.object(proxmox_progress, "_fetch_running_backup_progress", fetch):
+            proxmox_progress.running_backup_progress_cached({"id": 7}, ["n1"])
+            progress, complete = proxmox_progress.running_backup_progress_cached({"id": 7}, ["n1"])
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual((progress, complete), ({101: {}}, True))
+
+
 if __name__ == "__main__":
     unittest.main()
 

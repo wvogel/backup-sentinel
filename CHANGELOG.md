@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.3] — 2026-10-10
+
+### Fixed
+
+- **Dashboard missed long-running backups.** The "N Backups laufen" badge was based on the sync's in-progress markers, which are treated as aborted after 6 hours — a 37 TiB backup running for over a day disappeared from the overview while the cluster page (live) still showed it. The dashboard now asks PVE live for all clusters in parallel (max. 6 s); a cluster that is unreachable or too slow falls back to the markers.
+
+### Changed
+
+- Live running-backup data is cached for 20 seconds per cluster and language and shared by dashboard, cluster page and status endpoint.
+
 ## [v2.4.2] — 2026-10-10
 
 ### Changed

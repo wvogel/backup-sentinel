@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import math
 import re
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait as wait_futures
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib import parse
 from zoneinfo import ZoneInfo
 
 from app.config import DEFAULT_TIMEZONE
-from app.i18n import t
+from app.i18n import get_language, t
 from app.services.proxmox import ProxmoxSyncError, _pve_get, _pve_get_dict, _pve_get_json, build_token_header
 
 logger = logging.getLogger(__name__)
@@ -217,8 +222,63 @@ def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -
 def fetch_running_backup_progress(
     cluster: dict[str, Any], nodes: list[str], timeout: float = 5.0
 ) -> dict[int, dict[str, Any]]:
+    return _fetch_running_backup_progress(cluster, nodes, timeout)[0]
+
+
+# ── Cached access (dashboard, cluster page, status endpoint) ─────────────────
+# Keyed by cluster and UI language: labels and tooltips are translated.
+_CACHE_MAX_AGE = 20.0
+_cache: dict[tuple[int, str], tuple[float, dict[int, dict[str, Any]], bool]] = {}
+_cache_lock = threading.Lock()
+_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="backup-progress")
+
+
+def running_backup_progress_cached(cluster: dict[str, Any], nodes: list[str]) -> tuple[dict[int, dict[str, Any]], bool]:
+    """Running backups of a cluster, at most `_CACHE_MAX_AGE` seconds old.
+
+    Returns (progress by VMID, complete); `complete` is False when a node's
+    task list could not be read, so the result may be missing backups.
+    """
+    key = (cluster["id"], get_language())
+    with _cache_lock:
+        hit = _cache.get(key)
+    if hit and time.monotonic() - hit[0] < _CACHE_MAX_AGE:
+        return hit[1], hit[2]
+    progress, complete = _fetch_running_backup_progress(cluster, nodes)
+    with _cache_lock:
+        _cache[key] = (time.monotonic(), progress, complete)
+    return progress, complete
+
+
+def running_backups_for_clusters(
+    clusters: list[tuple[dict[str, Any], list[str]]], deadline: float = 6.0
+) -> dict[int, dict[int, dict[str, Any]] | None]:
+    """Fetch running backups of several clusters in parallel.
+
+    Returns progress by VMID per cluster id, or None for a cluster that was
+    unreachable or slower than `deadline` (its fetch keeps filling the cache).
+    """
+    futures = {
+        cluster["id"]: _executor.submit(contextvars.copy_context().run, running_backup_progress_cached, cluster, nodes)
+        for cluster, nodes in clusters
+    }
+    wait_futures(futures.values(), timeout=deadline)
+    result: dict[int, dict[int, dict[str, Any]] | None] = {}
+    for cluster_id, future in futures.items():
+        if not future.done() or future.exception() is not None:
+            result[cluster_id] = None
+            continue
+        progress, complete = future.result()
+        result[cluster_id] = progress if complete else None
+    return result
+
+
+def _fetch_running_backup_progress(
+    cluster: dict[str, Any], nodes: list[str], timeout: float = 5.0
+) -> tuple[dict[int, dict[str, Any]], bool]:
     if not cluster.get("api_user") or not cluster.get("token_id") or not cluster.get("token_secret"):
-        return {}
+        return {}, False
+    complete = True
 
     base_url = cluster["api_url"].rstrip("/")
     auth_header = build_token_header(cluster["api_user"], cluster["token_id"], cluster["token_secret"])
@@ -235,6 +295,7 @@ def fetch_running_backup_progress(
             )
         except ProxmoxSyncError as exc:
             logger.warning("Cannot list running backup tasks on node %s: %s", node_name, exc)
+            complete = False
             continue
 
         for task in tasks:
@@ -269,4 +330,4 @@ def fetch_running_backup_progress(
             if progress:
                 result[vmid] = progress
 
-    return result
+    return result, complete
