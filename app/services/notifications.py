@@ -233,7 +233,10 @@ def notify_backup_critical(cluster_name: str, vm_name: str, vmid: int, age_days:
     key = f"backup-critical:{cluster_name}:{vmid}"
     if not _should_send(key):
         return
-    age_str = f"vor {age_days} Tagen" if age_days is not None else "nie"
+    if age_days is None:
+        age_str = "nie"
+    else:
+        age_str = f"vor {age_days} Tag" if age_days == 1 else f"vor {age_days} Tagen"
     send_gotify(
         title=f"Backup kritisch: {vm_name}",
         message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\nLetztes Backup: {age_str}",
@@ -251,7 +254,7 @@ def notify_size_anomaly(
         return
     direction = "größer" if latest_size > avg_size else "kleiner"
     send_gotify(
-        title=f"Backup-Größe Anomalie: {vm_name}",
+        title=f"Backup-Größenanomalie: {vm_name}",
         message=(
             f"Cluster: {cluster_name}\n"
             f"VM: {vm_name} (VMID {vmid})\n"
@@ -297,7 +300,7 @@ def notify_sync_overdue(cluster_name: str, failure_started_at: datetime | None) 
         body=(
             f"Der Cluster-Sync für '{cluster_name}' ist seit mindestens 24 Stunden im Fehlerzustand.\n\n"
             f"Fehlerzustand seit: {started}\n"
-            "Bitte PVE/PBS-Erreichbarkeit, Credentials und API-Fehler prüfen."
+            "Bitte Erreichbarkeit von PVE/PBS, Zugangsdaten und API-Fehler prüfen."
         ),
     ):
         try:
@@ -314,7 +317,7 @@ def notify_restore_overdue(cluster_name: str, vm_name: str, vmid: int, days_over
         return
     send_gotify(
         title=f"Restore-Test überfällig: {vm_name}",
-        message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\n{days_overdue} Tage überfällig",
+        message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\n{days_overdue} {'Tag' if days_overdue == 1 else 'Tage'} überfällig",
         priority=6,
         notification_type="restore_overdue",
         cluster_name=cluster_name,

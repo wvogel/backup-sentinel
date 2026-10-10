@@ -26,7 +26,7 @@
         </div>
         <button type="button" class="button-secondary copy-button" data-copy-target="bootstrap-commands">
           <span aria-hidden="true">&#x2398;</span>
-          <span>Copy</span>
+          <span>{{ t('common.copy') }}</span>
         </button>
       </div>
       <pre id="bootstrap-commands"></pre>
@@ -138,10 +138,10 @@
         <div class="pbs-bootstrap-panel">
           <div class="section-head" style="margin-bottom:0.5rem;">
             <div>
-              <p class="eyebrow">PBS Bootstrap – {{ cluster.name }}</p>
+              <p class="eyebrow">{{ t('settings.pbs_bootstrap') }} – {{ cluster.name }}</p>
             </div>
             <button type="button" class="button-secondary copy-button" data-copy-target="pbs-cmd-{{ cluster.id }}">
-              <span aria-hidden="true">&#x2398;</span><span>Copy</span>
+              <span aria-hidden="true">&#x2398;</span><span>{{ t('common.copy') }}</span>
             </button>
           </div>
           <p class="muted" style="margin:0 0 0.5rem;">{{ t('settings.pbs_note')|safe }}</p>
@@ -262,8 +262,8 @@
           <label>
             <span>{{ t('settings.encryption') }}</span>
             <select name="email_tls">
-              <option value="ssl" {{ 'selected' if app_settings.get('email_tls', 'ssl') == 'ssl' }}>SSL/TLS (Port 465)</option>
-              <option value="starttls" {{ 'selected' if app_settings.get('email_tls') == 'starttls' }}>STARTTLS (Port 587)</option>
+              <option value="ssl" {{ 'selected' if app_settings.get('email_tls', 'ssl') == 'ssl' }}>{{ t('settings.ssl_tls') }}</option>
+              <option value="starttls" {{ 'selected' if app_settings.get('email_tls') == 'starttls' }}>{{ t('settings.starttls') }}</option>
               <option value="none" {{ 'selected' if app_settings.get('email_tls') == 'none' }}>{{ t('settings.no_encryption') }}</option>
             </select>
           </label>
@@ -367,7 +367,7 @@
 <section class="table-card hidden js-sync-log-panel" id="sync-log-panel">
   <div class="section-head">
     <div>
-      <p class="eyebrow">Log</p>
+      <p class="eyebrow">{{ t('settings.sync_log') }}</p>
       <h3 id="sync-log-title">{{ t('settings.sync_protocol') }}</h3>
     </div>
     <button type="button" class="button-secondary" id="sync-log-close">{{ t('common.close') }}</button>

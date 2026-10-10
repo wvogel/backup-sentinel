@@ -5,6 +5,20 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.1] — 2026-10-10
+
+### Fixed
+
+- **Wrong plural in the dashboard cluster badge** ("2 Warnung" → "2 Warnungen", "2 warning" → "2 warnings"); the stat tiles below the numbers now read "Warnungen"/"warnings".
+- **Untranslated or inconsistent UI texts**: German UI no longer shows "Copy", "Copied", "stale" or "pending"; consistent hyphenation ("PBS-Sync-Log", "Live-Sync-Log", "Restore-Tests", "PBS-Bootstrap"); hardcoded template strings (copy buttons, stale badge, PBS bootstrap heading, SSL/STARTTLS options, log heading) now go through i18n; smoother English wording ("Delete cluster?", "Refreshing page …", "Updating data …").
+- **Sparkline label** said "14 days" although the chart shows 30 days.
+- **German notifications**: "vor 1 Tag" / "1 Tag überfällig" instead of "Tagen"/"Tage"; "Backup-Größenanomalie"; "Zugangsdaten" instead of "Credentials".
+- **German PDF report** used the English column abbreviations "Encrypted"/"Verify"; now "Verschl."/"Verif.".
+
+### Documentation
+
+- German user and admin guides now use real umlauts and ß instead of ae/oe/ue/ss transliterations; table-of-contents anchors updated accordingly.
+
 ## [v2.3.0] — 2026-10-10
 
 ### Added

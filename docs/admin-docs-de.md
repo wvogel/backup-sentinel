@@ -20,11 +20,11 @@
 - **Docker** >= 24.0
 - **Docker Compose** v2 (das `docker compose`-Plugin)
 - Ein **Reverse Proxy** mit TLS-Terminierung (z. B. Nginx Proxy Manager, Traefik, Caddy)
-- Ein **OIDC-faehiger Identity Provider** (Keycloak, Azure Entra ID, Google, GitHub etc.)
-- Eine **Valkey-/Redis-Instanz** fuer OAuth2-Proxy-Session-Storage (kann geteilt werden)
-- Ausgehende HTTPS-Konnektivitaet zu den Proxmox-PVE/PBS-API-Endpunkten
+- Ein **OIDC-fähiger Identity Provider** (Keycloak, Azure Entra ID, Google, GitHub etc.)
+- Eine **Valkey-/Redis-Instanz** für OAuth2-Proxy-Session-Storage (kann geteilt werden)
+- Ausgehende HTTPS-Konnektivität zu den Proxmox-PVE/PBS-API-Endpunkten
 
-### Proxmox-Kompatibilitaet
+### Proxmox-Kompatibilität
 
 Backup Sentinel wird gegen folgende Proxmox-Versionen getestet:
 
@@ -33,11 +33,11 @@ Backup Sentinel wird gegen folgende Proxmox-Versionen getestet:
 | Proxmox VE (PVE)            | 8.x, 9.x            | API v2 (`/api2/json`)                       |
 | Proxmox Backup Server (PBS) | 3.x, 4.x            | API v2                                      |
 
-Aeltere Versionen funktionieren moeglicherweise, werden aber nicht regelmaessig getestet. Falls Sie Backup Sentinel gegen eine aeltere Version einsetzen, oeffnen Sie gerne ein Issue mit Ihren Ergebnissen.
+Ältere Versionen funktionieren möglicherweise, werden aber nicht regelmäßig getestet. Falls Sie Backup Sentinel gegen eine ältere Version einsetzen, öffnen Sie gerne ein Issue mit Ihren Ergebnissen.
 
-API-Tokens benoetigen:
-- PVE: `Sys.Audit` auf `/` und `VM.Audit` auf `/vms` (Read-Only-Inventory) sowie `Datastore.Audit` fuer Backup-Storage-Erkennung
-- PBS: `Datastore.Audit` auf die zu ueberwachenden Datastores
+API-Tokens benötigen:
+- PVE: `Sys.Audit` auf `/` und `VM.Audit` auf `/vms` (Read-Only-Inventory) sowie `Datastore.Audit` für Backup-Storage-Erkennung
+- PBS: `Datastore.Audit` auf die zu überwachenden Datastores
 
 ---
 
@@ -74,7 +74,7 @@ Der Stack besteht aus drei Containern:
 |--------------------------|--------|--------------------------------|
 | `postgres`               | 5432   | Datenbank (nur intern)         |
 | `backup-sentinel`        | 80     | FastAPI-Anwendung              |
-| `oauth2-backup-sentinel` | 4180   | OAuth2-Proxy (oeffentlich)     |
+| `oauth2-backup-sentinel` | 4180   | OAuth2-Proxy (öffentlich)     |
 
 Ihr Reverse Proxy sollte den Traffic an den OAuth2-Proxy-Container auf Port **4180** weiterleiten.
 
@@ -86,43 +86,43 @@ Ihr Reverse Proxy sollte den Traffic an den OAuth2-Proxy-Container auf Port **41
 
 | Variable | Standard | Beschreibung |
 |----------|----------|--------------|
-| `APP_URL` | `https://backup-sentinel.example.com` | Oeffentliche URL der Anwendung. Wird in E-Mail-Benachrichtigungen und Bootstrap-Skripten verwendet. |
+| `APP_URL` | `https://backup-sentinel.example.com` | Öffentliche URL der Anwendung. Wird in E-Mail-Benachrichtigungen und Bootstrap-Skripten verwendet. |
 | `DB_NAME` | `backup_reports` | PostgreSQL-Datenbankname. |
 | `DB_USER` | `backup_reports` | PostgreSQL-Benutzer. |
-| `DB_PASSWORD` | `backup_reports` | PostgreSQL-Passwort. **In Produktion aendern.** |
-| `BSENTINEL_DATABASE_URL` | *(abgeleitet von DB_*)* | Vollstaendiger PostgreSQL-Connection-String. Ueberschreiben fuer externe Datenbank. |
-| `BSENTINEL_SECRET_KEY` | *(keiner)* | **Pflicht.** Fernet-Schluessel fuer die Verschluesselung von Secrets (SMTP-Passwort, Gotify-Token) in der Datenbank. Generieren mit: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-| `BSENTINEL_DEFAULT_TIMEZONE` | `Europe/Berlin` | Zeitzone fuer Anzeigeformatierung und Ruhezeiten-Berechnung. |
-| `BSENTINEL_SYNC_INTERVAL_MINUTES` | `60` | Intervall in Minuten fuer die automatische Hintergrund-Synchronisation. |
-| `BSENTINEL_API_TIMEOUT` | `60` | Timeout in Sekunden fuer Proxmox/PBS-API-Anfragen. |
+| `DB_PASSWORD` | `backup_reports` | PostgreSQL-Passwort. **In Produktion ändern.** |
+| `BSENTINEL_DATABASE_URL` | *(abgeleitet von DB_*)* | Vollständiger PostgreSQL-Connection-String. Überschreiben für externe Datenbank. |
+| `BSENTINEL_SECRET_KEY` | *(keiner)* | **Pflicht.** Fernet-Schlüssel für die Verschlüsselung von Secrets (SMTP-Passwort, Gotify-Token) in der Datenbank. Generieren mit: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `BSENTINEL_DEFAULT_TIMEZONE` | `Europe/Berlin` | Zeitzone für Anzeigeformatierung und Ruhezeiten-Berechnung. |
+| `BSENTINEL_SYNC_INTERVAL_MINUTES` | `60` | Intervall in Minuten für die automatische Hintergrund-Synchronisation. |
+| `BSENTINEL_API_TIMEOUT` | `60` | Timeout in Sekunden für Proxmox/PBS-API-Anfragen. |
 | `BSENTINEL_DEBUG` | `false` | Debug-Logging aktivieren (`true` / `false`). |
-| `BSENTINEL_INSECURE_SSL` | `false` | SSL-Zertifikatspruefung fuer Proxmox/PBS-APIs deaktivieren. Auf `true` setzen bei selbstsignierten Zertifikaten. |
-| `BSENTINEL_BRAND_LOGO_LIGHT_URL` | `/static/logo.svg` | Logo-URL fuer helles Design. |
-| `BSENTINEL_BRAND_LOGO_DARK_URL` | `/static/logo.svg` | Logo-URL fuer dunkles Design. |
+| `BSENTINEL_INSECURE_SSL` | `false` | SSL-Zertifikatsprüfung für Proxmox/PBS-APIs deaktivieren. Auf `true` setzen bei selbstsignierten Zertifikaten. |
+| `BSENTINEL_BRAND_LOGO_LIGHT_URL` | `/static/logo.svg` | Logo-URL für helles Design. |
+| `BSENTINEL_BRAND_LOGO_DARK_URL` | `/static/logo.svg` | Logo-URL für dunkles Design. |
 | `BSENTINEL_LOGOUT_URL` | `/oauth2/sign_out` | Logout-Weiterleitungs-URL. |
 | `FOOTER_LINKS` | *(leer)* | Footer-Links. Format: `Label1\|URL1,Label2\|URL2` |
-| `COPYRIGHT_TEXT` | *(leer)* | Copyright-Text in der Fusszeile (z.B. `© 2026 Ihre Firma`). |
-| `BSENTINEL_DATA_DIR` | `/data` | Pfad fuer persistente Anwendungsdaten. |
-| `BSENTINEL_REPORT_DIR` | `/reports` | Pfad fuer generierte PDF/JSON-Berichte. |
-| `BSENTINEL_REPORT_LANGUAGE` | `de` | Sprache fuer generierte PDF-Berichte (`de` oder `en`). Andere Werte fallen auf `de` zurueck. |
-| `BSENTINEL_BACKUP_DAY_OFFSET_HOURS` | `12` | Verschiebung der "Backup-Tag"-Grenze in der Sparkline. Lange Jobs, deren letzte VMs erst am naechsten Morgen fertig werden, zaehlen fuer den Abend, an dem der Job startete. `0` = echter Mitternachtswechsel. |
+| `COPYRIGHT_TEXT` | *(leer)* | Copyright-Text in der Fußzeile (z.B. `© 2026 Ihre Firma`). |
+| `BSENTINEL_DATA_DIR` | `/data` | Pfad für persistente Anwendungsdaten. |
+| `BSENTINEL_REPORT_DIR` | `/reports` | Pfad für generierte PDF/JSON-Berichte. |
+| `BSENTINEL_REPORT_LANGUAGE` | `de` | Sprache für generierte PDF-Berichte (`de` oder `en`). Andere Werte fallen auf `de` zurück. |
+| `BSENTINEL_BACKUP_DAY_OFFSET_HOURS` | `12` | Verschiebung der "Backup-Tag"-Grenze in der Sparkline. Lange Jobs, deren letzte VMs erst am nächsten Morgen fertig werden, zählen für den Abend, an dem der Job startete. `0` = echter Mitternachtswechsel. |
 
 ### OAuth2-Proxy (`oauth2-proxy.env`)
 
 | Variable | Standard | Beschreibung |
 |----------|----------|--------------|
-| `OAUTH2_PROXY_PROVIDER` | `oidc` | OAuth2-Provider-Typ. Haeufige Werte: `oidc`, `keycloak-oidc`, `google`, `github`. |
+| `OAUTH2_PROXY_PROVIDER` | `oidc` | OAuth2-Provider-Typ. Häufige Werte: `oidc`, `keycloak-oidc`, `google`, `github`. |
 | `OAUTH2_PROXY_CLIENT_ID` | *(keiner)* | **Pflicht.** Client-ID vom Identity Provider. |
 | `OAUTH2_PROXY_CLIENT_SECRET` | *(keiner)* | **Pflicht.** Client-Secret vom Identity Provider. |
 | `OAUTH2_PROXY_OIDC_ISSUER_URL` | *(keiner)* | **Pflicht.** OIDC-Issuer-URL (z. B. `https://keycloak.example.com/realms/your-realm`). |
 | `OAUTH2_PROXY_REDIRECT_URL` | *(keiner)* | **Pflicht.** OAuth2-Callback-URL: `https://<ihre-domain>/oauth2/callback`. |
-| `OAUTH2_PROXY_COOKIE_SECRET` | *(keiner)* | **Pflicht.** Zufalls-Secret fuer Session-Cookies. Generieren mit: `python -c "import secrets; print(secrets.token_hex(16))"` |
+| `OAUTH2_PROXY_COOKIE_SECRET` | *(keiner)* | **Pflicht.** Zufalls-Secret für Session-Cookies. Generieren mit: `python -c "import secrets; print(secrets.token_hex(16))"` |
 | `OAUTH2_PROXY_COOKIE_DOMAINS` | *(keiner)* | Ihre Anwendungsdomain (z. B. `backup-sentinel.example.com`). |
 | `OAUTH2_PROXY_WHITELIST_DOMAINS` | *(keiner)* | Erlaubte Redirect-Domains. Typischerweise identisch mit `COOKIE_DOMAINS`. |
 | `OAUTH2_PROXY_SESSION_STORE_TYPE` | `redis` | Session-Store-Typ. Verwendet eine geteilte Valkey/Redis-Instanz. |
-| `OAUTH2_PROXY_REDIS_CONNECTION_URL` | `redis://valkey:6379/0` | Redis/Valkey-Verbindungs-URL fuer Session-Storage. |
+| `OAUTH2_PROXY_REDIS_CONNECTION_URL` | `redis://valkey:6379/0` | Redis/Valkey-Verbindungs-URL für Session-Storage. |
 | `OAUTH2_PROXY_SCOPE` | `openid profile email` | Anzufordernde OIDC-Scopes. |
-| `OAUTH2_PROXY_EMAIL_DOMAINS` | `*` | Erlaubte E-Mail-Domains. `*` fuer alle. |
+| `OAUTH2_PROXY_EMAIL_DOMAINS` | `*` | Erlaubte E-Mail-Domains. `*` für alle. |
 | `OAUTH2_PROXY_PASS_USER_HEADERS` | `true` | Authentifizierte Benutzerinformationen als Header an Upstream weiterleiten. |
 | `OAUTH2_PROXY_SET_XAUTHREQUEST` | `true` | X-Auth-Request-Header setzen. |
 
@@ -130,7 +130,7 @@ Ihr Reverse Proxy sollte den Traffic an den OAuth2-Proxy-Container auf Port **41
 
 ## OAuth2-Proxy-Konfiguration
 
-Backup Sentinel delegiert die Authentifizierung vollstaendig an [OAuth2-Proxy](https://oauth2-proxy.github.io/oauth2-proxy/). Der Proxy sitzt vor der FastAPI-Anwendung und uebernimmt den OIDC-Login-Flow.
+Backup Sentinel delegiert die Authentifizierung vollständig an [OAuth2-Proxy](https://oauth2-proxy.github.io/oauth2-proxy/). Der Proxy sitzt vor der FastAPI-Anwendung und übernimmt den OIDC-Login-Flow.
 
 ### Provider-Konfiguration
 
@@ -156,7 +156,7 @@ OAUTH2_PROXY_REDIRECT_URL=https://backup-sentinel.example.com/oauth2/callback
 
 ### Session-Store
 
-OAuth2-Proxy verwendet einen Redis-kompatiblen Session-Store (Valkey), um Sessions ueber Container-Neustarts hinweg zu persistieren. Die Standardkonfiguration erwartet einen geteilten Valkey-Container, erreichbar ueber das Docker-Netzwerk `shared-valkey`:
+OAuth2-Proxy verwendet einen Redis-kompatiblen Session-Store (Valkey), um Sessions über Container-Neustarts hinweg zu persistieren. Die Standardkonfiguration erwartet einen geteilten Valkey-Container, erreichbar über das Docker-Netzwerk `shared-valkey`:
 
 ```env
 OAUTH2_PROXY_SESSION_STORE_TYPE=redis
@@ -165,7 +165,7 @@ OAUTH2_PROXY_REDIS_CONNECTION_URL=redis://valkey:6379/0
 
 ### Ausgenommene Routen
 
-Bootstrap-Endpunkte sind von der Authentifizierung ausgenommen, damit Proxmox-Nodes ohne Session zurueckrufen koennen:
+Bootstrap-Endpunkte sind von der Authentifizierung ausgenommen, damit Proxmox-Nodes ohne Session zurückrufen können:
 
 - `GET /bootstrap/proxmox-agent.sh`
 - `GET /bootstrap/pbs-agent.sh`
@@ -180,9 +180,9 @@ Diese Routen sind stattdessen durch ein einmaliges Enrollment-Secret gesichert.
 
 ### PVE-Cluster
 
-1. Oeffnen Sie die Einstellungsseite in der Backup-Sentinel-Oberflaeche.
+1. Öffnen Sie die Einstellungsseite in der Backup-Sentinel-Oberfläche.
 2. Geben Sie einen Namen und die PVE-API-URL ein, dann klicken Sie auf **Cluster vorbereiten**.
-3. Kopieren Sie den angezeigten Bootstrap-Befehl und fuehren Sie ihn auf **einem beliebigen Node** des Proxmox-Clusters aus:
+3. Kopieren Sie den angezeigten Bootstrap-Befehl und führen Sie ihn auf **einem beliebigen Node** des Proxmox-Clusters aus:
 
 ```bash
 bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/proxmox-agent.sh) \
@@ -194,15 +194,15 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/proxmox-agent.sh
 Das Skript wird:
 - Einen dedizierten PVE-API-Token erstellen (`backup-sentinel@pve!backup-sentinel`).
 - Minimale Leserechte zuweisen.
-- Den Token an die Backup-Sentinel-API zuruecksenden, um die Registrierung abzuschliessen.
+- Den Token an die Backup-Sentinel-API zurücksenden, um die Registrierung abzuschließen.
 
-4. Nach Abschluss des Bootstraps erscheint der Cluster in der Oberflaeche und die erste Synchronisation startet automatisch.
+4. Nach Abschluss des Bootstraps erscheint der Cluster in der Oberfläche und die erste Synchronisation startet automatisch.
 
 ### PBS-Verbindung
 
-1. Suchen Sie auf der Einstellungsseite den Cluster und klicken Sie auf **PBS hinzufuegen**.
+1. Suchen Sie auf der Einstellungsseite den Cluster und klicken Sie auf **PBS hinzufügen**.
 2. Geben Sie einen Namen und die PBS-API-URL ein.
-3. Fuehren Sie den angezeigten Bootstrap-Befehl auf dem PBS-Host aus:
+3. Führen Sie den angezeigten Bootstrap-Befehl auf dem PBS-Host aus:
 
 ```bash
 bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/pbs-agent.sh) \
@@ -219,7 +219,7 @@ Das Skript erstellt einen PBS-API-Token mit Audit/Lese-Berechtigungen und regist
 
 ### Sicherung
 
-Die PostgreSQL-Daten liegen im Volume `./postgres`. Fuer ein logisches Backup:
+Die PostgreSQL-Daten liegen im Volume `./postgres`. Für ein logisches Backup:
 
 ```bash
 docker compose exec postgres pg_dump -U backup_reports backup_reports > backup_$(date +%Y%m%d).sql
@@ -238,7 +238,7 @@ docker compose exec -T postgres psql -U backup_reports backup_reports < backup_2
 docker compose up -d backup-sentinel
 ```
 
-### Zuruecksetzen
+### Zurücksetzen
 
 Um mit einer frischen Datenbank zu beginnen, entfernen Sie das Volume und starten neu:
 
@@ -248,13 +248,13 @@ rm -rf ./postgres
 docker compose up -d
 ```
 
-Die Anwendung erstellt alle Tabellen beim Start automatisch ueber `db.init_db()`.
+Die Anwendung erstellt alle Tabellen beim Start automatisch über `db.init_db()`.
 
 ---
 
 ## HTTPS / Reverse Proxy
 
-Backup Sentinel erwartet einen Reverse Proxy fuer die TLS-Terminierung. Der OAuth2-Proxy-Container lauscht auf Port **4180** und sollte der oeffentlich erreichbare Endpunkt sein.
+Backup Sentinel erwartet einen Reverse Proxy für die TLS-Terminierung. Der OAuth2-Proxy-Container lauscht auf Port **4180** und sollte der öffentlich erreichbare Endpunkt sein.
 
 ### Nginx Proxy Manager
 
@@ -313,25 +313,25 @@ OAuth2-Proxy setzt `OAUTH2_PROXY_REVERSE_PROXY=true`, sodass es `X-Forwarded-*`-
 
 ## GitLab-CI/CD-Deployment
 
-Das Repository enthaelt eine `.gitlab-ci.yml`, die bei jedem Push auf `main` auf einen Server deployed.
+Das Repository enthält eine `.gitlab-ci.yml`, die bei jedem Push auf `main` auf einen Server deployed.
 
-### Benoetigte CI/CD-Variablen
+### Benötigte CI/CD-Variablen
 
 Konfigurieren Sie diese drei Variablen unter **GitLab > Settings > CI/CD > Variables**:
 
 | Variable | Beschreibung |
 |----------|--------------|
-| `SSH_KEY` | Privater SSH-Schluessel (ed25519) fuer den Deployment-Benutzer. Typ: **File** oder **Variable**. |
+| `SSH_KEY` | Privater SSH-Schlüssel (ed25519) für den Deployment-Benutzer. Typ: **File** oder **Variable**. |
 | `DEPLOY_HOST` | Zielserver-Hostname oder IP. |
 | `DEPLOY_PATH` | Absoluter Pfad zum Projekt auf dem Server (z. B. `/root/backup-sentinel`). |
 
 ### Pipeline-Verhalten
 
-Bei jedem Push auf `main` fuehrt die Pipeline folgende Schritte aus:
+Bei jedem Push auf `main` führt die Pipeline folgende Schritte aus:
 
 1. Verbindung zum Server per SSH.
 2. Neuesten Code mit `git pull` holen.
-3. `docker compose down && docker compose up -d --build` ausfuehren.
+3. `docker compose down && docker compose up -d --build` ausführen.
 
 Die Build-Version wird aus dem Git-Commit-SHA abgeleitet (Format: `1.2.<short-sha>`).
 
@@ -341,7 +341,7 @@ Die Build-Version wird aus dem Git-Commit-SHA abgeleitet (Format: `1.2.<short-sh
 
 ### Health-Endpunkt
 
-Die Anwendung stellt einen `/healthz`-Endpunkt bereit, der die Datenbank-Konnektivitaet prueft:
+Die Anwendung stellt einen `/healthz`-Endpunkt bereit, der die Datenbank-Konnektivität prüft:
 
 ```bash
 curl -s https://backup-sentinel.example.com/healthz
@@ -354,22 +354,22 @@ curl -s https://backup-sentinel.example.com/healthz
 
 ### Docker Health Check
 
-Der `backup-sentinel`-Container hat einen eingebauten Health Check, der `/healthz` alle 5 Sekunden abfragt. Verwenden Sie `docker compose ps`, um zu pruefen, ob der Container `healthy` ist.
+Der `backup-sentinel`-Container hat einen eingebauten Health Check, der `/healthz` alle 5 Sekunden abfragt. Verwenden Sie `docker compose ps`, um zu prüfen, ob der Container `healthy` ist.
 
 ### Prometheus-Metriken
 
 Backup Sentinel stellt Prometheus-kompatible Metriken unter `/metrics` bereit (keine Authentifizierung erforderlich).
 
-Verfuegbare Metriken:
+Verfügbare Metriken:
 
 - `backup_sentinel_cluster_sync_ok{cluster="..."}` -- Ob die letzte Synchronisation erfolgreich war (1/0)
 - `backup_sentinel_cluster_sync_age_seconds{cluster="..."}` -- Sekunden seit der letzten Synchronisation
-- `backup_sentinel_cluster_sync_failures_total{cluster="..."}` -- Aufeinanderfolgende Sync-Fehlschlaege
+- `backup_sentinel_cluster_sync_failures_total{cluster="..."}` -- Aufeinanderfolgende Sync-Fehlschläge
 - `backup_sentinel_vm_backup_severity_count{cluster="...",severity="..."}` -- VMs pro Schweregrad
-- `backup_sentinel_unencrypted_backups_count{cluster="..."}` -- VMs mit unverschluesselten Backups
-- `backup_sentinel_restore_overdue_count{cluster="..."}` -- VMs mit ueberfaelligen Restore-Tests
+- `backup_sentinel_unencrypted_backups_count{cluster="..."}` -- VMs mit unverschlüsselten Backups
+- `backup_sentinel_restore_overdue_count{cluster="..."}` -- VMs mit überfälligen Restore-Tests
 
-Ergaenzen Sie in Ihrer Prometheus-Konfiguration unter `scrape_configs`:
+Ergänzen Sie in Ihrer Prometheus-Konfiguration unter `scrape_configs`:
 
 ```yaml
 - job_name: backup-sentinel
@@ -381,7 +381,7 @@ Ergaenzen Sie in Ihrer Prometheus-Konfiguration unter `scrape_configs`:
 
 ### Logging
 
-Standardmaessig protokolliert die Anwendung auf `INFO`-Level. Setzen Sie `BSENTINEL_DEBUG=true` fuer `DEBUG`-Level. Logs werden auf stdout geschrieben und koennen eingesehen werden mit:
+Standardmäßig protokolliert die Anwendung auf `INFO`-Level. Setzen Sie `BSENTINEL_DEBUG=true` für `DEBUG`-Level. Logs werden auf stdout geschrieben und können eingesehen werden mit:
 
 ```bash
 docker compose logs -f backup-sentinel
@@ -407,7 +407,7 @@ Oder verwenden Sie das mitgelieferte Deploy-Skript:
 ./deploy.sh
 ```
 
-Die Anwendung fuehrt Datenbank-Migrationen beim Start automatisch durch -- manuelle Migrationsschritte sind nicht erforderlich.
+Die Anwendung führt Datenbank-Migrationen beim Start automatisch durch -- manuelle Migrationsschritte sind nicht erforderlich.
 
 ### Rollback
 
@@ -419,6 +419,6 @@ git checkout <commit-sha>     # auf diese Version wechseln
 docker compose up -d --build  # mit der alten Version neu bauen
 ```
 
-### Versionspruefung
+### Versionsprüfung
 
-Die aktuelle Build-Version wird in der Fusszeile der Oberflaeche angezeigt und kann auch ueber den Health-Endpunkt oder die Container-Logs beim Start geprueft werden. Das Format ist `1.2.<git-short-sha>`.
+Die aktuelle Build-Version wird in der Fußzeile der Oberfläche angezeigt und kann auch über den Health-Endpunkt oder die Container-Logs beim Start geprüft werden. Das Format ist `1.2.<git-short-sha>`.
