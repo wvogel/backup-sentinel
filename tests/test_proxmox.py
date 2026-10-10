@@ -106,29 +106,38 @@ class MultiVMBackupJobTests(unittest.TestCase):
 
 
 class ProgressTimesTests(unittest.TestCase):
-    # Job started 19:30 UTC; the current (second) VM has run 2 minutes and is at 25 %.
-    JOB_START = int(datetime(2026, 10, 10, 19, 30, tzinfo=UTC).timestamp())
-    NOW = datetime(2026, 10, 10, 19, 50, tzinfo=UTC)
+    # Real excerpt: 37 TiB VM, second VM of the job; progress lines only every ~30 min.
+    JOB_START = int(datetime(2026, 10, 9, 18, 0, 1, tzinfo=UTC).timestamp())
+    LOG = (
+        "INFO: Starting Backup of VM 103 (qemu)",
+        "INFO: Backup started at 2026-10-09 20:05:06",
+        "INFO: creating Proxmox Backup Server archive 'vm/103/2026-10-09T18:05:06Z'",
+        "INFO:  46% (17.2 TiB of 37.3 TiB) in 23h 27m 42s, read: 184.2 MiB/s, write: 184.2 MiB/s",
+        "INFO:  47% (17.6 TiB of 37.3 TiB) in 1d 9m 56s, read: 154.5 MiB/s, write: 154.5 MiB/s",
+    )
 
-    def _progress(self) -> dict:
-        lines = ["INFO: 25% (23.3 GiB of 91.9 GiB) in 2m 0s, read: 200 MiB/s, write: 190 MiB/s"]
-        return _parse_running_backup_progress({"starttime": self.JOB_START}, lines, now=self.NOW)
-
-    def test_start_and_eta_refer_to_the_current_vm(self) -> None:
-        progress = self._progress()
-        self.assertEqual(progress["started_at"], datetime(2026, 10, 10, 19, 48, tzinfo=UTC))
-        self.assertEqual(progress["eta"], datetime(2026, 10, 10, 19, 56, tzinfo=UTC))
-
-    def test_labels_use_the_app_timezone(self) -> None:
+    def _progress(self, lines) -> dict:
         with mock.patch.object(proxmox_progress, "APP_TIMEZONE", ZoneInfo("Europe/Berlin")):
-            progress = self._progress()
-        self.assertEqual(progress["started_at_label"], "10.10.2026 21:48")
-        self.assertEqual(progress["eta_label"], "10.10.2026 21:56")
+            return _parse_running_backup_progress({"starttime": self.JOB_START}, list(lines))
 
-    def test_job_start_is_used_until_the_vm_reports_progress(self) -> None:
-        with mock.patch.object(proxmox_progress, "APP_TIMEZONE", ZoneInfo("Europe/Berlin")):
-            progress = _parse_running_backup_progress({"starttime": self.JOB_START}, [], now=self.NOW)
-        self.assertEqual(progress["started_at_label"], "10.10.2026 21:30")
+    def test_start_is_the_vm_start_from_the_pbs_archive_name(self) -> None:
+        progress = self._progress(self.LOG)
+        self.assertEqual(progress["started_at"], datetime(2026, 10, 9, 18, 5, 6, tzinfo=UTC))
+        self.assertEqual(progress["started_at_label"], "09.10.2026 20:05")
+
+    def test_eta_extrapolates_from_vm_start_and_runtime(self) -> None:
+        # 1d 9m 56s = 86996 s for 47 % → 185098 s in total after the VM start.
+        progress = self._progress(self.LOG)
+        self.assertEqual(progress["eta"], datetime(2026, 10, 11, 21, 30, 4, tzinfo=UTC))
+        self.assertEqual(progress["eta_label"], "11.10.2026 23:30")
+
+    def test_backup_started_line_is_read_in_local_time_without_pbs_archive(self) -> None:
+        lines = [line for line in self.LOG if "archive" not in line]
+        self.assertEqual(self._progress(lines)["started_at_label"], "09.10.2026 20:05")
+
+    def test_job_start_is_used_until_the_vm_logs_its_start(self) -> None:
+        progress = self._progress([])
+        self.assertEqual(progress["started_at_label"], "09.10.2026 20:00")
         self.assertNotIn("eta", progress)
 
 
