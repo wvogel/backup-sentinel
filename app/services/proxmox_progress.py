@@ -8,11 +8,16 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib import parse
+from zoneinfo import ZoneInfo
 
+from app.config import DEFAULT_TIMEZONE
 from app.i18n import t
 from app.services.proxmox import ProxmoxSyncError, _pve_get, _pve_get_dict, _pve_get_json, build_token_header
 
 logger = logging.getLogger(__name__)
+
+# Same zone as the web UI's datetime_local filter, independent of the container's TZ.
+APP_TIMEZONE = ZoneInfo(DEFAULT_TIMEZONE)
 
 _PROGRESS_RE = re.compile(
     r"(?P<pct>\d+)%\s+\((?P<written>[^)]+?)\s+of\s+(?P<total>[^)]+?)\)\s+in\s+(?P<elapsed>[\ddhms\s]+),",
@@ -128,8 +133,15 @@ def _build_progress_title(progress: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -> dict[str, Any]:
+def _fmt_local(value: datetime) -> str:
+    return value.astimezone(APP_TIMEZONE).strftime("%d.%m.%Y %H:%M")
+
+
+def _parse_running_backup_progress(
+    task: dict[str, Any], log_lines: list[str], now: datetime | None = None
+) -> dict[str, Any]:
     progress: dict[str, Any] = {}
+    now = now or datetime.now(UTC)
 
     start_raw = task.get("starttime") or task.get("start-time")
     started_at: datetime | None = None
@@ -140,7 +152,7 @@ def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -
             started_at = None
     if started_at is not None:
         progress["started_at"] = started_at
-        progress["started_at_label"] = started_at.astimezone().strftime("%d.%m.%Y %H:%M")
+        progress["started_at_label"] = _fmt_local(started_at)
 
     for line in log_lines:
         dirty_match = _DIRTY_RE.search(line)
@@ -162,11 +174,18 @@ def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -
             progress["target_bytes"] = _parse_size_to_bytes(target_label)
             progress["written_label"] = written_label
             progress["target_label"] = target_label
-            if percent > 0 and started_at is not None and elapsed_seconds is not None:
-                total_seconds = math.ceil(elapsed_seconds * (100 / percent))
-                eta = started_at + timedelta(seconds=total_seconds)
-                progress["eta"] = eta
-                progress["eta_label"] = eta.astimezone().strftime("%d.%m.%Y %H:%M")
+            if elapsed_seconds is not None:
+                # The task start is the start of the whole job; a multi-VM job
+                # has backed up other VMs before. "elapsed" is the current VM's
+                # runtime, so derive its start and the ETA from now.
+                vm_started_at = now - timedelta(seconds=elapsed_seconds)
+                progress["started_at"] = vm_started_at
+                progress["started_at_label"] = _fmt_local(vm_started_at)
+                if percent > 0:
+                    remaining_seconds = math.ceil(elapsed_seconds * (100 - percent) / percent)
+                    eta = now + timedelta(seconds=remaining_seconds)
+                    progress["eta"] = eta
+                    progress["eta_label"] = _fmt_local(eta)
             break
 
     progress["label"] = (

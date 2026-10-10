@@ -25,7 +25,7 @@ from urllib import error, request
 from zoneinfo import ZoneInfo
 
 from app import db
-from app.config import REPORT_LANGUAGE
+from app.config import DEFAULT_TIMEZONE, REPORT_LANGUAGE
 from app.i18n import t, ts
 from app.services.crypto import decrypt
 
@@ -287,7 +287,8 @@ def notify_sync_overdue(cluster_name: str, failure_started_at: datetime | None) 
     if failure_started_at is None:
         started = ts("notify.unknown")
     elif isinstance(failure_started_at, datetime):
-        started = failure_started_at.strftime("%Y-%m-%d %H:%M" if REPORT_LANGUAGE == "en" else "%d.%m.%Y %H:%M")
+        local = failure_started_at.astimezone(ZoneInfo(DEFAULT_TIMEZONE))
+        started = local.strftime("%Y-%m-%d %H:%M" if REPORT_LANGUAGE == "en" else "%d.%m.%Y %H:%M")
     else:
         started = str(failure_started_at)
     title = ts("notify.sync_overdue_title", cluster=cluster_name)

@@ -1,8 +1,9 @@
 import unittest
 from datetime import UTC, datetime
 from unittest import mock
+from zoneinfo import ZoneInfo
 
-from app.services import proxmox
+from app.services import proxmox, proxmox_progress
 from app.services.proxmox import (
     classify_schedule,
     fetch_backup_details,
@@ -102,6 +103,33 @@ class MultiVMBackupJobTests(unittest.TestCase):
     def test_single_vm_log_is_used_as_is(self) -> None:
         lines = ["INFO: 42% (1.0 GiB of 2.4 GiB) in 5s, read: 1 MiB/s, write: 1 MiB/s"]
         self.assertEqual(_current_vm_log(lines), lines)
+
+
+class ProgressTimesTests(unittest.TestCase):
+    # Job started 19:30 UTC; the current (second) VM has run 2 minutes and is at 25 %.
+    JOB_START = int(datetime(2026, 10, 10, 19, 30, tzinfo=UTC).timestamp())
+    NOW = datetime(2026, 10, 10, 19, 50, tzinfo=UTC)
+
+    def _progress(self) -> dict:
+        lines = ["INFO: 25% (23.3 GiB of 91.9 GiB) in 2m 0s, read: 200 MiB/s, write: 190 MiB/s"]
+        return _parse_running_backup_progress({"starttime": self.JOB_START}, lines, now=self.NOW)
+
+    def test_start_and_eta_refer_to_the_current_vm(self) -> None:
+        progress = self._progress()
+        self.assertEqual(progress["started_at"], datetime(2026, 10, 10, 19, 48, tzinfo=UTC))
+        self.assertEqual(progress["eta"], datetime(2026, 10, 10, 19, 56, tzinfo=UTC))
+
+    def test_labels_use_the_app_timezone(self) -> None:
+        with mock.patch.object(proxmox_progress, "APP_TIMEZONE", ZoneInfo("Europe/Berlin")):
+            progress = self._progress()
+        self.assertEqual(progress["started_at_label"], "10.10.2026 21:48")
+        self.assertEqual(progress["eta_label"], "10.10.2026 21:56")
+
+    def test_job_start_is_used_until_the_vm_reports_progress(self) -> None:
+        with mock.patch.object(proxmox_progress, "APP_TIMEZONE", ZoneInfo("Europe/Berlin")):
+            progress = _parse_running_backup_progress({"starttime": self.JOB_START}, [], now=self.NOW)
+        self.assertEqual(progress["started_at_label"], "10.10.2026 21:30")
+        self.assertNotIn("eta", progress)
 
 
 if __name__ == "__main__":
