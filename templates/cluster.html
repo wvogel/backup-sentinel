@@ -106,6 +106,24 @@
 </details>
 {% endif %}
 
+<section class="running-banner js-running-banner{% if not running_backups %} hidden{% endif %}" aria-live="polite">
+  <div class="running-banner-head">
+    <svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg>
+    <strong class="js-running-count">{{ running_count_label }}</strong>
+  </div>
+  <ul class="running-list js-running-list">
+    {% for row in running_backups %}
+    <li>
+      <button type="button" class="running-item" data-vmid="{{ row.vmid }}" title="{{ t('cluster.running_jump') }}">
+        <span class="running-item-name">{{ row.vm_name }} <span class="muted">({{ row.vmid }})</span></span>
+        <span class="running-item-meta">{{ row.running.line }}</span>
+        <span class="running-bar"><span style="width:{{ row.running.percent or 0 }}%"></span></span>
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
 <section class="table-card">
   <div class="node-filter-bar js-node-filter-list">
     <button type="button" class="node-filter-button is-active" data-node-filter="">{{ t('cluster.all') }}</button>
@@ -131,31 +149,26 @@
       <tbody>
         {% for row in vm_rows %}
         {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['warning', 'critical'] %}restore-overdue {% endif %}{% if row.vm_gone %}vm-gone{% endif %}{% endset %}
-        <tr{% if row.vm_gone %} class="vm-gone-row"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}">
+        <tr class="{% if row.vm_gone %}vm-gone-row{% endif %}{% if row.running %} is-running{% endif %}"{% if row.running and row.running.percent is not none %} style="--pct:{{ row.running.percent }}"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}" data-vm-name="{{ row.vm_name }}"{% if row.live_backup_progress %} data-live="1"{% endif %}>
           <td data-label="{{ t('common.node') }}" data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
           <td data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}{% if row.vm_gone %} <span class="badge unknown vm-gone-badge" title="{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}{% if row.remaining_storages %}&#10;{{ t('cluster.vm_gone_storages', storages=row.remaining_storages|join(', ')) }}{% endif %}">{{ t('cluster.vm_gone') }}</span>{% endif %}</td>
           <td class="col-right" data-label="VMID" data-sort-value="{{ row.vmid }}">{{ row.vmid }}</td>
-          <td data-label="{{ t('cluster.th_last_backup') }}" data-sort-value="{{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
-            {% if row.in_progress_since %}
-              {% set progress = row.live_backup_progress %}
-              <span
-                class="badge-inprogress js-backup-progress"
-                data-vmid="{{ row.vmid }}"
-                data-tooltip="{% if progress and progress.title %}{{ progress.title }}{% else %}Start: {{ row.in_progress_since|datetime_local }}{% endif %}"
-                {% if progress and progress.percent is not none %}style="--pct:{{ progress.percent }}"{% endif %}
-              >{% if progress and progress.label %}{{ progress.label }}{% else %}{{ t('cluster.backup_running') }}{% endif %}</span>
-            {% endif %}
+          <td class="last-backup-cell" data-label="{{ t('cluster.th_last_backup') }}" data-sort-value="{{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
+            <span class="running-chip js-running-chip{% if not row.running %} hidden{% endif %}"
+              data-tooltip="{% if row.running and row.running.title %}{{ row.running.title }}{% elif row.in_progress_since %}{{ t('progress.start', time=row.in_progress_since|datetime_local) }}{% endif %}">
+              <svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg><span class="js-running-label">{{ row.running.chip if row.running else '' }}</span>
+            </span>
             {% if row.last_backup_at %}
-              {{ row.last_backup_at|datetime_local }}
-            {% elif not row.in_progress_since %}
+              <span class="last-backup-date">{{ row.last_backup_at|datetime_local }}</span>
+            {% elif not row.running %}
               <span class="muted">{{ t('cluster.no_backup') }}</span>
             {% endif %}
           </td>
           <td class="sparkline-cell" data-label="{{ t('cluster.th_30days') }}">
             {%- set spark = sparklines.get(row.id, []) -%}
-            <svg class="sparkline-svg" viewBox="0 0 {{ spark|length * 4 }} 10" width="{{ spark|length * 4 }}" height="10" preserveAspectRatio="none" aria-label="{{ t('cluster.backup_trend') }}">
+            <svg class="sparkline-svg" viewBox="0 0 {{ spark|length * 8 - 2 }} 16" width="{{ spark|length * 8 - 2 }}" height="16" preserveAspectRatio="none" aria-label="{{ t('cluster.backup_trend') }}">
               {%- for s in spark -%}
-              <rect x="{{ loop.index0 * 4 }}" y="1" width="3" height="8" rx="1"
+              <rect x="{{ loop.index0 * 8 }}" y="0" width="6" height="16" rx="1.5"
                     class="spark-{{ s }}" />
               {%- endfor -%}
             </svg>
@@ -319,8 +332,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (logStatus) { logStatus.textContent = T('js.sync_running'); logStatus.className = 'muted'; }
       } else {
         // Show saved log from last sync
-        content.textContent = this.dataset.log || T('js.no_log');
-        title.textContent = this.dataset.logTitle || T('js.last_sync');
+        content.textContent = this.dataset.log || T('common.no_log');
+        title.textContent = this.dataset.logTitle || T('cluster.last_sync');
         if (logStatus) logStatus.textContent = '';
       }
       panel.classList.remove('hidden');
@@ -337,41 +350,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Check if a sync is already running (auto-sync or triggered before page load)
   var slug = '{{ cluster.slug }}';
-  function applyBackupProgress(progressMap) {
-    var rows = document.querySelectorAll('tr[data-vmid]');
-    for (var row of rows) {
-      var vmid = row.dataset.vmid;
-      var badge = row.querySelector('.js-backup-progress');
-      var progress = progressMap && progressMap[vmid];
-      if (progress) {
-        if (!badge) {
-          var cell = row.children[3];
-          if (cell) {
-            badge = document.createElement('span');
-            badge.className = 'badge-inprogress js-backup-progress';
-            badge.dataset.vmid = vmid;
-            cell.insertBefore(badge, cell.firstChild);
-          }
-        }
-        if (badge) {
-          badge.textContent = progress.label || T('js.backup_running');
-          badge.setAttribute('data-tooltip', progress.title || '');
-          if (progress.percent != null) badge.style.setProperty('--pct', progress.percent);
-        }
-      }
-    }
-  }
-
   function checkRunningSync() {
     fetch('/api/clusters/' + encodeURIComponent(slug) + '/sync-status?since=0')
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        applyBackupProgress(data.backup_progress || {});
         if (data.syncing) {
           var btn = document.querySelector('.js-sync-btn');
           if (btn) {
             btn.classList.add('syncing');
-            btn.title = T('js.sync_in_progress');
+            btn.title = T('js.syncing');
           }
           // Store log data so sync-dot click shows live log
           window._liveSyncLog = data.log.join('\n') + (data.log.length ? '\n' : '');
@@ -390,22 +377,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     content.scrollTop = content.scrollHeight;
                   }
                 }
-                applyBackupProgress(d.backup_progress || {});
                 window._liveSyncOffset = d.offset || window._liveSyncOffset;
                 if (!d.syncing) {
                   clearInterval(poll);
                   window._liveSyncActive = false;
                   if (btn) {
                     btn.classList.remove('syncing');
-                    btn.title = T('js.sync_now');
+                    btn.title = T('cluster.sync_now');
                   }
                   var logStatus = document.getElementById('sync-log-status');
                   if (logStatus && !panel.classList.contains('hidden')) {
-                    logStatus.textContent = T('js.sync_completed');
+                    logStatus.textContent = T('js.sync_complete');
                     logStatus.classList.remove('muted');
                     logStatus.classList.add('ok-text');
                   }
-                  showSuccessLightbox(T('js.sync_completed'), T('js.data_refreshing'));
+                  showSuccessLightbox(T('js.sync_complete'), T('js.data_updating'));
                   setTimeout(function() { location.reload(); }, 2500);
                 }
               }).catch(function() {});
@@ -414,13 +400,6 @@ document.addEventListener('DOMContentLoaded', function () {
       }).catch(function() {});
   }
   checkRunningSync();
-  setInterval(function() {
-    fetch('/api/clusters/' + encodeURIComponent(slug) + '/sync-status?since=' + (window._liveSyncOffset || 0))
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        applyBackupProgress(data.backup_progress || {});
-      }).catch(function() {});
-  }, 15000);
 });
 </script>
 {% endblock %}

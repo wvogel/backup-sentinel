@@ -5,6 +5,23 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.0] — 2026-10-10
+
+### Added
+
+- **Running backups stand out.** A status bar above the VM table lists every running backup with progress bar, data written and expected finish; clicking an entry scrolls to the VM (resetting the node filter if needed) and highlights the row. The row itself is filled up to the current percentage with an accent bar on the left, and its chip reads e.g. "47 % · bis 23:30" (tooltip: start, ETA, data volume). Replaces the small pulsing badge.
+- **Live refresh.** Running backups update every 30 seconds (every 2 minutes when idle) without reloading: new backups appear, finished ones drop out.
+- **Dashboard:** each cluster card shows "N Backups laufen" (from the last sync's in-progress markers; tooltip lists the VMs).
+
+### Changed
+
+- **Larger 30-day sparkline** (6 × 16 px per day instead of 3 × 8 px); empty days are slightly more visible.
+
+### Fixed
+
+- Several JS texts on the cluster page referenced translation keys that don't exist and showed the raw key (`js.backup_running`, `js.sync_completed`, `js.data_refreshing`, …); they now use the existing keys.
+- On phones, the last-backup date next to a running-backup chip wrapped character by character.
+
 ## [v2.3.4] — 2026-10-10
 
 ### Fixed

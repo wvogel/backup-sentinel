@@ -82,6 +82,31 @@ def sync_cluster(cluster_slug: str, next: str = Form(default="")) -> RedirectRes
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
+def running_backup_info(progress: dict | None) -> dict:
+    """Labels for a running backup: row chip, status-bar line and tooltip."""
+    progress = progress or {}
+    percent = progress.get("percent")
+    chip = t("cluster.running_percent", pct=percent) if percent is not None else t("cluster.backup_running")
+    meta_parts: list[str] = []
+    if progress.get("written_label") and progress.get("target_label"):
+        meta_parts.append(t("progress.written_of", written=progress["written_label"], total=progress["target_label"]))
+    if progress.get("eta_short"):
+        until = t("cluster.running_until", time=progress["eta_short"])
+        chip = f"{chip} · {until}"
+        meta_parts.append(until)
+    line_parts = ([t("cluster.running_percent", pct=percent)] if percent is not None else []) + meta_parts
+    return {
+        "percent": percent,
+        "chip": chip,
+        "line": " · ".join(line_parts) or t("cluster.backup_running"),
+        "title": progress.get("title", ""),
+    }
+
+
+def running_count_label(count: int) -> str:
+    return t("cluster.running_one" if count == 1 else "cluster.running_other", count=count)
+
+
 @router.get("/api/clusters/{cluster_slug}/sync-status")
 def get_sync_status(cluster_slug: str, since: int = 0):
     cluster = db.get_cluster_by_slug(cluster_slug)
@@ -94,19 +119,13 @@ def get_sync_status(cluster_slug: str, since: int = 0):
     if cache_entry is None or (now - cache_entry[0]) >= _SYNC_STATUS_TTL:
         buf = list(sync_logs.get(cid, []))
         progress = fetch_running_backup_progress(cluster, [node["name"] for node in db.list_nodes(cluster["id"])])
-        serializable_progress = {
-            str(vmid): {
-                "label": item.get("label", t("progress.running")),
-                "title": item.get("title", ""),
-                "percent": item.get("percent"),
-            }
-            for vmid, item in progress.items()
-        }
+        serializable_progress = {str(vmid): running_backup_info(item) for vmid, item in progress.items()}
         cached = {
             "syncing": cid in syncing_clusters,
             "log": buf,
             "offset": len(buf),
             "backup_progress": serializable_progress,
+            "running_count_label": running_count_label(len(serializable_progress)),
         }
         _sync_status_cache[cluster_slug] = (now, cached)
     else:
@@ -124,14 +143,21 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
     live_backup_progress = fetch_running_backup_progress(
         cluster, [node["name"] for node in db.list_nodes(cluster["id"])]
     )
+    running_backups = []
     for row in vm_rows:
         row["live_backup_progress"] = live_backup_progress.get(row["vmid"])
+        row["running"] = None
+        if row["live_backup_progress"] or row["in_progress_since"]:
+            row["running"] = running_backup_info(row["live_backup_progress"])
+            running_backups.append(row)
     restore_tests = db.recent_restore_tests(cluster["id"])
     encryption = db.encryption_audit(cluster["id"])
     context = {
         "cluster": cluster,
         "nodes": db.list_nodes(cluster["id"]),
         "vm_rows": vm_rows,
+        "running_backups": running_backups,
+        "running_count_label": running_count_label(len(running_backups)),
         "restore_tests": restore_tests,
         "compliance_summary": build_compliance_summary(vm_rows, restore_tests),
         "pbs_connections": db.list_pbs_connections(cluster["id"]),
