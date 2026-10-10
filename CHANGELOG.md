@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.5] — 2026-10-10
+
+### Changed
+
+- **VM table no longer has its own scroll box.** It was limited to the window height and scrolled inside the page; with the running-backups bar and taller rows only about a third of the VMs fit, and the rest hid behind an easy-to-miss inner scrollbar. The table now grows with its content and the page scrolls; on screens ≥ 1200 px the table header sticks right below the topbar.
+
+### Fixed
+
+- Sticky elements assumed a 52 px topbar, which no longer matched the slimmer header; the topbar height is now measured (`--topbar-h`).
+
 ## [v2.4.4] — 2026-10-10
 
 ### Changed
