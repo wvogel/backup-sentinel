@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.6.0] — 2026-10-11
+
+### Added
+
+- **Slow backups are flagged.** Each VM's typical runtime is the median of its last 10 successful backups (from the task logs, needs at least 3). A running backup whose projected runtime (ETA, else runtime so far) exceeds 1.5× that and is at least 15 minutes longer shows "langsamer als üblich (sonst ~5 min)" in the status bar and row tooltip, and triggers a new **"Backup langsam"** notification once per backup run (Gotify, notification log, PDF).
+
 ## [v2.5.0] — 2026-10-11
 
 ### Added

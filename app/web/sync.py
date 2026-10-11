@@ -11,8 +11,10 @@ from zoneinfo import ZoneInfo
 from app import db
 from app.config import DEFAULT_TIMEZONE, REPORT_DIR, REPORT_LANGUAGE, SYNC_INTERVAL_MINUTES
 from app.i18n import ts
+from app.services.backup_status import assess_slow_backup
 from app.services.notifications import (
     notify_backup_critical,
+    notify_backup_slow,
     notify_size_anomaly,
     notify_sync_failed,
     notify_sync_overdue,
@@ -22,6 +24,7 @@ from app.services.notifications import (
 from app.services.pbs import PBSSyncError, fetch_all_pbs_backups
 from app.services.pdf_reports import write_backup_period_pdf
 from app.services.proxmox import fetch_cluster_inventory, fetch_finished_backup_tasks
+from app.services.proxmox_progress import fetch_running_backup_progress
 from app.services.reporting import build_backup_period_report, serialize_report_payload
 
 logger = logging.getLogger(__name__)
@@ -145,6 +148,10 @@ def sync_cluster_backups(cluster: dict) -> None:
             enrich_backup_events_from_task_logs(cluster, [node["name"] for node in inventory.nodes])
         except Exception as exc:  # best effort, never fails the sync
             logger.warning("Task-log enrichment failed for %s: %s", cluster["name"], exc)
+        try:
+            notify_slow_running_backups(cluster, [node["name"] for node in inventory.nodes], inventory.vms)
+        except Exception as exc:
+            logger.warning("Slow-backup check failed for %s: %s", cluster["name"], exc)
 
         if prune_blockers:
             skipped = ts("synclog.prune_skipped", reasons="; ".join(prune_blockers))
@@ -222,6 +229,18 @@ def enrich_backup_events_from_task_logs(cluster: dict, nodes: list[str]) -> None
     db.mark_backup_tasks_processed(cluster["id"], done)
     if tasks:
         logger.info("  %s", ts("synclog.task_logs", count=len(tasks), done=len(done)))
+
+
+def notify_slow_running_backups(cluster: dict, nodes: list[str], vms: list[dict]) -> None:
+    progress = fetch_running_backup_progress(cluster, nodes)
+    if not progress:
+        return
+    typical = db.typical_backup_durations(cluster["id"])
+    names = {vm["vmid"]: vm["name"] for vm in vms}
+    for vmid, item in progress.items():
+        slow = assess_slow_backup(item, typical.get(vmid))
+        if slow:
+            notify_backup_slow(cluster["name"], names.get(vmid, str(vmid)), vmid, slow[0], slow[1], item["started_at"])
 
 
 def sync_all_clusters() -> None:

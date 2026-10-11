@@ -116,7 +116,7 @@
     <li>
       <button type="button" class="running-item" data-vmid="{{ row.vmid }}" title="{{ t('cluster.running_jump') }}">
         <span class="running-item-name">{{ row.vm_name }} <span class="muted">({{ row.vmid }})</span></span>
-        <span class="running-item-meta">{{ row.running.line }}</span>
+        <span class="running-item-meta">{{ row.running.line }}{% if row.running.warning %} <span class="running-slow">{{ row.running.warning }}</span>{% endif %}</span>
         <span class="running-bar"><span style="width:{{ row.running.percent or 0 }}%"></span></span>
       </button>
     </li>
@@ -149,7 +149,7 @@
       <tbody>
         {% for row in vm_rows %}
         {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['warning', 'critical'] %}restore-overdue {% endif %}{% if row.vm_gone %}vm-gone{% endif %}{% endset %}
-        <tr class="{% if row.vm_gone %}vm-gone-row{% endif %}{% if row.running %} is-running{% endif %}"{% if row.running and row.running.percent is not none %} style="--pct:{{ row.running.percent }}"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}" data-vm-name="{{ row.vm_name }}"{% if row.live_backup_progress %} data-live="1"{% endif %}{% if row.running %} title="{{ row.running.line }}{% if row.running.title %}&#10;{{ row.running.title }}{% elif row.in_progress_since %}&#10;{{ t('progress.start', time=row.in_progress_since|datetime_local) }}{% endif %}"{% endif %}>
+        <tr class="{% if row.vm_gone %}vm-gone-row{% endif %}{% if row.running %} is-running{% endif %}"{% if row.running and row.running.percent is not none %} style="--pct:{{ row.running.percent }}"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}" data-vm-name="{{ row.vm_name }}"{% if row.live_backup_progress %} data-live="1"{% endif %}{% if row.running %} data-running-warning="{{ row.running.warning }}" title="{{ row.running.line }}{% if row.running.warning %}&#10;{{ row.running.warning }}{% endif %}{% if row.running.title %}&#10;{{ row.running.title }}{% elif row.in_progress_since %}&#10;{{ t('progress.start', time=row.in_progress_since|datetime_local) }}{% endif %}"{% endif %}>
           <td data-label="{{ t('common.node') }}" data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
           <td data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}{% if row.vm_gone %} <span class="badge unknown vm-gone-badge" title="{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}{% if row.remaining_storages %}&#10;{{ t('cluster.vm_gone_storages', storages=row.remaining_storages|join(', ')) }}{% endif %}">{{ t('cluster.vm_gone') }}</span>{% endif %}</td>
           <td class="col-right" data-label="VMID" data-sort-value="{{ row.vmid }}">{{ row.vmid }}</td>

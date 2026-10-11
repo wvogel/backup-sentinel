@@ -2327,6 +2327,7 @@ details[open] > .encryption-alert-summary::before {
   color: var(--warn);
 }
 .notification-type-size_anomaly,
+.notification-type-backup_slow,
 .notification-type-restore_overdue,
 .notification-type-unencrypted_backups {
   background: var(--warn-soft);
@@ -2518,6 +2519,7 @@ details[open] > .encryption-alert-summary::before {
 .running-item:hover { background: var(--running-fill); }
 .running-item-name { font-weight: 700; }
 .running-item-meta { color: var(--muted); font-size: 0.88rem; }
+.running-slow { color: var(--warn); font-weight: 700; }
 .running-bar {
   grid-column: 1 / -1;
   height: 6px;

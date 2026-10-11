@@ -50,6 +50,12 @@
       const meta = document.createElement("span");
       meta.className = "running-item-meta";
       meta.textContent = tr.dataset.runningLine || T("cluster.backup_running");
+      if (tr.dataset.runningWarning) {
+        const warn = document.createElement("span");
+        warn.className = "running-slow";
+        warn.textContent = " " + tr.dataset.runningWarning;
+        meta.append(warn);
+      }
       const bar = document.createElement("span");
       bar.className = "running-bar";
       const fill = document.createElement("span");
@@ -69,15 +75,17 @@
         tr.classList.add("is-running");
         tr.dataset.live = "1";
         tr.dataset.runningLine = info.line;
+        tr.dataset.runningWarning = info.warning || "";
         if (info.percent === null || info.percent === undefined) tr.style.removeProperty("--pct");
         else tr.style.setProperty("--pct", info.percent);
-        tr.title = info.title ? `${info.line}\n${info.title}` : info.line;
+        tr.title = [info.line, info.warning, info.title].filter(Boolean).join("\n");
       } else if (tr.dataset.live === "1") {
         // Finished since the last poll; the new backup date arrives with the next sync.
         tr.classList.remove("is-running");
         tr.style.removeProperty("--pct");
         delete tr.dataset.live;
         delete tr.dataset.runningLine;
+        delete tr.dataset.runningWarning;
         tr.removeAttribute("title");
       }
     }

@@ -18,6 +18,7 @@ from app.config import (
     LOGOUT_URL,
 )
 from app.i18n import SUPPORTED_LANGUAGES, get_language, get_translations, t
+from app.services.backup_status import format_duration
 
 templates = Jinja2Templates(directory="templates")
 APP_TIMEZONE = ZoneInfo(DEFAULT_TIMEZONE)
@@ -48,13 +49,6 @@ def format_bytes(value: object) -> str:
     return f"{v / 1024:,.0f} KB".replace(",", ".")
 
 
-def _format_duration(seconds: int) -> str:
-    if seconds < 3600:
-        return f"{max(1, round(seconds / 60))} min"
-    hours, rest = divmod(seconds, 3600)
-    return f"{hours} h {rest // 60:02d} min"
-
-
 def _format_rate(bps: int) -> str:
     return f"{bps / 1_073_741_824:.1f} GiB/s" if bps >= 1_073_741_824 else f"{bps / 1_048_576:.1f} MiB/s"
 
@@ -65,7 +59,7 @@ def spark_tooltip(day: dict) -> str:
     if day.get("size_bytes"):
         parts.append(format_bytes(day["size_bytes"]))
     if day.get("duration_seconds"):
-        parts.append(_format_duration(day["duration_seconds"]))
+        parts.append(format_duration(day["duration_seconds"]))
     if day.get("throughput_bps"):
         parts.append(f"⌀ {_format_rate(day['throughput_bps'])}")
     if day.get("full_backup"):
