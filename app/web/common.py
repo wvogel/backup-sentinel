@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
+from app import db
 from app.config import (
     APP_VERSION,
     BRAND_LOGO_DARK_URL,
@@ -18,6 +20,7 @@ from app.config import (
     LOGOUT_URL,
 )
 from app.i18n import SUPPORTED_LANGUAGES, get_language, get_translations, t
+from app.services import theme
 from app.services.backup_status import format_duration
 
 templates = Jinja2Templates(directory="templates")
@@ -101,6 +104,29 @@ templates.env.globals["get_translations_json"] = lambda: json.dumps(get_translat
 templates.env.globals["supported_languages"] = SUPPORTED_LANGUAGES
 
 
+logger = logging.getLogger(__name__)
+
+
+def active_theme() -> tuple[theme.Preset, theme.BaseColors]:
+    """Preset + the four base colours from the settings (invalid values ignored)."""
+    stored = db.get_settings_dict("theme_")
+    overrides = {key: stored.get(f"theme_{key}", "") for key in theme.BASE_KEYS}
+    return theme.resolve(stored.get("theme_preset"), overrides)
+
+
+def theme_css() -> str:
+    """Inline CSS for a non-default theme; '' when the stylesheet defaults apply."""
+    try:
+        stored = db.get_settings_dict("theme_")
+        if not any(stored.values()):
+            return ""
+        preset, base = active_theme()
+        return theme.render_css(theme.derive_tokens(preset, base))
+    except Exception as exc:
+        logger.warning("Theme rendering failed, using stylesheet defaults: %s", exc)
+        return ""
+
+
 def common_context(request: Request) -> dict:
     user_name = (
         request.headers.get("x-forwarded-email")
@@ -118,6 +144,7 @@ def common_context(request: Request) -> dict:
         "footer_links": _footer_links,
         "copyright_text": COPYRIGHT_TEXT,
         "v": CACHE_BUSTER,
+        "theme_css": theme_css(),
     }
 
 

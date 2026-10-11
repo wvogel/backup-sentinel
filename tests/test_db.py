@@ -37,6 +37,7 @@ class DbTestCase(unittest.TestCase):
     def setUp(self) -> None:
         with db.connect() as conn, conn.cursor() as cur:
             cur.execute("TRUNCATE clusters RESTART IDENTITY CASCADE")
+            cur.execute("TRUNCATE app_settings")
             conn.commit()
         db.create_cluster("Test", "test", "https://pve.example:8006", "secret")
         self.cid = db.get_cluster_by_slug("test")["id"]
@@ -157,6 +158,26 @@ class RestoreClassTests(DbTestCase):
         row = self.rows()[100]
         self.assertEqual(row["restore_class"], "none")
         self.assertEqual(row["restore_due_status"], "ok")
+
+
+
+class ThemeSettingsTests(DbTestCase):
+    def test_no_settings_means_no_inline_css(self) -> None:
+        from app.web.common import theme_css
+
+        self.assertEqual(theme_css(), "")
+
+    def test_overrides_render_css(self) -> None:
+        from app.web.common import theme_css
+
+        db.save_settings({"theme_preset": "smile_eyes", "theme_primary": "#000000"})
+        self.assertIn("--header-bg:#000000", theme_css())
+
+    def test_garbage_preset_falls_back(self) -> None:
+        from app.web.common import active_theme
+
+        db.save_settings({"theme_preset": "x"})
+        self.assertEqual(active_theme()[1].accent, "#ffff00")
 
 
 if __name__ == "__main__":

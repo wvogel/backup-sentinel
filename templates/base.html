@@ -15,6 +15,7 @@
     </script>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/style.css?v={{ v }}">
+    {% if theme_css %}<style id="theme">{{ theme_css|safe }}</style>{% endif %}
   </head>
   <body>
     <div class="layout-shell">
