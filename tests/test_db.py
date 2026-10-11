@@ -346,5 +346,39 @@ class ProblemFlagTests(DbTestCase):
         self.assertTrue(rows[101]["is_problem"])  # failed verify
 
 
+class VmHistoryTests(DbTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        db.sync_backup_events_for_source(
+            self.cid,
+            "pbs",
+            [_event(100, NOW - timedelta(days=d), size=1000 + d) for d in range(3)]
+            + [_event(100, NOW - timedelta(days=40))],
+        )
+        db.update_backup_event_details(
+            self.cid, [VmBackupRun(vmid=100, started_at=NOW, duration_seconds=300, reused_pct=90, full_backup=False)]
+        )
+        self.vm_id = self.vm_row(100)["id"]
+
+    def test_history_lists_the_last_30_days_oldest_first(self) -> None:
+        history = db.vm_backup_history(self.vm_id, days=30)
+        self.assertEqual([h["size_bytes"] for h in history], [1002, 1001, 1000])
+        self.assertEqual((history[-1]["duration_seconds"], history[-1]["reused_pct"]), (300, 90))
+
+    def test_api_returns_history_only_for_vms_of_that_cluster(self) -> None:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_clusters
+
+        app = FastAPI()
+        app.include_router(routes_clusters.router)
+        client = TestClient(app)
+        ok = client.get(f"/api/clusters/test/vms/{self.vm_id}/history")
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(len(ok.json()["events"]), 3)
+        self.assertEqual(client.get("/api/clusters/test/vms/999999/history").status_code, 404)
+
+
 if __name__ == "__main__":
     unittest.main()

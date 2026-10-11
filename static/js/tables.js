@@ -16,6 +16,12 @@ for (const table of document.querySelectorAll(".js-sortable-table")) {
     const sortRows = () => {
       const currentDirection = header.dataset.direction === "asc" ? "asc" : (header.dataset.direction === "desc" ? "desc" : "none");
       const nextDirection = currentDirection === "asc" ? "desc" : "asc";
+      // Open detail rows (VM history) would be sorted as rows of their own.
+      for (const detail of tbody.querySelectorAll(".vm-detail-row")) {
+        detail.previousElementSibling?.classList.remove("is-expanded");
+        detail.previousElementSibling?.setAttribute("aria-expanded", "false");
+        detail.remove();
+      }
       const rows = Array.from(tbody.rows);
       const sortType = header.dataset.sortType || "text";
 

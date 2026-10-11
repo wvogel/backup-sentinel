@@ -2636,3 +2636,17 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 /* "Only problems" filter sits at the end of the node filter bar. */
 .problem-filter-button { margin-left: auto; }
+
+/* ── VM history (click a row) ─────────────────────────────────────────── */
+#vm-table tbody tr[data-vm-id] { cursor: pointer; }
+#vm-table tbody tr.is-expanded > td { border-bottom-color: transparent; }
+.vm-detail-row > td { padding: 4px 0 16px !important; }
+.vm-history { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 20px; }
+.vm-history-chart { min-width: 0; }
+.vm-history-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+.vm-history-head strong { color: var(--ink); }
+.vm-history-bars { display: flex; align-items: flex-end; gap: 2px; height: 56px; border-bottom: 1px solid var(--line); }
+.vm-history-bar { flex: 1 1 0; min-width: 2px; max-width: 14px; border-radius: 2px 2px 0 0; background: var(--running); }
+.vm-history-bar.is-full { background: var(--warn); }
+.vm-history-bar.is-failed { background: var(--critical); }
+.vm-history-bar.is-deleted { background: var(--sage); }
