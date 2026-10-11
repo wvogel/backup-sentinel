@@ -26,6 +26,7 @@ from app.services.pdf_reports import write_backup_period_pdf
 from app.services.proxmox import fetch_cluster_inventory, fetch_finished_backup_tasks
 from app.services.proxmox_progress import fetch_running_backup_progress
 from app.services.reporting import build_backup_period_report, serialize_report_payload
+from app.web.common import active_theme
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +302,9 @@ def auto_generate_monthly_report() -> None:
             notifs = list_notification_logs_for_period(period_start, period_end)
         except Exception:
             notifs = []
-        write_backup_period_pdf(report, pdf_path, notifications=notifs, lang=REPORT_LANGUAGE)
+        write_backup_period_pdf(
+            report, pdf_path, notifications=notifs, lang=REPORT_LANGUAGE, theme_colors=active_theme()[1]
+        )
         json_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
         db.archive_monthly_report(last_month, "auto", pdf_path, json_path, report)
         logger.info("Auto-Report: PDF erstellt: %s", pdf_path)
