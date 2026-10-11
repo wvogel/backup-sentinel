@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.9.2] — 2026-10-11
+
+### Security
+
+- **CSRF protection.** State-changing requests (POST/PUT/PATCH/DELETE) whose `Origin` or `Referer` points to another site are rejected with 403 (OWASP origin verification; trusted hosts: `Host`, `X-Forwarded-Host` and `BSENTINEL_APP_BASE_URL`). Previously a crafted page could, for example, delete a cluster in a logged-in admin's browser. Requests without either header — the PVE/PBS bootstrap scripts (curl) — keep working. No form or JS changes needed.
+
 ## [v2.9.1] — 2026-10-11
 
 ### Fixed
