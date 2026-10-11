@@ -466,6 +466,14 @@ def fetch_backup_details(
             parsed["storage"] = item.get("_storage_id", "")
             parsed["storage_type"] = storage_types.get(parsed["storage"], "")
             parsed["location"] = _location(parsed["storage"])
+            cfg = storage_config.get(parsed["storage"])
+            if parsed["location"] and parsed["location"].startswith("pbs:") and cfg:
+                parsed["pbs_target"] = {
+                    "fingerprint": str(cfg.get("fingerprint") or ""),
+                    "server": str(cfg.get("server") or ""),
+                    "datastore": str(cfg.get("datastore") or ""),
+                    "namespace": str(cfg.get("namespace") or ""),
+                }
             events.append(parsed)
             vm_count += 1
             started_at = parsed["started_at"]

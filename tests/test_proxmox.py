@@ -233,7 +233,10 @@ class BackupLocationTaggingTests(unittest.TestCase):
     def test_events_carry_their_location(self):
         with mock.patch.object(proxmox, "_pve_get_json", side_effect=self.fake):
             _latest, events, _errors = fetch_backup_details("https://pve", "a", [{"name": "pve1"}], [{"vmid": 100}])
-        self.assertEqual(sorted(e["location"] for e in events), ["pbs:aa:bb/nas-b1", "pve:nfs"])
+        self.assertEqual(sorted(e["location"] for e in events), ["pbs:aabb/nas-b1", "pve:nfs"])
+        # PBS storages keep their raw target so the sync can match the registered PBS.
+        targets = [e["pbs_target"] for e in events if "pbs_target" in e]
+        self.assertEqual([t["fingerprint"] for t in targets], ["AA:BB"])
 
     def test_pbs_storage_without_config_gets_no_location(self):
         # Without the storage config a PBS can't be identified; better no location than a fake 2nd copy.

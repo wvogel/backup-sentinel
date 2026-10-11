@@ -199,8 +199,25 @@ function setColumnWrap(table, shouldWrap) {
   }
 }
 
-const SPARK_WIDTH = 246; // 31 days × 6 px + 30 × 2 px gaps (matches style.css)
-const SPARK_MIN_WIDTH = 122; // 31 × 2 px + gaps
+const SPARK_STEP = 6; // 4 px bar + 2 px gap per day (matches style.css)
+const SPARK_MIN_DAYS = 8;
+
+// Show only the most recent `days` bars (null = all). Narrow screens get fewer
+// days instead of thinner bars; the column header says how many.
+function setSparkDays(table, days) {
+  for (const spark of table.querySelectorAll(".sparkline")) {
+    const bars = spark.children;
+    const hide = days === null ? 0 : bars.length - days;
+    for (let i = 0; i < bars.length; i++) {
+      bars[i].hidden = i < hide;
+    }
+  }
+  const head = table.querySelector(".js-spark-head");
+  if (head) {
+    head.dataset.label ??= head.textContent;
+    head.textContent = days === null ? head.dataset.label : T("cluster.th_days").replace("{days}", days - 1);
+  }
+}
 
 function autosizeTable(table) {
   const wrapper = table.closest(".table-scroll") || table.parentElement;
@@ -213,6 +230,7 @@ function autosizeTable(table) {
   // is meaningless there, so clear any inline wrapping styles and bail.
   if (window.matchMedia && window.matchMedia("(max-width: 640px)").matches) {
     setColumnWrap(table, () => true);
+    setSparkDays(table, null);
     return;
   }
 
@@ -226,16 +244,18 @@ function autosizeTable(table) {
   // Start with everything on a single line so the browser sizes each column to
   // its natural width.
   setColumnWrap(table, () => false);
-  table.style.removeProperty("--spark-w");
+  setSparkDays(table, null);
   if (table.scrollWidth <= wrapper.clientWidth + 1) {
     return; // fits already — no wrapping needed
   }
 
-  // Too wide: first narrow the 30-day bars (down to ~2 px per day) — thinner
-  // bars beat wrapped names.
-  if (table.querySelector(".sparkline")) {
+  // Too wide: first show fewer days in the bar chart (bars keep their width)
+  // — a shorter trend beats wrapped names or barcode-thin bars.
+  const spark = table.querySelector(".sparkline");
+  if (spark) {
     const excess = table.scrollWidth - wrapper.clientWidth;
-    table.style.setProperty("--spark-w", Math.max(SPARK_MIN_WIDTH, SPARK_WIDTH - excess) + "px");
+    const total = spark.children.length;
+    setSparkDays(table, Math.max(SPARK_MIN_DAYS, total - Math.ceil(excess / SPARK_STEP)));
     if (table.scrollWidth <= wrapper.clientWidth + 1) {
       return;
     }

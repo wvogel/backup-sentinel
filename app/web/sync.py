@@ -12,6 +12,7 @@ from app import db
 from app.config import DEFAULT_TIMEZONE, REPORT_DIR, REPORT_LANGUAGE, SYNC_INTERVAL_MINUTES
 from app.i18n import ts
 from app.services import weekly_report
+from app.services.backup_location import assign_pbs_servers
 from app.services.backup_status import assess_slow_backup
 from app.services.notifications import (
     channel_enabled,
@@ -97,6 +98,9 @@ def sync_cluster_backups(cluster: dict) -> None:
         db.sync_backup_events_for_source(cluster["id"], "pve", pve_events)
 
         pbs_conns = db.list_pbs_connections(cluster["id"])
+        # Name PBS storages seen through PVE after the registered PBS behind them,
+        # so one server is one copy however it was reached.
+        assign_pbs_servers(inventory.backup_events or [], pbs_conns)
         if not pbs_conns:
             pve_log.append(ts("synclog.no_pbs"))
         else:
