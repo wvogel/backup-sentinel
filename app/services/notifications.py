@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 from app import db
 from app.config import DEFAULT_TIMEZONE, REPORT_LANGUAGE
 from app.i18n import t, ts
+from app.services.backup_status import format_duration
 from app.services.crypto import decrypt
 
 logger = logging.getLogger(__name__)
@@ -322,6 +323,29 @@ def notify_restore_overdue(cluster_name: str, vm_name: str, vmid: int, days_over
         ),
         priority=6,
         notification_type="restore_overdue",
+        cluster_name=cluster_name,
+    )
+
+
+def notify_backup_slow(
+    cluster_name: str, vm_name: str, vmid: int, typical_seconds: int, projected_seconds: int, started_at: datetime
+) -> None:
+    # One alert per backup run, not per sync.
+    key = f"backup-slow:{cluster_name}:{vmid}:{started_at:%Y%m%d%H%M}"
+    if not _should_send(key):
+        return
+    send_gotify(
+        title=ts("notify.backup_slow_title", vm=vm_name),
+        message=(
+            f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\n"
+            + ts(
+                "notify.backup_slow_message",
+                projected=format_duration(projected_seconds),
+                typical=format_duration(typical_seconds),
+            )
+        ),
+        priority=5,
+        notification_type="backup_slow",
         cluster_name=cluster_name,
     )
 

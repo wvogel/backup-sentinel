@@ -117,5 +117,15 @@ class StorageAndDetailTests(DbTestCase):
         self.assertIs(days[0]["full_backup"], True)
 
 
+class TypicalDurationTests(DbTestCase):
+    def test_median_of_recent_runs_needs_three_samples(self) -> None:
+        days = [NOW - timedelta(days=i) for i in range(4)]
+        db.sync_backup_events_for_source(self.cid, "pbs", [_event(100, d) for d in days] + [_event(101, NOW)])
+        runs = [VmBackupRun(vmid=100, started_at=d, duration_seconds=s) for d, s in zip(days, (300, 310, 900, 290))]
+        runs.append(VmBackupRun(vmid=101, started_at=NOW, duration_seconds=60))
+        db.update_backup_event_details(self.cid, runs)
+        self.assertEqual(db.typical_backup_durations(self.cid), {100: 305})
+
+
 if __name__ == "__main__":
     unittest.main()

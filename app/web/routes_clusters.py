@@ -11,6 +11,7 @@ from starlette import status
 from app import db
 from app.i18n import t
 from app.models import RestoreTestCreate
+from app.services.backup_status import assess_slow_backup, format_duration
 from app.services.bootstrap import slugify_cluster
 from app.services.proxmox_progress import running_backup_progress_cached
 from app.services.reporting import build_compliance_summary
@@ -82,9 +83,10 @@ def sync_cluster(cluster_slug: str, next: str = Form(default="")) -> RedirectRes
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
-def running_backup_info(progress: dict | None) -> dict:
-    """Labels for a running backup: status-bar line and row tooltip."""
+def running_backup_info(progress: dict | None, typical_seconds: int | None = None) -> dict:
+    """Labels for a running backup: status-bar line, slow warning and row tooltip."""
     progress = progress or {}
+    slow = assess_slow_backup(progress, typical_seconds)
     percent = progress.get("percent")
     parts: list[str] = [t("cluster.running_percent", pct=percent)] if percent is not None else []
     if progress.get("written_label") and progress.get("target_label"):
@@ -97,6 +99,7 @@ def running_backup_info(progress: dict | None) -> dict:
     return {
         "percent": percent,
         "line": " · ".join(parts) or t("cluster.backup_running"),
+        "warning": t("cluster.running_slow", typical=format_duration(slow[0])) if slow else "",
         "title": progress.get("title", ""),
     }
 
@@ -117,7 +120,10 @@ def get_sync_status(cluster_slug: str, since: int = 0):
     if cache_entry is None or (now - cache_entry[0]) >= _SYNC_STATUS_TTL:
         buf = list(sync_logs.get(cid, []))
         progress, _ = running_backup_progress_cached(cluster, [node["name"] for node in db.list_nodes(cluster["id"])])
-        serializable_progress = {str(vmid): running_backup_info(item) for vmid, item in progress.items()}
+        typical = db.typical_backup_durations(cid) if progress else {}
+        serializable_progress = {
+            str(vmid): running_backup_info(item, typical.get(vmid)) for vmid, item in progress.items()
+        }
         cached = {
             "syncing": cid in syncing_clusters,
             "log": buf,
@@ -142,11 +148,12 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
         cluster, [node["name"] for node in db.list_nodes(cluster["id"])]
     )
     running_backups = []
+    typical = db.typical_backup_durations(cluster["id"]) if live_backup_progress else {}
     for row in vm_rows:
         row["live_backup_progress"] = live_backup_progress.get(row["vmid"])
         row["running"] = None
         if row["live_backup_progress"] or row["in_progress_since"]:
-            row["running"] = running_backup_info(row["live_backup_progress"])
+            row["running"] = running_backup_info(row["live_backup_progress"], typical.get(row["vmid"]))
             running_backups.append(row)
     restore_tests = db.recent_restore_tests(cluster["id"])
     encryption = db.encryption_audit(cluster["id"])

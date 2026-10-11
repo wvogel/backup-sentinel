@@ -349,5 +349,9 @@
   "progress.written_of": "{written} of {total}",
   "progress.written_so_far": "So far: {written}",
   "progress.delta": "Delta: {size}",
-  "progress.vm_total": "VM total: {size}"
+  "progress.vm_total": "VM total: {size}",
+  "cluster.running_slow": "slower than usual (normally ~{typical})",
+  "notify.backup_slow_title": "Backup slow: {vm}",
+  "notify.backup_slow_message": "Expected to take {projected} instead of the usual {typical}.",
+  "notifications.type_backup_slow": "Backup slow"
 }

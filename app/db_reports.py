@@ -235,6 +235,31 @@ def update_backup_event_storages(cluster_id: int, events: list[dict[str, Any]]) 
         conn.commit()
 
 
+def typical_backup_durations(cluster_id: int) -> dict[int, int]:
+    """Median runtime (seconds) of each VM's last 10 successful backups.
+
+    Only VMs with at least 3 known runtimes (from task logs) are included.
+    """
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT vmid, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_seconds) AS median
+            FROM (
+                SELECT v.vmid, be.duration_seconds,
+                       ROW_NUMBER() OVER (PARTITION BY be.vm_id ORDER BY be.started_at DESC) AS rn
+                FROM backup_events be
+                JOIN vms v ON v.id = be.vm_id
+                WHERE v.cluster_id = %s AND be.status = 'ok' AND be.duration_seconds IS NOT NULL
+            ) recent
+            WHERE rn <= 10
+            GROUP BY vmid
+            HAVING COUNT(*) >= 3
+            """,
+            (cluster_id,),
+        )
+        return {row["vmid"]: int(row["median"]) for row in cur.fetchall()}
+
+
 def processed_backup_task_upids(cluster_id: int) -> set[str]:
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT upid FROM processed_backup_tasks WHERE cluster_id = %s", (cluster_id,))
