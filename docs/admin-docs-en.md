@@ -349,8 +349,8 @@ curl -s https://backup-sentinel.example.com/healthz
 
 **Responses:**
 
-- `200 OK` with `{"status": "ok"}` -- Application and database are healthy.
-- `503 Service Unavailable` with `{"status": "degraded", "database": "<error>"}` -- Database is unreachable.
+- `200 OK` with `{"status": "ok", "version": "v2.4.7"}` -- Application and database are healthy; `version` is the running release (handy to confirm a deploy).
+- `503 Service Unavailable` with `{"status": "degraded", "version": "…", "database": "<error>"}` -- Database is unreachable.
 
 ### Docker Health Check
 

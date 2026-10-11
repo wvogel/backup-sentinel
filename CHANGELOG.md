@@ -5,6 +5,18 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.7] — 2026-10-11
+
+### Added
+
+- **Read/write throughput for running backups** in the status bar and row tooltip (e.g. "Lesen 154.5 MiB/s · Schreiben 154.5 MiB/s"), taken from vzdump's latest progress line — an average since the previous line, not an instant value.
+- **Tooltip per day in the 30-day bar:** date, status and size (e.g. "08.10.: ok · 42 GB"). The bar is now built from HTML elements instead of SVG so it can use the app's instant tooltip; size and colours are unchanged.
+- `/healthz` returns the running `version`, so a deploy can be confirmed with a single request.
+
+### Changed
+
+- The `svglib` pin moved to `requirements-nodeps.txt`, used by Dockerfile, GitHub CI and GitLab CI; local setup (README, CONTRIBUTING) installs it the same way, so the PDF tests also run locally.
+
 ## [v2.4.6] — 2026-10-10
 
 ### Changed

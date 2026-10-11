@@ -172,6 +172,22 @@ class RunningBackupsForClustersTests(unittest.TestCase):
         self.assertEqual((progress, complete), ({101: {}}, True))
 
 
+class ProgressThroughputTests(unittest.TestCase):
+    def test_read_and_write_rates_from_the_latest_progress_line(self) -> None:
+        lines = [
+            "INFO:  46% (17.2 TiB of 37.3 TiB) in 23h 27m 42s, read: 184.2 MiB/s, write: 184.2 MiB/s",
+            "INFO:  47% (17.6 TiB of 37.3 TiB) in 1d 9m 56s, read: 1.6 GiB/s, write: 154.5 MiB/s",
+        ]
+        progress = _parse_running_backup_progress({}, lines)
+        self.assertEqual(progress["read_label"], "1.6 GiB/s")
+        self.assertEqual(progress["write_label"], "154.5 MiB/s")
+
+    def test_missing_rates_are_left_out(self) -> None:
+        progress = _parse_running_backup_progress({}, ["INFO: 47% (17.6 TiB of 37.3 TiB) in 1d 9m 56s, done"])
+        self.assertEqual(progress["percent"], 47)
+        self.assertNotIn("read_label", progress)
+
+
 if __name__ == "__main__":
     unittest.main()
 

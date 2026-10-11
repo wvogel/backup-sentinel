@@ -6,9 +6,9 @@ WORKDIR /app
 RUN groupadd --system --gid 1000 app \
     && useradd --system --uid 1000 --gid app --no-create-home app
 
-COPY requirements.txt .
+COPY requirements.txt requirements-nodeps.txt ./
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir --no-deps svglib==1.6.0
+    && pip install --no-cache-dir --no-deps -r requirements-nodeps.txt
 
 COPY app ./app
 COPY templates ./templates

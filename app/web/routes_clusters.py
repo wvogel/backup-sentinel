@@ -91,6 +91,9 @@ def running_backup_info(progress: dict | None) -> dict:
         parts.append(t("progress.written_of", written=progress["written_label"], total=progress["target_label"]))
     if progress.get("eta_short"):
         parts.append(t("cluster.running_until", time=progress["eta_short"]))
+    if progress.get("read_label") and progress.get("write_label"):
+        parts.append(t("cluster.running_read", rate=progress["read_label"]))
+        parts.append(t("cluster.running_write", rate=progress["write_label"]))
     return {
         "percent": percent,
         "line": " · ".join(parts) or t("cluster.backup_running"),
