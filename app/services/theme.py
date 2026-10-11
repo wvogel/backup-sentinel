@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import colorsys
 import re
 from dataclasses import dataclass
 
@@ -98,12 +99,12 @@ def resolve(preset_name: str | None, overrides: dict[str, str]) -> tuple[Preset,
     return preset, BaseColors(**values)
 
 
-def _darkening_for(color: str, ink: str, start: float, target: float = 7.0) -> float:
-    """Smallest black-mix ≥ `start` that gives `ink` a `target` contrast on `color`."""
-    k = start
-    while k < 0.95 and contrast_ratio(ink, mix(color, BLACK, k)) < target:
-        k = round(k + 0.05, 2)
-    return k
+def tone(color: str, lightness: float, max_saturation: float = 0.14) -> str:
+    """`color`'s hue at a fixed HSL lightness with capped saturation — dark-mode
+    surfaces get a hint of the brand colour instead of a saturated navy page."""
+    r, g, b = (c / 255 for c in _rgb(color))
+    hue, _l, sat = colorsys.rgb_to_hls(r, g, b)
+    return _hex(tuple(c * 255 for c in colorsys.hls_to_rgb(hue, lightness, min(sat, max_saturation))))
 
 
 def derive_tokens(preset: Preset, base: BaseColors) -> dict[str, dict[str, str]]:
@@ -135,32 +136,31 @@ def derive_tokens(preset: Preset, base: BaseColors) -> dict[str, dict[str, str]]
         "--sage": preset.sage,
         "--sage-ink": p,
     }
-    dark_ink = mix(WHITE, p, 0.08)
-    # Darken mid/light primaries until light text reads well; a dark primary
-    # (smile eyes Dark Blue) keeps the base amounts.
-    panel_k = _darkening_for(p, dark_ink, 0.10)
-    dark_bg = mix(p, BLACK, max(0.45, min(0.95, panel_k + 0.35)))
-    dark_panel = mix(p, BLACK, panel_k)
-    dark_header = mix(p, BLACK, max(0.20, panel_k))
-    dark_btn = mix(p, WHITE, 0.15)
+    # Dark surfaces: near-neutral greys carrying only the primary's hue, at
+    # fixed lightness — light text always reads well on them.
+    dark_ink = tone(p, 0.94, 0.10)
+    dark_bg = tone(p, 0.075)
+    dark_panel = tone(p, 0.115)
+    dark_header = tone(p, 0.09)
+    dark_btn = tone(p, 0.25)
     dark_run = mix(run, WHITE, 0.35)
     dark = {
         "--bg": dark_bg,
         "--panel": dark_panel,
-        "--panel-alt": mix(p, BLACK, 0.30),
+        "--panel-alt": tone(p, 0.095),
         "--ink": dark_ink,
-        "--muted": mix(WHITE, p, 0.40),
+        "--muted": tone(p, 0.70, 0.10),
         "--accent": dark_ink,
-        "--line": mix(p, WHITE, 0.14),
-        "--chip": mix(p, BLACK, 0.20),
-        "--chip-border": mix(p, WHITE, 0.20),
+        "--line": tone(p, 0.21),
+        "--chip": tone(p, 0.09),
+        "--chip-border": tone(p, 0.27),
         "--header-bg": dark_header,
         "--header-border": rgba(WHITE, 0.12),
         "--header-link": best_ink(dark_header, dark_ink),
-        "--header-link-muted": mix(dark_ink, p, 0.30),
+        "--header-link-muted": tone(p, 0.74, 0.10),
         "--btn-bg": dark_btn,
         "--btn-text": best_ink(dark_btn, dark_ink),
-        "--btn-border": mix(p, WHITE, 0.30),
+        "--btn-border": tone(p, 0.34),
         "--accent-fill": a,
         "--accent-ink": accent_ink,
         "--running": dark_run,

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.15.1] — 2026-10-11
+
+### Changed
+
+- **Calmer dark mode.** Dark surfaces (page, panels, header, chips, lines, buttons) were mixes of the primary colour with black, so smile eyes Dark Blue produced a saturated navy page. They are now near-neutral greys that only carry the primary's hue: fixed lightness, saturation capped at 14 %, for example page `#101016` and panel `#191921`. Text greys are desaturated as well. This applies to every preset and custom primary. Status colours, accent and the running-backup blue are unchanged.
+
 ## [v2.15.0] — 2026-10-11
 
 ### Changed
