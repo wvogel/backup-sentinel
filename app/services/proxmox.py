@@ -11,6 +11,7 @@ from urllib import parse
 from app.config import API_TIMEOUT
 from app.i18n import ts
 from app.services.api_client import APIError, api_get, api_get_dict, api_get_json, api_test_connection
+from app.services.backup_location import pbs_location, pve_location
 from app.services.vzdump_log import VmBackupRun, guest_name_from_notes, parse_vzdump_log
 
 logger = logging.getLogger(__name__)
@@ -308,6 +309,30 @@ def fetch_backup_details(
     node_storages: dict[str, list[dict[str, Any]]] = {}
     all_node_names = [n["name"] for n in nodes]
 
+    # Cluster storage config: identifies the PBS behind a "pbs" storage
+    # (server + fingerprint) so a second copy can be told from an alias.
+    try:
+        storage_config = {
+            str(s.get("storage")): s
+            for s in _pve_get_json(base_url, "/api2/json/storage", auth_header, timeout=timeout)
+        }
+    except ProxmoxSyncError as exc:
+        logger.warning("Cannot read storage config: %s", exc)
+        storage_config = {}
+
+    def _location(storage_id: str) -> str | None:
+        cfg = storage_config.get(storage_id)
+        if storage_types.get(storage_id) == "pbs" or (cfg and cfg.get("type") == "pbs"):
+            if not cfg:
+                return None  # unknown PBS — never count it as an extra copy
+            return pbs_location(
+                str(cfg.get("fingerprint") or ""),
+                str(cfg.get("server") or ""),
+                str(cfg.get("datastore") or ""),
+                str(cfg.get("namespace") or ""),
+            )
+        return pve_location(storage_id)
+
     def _fetch_node_storages(node_name: str) -> tuple[str, list[dict[str, Any]]]:
         try:
             raw = _pve_get_json(
@@ -440,6 +465,7 @@ def fetch_backup_details(
                 continue
             parsed["storage"] = item.get("_storage_id", "")
             parsed["storage_type"] = storage_types.get(parsed["storage"], "")
+            parsed["location"] = _location(parsed["storage"])
             events.append(parsed)
             vm_count += 1
             started_at = parsed["started_at"]

@@ -158,6 +158,8 @@ def init_db() -> None:
                 "CREATE INDEX IF NOT EXISTS idx_backup_events_vm_status ON backup_events(vm_id, status, removed_at)"
             )
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS storages TEXT[]")
+            # Physical locations (see app.services.backup_location) for the second-copy check.
+            cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS locations TEXT[]")
             # Details from finished vzdump task logs (see app.services.vzdump_log).
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS transferred_bytes BIGINT")
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS throughput_bps BIGINT")

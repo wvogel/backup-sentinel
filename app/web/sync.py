@@ -20,6 +20,7 @@ from app.services.notifications import (
     notify_sync_failed,
     notify_sync_overdue,
     notify_unencrypted_backups,
+    notify_verify_failed,
     send_monthly_report_email,
 )
 from app.services.pbs import PBSSyncError, assess_datastore_usage, fetch_all_pbs_backups, fetch_datastore_usage
@@ -203,6 +204,11 @@ def sync_cluster_backups(cluster: dict) -> None:
         logger.warning("Critical notification check failed: %s", exc)
 
     try:
+        notify_failed_verifies(cluster)
+    except Exception as exc:
+        logger.warning("Verify notification check failed: %s", exc)
+
+    try:
         unenc_vms = db.unencrypted_vms(cluster["id"])
         if unenc_vms:
             logger.info("  %s", ts("synclog.unencrypted", count=len(unenc_vms)))
@@ -215,6 +221,12 @@ def sync_cluster_backups(cluster: dict) -> None:
     logger.info("══ Sync DONE: %s (%.1fs gesamt) ══", cluster["name"], elapsed_total)
     pve_log.append(ts("synclog.duration", secs=f"{elapsed_total:.1f}"))
     db.update_cluster_sync_status(cluster["id"], True, "\n".join(pve_log))
+
+
+def notify_failed_verifies(cluster: dict) -> None:
+    for row in db.vm_governance_rows(cluster["id"]):
+        if row["verify_status"] == "critical" and row["verify_failed_at"]:
+            notify_verify_failed(cluster["name"], row["vm_name"], row["vmid"], row["verify_failed_at"])
 
 
 def record_datastore_usage(cluster: dict, conn: dict, pbs_log: list[str]) -> None:

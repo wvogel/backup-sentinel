@@ -194,6 +194,16 @@
                 <span class="pill pill-pbs" title="{{ t('cluster.pbs_tooltip') }}">PBS</span>
               {% endif %}
               </span>
+              <span class="backup-protect-slot">
+              {% if row.copy_status or row.verify_status %}
+              {% set worst = 'critical' if 'critical' in [row.copy_status, row.verify_status] else ('warning' if 'warning' in [row.copy_status, row.verify_status] else 'ok') %}
+              <span class="badge protect-badge {{ worst }}"
+                    data-tooltip="{% if row.copy_count %}{{ t('cluster.copies_tooltip', count=row.copy_count, storages=row.copy_storages|join(', ')) }}{% endif %}{% if row.verify_status == 'critical' %}&#10;{{ t('cluster.verify_failed_tooltip', date=row.verify_failed_at|datetime_local('%d.%m.%Y')) }}{% elif row.verify_status == 'warning' %}&#10;{{ t('cluster.verify_stale_tooltip', date=row.last_verified_at|datetime_local('%d.%m.%Y') if row.last_verified_at else t('common.never')) }}{% elif row.verify_status == 'ok' %}&#10;{{ t('cluster.verify_ok_tooltip', date=row.last_verified_at|datetime_local('%d.%m.%Y')) }}{% endif %}">
+                {%- if row.copy_count %}×{{ row.copy_count }}{% endif %}
+                {%- if row.verify_status == 'ok' %} ✓{% elif row.verify_status == 'critical' %} ✗{% elif row.verify_status == 'warning' %} ?{% endif -%}
+              </span>
+              {% endif %}
+              </span>
               {% if not row.vm_gone %}
               <form action="/clusters/{{ cluster.slug }}/backup-policy" method="post" class="backup-policy-form backup-policy-slot">
                 <input type="hidden" name="vm_id" value="{{ row.id }}">

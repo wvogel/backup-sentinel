@@ -10,7 +10,13 @@ CONN = {"id": 7, "name": "pbs1"}
 
 def _row(store, used, full_in_days=None):
     full = datetime.now(UTC) + timedelta(days=full_in_days) if full_in_days else None
-    return {"store": store, "total_bytes": 100, "used_bytes": used, "avail_bytes": 100 - used, "estimated_full_at": full}
+    return {
+        "store": store,
+        "total_bytes": 100,
+        "used_bytes": used,
+        "avail_bytes": 100 - used,
+        "estimated_full_at": full,
+    }
 
 
 class RecordDatastoreUsageTests(unittest.TestCase):
@@ -36,6 +42,22 @@ class RecordDatastoreUsageTests(unittest.TestCase):
         replace.assert_not_called()
         notify.assert_not_called()
         self.assertEqual(len(log), 1)
+
+
+class NotifyFailedVerifiesTests(unittest.TestCase):
+    def test_only_critical_verify_rows_alert(self):
+        failed_at = datetime.now(UTC)
+        rows = [
+            {"vm_name": "a", "vmid": 1, "verify_status": "critical", "verify_failed_at": failed_at},
+            {"vm_name": "b", "vmid": 2, "verify_status": "warning", "verify_failed_at": None},
+            {"vm_name": "c", "vmid": 3, "verify_status": None, "verify_failed_at": None},
+        ]
+        with (
+            mock.patch.object(sync.db, "vm_governance_rows", return_value=rows),
+            mock.patch.object(sync, "notify_verify_failed") as notify,
+        ):
+            sync.notify_failed_verifies({"id": 1, "name": "pve-x"})
+        notify.assert_called_once_with("pve-x", "a", 1, failed_at)
 
 
 if __name__ == "__main__":
