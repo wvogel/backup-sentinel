@@ -5,6 +5,25 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.11.1] — 2026-10-11
+
+### Fixed
+
+- **Release metadata for v2.10.0 and v2.11.0.** Both tags were pushed without bumping `APP_VERSION` (the app kept reporting v2.9.2) and without changelog entries; v2.10.0 also failed CI on a formatting check. This release carries the correct version and the missing notes below. No code changes beyond that.
+
+## [v2.11.0] — 2026-10-11
+
+### Added
+
+- **Second-copy check (3-2-1).** Every backup records its physical location (`backup_events.locations`): a PBS is identified by its certificate fingerprint (else host) plus datastore — from the PVE storage config and the direct PBS connections — so the same PBS configured by IP and by name counts once. A pill in the backup column shows on how many servers the backups of the last 7 days are stored (**×2**), yellow when it's only one.
+- **PBS verify status** in the same pill: **✓** verified, **?** no successful verify for 30 days, **✗** verify failed within 7 days. A failed verify triggers the new **"Verify fehlgeschlagen"** notification (once per snapshot).
+
+## [v2.10.0] — 2026-10-11
+
+### Added
+
+- **PBS datastore capacity with forecast.** Each sync reads `status/datastore-usage` (used/total and the PBS's own estimated full date) into `pbs_datastore_usage`. The cluster page shows every datastore under its PBS (e.g. "nas-b1 · 62 %"), yellow at ≥ 80 % or full within 60 days, red at ≥ 90 % or within 14 days. Red datastores trigger the new **"Datastore fast voll"** notification (once per day and store).
+
 ## [v2.9.2] — 2026-10-11
 
 ### Security
