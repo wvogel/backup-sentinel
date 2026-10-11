@@ -54,6 +54,8 @@
     detail.className = "vm-detail-row";
     const cell = document.createElement("td");
     cell.colSpan = row.cells.length;
+    const settings = row.querySelector("template.vm-settings-template");
+    if (settings) cell.append(settings.content.cloneNode(true));
     const box = document.createElement("div");
     box.className = "vm-history muted";
     box.textContent = T("cluster.history_loading");
@@ -91,6 +93,15 @@
     if (row.classList.contains("is-expanded")) close(row);
     else open(row);
   });
+
+  // After a setting was saved (full page reload) reopen that VM's details.
+  const reopenKey = "openVm_" + location.pathname;
+  const reopen = sessionStorage.getItem(reopenKey);
+  if (reopen) {
+    sessionStorage.removeItem(reopenKey);
+    const row = table.querySelector(`tr[data-vm-id="${CSS.escape(reopen)}"]`);
+    if (row) open(row);
+  }
 
   // A detail row follows its VM row when filters hide or show it.
   new MutationObserver(() => {

@@ -79,25 +79,28 @@ The main table lists every VM in the cluster with sortable columns:
 
 | Column         | Description                                                |
 |----------------|------------------------------------------------------------|
+| ●              | Status dot: green = all fine, yellow = warning, red = critical (worst of backup age, second copy and verify); hollow circle = VM deleted. The tooltip lists the reasons |
+| VM             | Guest name; a small **w** or **–** marks weekly backups or "no backup expected" |
 | Node           | The Proxmox node the VM runs on                           |
-| VM             | Guest name                                                 |
 | VMID           | Proxmox VM ID                                             |
-| Last Backup    | Timestamp of the most recent backup; shows a progress indicator if a backup is currently running |
-| 30 Days        | Sparkline showing daily backup status over the last 30 days (green = OK, orange = since deleted, red = failed, grey = no backup) |
-| Backup         | Backup kind (snapshot/stop/suspend), severity badge, source (Local/PBS), and policy override dropdown |
-| Restore Test   | Last restore test result (passed/limited/failed), recovery type icon, date, and duration; plus a due badge (warning/critical) |
+| Last Backup    | Timestamp of the most recent backup; running backups show their progress in the row |
+| 30 Days        | One bar per day (green = OK, orange = since deleted, red = failed, grey = no backup). In a narrow window the chart shows fewer days instead of thinner bars; the header then states how many |
+| Protection     | Source (PBS/local), number of servers holding backups of the last 7 days (**×2**) and verify state (**✓**/**?**/**✗**). Outlined only when all is well; coloured on warning/error |
+| Restore Test   | "due in N d", **open** (never tested), "N d overdue" or "–" (no test required). The tooltip shows the last test |
+
+Rows are striped. **Clicking a row** opens its details below: the VM's settings and the history of the last 30 days (size, duration, throughput, reused data).
 
 **Node filter bar** -- Buttons above the table let you filter VMs by node.
 
 **Sorting** -- Click any column header to sort ascending/descending.
 
-**Backup policy override** -- Use the dropdown in the Backup column to override the auto-detected policy for a VM (daily / weekly / none / auto).
+**Backup frequency** -- In a VM's details (click the row) you can override the auto-detected frequency (daily / weekly / none / auto).
 
-**Restore-test due dates** -- The badge in the Restore Test column warns ahead of the test interval expiring. The lead time scales with the interval: **yearly** intervals warn **1 month** early, **quarterly** (or shorter) ones **2 weeks** early. Once the interval has elapsed the status turns **critical**. Hover the badge to see interval and age in days.
+**Restore-test due dates** -- The Restore Test column warns ahead of the test interval expiring. The lead time scales with the interval: **yearly** intervals warn **1 month** early, **quarterly** (or shorter) ones **2 weeks** early. Once the interval has elapsed the entry turns red ("N d overdue"). The tooltip shows the last test and the interval.
 
-**Restore interval** -- A picker next to the badge sets how often a VM must be tested: **90 d**, **180 d** (default), **365 d** or **none**. Weekly backups use at least 365 days. A VM never tested so far is **open**: it counts as due, but not as critically overdue. The *Document restore test* form accepts several VMs at once (Ctrl/⌘), e.g. for a full restore drill.
+**Restore interval** -- In a VM's details a picker sets how often a VM must be tested: **90 d**, **180 d** (default), **365 d** or **none**. Weekly backups use at least 365 days. A VM never tested so far is **open**: it counts as due, but not as critically overdue. The *Document restore test* form accepts several VMs at once (Ctrl/⌘), e.g. for a full restore drill.
 
-**Second copy and verify** -- The pill next to “PBS” shows on how many servers the backups of the last 7 days are stored (e.g. **×2**) and the PBS verify state: **✓** verified, **?** not verified for over 30 days, **✗** verify failed. Green = at least 2 servers and verified; yellow = a single server or not verified; red = verify failed (also sent as a notification). A PBS counts as one server even if PVE uses its IP and the direct connection its name (matched by certificate fingerprint).
+**Second copy and verify** -- The pill in the Protection column shows on how many servers the backups of the last 7 days are stored (e.g. **×2**) and the PBS verify state: **✓** verified, **?** not verified for over 30 days, **✗** verify failed. Green = at least 2 servers and verified; yellow = a single server or not verified; red = verify failed (also sent as a notification). A PBS counts as one server even if PVE knows it under another storage name, by IP or without a fingerprint (e.g. with an ACME certificate): Backup Sentinel matches the PVE storage to the registered PBS connection (fingerprint, host name, short name or resolved IP) and lists server names in the tooltip.
 
 **PBS storage** -- Under each PBS line in the cluster header, every datastore shows its usage and the PBS's estimate of when it will be full. Yellow from 80 % or full within 60 days, red from 90 % or full within 14 days (also sent as a notification).
 

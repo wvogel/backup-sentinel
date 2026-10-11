@@ -5,7 +5,14 @@ from typing import Any
 
 from app.config import BACKUP_DAY_OFFSET_HOURS, DEFAULT_TIMEZONE
 from app.db_core import connect
-from app.services.backup_status import RESTORE_CLASS_INTERVALS, RESTORE_DUE_STATUSES, assess_backup_status
+from app.services.backup_location import server_name
+from app.services.backup_status import (
+    RESTORE_CLASS_INTERVALS,
+    RESTORE_DUE_STATUSES,
+    assess_backup_status,
+    overall_status,
+    restore_summary,
+)
 from app.types import RestoreTestRow
 
 
@@ -153,6 +160,7 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
 
         row["restore_class"] = row["criticality"] if row["restore_required"] else "none"
         row["copy_count"] = len(row["copy_servers"] or [])
+        row["copy_server_names"] = sorted(server_name(s) for s in row["copy_servers"] or [])
         row["copy_status"], row["verify_status"] = _protection_status(row, now)
         if row["restore_required"] and status_backup_kind != "none":
             class_interval = RESTORE_CLASS_INTERVALS.get(row["criticality"], RESTORE_CLASS_INTERVALS["medium"])
@@ -180,6 +188,15 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         else:
             row["restore_due_status"] = "ok"
             row["restore_age_days"] = None
+        row["status_level"] = overall_status(
+            row["backup_severity"], row["copy_status"], row["verify_status"], vm_gone=row["vm_gone"]
+        )
+        row["restore_tone"], row["restore_days"] = restore_summary(
+            row["restore_due_status"],
+            row["restore_age_days"],
+            row["restore_interval_days"],
+            required=bool(row["restore_required"]) and status_backup_kind != "none",
+        )
     for row in rows:
         row["is_problem"] = is_problem(row)
     return rows

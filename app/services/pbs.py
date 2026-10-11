@@ -8,7 +8,7 @@ from urllib import parse
 
 from app.i18n import ts
 from app.services.api_client import APIError, api_get_json, api_test_connection
-from app.services.backup_location import pbs_location
+from app.services.backup_location import connection_location
 from app.services.vzdump_log import guest_name_from_notes
 
 logger = logging.getLogger(__name__)
@@ -191,9 +191,7 @@ def fetch_pbs_backups(
                 "status": "ok",
                 "storage": f"{conn.get('name') or base_url}/{datastore}",
                 "guest_name": guest_name_from_notes(snap.get("comment")),
-                "location": pbs_location(
-                    str(conn.get("fingerprint") or ""), parse.urlsplit(base_url).hostname or base_url, datastore
-                ),
+                "location": connection_location(conn, datastore),
             }
         )
 

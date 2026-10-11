@@ -42,7 +42,7 @@ class FetchAllPBSBackupsTests(unittest.TestCase):
             events = pbs.fetch_pbs_backups({**CONN, "name": "pbs-fh-muc"}, {121}, datastore="nas-b1")
         self.assertEqual([e["storage"] for e in events], ["pbs-fh-muc/nas-b1"])
         self.assertEqual([e["guest_name"] for e in events], ["mgmfw"])
-        self.assertEqual([e["location"] for e in events], ["pbs:pbs/nas-b1"])
+        self.assertEqual([e["location"] for e in events], ["pbs:pbs-fh-muc/nas-b1"])
 
 
 class DatastoreUsageTests(unittest.TestCase):

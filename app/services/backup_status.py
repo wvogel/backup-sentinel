@@ -74,3 +74,28 @@ def assess_slow_backup(
     projected = max(elapsed, (eta - started_at).total_seconds() if eta else 0)
     threshold = max(typical_seconds * SLOW_FACTOR, typical_seconds + SLOW_MIN_EXTRA_SECONDS)
     return (typical_seconds, int(projected)) if projected > threshold else None
+
+
+_SEVERITY_RANK = {"ok": 0, "warning": 1, "critical": 2}
+
+
+def overall_status(backup_severity: str, copy_status: str | None, verify_status: str | None, *, vm_gone: bool) -> str:
+    """Status dot of a VM row: the worst of backup age, second copy and verify."""
+    if vm_gone:
+        return "gone"
+    statuses = [s for s in (backup_severity, copy_status, verify_status) if s in _SEVERITY_RANK]
+    return max(statuses, key=_SEVERITY_RANK.__getitem__, default="ok")
+
+
+def restore_summary(
+    due_status: str, age_days: int | None, interval_days: int | None, *, required: bool
+) -> tuple[str, int | None]:
+    """(tone, days) for the restore column: "none"/"open" without days, otherwise
+    days until the next test is due — or, for "critical", days it is overdue."""
+    if not required:
+        return "none", None
+    if due_status == "open" or age_days is None or interval_days is None:
+        return "open", None
+    if due_status == "critical":
+        return "critical", age_days - interval_days
+    return due_status, interval_days - age_days

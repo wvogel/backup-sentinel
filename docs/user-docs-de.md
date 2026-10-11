@@ -79,25 +79,28 @@ Die Haupttabelle listet jede VM im Cluster mit sortierbaren Spalten:
 
 | Spalte         | Beschreibung                                                |
 |----------------|-------------------------------------------------------------|
+| ●              | Statuspunkt: grün = alles in Ordnung, gelb = Warnung, rot = kritisch (schlechtester Wert aus Backup-Alter, Zweitkopie und Verify); hohler Kreis = VM gelöscht. Der Tooltip nennt die Gründe |
+| VM             | Gastname; ein kleines **w** bzw. **–** zeigt wöchentliche Backups bzw. „kein Backup vorgesehen“ |
 | Node           | Der Proxmox-Node, auf dem die VM läuft                     |
-| VM             | Gastname                                                    |
 | VMID           | Proxmox-VM-ID                                               |
-| Letztes Backup | Zeitstempel des jüngsten Backups; zeigt eine Fortschrittsanzeige bei laufendem Backup |
-| 30 Tage        | Sparkline mit täglichem Backup-Status der letzten 30 Tage (grün = OK, orange = inzwischen gelöscht, rot = fehlgeschlagen, grau = kein Backup) |
-| Backup         | Backup-Art (Snapshot/Stop/Suspend), Schweregrad-Badge, Quelle (Lokal/PBS) und Policy-Override-Dropdown |
-| Restore-Test   | Letztes Restore-Test-Ergebnis (bestanden/eingeschränkt/fehlgeschlagen), Recovery-Typ-Icon, Datum und Dauer; dazu ein Fälligkeits-Badge (Warnung/Kritisch) |
+| Letztes Backup | Zeitstempel des jüngsten Backups; laufende Backups werden in der Zeile als Fortschritt angezeigt |
+| 30 Tage        | Ein Balken pro Tag (grün = OK, orange = inzwischen gelöscht, rot = fehlgeschlagen, grau = kein Backup). Bei schmalem Fenster zeigt die Leiste weniger Tage statt dünnerer Balken; die Überschrift nennt dann die Anzahl |
+| Schutz         | Quelle (PBS/lokal), Anzahl Server mit Backups der letzten 7 Tage (**×2**) und Verify-Status (**✓**/**?**/**✗**). Nur umrandet, wenn alles passt; farbig bei Warnung/Fehler |
+| Restore-Test   | „fällig in N T“, **offen** (noch nie getestet), „N T überfällig“ oder „–“ (kein Test vorgesehen). Der Tooltip zeigt den letzten Test |
+
+Die Zeilen sind abwechselnd hinterlegt. **Ein Klick auf eine Zeile** öffnet darunter die Details: die Einstellungen der VM und den Verlauf der letzten 30 Tage (Größe, Dauer, Durchsatz, wiederverwendete Daten).
 
 **Node-Filterleiste** -- Buttons oberhalb der Tabelle filtern VMs nach Node.
 
 **Sortierung** -- Klicken Sie auf einen Spaltenkopf, um auf-/absteigend zu sortieren.
 
-**Backup-Policy-Override** -- Verwenden Sie das Dropdown in der Backup-Spalte, um die automatisch erkannte Policy für eine VM zu überschreiben (täglich / wöchentlich / nie / automatisch).
+**Backup-Frequenz** -- In den Details einer VM (Klick auf die Zeile) lässt sich die automatisch erkannte Frequenz überschreiben (täglich / wöchentlich / nie / auto).
 
-**Restore-Test-Fälligkeit** -- Das Badge in der Restore-Test-Spalte warnt rechtzeitig vor Ablauf des Test-Intervalls. Der Vorlauf richtet sich nach dem Intervall: bei **jährlichen** Intervallen erscheint die **Warnung 1 Monat** vorher, bei **quartalsweisen** (oder kürzeren) Intervallen **2 Wochen** vorher. Nach Ablauf des Intervalls wechselt der Status auf **Kritisch**. Fahren Sie mit der Maus über das Badge, um Intervall und Alter in Tagen zu sehen.
+**Restore-Test-Fälligkeit** -- Die Restore-Test-Spalte warnt rechtzeitig vor Ablauf des Test-Intervalls. Der Vorlauf richtet sich nach dem Intervall: bei **jährlichen** Intervallen erscheint die **Warnung 1 Monat** vorher, bei **quartalsweisen** (oder kürzeren) Intervallen **2 Wochen** vorher. Nach Ablauf des Intervalls wird der Eintrag rot („N T überfällig“). Der Tooltip zeigt den letzten Test und das Intervall.
 
-**Restore-Intervall** -- Neben dem Badge legt ein Auswahlfeld fest, wie oft eine VM getestet werden muss: **90 T**, **180 T** (Standard), **365 T** oder **kein** Test nötig. Bei wöchentlichen Backups gelten mindestens 365 Tage. Eine VM, die noch nie getestet wurde, steht auf **offen**: Sie zählt als fällig, aber nicht als kritisch überfällig. Im Formular *Wiederherstellung dokumentieren* lassen sich mehrere VMs auf einmal auswählen (Strg/⌘), z. B. für eine komplette Restore-Übung.
+**Restore-Intervall** -- In den Details einer VM legt ein Auswahlfeld fest, wie oft eine VM getestet werden muss: **90 T**, **180 T** (Standard), **365 T** oder **kein** Test nötig. Bei wöchentlichen Backups gelten mindestens 365 Tage. Eine VM, die noch nie getestet wurde, steht auf **offen**: Sie zählt als fällig, aber nicht als kritisch überfällig. Im Formular *Wiederherstellung dokumentieren* lassen sich mehrere VMs auf einmal auswählen (Strg/⌘), z. B. für eine komplette Restore-Übung.
 
-**Zweitkopie und Verify** -- Die Pill neben „PBS“ zeigt, auf wie vielen Servern die Backups der letzten 7 Tage liegen (z. B. **×2**), und den Verify-Status des PBS: **✓** verifiziert, **?** seit über 30 Tagen nicht verifiziert, **✗** Verify fehlgeschlagen. Grün = mindestens 2 Server und verifiziert; gelb = nur ein Server oder nicht verifiziert; rot = Verify fehlgeschlagen (dazu kommt eine Benachrichtigung). Ein PBS zählt als ein Server, auch wenn er in PVE per IP und als direkte Verbindung per Name eingetragen ist (Erkennung über den Zertifikats-Fingerabdruck).
+**Zweitkopie und Verify** -- Die Pill in der Spalte Schutz zeigt, auf wie vielen Servern die Backups der letzten 7 Tage liegen (z. B. **×2**), und den Verify-Status des PBS: **✓** verifiziert, **?** seit über 30 Tagen nicht verifiziert, **✗** Verify fehlgeschlagen. Grün = mindestens 2 Server und verifiziert; gelb = nur ein Server oder nicht verifiziert; rot = Verify fehlgeschlagen (dazu kommt eine Benachrichtigung). Ein PBS zählt als ein Server, auch wenn er in PVE unter einem anderen Storage-Namen, per IP oder ohne Fingerabdruck (z. B. mit ACME-Zertifikat) eingetragen ist: Backup Sentinel ordnet den PVE-Storage der registrierten PBS-Verbindung zu (Fingerabdruck, Hostname, Kurzname oder aufgelöste IP) und zeigt im Tooltip die Servernamen.
 
 **PBS-Speicherplatz** -- Unter jeder PBS-Zeile im Cluster-Kopf steht die Belegung jedes Datastores mit der Prognose des PBS, wann er voll ist. Gelb ab 80 % oder voll in ≤ 60 Tagen, rot ab 90 % oder voll in ≤ 14 Tagen (dann auch als Benachrichtigung).
 

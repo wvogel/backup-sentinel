@@ -5,6 +5,20 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.15.0] — 2026-10-11
+
+### Changed
+
+- **Redesigned VM table on the cluster page.** Striped rows with a hover highlight, and one status dot per VM (green / yellow / red = worst of backup age, second copy and verify; hollow = deleted VM) with the reasons in its tooltip. The VM name is bold and node and VMID are muted. Column order: status, VM, node, VMID, last backup, 30 days, protection, restore test.
+- **"Protection" column** replaces the backup cell's four badges and dropdown with one pill: source, server count and verify state (e.g. `PBS ×2 ✓`). It is only outlined when all is well and coloured on warning or error.
+- **Restore test column states one fact:** "fällig in N T", "offen", "N T überfällig" or "–" (no test required). Sortable by urgency.
+- **Settings moved to the row details.** Backup frequency and restore interval are now set in the details that open when you click a row (reopened automatically after saving). A non-daily frequency still shows as a small `w` / `–` next to the VM name.
+- **30-day bars keep their width** (4 px + 2 px gap). When the table gets too wide, the chart shows fewer days instead of shrinking the bars into a barcode, and the header states how many ("22 Tage").
+
+### Fixed
+
+- **The same PBS was counted twice as a second copy** when PVE knew it under its own storage name (`pbs-aboe-muc.nas-b1`) without a matching fingerprint (e.g. an ACME certificate) or by IP. PVE storages are now matched to the registered PBS connection by fingerprint (any notation), host name, short name or resolved IP. Unregistered PBS are grouped by fingerprint and named by host. The copies tooltip lists server names instead of storage names. Takes effect with the next sync.
+
 ## [v2.14.0] — 2026-10-11
 
 ### Added

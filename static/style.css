@@ -902,24 +902,6 @@ html[data-theme="dark"] select {
   gap: 8px;
 }
 
-.backup-policy-form {
-  margin: 0;
-}
-
-.backup-policy-form select,
-.restore-class-form select {
-  width: auto;
-  min-width: 0;
-  min-height: 0;
-  padding: 3px 18px 3px 6px;
-  font-size: 0.8rem;
-  background-position: right 4px center;
-}
-
-.backup-cell {
-  min-width: 0;
-}
-
 /* When the auto-sizer lets the node/VM columns wrap, break long unhyphenated
    names gracefully instead of overflowing. */
 #vm-table td[data-sort-value] {
@@ -931,61 +913,11 @@ html[data-theme="dark"] select {
    widens its own column and the node name would otherwise wrap into ~5 lines.
    A floor keeps them at ≤2 lines; the auto-sizer then moves on to wrap VM and
    finally the restore cell (badge drops below the date) for a balanced result. */
-#vm-table th:nth-child(1),
-#vm-table td:nth-child(1),
 #vm-table th:nth-child(2),
-#vm-table td:nth-child(2) {
+#vm-table td:nth-child(2),
+#vm-table th:nth-child(3),
+#vm-table td:nth-child(3) {
   min-width: 5.5rem;
-}
-
-/* One line: kind · severity · source · compact policy dropdown. */
-.backup-inline-grid {
-  display: grid;
-  grid-template-columns: 44px 70px 42px 50px max-content;
-  align-items: center;
-  gap: 4px;
-}
-
-.backup-kind-slot,
-.backup-severity-slot,
-.backup-source-slot,
-.backup-policy-slot {
-  min-width: 0;
-}
-
-.backup-kind-slot,
-.backup-severity-slot,
-.backup-source-slot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.backup-inline-grid .pill,
-.backup-inline-grid .badge {
-  min-height: 24px;
-  padding: 3px 8px;
-  font-size: 0.74rem;
-}
-
-.backup-source-slot:empty::before {
-  content: "";
-}
-
-@media (max-width: 1100px) {
-  /* Not enough width for a single row: lay the cell out as a tidy two-line
-     card — status badges (kind · severity · source) on top, the policy control
-     on its own row below — instead of a cramped 2×2 grid. */
-  .backup-inline-grid {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .backup-policy-slot {
-    flex-basis: 100%;
-  }
 }
 
 pre {
@@ -1387,8 +1319,8 @@ pre {
   }
 
   /* Card rows are full width — drop the desktop column-floor min-widths. */
-  #vm-table td:nth-child(1),
-  #vm-table td:nth-child(2) {
+  #vm-table td:nth-child(2),
+  #vm-table td:nth-child(3) {
     min-width: 0;
   }
 
@@ -1410,7 +1342,7 @@ pre {
   /* Rich cells stay horizontal too (label left, content right) to keep cards
      short. Their content sits in a single wrapper so flexbox treats it as one
      item instead of one-per-icon. */
-  #vm-table td.backup-cell,
+  #vm-table td.protect-cell,
   #vm-table td.restore-cell {
     align-items: flex-start;
   }
@@ -1427,17 +1359,6 @@ pre {
     min-width: 0;
   }
 
-  #vm-table td.restore-cell .cell-inner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px 8px;
-  }
-
-  #vm-table td.backup-cell .backup-inline-grid {
-    justify-content: flex-end;
-  }
 }
 
 @media (max-width: 480px) {
@@ -2151,23 +2072,17 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
   white-space: nowrap;
 }
 /* One bar per day; HTML (not SVG) so each day gets the instant tooltip.
-   Scales with the column: as large as the table allows, never tiny. */
+   Bars keep their width; when space runs out the auto-sizer (tables.js)
+   hides the oldest days instead of thinning the bars into a barcode. */
 .sparkline {
   display: flex;
   gap: 2px;
-  /* 31 × 6 px + gaps = 246 px. When the table is too wide the auto-sizer
-     (tables.js) narrows it via --spark-w before wrapping any text column. */
-  width: var(--spark-w, 246px);
-  min-width: 0;
-  height: 22px;
+  height: 18px;
 }
 .spark-day {
-  /* 6 px preferred, shrinks to 2 px if the column is narrow. `width` (not
-     just flex-basis) so it counts for the table's sizing. */
-  width: 6px;
-  flex: 0 1 auto;
-  min-width: 2px;
-  border-radius: 2px;
+  flex: none;
+  width: 4px;
+  border-radius: 1px;
 }
 .spark-ok   { background: var(--spark-ok); }
 .spark-deleted { background: var(--spark-deleted); opacity: 0.85; }
@@ -2572,14 +2487,6 @@ details[open] > .encryption-alert-summary::before {
   border: 1px solid var(--running);
 }
 
-/* Restore badge + interval picker side by side, never wrapped. */
-.restore-cell .cell-inner {
-  display: inline-flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 4px 6px;
-}
-.restore-class-form { display: inline-flex; }
 
 /* ── Brand: primary action = Neon Yellow with Dark Blue text ─────────── */
 button.button-primary {
@@ -2630,9 +2537,6 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .datastore-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 0 34px; }
 .datastore-badge { min-height: 22px; padding: 2px 9px; font-size: 0.75rem; }
 
-/* Second copy + verify ("×2 ✓") in the backup cell. */
-.backup-protect-slot { display: inline-flex; align-items: center; min-width: 0; }
-.protect-badge { min-height: 22px; padding: 2px 8px; font-size: 0.75rem; }
 
 /* "Only problems" filter sits at the end of the node filter bar. */
 .problem-filter-button { margin-left: auto; }
@@ -2640,7 +2544,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* ── VM history (click a row) ─────────────────────────────────────────── */
 #vm-table tbody tr[data-vm-id] { cursor: pointer; }
 #vm-table tbody tr.is-expanded > td { border-bottom-color: transparent; }
-.vm-detail-row > td { padding: 4px 0 16px !important; }
+.vm-detail-row > td { padding: 10px 12px 16px !important; background-color: var(--row-hover); }
 .vm-history { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 20px; }
 .vm-history-chart { min-width: 0; }
 .vm-history-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
@@ -2653,3 +2557,80 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; }
 .checkbox-row input[type="checkbox"] { width: auto; }
+
+/* ── VM table: zebra rows, one status dot, quiet text, colour only for problems ── */
+#vm-table {
+  --row-alt: color-mix(in srgb, var(--ink) 3.5%, var(--panel));
+  --row-hover: color-mix(in srgb, var(--running) 11%, var(--panel));
+}
+#vm-table th,
+#vm-table td {
+  padding: 8px 12px 8px 0;
+  vertical-align: middle;
+  border-bottom: 0;
+}
+#vm-table thead th { border-bottom: 1px solid var(--line); }
+#vm-table th:first-child,
+#vm-table td:first-child { padding-left: 12px; }
+#vm-table tbody tr:nth-child(even of :not(.vm-detail-row, .hidden)) > td { background-color: var(--row-alt); }
+#vm-table tbody tr[data-vm-id]:hover > td { background-color: var(--row-hover); cursor: pointer; }
+#vm-table tr.is-expanded > td { background-color: var(--row-hover); }
+#vm-table .col-status,
+#vm-table .status-cell { width: 1%; padding-right: 4px; }
+
+.status-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.status-dot.status-warning { background: var(--warn); }
+.status-dot.status-critical {
+  background: var(--critical);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 25%, transparent);
+}
+.status-dot.status-gone { background: transparent; box-shadow: inset 0 0 0 2px var(--unknown); }
+
+.vm-name-cell { font-weight: 600; }
+.kind-tag {
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--chip);
+}
+
+.protect-pill,
+.restore-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.protect-pill.protect-ok { color: var(--ok); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 45%, transparent); }
+.protect-pill.protect-warning { color: var(--warn); background: var(--warn-soft); }
+.protect-pill.protect-critical { color: var(--critical); background: var(--critical-soft); }
+.restore-tag.restore-ok { padding: 0; font-weight: 400; color: var(--muted); }
+.restore-tag.restore-open { color: var(--sage-ink); background: var(--sage); }
+.restore-tag.restore-warning { color: var(--warn); background: var(--warn-soft); }
+.restore-tag.restore-critical { color: var(--critical); background: var(--critical-soft); }
+
+/* Per-VM settings at the top of the detail row (opened by clicking the row). */
+.vm-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin: 2px 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.vm-settings form { margin: 0; }
+.vm-settings label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted); }
+.vm-settings select { width: auto; min-height: 0; padding: 4px 26px 4px 8px; font-size: 0.85rem; }

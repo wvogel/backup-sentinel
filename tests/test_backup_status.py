@@ -1,7 +1,13 @@
 import unittest
 from datetime import UTC, datetime, timedelta
 
-from app.services.backup_status import assess_backup_status, assess_slow_backup, format_duration
+from app.services.backup_status import (
+    assess_backup_status,
+    assess_slow_backup,
+    format_duration,
+    overall_status,
+    restore_summary,
+)
 
 
 class AssessBackupStatusTests(unittest.TestCase):
@@ -82,6 +88,35 @@ class FormatDurationTests(unittest.TestCase):
         self.assertEqual(format_duration(20), "1 min")
         self.assertEqual(format_duration(305), "5 min")
         self.assertEqual(format_duration(185000), "51 h 23 min")
+
+
+class OverallStatusTests(unittest.TestCase):
+    def test_worst_of_backup_copies_and_verify(self) -> None:
+        self.assertEqual(overall_status("ok", "ok", "ok", vm_gone=False), "ok")
+        self.assertEqual(overall_status("ok", "warning", "ok", vm_gone=False), "warning")
+        self.assertEqual(overall_status("warning", "ok", "critical", vm_gone=False), "critical")
+        self.assertEqual(overall_status("critical", None, None, vm_gone=False), "critical")
+
+    def test_missing_copy_and_verify_info_counts_as_ok(self) -> None:
+        self.assertEqual(overall_status("ok", None, None, vm_gone=False), "ok")
+
+    def test_deleted_vm_is_gone(self) -> None:
+        self.assertEqual(overall_status("critical", None, None, vm_gone=True), "gone")
+
+
+class RestoreSummaryTests(unittest.TestCase):
+    def test_not_required(self) -> None:
+        self.assertEqual(restore_summary("ok", None, None, required=False), ("none", None))
+
+    def test_never_tested_is_open(self) -> None:
+        self.assertEqual(restore_summary("open", None, 90, required=True), ("open", None))
+
+    def test_due_in_days(self) -> None:
+        self.assertEqual(restore_summary("ok", 20, 90, required=True), ("ok", 70))
+        self.assertEqual(restore_summary("warning", 80, 90, required=True), ("warning", 10))
+
+    def test_overdue_by_days(self) -> None:
+        self.assertEqual(restore_summary("critical", 100, 90, required=True), ("critical", 10))
 
 
 if __name__ == "__main__":
