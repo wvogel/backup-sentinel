@@ -21,7 +21,7 @@ from app.services.notifications import (
 )
 from app.services.pbs import PBSSyncError, fetch_all_pbs_backups
 from app.services.pdf_reports import write_backup_period_pdf
-from app.services.proxmox import fetch_cluster_inventory
+from app.services.proxmox import fetch_cluster_inventory, fetch_finished_backup_tasks
 from app.services.reporting import build_backup_period_report, serialize_report_payload
 
 logger = logging.getLogger(__name__)
@@ -141,6 +141,11 @@ def sync_cluster_backups(cluster: dict) -> None:
 
         db.update_vm_last_backup_from_events(cluster["id"])
 
+        try:
+            enrich_backup_events_from_task_logs(cluster, [node["name"] for node in inventory.nodes])
+        except Exception as exc:  # best effort, never fails the sync
+            logger.warning("Task-log enrichment failed for %s: %s", cluster["name"], exc)
+
         if prune_blockers:
             skipped = ts("synclog.prune_skipped", reasons="; ".join(prune_blockers))
             logger.warning("  %s", skipped)
@@ -200,6 +205,23 @@ def sync_cluster_backups(cluster: dict) -> None:
     logger.info("══ Sync DONE: %s (%.1fs gesamt) ══", cluster["name"], elapsed_total)
     pve_log.append(ts("synclog.duration", secs=f"{elapsed_total:.1f}"))
     db.update_cluster_sync_status(cluster["id"], True, "\n".join(pve_log))
+
+
+def enrich_backup_events_from_task_logs(cluster: dict, nodes: list[str]) -> None:
+    """Add duration, throughput, dedup ratio and full/incremental from vzdump logs."""
+    tasks = fetch_finished_backup_tasks(
+        cluster, nodes, db.processed_backup_task_upids(cluster["id"]), ZoneInfo(DEFAULT_TIMEZONE)
+    )
+    done: list[str] = []
+    now = datetime.now(UTC)
+    for task in tasks:
+        unmatched = db.update_backup_event_details(cluster["id"], task.runs)
+        # Retry next sync if a backup isn't listed yet — but not forever.
+        if unmatched == 0 or (now - task.ended_at).total_seconds() > 86400:
+            done.append(task.upid)
+    db.mark_backup_tasks_processed(cluster["id"], done)
+    if tasks:
+        logger.info("  %s", ts("synclog.task_logs", count=len(tasks), done=len(done)))
 
 
 def sync_all_clusters() -> None:

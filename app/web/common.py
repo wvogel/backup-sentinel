@@ -48,6 +48,33 @@ def format_bytes(value: object) -> str:
     return f"{v / 1024:,.0f} KB".replace(",", ".")
 
 
+def _format_duration(seconds: int) -> str:
+    if seconds < 3600:
+        return f"{max(1, round(seconds / 60))} min"
+    hours, rest = divmod(seconds, 3600)
+    return f"{hours} h {rest // 60:02d} min"
+
+
+def _format_rate(bps: int) -> str:
+    return f"{bps / 1_073_741_824:.1f} GiB/s" if bps >= 1_073_741_824 else f"{bps / 1_048_576:.1f} MiB/s"
+
+
+def spark_tooltip(day: dict) -> str:
+    """One line per bar: "08.10.: ok · 42 GB · 5 min · ⌀ 43.6 MiB/s · 90 % reused"."""
+    parts = [f"{day['date'].strftime('%d.%m.')}: {t('spark.' + day['status'])}"]
+    if day.get("size_bytes"):
+        parts.append(format_bytes(day["size_bytes"]))
+    if day.get("duration_seconds"):
+        parts.append(_format_duration(day["duration_seconds"]))
+    if day.get("throughput_bps"):
+        parts.append(f"⌀ {_format_rate(day['throughput_bps'])}")
+    if day.get("full_backup"):
+        parts.append(t("spark.full"))
+    elif day.get("reused_pct") is not None:
+        parts.append(t("spark.reused", pct=day["reused_pct"]))
+    return " · ".join(parts)
+
+
 def format_number(value: object) -> str:
     try:
         return f"{int(value):,}".replace(",", ".")
@@ -57,6 +84,7 @@ def format_number(value: object) -> str:
 
 templates.env.filters["datetime_local"] = datetime_local
 templates.env.filters["format_bytes"] = format_bytes
+templates.env.filters["spark_tooltip"] = spark_tooltip
 templates.env.filters["format_number"] = format_number
 
 

@@ -158,6 +158,20 @@ def init_db() -> None:
                 "CREATE INDEX IF NOT EXISTS idx_backup_events_vm_status ON backup_events(vm_id, status, removed_at)"
             )
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS storages TEXT[]")
+            # Details from finished vzdump task logs (see app.services.vzdump_log).
+            cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS transferred_bytes BIGINT")
+            cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS throughput_bps BIGINT")
+            cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS reused_pct SMALLINT")
+            cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS full_backup BOOLEAN")
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS processed_backup_tasks (
+                    upid TEXT PRIMARY KEY,
+                    cluster_id BIGINT NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
+                    processed_at TIMESTAMPTZ NOT NULL
+                );
+                """
+            )
             cur.execute("CREATE INDEX IF NOT EXISTS idx_vms_cluster_vmid ON vms(cluster_id, vmid)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_nodes_cluster ON nodes(cluster_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_clusters_slug ON clusters(slug)")

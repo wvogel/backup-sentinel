@@ -188,6 +188,30 @@ class ProgressThroughputTests(unittest.TestCase):
         self.assertNotIn("read_label", progress)
 
 
+class FetchFinishedBackupTasksTests(unittest.TestCase):
+    def test_reads_only_new_finished_tasks(self) -> None:
+        tasks = [
+            {"upid": "UPID:new", "endtime": 1760040000},
+            {"upid": "UPID:seen", "endtime": 1760040000},
+            {"upid": "UPID:running"},  # no endtime yet
+        ]
+        log = [
+            {"n": 1, "t": "INFO: Starting Backup of VM 100 (qemu)"},
+            {"n": 2, "t": "INFO: creating Proxmox Backup Server archive 'vm/100/2026-10-09T18:00:01Z'"},
+            {"n": 3, "t": "INFO: Finished Backup of VM 100 (00:05:05)"},
+        ]
+        cluster = {"api_url": "https://pve", "api_user": "u@pve", "token_id": "t", "token_secret": "s"}
+        with (
+            mock.patch.object(proxmox, "_pve_get_json", return_value=tasks),
+            mock.patch.object(proxmox, "_pve_get", return_value=log) as get_log,
+        ):
+            result = proxmox.fetch_finished_backup_tasks(cluster, ["pve1"], {"UPID:seen"}, ZoneInfo("Europe/Berlin"))
+        self.assertEqual([task.upid for task in result], ["UPID:new"])
+        self.assertEqual(get_log.call_count, 1)
+        self.assertEqual(result[0].runs[0].vmid, 100)
+        self.assertEqual(result[0].runs[0].duration_seconds, 305)
+
+
 if __name__ == "__main__":
     unittest.main()
 

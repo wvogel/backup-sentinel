@@ -24,6 +24,8 @@ test:
     POSTGRES_PASSWORD: backup_reports
     BSENTINEL_DATABASE_URL: "postgresql://backup_reports:backup_reports@postgres:5432/backup_reports"
     BSENTINEL_SECRET_KEY: "dUwD46AT9M2L9EYpKahkU8mC7A5pvxjFTqX5hxBbdcQ="
+    # Throwaway service DB: enables tests/test_db.py (they truncate tables).
+    BSENTINEL_DB_TESTS: "1"
   before_script:
     - pip install --quiet -r requirements.txt pytest
     - pip install --quiet --no-deps -r requirements-nodeps.txt

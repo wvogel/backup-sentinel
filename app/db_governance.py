@@ -264,8 +264,9 @@ def unencrypted_vms(cluster_id: int | None = None) -> list[dict[str, Any]]:
 def vm_backup_sparkline_data(cluster_id: int, days: int = 31) -> dict[int, list[dict[str, Any]]]:
     """Return per VM one entry per day for the last `days` days.
 
-    Each entry: {"date": date, "status": ok|deleted|failed|none, "size_bytes": int|None}
-    (size of the day's largest successful backup, for the tooltip).
+    Each entry: {"date", "status": ok|deleted|failed|none, "size_bytes", plus the
+    vzdump log details of the day's latest successful backup: "duration_seconds",
+    "throughput_bps", "reused_pct", "full_backup"} — all for the tooltip.
 
     The "backup day" boundary is shifted by BACKUP_DAY_OFFSET_HOURS (default: 6h)
     so a job that finishes at 00:30 still counts for the previous evening's run.
@@ -282,7 +283,15 @@ def vm_backup_sparkline_data(cluster_id: int, days: int = 31) -> dict[int, list[
                 BOOL_OR(be.status = 'ok' AND be.removed_at IS NULL AND COALESCE(be.size_bytes, 0) > 1) AS has_ok,
                 BOOL_OR(be.status = 'ok' AND be.removed_at IS NOT NULL AND COALESCE(be.size_bytes, 0) > 1) AS has_deleted,
                 BOOL_OR(be.status != 'ok') AS has_failed,
-                MAX(be.size_bytes) FILTER (WHERE be.status = 'ok' AND COALESCE(be.size_bytes, 0) > 1) AS size_bytes
+                MAX(be.size_bytes) FILTER (WHERE be.status = 'ok' AND COALESCE(be.size_bytes, 0) > 1) AS size_bytes,
+                (ARRAY_AGG(be.duration_seconds ORDER BY be.started_at DESC)
+                    FILTER (WHERE be.status = 'ok' AND COALESCE(be.size_bytes, 0) > 1))[1] AS duration_seconds,
+                (ARRAY_AGG(be.throughput_bps ORDER BY be.started_at DESC)
+                    FILTER (WHERE be.status = 'ok' AND COALESCE(be.size_bytes, 0) > 1))[1] AS throughput_bps,
+                (ARRAY_AGG(be.reused_pct ORDER BY be.started_at DESC)
+                    FILTER (WHERE be.status = 'ok' AND COALESCE(be.size_bytes, 0) > 1))[1] AS reused_pct,
+                (ARRAY_AGG(be.full_backup ORDER BY be.started_at DESC)
+                    FILTER (WHERE be.status = 'ok' AND COALESCE(be.size_bytes, 0) > 1))[1] AS full_backup
             FROM backup_events be
             JOIN vms v ON v.id = be.vm_id
             WHERE v.cluster_id = %s
@@ -292,14 +301,15 @@ def vm_backup_sparkline_data(cluster_id: int, days: int = 31) -> dict[int, list[
             (BACKUP_DAY_OFFSET_HOURS, DEFAULT_TIMEZONE, cluster_id, start),
         )
         rows = list(cur.fetchall())
-    day_status: dict[tuple[int, date], tuple[str, int | None]] = {}
+    day_status: dict[tuple[int, date], tuple[str, dict[str, Any]]] = {}
     for row in rows:
         status = (
             "ok"
             if row["has_ok"]
             else ("deleted" if row["has_deleted"] else ("failed" if row["has_failed"] else "none"))
         )
-        day_status[(row["vm_id"], row["backup_date"])] = (status, row["size_bytes"])
+        details = {k: row[k] for k in ("size_bytes", "duration_seconds", "throughput_bps", "reused_pct", "full_backup")}
+        day_status[(row["vm_id"], row["backup_date"])] = (status, details)
 
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT id FROM vms WHERE cluster_id = %s", (cluster_id,))
@@ -319,8 +329,8 @@ def vm_backup_sparkline_data(cluster_id: int, days: int = 31) -> dict[int, list[
         spark = []
         for i in range(days):
             d = today - timedelta(days=days - 1 - i)
-            status, size = day_status.get((vm_id, d), ("none", None))
-            spark.append({"date": d, "status": status, "size_bytes": size if status != "none" else None})
+            status, details = day_status.get((vm_id, d), ("none", {}))
+            spark.append({"date": d, "status": status, **details})
         result[vm_id] = spark
     return result
 

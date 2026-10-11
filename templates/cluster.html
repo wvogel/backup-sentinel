@@ -164,7 +164,7 @@
             {%- set spark = sparklines.get(row.id, []) -%}
             <div class="sparkline" role="img" aria-label="{{ t('cluster.backup_trend') }}">
               {%- for day in spark -%}
-              <span class="spark-day spark-{{ day.status }}" data-tooltip="{{ day.date.strftime('%d.%m.') }}: {{ t('spark.' ~ day.status) }}{% if day.size_bytes %} · {{ day.size_bytes|format_bytes }}{% endif %}"></span>
+              <span class="spark-day spark-{{ day.status }}" data-tooltip="{{ day|spark_tooltip }}"></span>
               {%- endfor -%}
             </div>
           </td>

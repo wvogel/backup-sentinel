@@ -235,6 +235,78 @@ def update_backup_event_storages(cluster_id: int, events: list[dict[str, Any]]) 
         conn.commit()
 
 
+def processed_backup_task_upids(cluster_id: int) -> set[str]:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT upid FROM processed_backup_tasks WHERE cluster_id = %s", (cluster_id,))
+        return {row["upid"] for row in cur.fetchall()}
+
+
+def mark_backup_tasks_processed(cluster_id: int, upids: list[str]) -> None:
+    now = datetime.now(UTC)
+    with connect() as conn, conn.cursor() as cur:
+        for upid in upids:
+            cur.execute(
+                "INSERT INTO processed_backup_tasks (upid, cluster_id, processed_at) VALUES (%s, %s, %s)"
+                " ON CONFLICT (upid) DO NOTHING",
+                (upid, cluster_id, now),
+            )
+        # Tasks are only fetched for the last few days; older markers are useless.
+        cur.execute(
+            "DELETE FROM processed_backup_tasks WHERE cluster_id = %s AND processed_at < %s - INTERVAL '14 days'",
+            (cluster_id, now),
+        )
+        conn.commit()
+
+
+def update_backup_event_details(cluster_id: int, runs: list[Any]) -> int:
+    """Attach vzdump log details to the matching backup events.
+
+    A run matches the event of the same VM whose start is closest, within
+    ±10 minutes (PBS snapshot times match exactly; file backups may drift).
+    Returns the number of successful runs that found no event (yet).
+    """
+    unmatched = 0
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT id, vmid FROM vms WHERE cluster_id = %s", (cluster_id,))
+        vmid_to_id = {row["vmid"]: row["id"] for row in cur.fetchall()}
+        for run in runs:
+            vm_id = vmid_to_id.get(run.vmid)
+            if run.failed or run.started_at is None or vm_id is None:
+                continue
+            cur.execute(
+                """
+                UPDATE backup_events SET
+                    duration_seconds = COALESCE(%s, duration_seconds),
+                    transferred_bytes = COALESCE(%s, transferred_bytes),
+                    throughput_bps = COALESCE(%s, throughput_bps),
+                    reused_pct = COALESCE(%s, reused_pct),
+                    full_backup = COALESCE(%s, full_backup)
+                WHERE id = (
+                    SELECT id FROM backup_events
+                    WHERE vm_id = %s
+                      AND started_at BETWEEN %s - INTERVAL '10 minutes' AND %s + INTERVAL '10 minutes'
+                    ORDER BY ABS(EXTRACT(EPOCH FROM started_at - %s))
+                    LIMIT 1
+                )
+                """,
+                (
+                    run.duration_seconds,
+                    run.transferred_bytes,
+                    run.throughput_bps,
+                    run.reused_pct,
+                    run.full_backup,
+                    vm_id,
+                    run.started_at,
+                    run.started_at,
+                    run.started_at,
+                ),
+            )
+            if cur.rowcount == 0:
+                unmatched += 1
+        conn.commit()
+    return unmatched
+
+
 def cleanup_stale_inprogress_backups(cluster_id: int, max_age_hours: int = 48) -> int:
     """Reconcile stub in-progress backup rows with their real outcome.
 

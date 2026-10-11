@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.0] — 2026-10-11
+
+### Added
+
+- **Details from finished backup jobs.** Each sync reads the logs of vzdump tasks that finished since the last run (looking back 4 days, so multi-day jobs are caught once they end) and attaches per VM: runtime, data transferred, average throughput, share reused from the previous backup, and whether it was a full run (invalid or new dirty bitmap). They show in the 30-day bar's tooltip, e.g. "08.10.: ok · 42 GB · 5 min · ⌀ 43.6 MiB/s · 90 % wiederverwendet" or "… · Voll-Lauf". Best effort: unreadable logs never fail a sync. New columns `backup_events.transferred_bytes/throughput_bps/reused_pct/full_backup`, new table `processed_backup_tasks`.
+- **Database tests** (`tests/test_db.py`) against a real PostgreSQL for deleted-VM handling, storages, task-log details and the 30-day data. They run in GitHub and GitLab CI (throwaway service DB, `BSENTINEL_DB_TESTS=1`); see CONTRIBUTING for running them locally.
+
 ## [v2.4.7] — 2026-10-11
 
 ### Added
