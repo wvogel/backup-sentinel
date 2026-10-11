@@ -169,20 +169,6 @@ def init_db() -> None:
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS guest_name TEXT")
             cur.execute(
                 """
-                CREATE TABLE IF NOT EXISTS pbs_datastore_usage (
-                    pbs_id BIGINT NOT NULL REFERENCES pbs_connections(id) ON DELETE CASCADE,
-                    store TEXT NOT NULL,
-                    total_bytes BIGINT NOT NULL,
-                    used_bytes BIGINT NOT NULL,
-                    avail_bytes BIGINT NOT NULL,
-                    estimated_full_at TIMESTAMPTZ,
-                    updated_at TIMESTAMPTZ NOT NULL,
-                    PRIMARY KEY (pbs_id, store)
-                );
-                """
-            )
-            cur.execute(
-                """
                 CREATE TABLE IF NOT EXISTS processed_backup_tasks (
                     upid TEXT PRIMARY KEY,
                     cluster_id BIGINT NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
@@ -208,6 +194,21 @@ def init_db() -> None:
                     last_sync_log TEXT,
                     created_at TIMESTAMPTZ NOT NULL,
                     UNIQUE(cluster_id, api_url)
+                );
+                """
+            )
+            # After pbs_connections, which it references.
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pbs_datastore_usage (
+                    pbs_id BIGINT NOT NULL REFERENCES pbs_connections(id) ON DELETE CASCADE,
+                    store TEXT NOT NULL,
+                    total_bytes BIGINT NOT NULL,
+                    used_bytes BIGINT NOT NULL,
+                    avail_bytes BIGINT NOT NULL,
+                    estimated_full_at TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    PRIMARY KEY (pbs_id, store)
                 );
                 """
             )
