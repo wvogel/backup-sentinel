@@ -15,7 +15,7 @@ from app.config import REPORT_DIR, REPORT_LANGUAGE
 from app.i18n import t, ts
 from app.services.pdf_reports import write_backup_period_pdf
 from app.services.reporting import build_backup_period_report, build_month_comparison, serialize_report_payload
-from app.web.common import common_context, templates
+from app.web.common import active_theme, common_context, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -90,7 +90,9 @@ async def generate_report() -> RedirectResponse:
             )
         except Exception:
             notifs = []
-        write_backup_period_pdf(report, pdf_path, notifications=notifs, lang=REPORT_LANGUAGE)
+        write_backup_period_pdf(
+            report, pdf_path, notifications=notifs, lang=REPORT_LANGUAGE, theme_colors=active_theme()[1]
+        )
         json_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
         db.archive_monthly_report(month_date, "adhoc", pdf_path, json_path, report)
 

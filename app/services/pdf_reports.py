@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import io
 import logging
+import threading
+from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC
 from pathlib import Path
 from urllib import request as urllib_request
@@ -26,12 +29,15 @@ from reportlab.platypus.flowables import Flowable
 from svglib.svglib import svg2rlg
 
 from app.config import BRAND_LOGO_LIGHT_URL, DEFAULT_TIMEZONE
+from app.services.theme import DEFAULT_PRESET, PRESETS, BaseColors
+from app.services.theme import mix as theme_mix
 
 logger = logging.getLogger(__name__)
 
 # ── Colour palette ──────────────────────────────────────────────────────────
 C_HEADER = colors.HexColor("#141450")
-C_ACCENT = colors.HexColor("#1e3a8a")
+C_ACCENT = colors.HexColor("#4a7eb5")
+C_BANNER_LABEL = colors.HexColor("#ffff00")
 C_OK = colors.HexColor("#059669")
 C_FAIL = colors.HexColor("#b22c3a")
 C_MUTED = colors.HexColor("#64748b")
@@ -39,7 +45,48 @@ C_ROW_ALT = colors.HexColor("#f1f5f9")
 C_LINE = colors.HexColor("#e2e8f0")
 C_WHITE = colors.white
 C_BLACK = colors.HexColor("#1e293b")
-C_CLUSTER = colors.HexColor("#dbeafe")
+C_CLUSTER = colors.HexColor("#e2e2e9")
+
+
+@dataclass(frozen=True)
+class PdfPalette:
+    header: colors.Color  # banner, table heads, headings (theme primary)
+    accent: colors.Color  # cluster headings, rules (theme running colour)
+    cluster: colors.Color  # light band behind cluster rows
+    banner_label: colors.Color  # small label in the banner (theme accent)
+
+
+def palette_for(base: BaseColors | None) -> PdfPalette:
+    """PDF colours from the UI theme; smile eyes when no theme is given."""
+    base = base or PRESETS[DEFAULT_PRESET].base
+    return PdfPalette(
+        header=colors.HexColor(base.primary),
+        accent=colors.HexColor(base.running),
+        cluster=colors.HexColor(theme_mix(base.primary, "#ffffff", 0.88)),
+        banner_label=colors.HexColor(base.accent),
+    )
+
+
+_palette_lock = threading.Lock()
+
+
+@contextmanager
+def _applied_palette(palette: PdfPalette):
+    """Swap the module colours for one report (the drawing code reads them)."""
+    global C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL
+    with _palette_lock:
+        saved = (C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL)
+        C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL = (
+            palette.header,
+            palette.accent,
+            palette.cluster,
+            palette.banner_label,
+        )
+        try:
+            yield
+        finally:
+            C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL = saved
+
 
 PAGE_W, PAGE_H = A4
 MARGIN = 18 * mm
@@ -257,7 +304,7 @@ class HeaderBanner(Flowable):
             c.setFont("Helvetica-Bold", 13)
             c.drawString(6 * mm, h / 2 - 5, self._title)
         # Subtitle right-aligned
-        c.setFillColor(colors.HexColor("#93c5fd"))
+        c.setFillColor(C_BANNER_LABEL)
         c.setFont("Helvetica", 8)
         c.drawRightString(w - 6 * mm, h / 2 + 4, self._banner_label)
         c.setFillColor(C_WHITE)
@@ -750,12 +797,19 @@ def write_backup_period_pdf(
     target: Path,
     notifications: list[dict] | None = None,
     lang: str = "de",
+    theme_colors: BaseColors | None = None,
 ) -> None:
     """Write a professional backup period report PDF.
 
     lang: "de" (default) or "en" — selects the label dictionary used
     throughout the report. Anything other than "en" falls back to German.
+    theme_colors: the UI theme's base colours (default: smile eyes).
     """
+    with _applied_palette(palette_for(theme_colors)):
+        _write_backup_period_pdf(report, target, notifications, lang)
+
+
+def _write_backup_period_pdf(report: dict, target: Path, notifications: list[dict] | None, lang: str) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
 
     from zoneinfo import ZoneInfo
