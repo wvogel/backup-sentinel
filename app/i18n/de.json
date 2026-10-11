@@ -375,5 +375,14 @@
   "settings.theme_saved": "Erscheinungsbild gespeichert.",
   "settings.theme_invalid_hex": "{field}: kein gültiger Farbwert (z. B. #141450). Nichts gespeichert.",
   "settings.theme_invalid_preset": "Unbekannte Vorlage. Nichts gespeichert.",
-  "settings.theme_contrast_warning": "{field}: Kontrast nur {ratio}:1 (empfohlen mindestens {minimum}:1) – schwer lesbar. Trotzdem gespeichert."
+  "settings.theme_contrast_warning": "{field}: Kontrast nur {ratio}:1 (empfohlen mindestens {minimum}:1) – schwer lesbar. Trotzdem gespeichert.",
+  "synclog.datastore_usage": "  Datastore {store}: {pct} % belegt",
+  "synclog.datastore_usage_failed": "  Datastore-Belegung nicht abrufbar: {error}",
+  "notify.datastore_full_title": "Datastore fast voll: {store}",
+  "notify.datastore_used": "{store}: {pct} % belegt",
+  "notify.datastore_full_at": "Voraussichtlich voll am {date}",
+  "notifications.type_datastore_full": "Datastore fast voll",
+  "cluster.datastore_tooltip": "Datastore {store}: {used} von {total} belegt ({pct} %)",
+  "cluster.datastore_full_at": "Voraussichtlich voll am {date} (Prognose des PBS)",
+  "cluster.datastore_full_short": "voll ca. {date}"
 }

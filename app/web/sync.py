@@ -15,13 +15,14 @@ from app.services.backup_status import assess_slow_backup
 from app.services.notifications import (
     notify_backup_critical,
     notify_backup_slow,
+    notify_datastore_full,
     notify_size_anomaly,
     notify_sync_failed,
     notify_sync_overdue,
     notify_unencrypted_backups,
     send_monthly_report_email,
 )
-from app.services.pbs import PBSSyncError, fetch_all_pbs_backups
+from app.services.pbs import PBSSyncError, assess_datastore_usage, fetch_all_pbs_backups, fetch_datastore_usage
 from app.services.pdf_reports import write_backup_period_pdf
 from app.services.proxmox import fetch_cluster_inventory, fetch_finished_backup_tasks
 from app.services.proxmox_progress import fetch_running_backup_progress
@@ -120,6 +121,7 @@ def sync_cluster_backups(cluster: dict) -> None:
                     for event in events:
                         event["source"] = "pbs"
                     all_pbs_events.extend(events)
+                    record_datastore_usage(cluster, conn, pbs_log)
                 except PBSSyncError as exc:
                     pbs_ok = False
                     pbs_log.append(ts("synclog.error", error=exc))
@@ -213,6 +215,23 @@ def sync_cluster_backups(cluster: dict) -> None:
     logger.info("══ Sync DONE: %s (%.1fs gesamt) ══", cluster["name"], elapsed_total)
     pve_log.append(ts("synclog.duration", secs=f"{elapsed_total:.1f}"))
     db.update_cluster_sync_status(cluster["id"], True, "\n".join(pve_log))
+
+
+def record_datastore_usage(cluster: dict, conn: dict, pbs_log: list[str]) -> None:
+    """Store datastore capacity and alert on nearly full stores (best effort)."""
+    try:
+        usage = fetch_datastore_usage(conn)
+    except Exception as exc:
+        pbs_log.append(ts("synclog.datastore_usage_failed", error=exc))
+        logger.warning("Datastore usage failed for PBS %s: %s", conn.get("name"), exc)
+        return
+    db.replace_datastore_usage(conn["id"], usage)
+    for row in usage:
+        status = assess_datastore_usage(row["used_bytes"], row["total_bytes"], row["estimated_full_at"])
+        pct = round(row["used_bytes"] / row["total_bytes"] * 100) if row["total_bytes"] else 0
+        pbs_log.append(ts("synclog.datastore_usage", store=row["store"], pct=pct))
+        if status == "critical":
+            notify_datastore_full(cluster["name"], conn.get("name", ""), row["store"], pct, row["estimated_full_at"])
 
 
 def enrich_backup_events_from_task_logs(cluster: dict, nodes: list[str]) -> None:

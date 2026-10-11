@@ -146,6 +146,7 @@ _PDF_LABELS_DE: dict[str, str] = {
     "notif_type_restore_overdue": "Restore überfällig",
     "notif_type_unencrypted_backups": "Unverschlüsselt",
     "notif_type_backup_slow": "Backup langsam",
+    "notif_type_datastore_full": "Datastore fast voll",
     # Date/time formatting strings (German style: day.month.year)
     "fmt_datetime": "%d.%m.%Y %H:%M",
 }
@@ -196,6 +197,7 @@ _PDF_LABELS_EN: dict[str, str] = {
     "notif_type_restore_overdue": "Restore overdue",
     "notif_type_unencrypted_backups": "Unencrypted",
     "notif_type_backup_slow": "Backup slow",
+    "notif_type_datastore_full": "Datastore nearly full",
     # ISO-ish date style for English reports
     "fmt_datetime": "%Y-%m-%d %H:%M",
 }

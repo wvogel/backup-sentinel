@@ -350,6 +350,27 @@ def notify_backup_slow(
     )
 
 
+def notify_datastore_full(
+    cluster_name: str, pbs_name: str, store: str, used_pct: int, estimated_full_at: datetime | None
+) -> None:
+    key = f"datastore-full:{pbs_name}:{store}"
+    if not _should_send(key):
+        return
+    lines = [f"PBS: {pbs_name}", ts("notify.datastore_used", store=store, pct=used_pct)]
+    if estimated_full_at:
+        local = estimated_full_at.astimezone(ZoneInfo(DEFAULT_TIMEZONE))
+        lines.append(
+            ts("notify.datastore_full_at", date=local.strftime("%Y-%m-%d" if REPORT_LANGUAGE == "en" else "%d.%m.%Y"))
+        )
+    send_gotify(
+        title=ts("notify.datastore_full_title", store=store),
+        message="\n".join(lines),
+        priority=8,
+        notification_type="datastore_full",
+        cluster_name=cluster_name,
+    )
+
+
 def notify_unencrypted_backups(cluster_name: str, unencrypted_count: int, vm_names: list[str]) -> None:
     key = f"unencrypted:{cluster_name}"
     if not _should_send(key):

@@ -2346,6 +2346,7 @@ details[open] > .encryption-alert-summary::before {
 
 /* ── Notification page ───────────────────────────────────────────────────── */
 .notification-type-backup_critical,
+.notification-type-datastore_full,
 .notification-type-sync_overdue {
   background: var(--critical-soft);
   color: var(--critical);
@@ -2623,3 +2624,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .theme-preview-running > span { display: block; height: 100%; background: var(--p-running); }
 .warn-text { color: var(--warn); font-weight: 600; margin: 4px 0; }
 .critical-text { color: var(--critical); font-weight: 600; margin: 4px 0; }
+
+/* PBS datastore capacity next to the PBS sync line. */
+.datastore-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 0 34px; }
+.datastore-badge { min-height: 22px; padding: 2px 9px; font-size: 0.75rem; }

@@ -264,5 +264,18 @@ class AppearanceHttpTests(DbTestCase):
         self.assertNotIn('maxlength="7"', page)
 
 
+class DatastoreUsageDbTests(DbTestCase):
+    def test_usage_is_replaced_per_pbs_and_listed_per_cluster(self) -> None:
+        db.upsert_pbs_connection(
+            self.cid, {"name": "pbs1", "api_url": "https://pbs1:8007", "api_token_id": "t", "api_token_secret": "s"}
+        )
+        pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
+        row = {"store": "nas-b1", "total_bytes": 100, "used_bytes": 62, "avail_bytes": 38, "estimated_full_at": None}
+        db.replace_datastore_usage(pbs_id, [row, {**row, "store": "old"}])
+        db.replace_datastore_usage(pbs_id, [{**row, "used_bytes": 70}])
+        usage = db.list_datastore_usage(self.cid)
+        self.assertEqual([(u["pbs_name"], u["store"], u["used_bytes"]) for u in usage], [("pbs1", "nas-b1", 70)])
+
+
 if __name__ == "__main__":
     unittest.main()
