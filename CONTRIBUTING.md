@@ -41,6 +41,15 @@ pip install pytest
 pytest tests/ -v
 ```
 
+Database tests (`tests/test_db.py`) truncate all tables and only run with
+`BSENTINEL_DB_TESTS=1`. Use a throwaway Postgres:
+
+```bash
+docker run -d --rm --name bs-test-db -p 55432:5432 \
+  -e POSTGRES_DB=t -e POSTGRES_USER=t -e POSTGRES_PASSWORD=t postgres:18
+BSENTINEL_DB_TESTS=1 BSENTINEL_DATABASE_URL=postgresql://t:t@localhost:55432/t pytest tests/test_db.py
+```
+
 ### Linting
 
 We use [ruff](https://docs.astral.sh/ruff/) for linting and formatting.

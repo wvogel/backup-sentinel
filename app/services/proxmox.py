@@ -11,6 +11,7 @@ from urllib import parse
 from app.config import API_TIMEOUT
 from app.i18n import ts
 from app.services.api_client import APIError, api_get, api_get_dict, api_get_json, api_test_connection
+from app.services.vzdump_log import VmBackupRun, parse_vzdump_log
 
 logger = logging.getLogger(__name__)
 
@@ -528,3 +529,67 @@ def parse_datetime_string(raw_value: str) -> datetime | None:
             pass
 
     return None
+
+
+@dataclass(slots=True)
+class FinishedBackupTask:
+    upid: str
+    ended_at: datetime
+    runs: list[VmBackupRun]
+
+
+def fetch_finished_backup_tasks(
+    cluster: dict[str, Any],
+    nodes: list[str],
+    skip_upids: set[str],
+    node_tz: Any,
+    lookback_days: int = 4,
+    timeout: float = API_TIMEOUT,
+) -> list[FinishedBackupTask]:
+    """Read the logs of finished vzdump tasks not processed yet.
+
+    The task list covers `lookback_days` so jobs running for days are still
+    picked up once they end; only unseen UPIDs get their (large) log fetched.
+    Node errors are logged and skipped — these details are best effort.
+    """
+    base_url = cluster["api_url"].rstrip("/")
+    auth_header = build_token_header(cluster["api_user"], cluster["token_id"], cluster["token_secret"])
+    since = int(datetime.now(UTC).timestamp()) - lookback_days * 86400
+    result: list[FinishedBackupTask] = []
+    for node_name in nodes:
+        node_path = f"/api2/json/nodes/{parse.quote(node_name, safe='')}"
+        try:
+            tasks = _pve_get_json(
+                base_url,
+                f"{node_path}/tasks",
+                auth_header,
+                timeout=timeout,
+                query={"typefilter": "vzdump", "since": str(since), "limit": "500", "source": "archive"},
+            )
+        except ProxmoxSyncError as exc:
+            logger.warning("Cannot list finished backup tasks on node %s: %s", node_name, exc)
+            continue
+        for task in tasks:
+            upid = str(task.get("upid") or "")
+            if not upid or upid in skip_upids or not task.get("endtime"):
+                continue
+            try:
+                log = _pve_get(
+                    base_url,
+                    f"{node_path}/tasks/{parse.quote(upid, safe='')}/log",
+                    auth_header,
+                    timeout=max(timeout, 30.0),
+                    query={"start": "0", "limit": "50000"},
+                )
+            except ProxmoxSyncError as exc:
+                logger.warning("Cannot read backup task log %s: %s", upid, exc)
+                continue
+            lines = [str(row.get("t", "")) for row in log if isinstance(row, dict)] if isinstance(log, list) else []
+            result.append(
+                FinishedBackupTask(
+                    upid=upid,
+                    ended_at=datetime.fromtimestamp(int(task["endtime"]), UTC),
+                    runs=parse_vzdump_log(lines, node_tz),
+                )
+            )
+    return result

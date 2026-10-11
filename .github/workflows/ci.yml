@@ -48,6 +48,8 @@ jobs:
     env:
       BSENTINEL_DATABASE_URL: postgresql://backup_reports:backup_reports@localhost:5432/backup_reports
       BSENTINEL_SECRET_KEY: dUwD46AT9M2L9EYpKahkU8mC7A5pvxjFTqX5hxBbdcQ=
+      # Throwaway service DB: enables tests/test_db.py (they truncate tables).
+      BSENTINEL_DB_TESTS: "1"
 
     steps:
       - uses: actions/checkout@v4
