@@ -5,6 +5,15 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.9.0] — 2026-10-11
+
+### Added
+
+- **smile eyes corporate design as the default theme**, using the official palette: Dark Blue `#141450` (topbar, text), Neon Yellow `#FFFF00` (the main action per page — sync, save, PDF snapshot — always with Dark Blue text), Street Blue `#4A7EB5` (running backups), Light Beige `#F8F5F2` (background), Beige `#EFE7DB` (borders), Light Sage `#D8DDCE` (calm badges such as "offen"). Dark mode is derived from Dark Blue.
+- **Font Instrument Sans** (SIL OFL 1.1) — the font smileeyes.de ships as "SmileSans" — self-hosted from `static/fonts/` with its license; no request to Google.
+- **Settings → Erscheinungsbild:** presets *smile eyes* / *Neutral* (previous colours) plus four overridable base colours (primary, accent, background, running) with live preview, WCAG contrast warnings and reset. All other tones are derived; changes are audited.
+- The **PDF report** follows the theme (banner, table heads, cluster headings); text on header surfaces is chosen by contrast so every theme stays readable.
+
 ## [v2.8.1] — 2026-10-11
 
 ### Changed
