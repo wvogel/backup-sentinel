@@ -29,7 +29,7 @@ from reportlab.platypus.flowables import Flowable
 from svglib.svglib import svg2rlg
 
 from app.config import BRAND_LOGO_LIGHT_URL, DEFAULT_TIMEZONE
-from app.services.theme import DEFAULT_PRESET, PRESETS, BaseColors
+from app.services.theme import DEFAULT_PRESET, PRESETS, BaseColors, best_ink
 from app.services.theme import mix as theme_mix
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 C_HEADER = colors.HexColor("#141450")
 C_ACCENT = colors.HexColor("#4a7eb5")
 C_BANNER_LABEL = colors.HexColor("#ffff00")
+C_HEADER_INK = colors.white
 C_OK = colors.HexColor("#059669")
 C_FAIL = colors.HexColor("#b22c3a")
 C_MUTED = colors.HexColor("#64748b")
@@ -53,7 +54,8 @@ class PdfPalette:
     header: colors.Color  # banner, table heads, headings (theme primary)
     accent: colors.Color  # cluster headings, rules (theme running colour)
     cluster: colors.Color  # light band behind cluster rows
-    banner_label: colors.Color  # small label in the banner (theme accent)
+    banner_label: colors.Color  # small label in the banner (theme accent if readable)
+    header_ink: colors.Color  # text on header surfaces (white unless the primary is light)
 
 
 def palette_for(base: BaseColors | None) -> PdfPalette:
@@ -63,7 +65,9 @@ def palette_for(base: BaseColors | None) -> PdfPalette:
         header=colors.HexColor(base.primary),
         accent=colors.HexColor(base.running),
         cluster=colors.HexColor(theme_mix(base.primary, "#ffffff", 0.88)),
-        banner_label=colors.HexColor(base.accent),
+        # Accent only where it is readable on the header (Neutral: accent == primary).
+        banner_label=colors.HexColor(best_ink(base.primary, base.accent, "#f6f7ff")),
+        header_ink=colors.HexColor(best_ink(base.primary, "#ffffff")),
     )
 
 
@@ -73,19 +77,20 @@ _palette_lock = threading.Lock()
 @contextmanager
 def _applied_palette(palette: PdfPalette):
     """Swap the module colours for one report (the drawing code reads them)."""
-    global C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL
+    global C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL, C_HEADER_INK
     with _palette_lock:
-        saved = (C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL)
-        C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL = (
+        saved = (C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL, C_HEADER_INK)
+        C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL, C_HEADER_INK = (
             palette.header,
             palette.accent,
             palette.cluster,
             palette.banner_label,
+            palette.header_ink,
         )
         try:
             yield
         finally:
-            C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL = saved
+            C_HEADER, C_ACCENT, C_CLUSTER, C_BANNER_LABEL, C_HEADER_INK = saved
 
 
 PAGE_W, PAGE_H = A4
@@ -300,14 +305,14 @@ class HeaderBanner(Flowable):
             except Exception:
                 pass
         if not logo_drawn:
-            c.setFillColor(C_WHITE)
+            c.setFillColor(C_HEADER_INK)
             c.setFont("Helvetica-Bold", 13)
             c.drawString(6 * mm, h / 2 - 5, self._title)
         # Subtitle right-aligned
         c.setFillColor(C_BANNER_LABEL)
         c.setFont("Helvetica", 8)
         c.drawRightString(w - 6 * mm, h / 2 + 4, self._banner_label)
-        c.setFillColor(C_WHITE)
+        c.setFillColor(C_HEADER_INK)
         c.setFont("Helvetica-Bold", 9)
         c.drawRightString(w - 6 * mm, h / 2 - 7, self._subtitle)
 
@@ -426,7 +431,7 @@ def _styles() -> dict:
         "muted": ParagraphStyle("muted", fontName="Helvetica", fontSize=8, textColor=C_MUTED, leading=11),
         "ok": ParagraphStyle("ok", fontName="Helvetica-Bold", fontSize=9, textColor=C_OK),
         "fail": ParagraphStyle("fail", fontName="Helvetica-Bold", fontSize=9, textColor=C_FAIL),
-        "th": ParagraphStyle("th", fontName="Helvetica-Bold", fontSize=8, textColor=C_WHITE, leading=10),
+        "th": ParagraphStyle("th", fontName="Helvetica-Bold", fontSize=8, textColor=C_HEADER_INK, leading=10),
         "td": ParagraphStyle("td", fontName="Helvetica", fontSize=8, textColor=C_BLACK, leading=11),
         "cluster_hd": ParagraphStyle(
             "cluster_hd", fontName="Helvetica-Bold", fontSize=9, textColor=C_ACCENT, leading=12
@@ -545,7 +550,7 @@ def _comparison_section(comparison: dict, st: dict, L: dict[str, str], lang: str
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), C_HEADER),
-                ("TEXTCOLOR", (0, 0), (-1, 0), C_WHITE),
+                ("TEXTCOLOR", (0, 0), (-1, 0), C_HEADER_INK),
                 ("GRID", (0, 0), (-1, -1), 0.3, C_LINE),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
@@ -686,7 +691,7 @@ def _events_table(rows: list[dict], st: dict, L: dict[str, str], lang: str, tz_n
         t = Table(table_data, colWidths=_COL_W, repeatRows=1)
         base_style = [
             ("BACKGROUND", (0, 0), (-1, 0), C_HEADER),
-            ("TEXTCOLOR", (0, 0), (-1, 0), C_WHITE),
+            ("TEXTCOLOR", (0, 0), (-1, 0), C_HEADER_INK),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("FONTSIZE", (0, 0), (-1, -1), 8),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [C_WHITE, C_ROW_ALT]),
@@ -777,7 +782,7 @@ def _notifications_section(notifications: list[dict], st: dict, lang: str = "de"
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), C_HEADER),
-                ("TEXTCOLOR", (0, 0), (-1, 0), C_WHITE),
+                ("TEXTCOLOR", (0, 0), (-1, 0), C_HEADER_INK),
                 ("FONTSIZE", (0, 0), (-1, -1), 7),
                 ("TOPPADDING", (0, 0), (-1, -1), 3),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
