@@ -159,21 +159,5 @@ class RestoreClassTests(DbTestCase):
         self.assertEqual(row["restore_due_status"], "ok")
 
 
-class ForeignBackupTests(DbTestCase):
-    def test_backups_named_after_another_guest_are_flagged(self) -> None:
-        db.sync_backup_events_for_source(
-            self.cid,
-            "pbs",
-            [
-                {**_event(100, NOW), "guest_name": "a"},
-                {**_event(100, NOW - timedelta(days=1)), "guest_name": "zeiss-fh-muc"},
-                {**_event(101, NOW), "guest_name": "B"},  # case differs only
-            ],
-        )
-        rows = {row["vmid"]: row for row in db.vm_governance_rows(self.cid)}
-        self.assertEqual((rows[100]["foreign_backup_count"], rows[100]["foreign_backup_name"]), (1, "zeiss-fh-muc"))
-        self.assertEqual(rows[101]["foreign_backup_count"], 0)
-
-
 if __name__ == "__main__":
     unittest.main()

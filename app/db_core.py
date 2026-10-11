@@ -163,7 +163,7 @@ def init_db() -> None:
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS throughput_bps BIGINT")
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS reused_pct SMALLINT")
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS full_backup BOOLEAN")
-            # Guest name from the backup notes; detects VMID collisions across clusters.
+            # Guest name from the backup notes (vzdump --notes-template '{{guestname}}').
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS guest_name TEXT")
             cur.execute(
                 """
