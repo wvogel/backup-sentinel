@@ -93,7 +93,7 @@
 {% if unencrypted_vms %}
 <details class="table-card encryption-alert-card">
   <summary class="encryption-alert-summary">
-    <span class="badge warning">{{ t('cluster.unencrypted_vms', count=unencrypted_vms|length) }}</span>
+    <span class="badge warning">{{ t('cluster.unencrypted_vms_one' if unencrypted_vms|length == 1 else 'cluster.unencrypted_vms_other', count=unencrypted_vms|length) }}</span>
     <span class="muted" style="font-size:0.82rem;">{{ t('cluster.show_details') }}</span>
   </summary>
   <div class="encryption-alert-body">
@@ -164,15 +164,18 @@
         {% for row in vm_rows %}
         {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['open', 'warning', 'critical'] %}restore-overdue {% endif %}{% if row.vm_gone %}vm-gone{% endif %}{% if row.is_problem %} problem{% endif %}{% endset %}
         <tr class="{% if row.vm_gone %}vm-gone-row{% endif %}{% if row.running %} is-running{% endif %}"{% if row.running and row.running.percent is not none %} style="--pct:{{ row.running.percent }}"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}" data-vm-id="{{ row.id }}" aria-expanded="false" data-vm-name="{{ row.vm_name }}"{% if row.live_backup_progress %} data-live="1"{% endif %}{% if row.running %} data-running-warning="{{ row.running.warning }}" title="{{ row.running.line }}{% if row.running.warning %}&#10;{{ row.running.warning }}{% endif %}{% if row.running.title %}&#10;{{ row.running.title }}{% elif row.in_progress_since %}&#10;{{ t('progress.start', time=row.in_progress_since|datetime_local) }}{% endif %}"{% endif %}>
-          {%- set protect_tip -%}
-            {%- if row.copy_count %}{{ t('cluster.copies_tooltip', count=row.copy_count, storages=row.copy_server_names|join(', ')) }}{% endif -%}
-            {%- if row.verify_status == 'critical' %}&#10;{{ t('cluster.verify_failed_tooltip', date=row.verify_failed_at|datetime_local('%d.%m.%Y')) }}
-            {%- elif row.verify_status == 'warning' %}&#10;{{ t('cluster.verify_stale_tooltip', date=row.last_verified_at|datetime_local('%d.%m.%Y') if row.last_verified_at else t('common.never')) }}
-            {%- elif row.verify_status == 'ok' %}&#10;{{ t('cluster.verify_ok_tooltip', date=row.last_verified_at|datetime_local('%d.%m.%Y')) }}{% endif -%}
-          {%- endset %}
+          {%- set protect_lines = [] -%}
+          {%- if row.copy_count -%}
+            {%- set _ = protect_lines.append(t('cluster.copies_tooltip_one' if row.copy_count == 1 else 'cluster.copies_tooltip_other', count=row.copy_count)) -%}
+            {%- for name in row.copy_server_names %}{% set _ = protect_lines.append('\u2003• ' ~ name) %}{% endfor -%}
+          {%- endif -%}
+          {%- if row.verify_status == 'critical' %}{% set _ = protect_lines.append(t('cluster.verify_failed_tooltip', date=row.verify_failed_at|datetime_local('%d.%m.%Y'))) %}
+          {%- elif row.verify_status == 'warning' %}{% set _ = protect_lines.append(t('cluster.verify_stale_tooltip', date=row.last_verified_at|datetime_local('%d.%m.%Y') if row.last_verified_at else t('common.never'))) %}
+          {%- elif row.verify_status == 'ok' %}{% set _ = protect_lines.append(t('cluster.verify_ok_tooltip', date=row.last_verified_at|datetime_local('%d.%m.%Y'))) %}{% endif -%}
+          {%- set protect_tip = protect_lines|join('\n') %}
           <td class="status-cell" data-label="{{ t('cluster.th_status') }}" data-sort-value="{{ {'critical': 0, 'warning': 1, 'ok': 2, 'gone': 3}[row.status_level] }}">
             <span class="status-dot status-{{ row.status_level }}" role="img" aria-label="{{ t('cluster.vm_gone') if row.vm_gone else severity_labels.get(row.status_level) }}"
-                  data-tooltip="{% if row.vm_gone %}{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}{% if row.remaining_storages %}&#10;{{ t('cluster.vm_gone_storages', storages=row.remaining_storages|join(', ')) }}{% endif %}{% else %}{{ t('cluster.status_backup', status=severity_labels.get(row.backup_severity, row.backup_severity)) }}{% if row.backup_age_days %} ({{ t('cluster.age_days', days=row.backup_age_days) }}){% endif %}&#10;{{ t('cluster.backup_frequency') }}: {{ row.backup_kind_label }}{% if protect_tip %}&#10;{{ protect_tip.strip() }}{% endif %}{% endif %}"></span>
+                  data-tooltip="{% if row.vm_gone %}{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}{% if row.remaining_storages %}&#10;{{ t('cluster.vm_gone_storages', storages=row.remaining_storages|join(', ')) }}{% endif %}{% else %}{{ t('cluster.status_backup', status=severity_labels.get(row.backup_severity, row.backup_severity)) }}{% if row.backup_age_days %} ({{ t('cluster.age_days', days=row.backup_age_days) }}){% endif %}&#10;{{ t('cluster.backup_frequency') }}: {{ row.backup_kind_label }}{% if protect_tip %}&#10;{{ protect_tip }}{% endif %}{% endif %}"></span>
           </td>
           <td class="vm-name-cell" data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}
             {%- if not row.vm_gone and row.status_backup_kind in ['weekly', 'none'] %} <span class="kind-tag" data-tooltip="{{ t('cluster.backup_frequency') }}: {{ row.backup_kind_label }}">{{ row.backup_kind_short }}</span>{% endif %}
@@ -194,12 +197,12 @@
           {%- set protect_level = 'critical' if 'critical' in [row.copy_status, row.verify_status] else ('warning' if 'warning' in [row.copy_status, row.verify_status] else 'ok') %}
           <td class="protect-cell" data-label="{{ t('cluster.th_protection') }}" data-sort-value="{{ {'critical': 0, 'warning': 1, 'ok': 2}[protect_level] }} {{ row.last_backup_source or 'z' }} {{ row.copy_count }}">
             {%- if row.last_backup_source == 'pbs' %}
-            <span class="protect-pill protect-{{ protect_level }}" data-tooltip="{{ t('cluster.pbs_tooltip') }}{% if protect_tip %}&#10;{{ protect_tip.strip() }}{% endif %}">PBS
+            <span class="protect-pill protect-{{ protect_level }}" data-tooltip="{{ t('cluster.pbs_tooltip') }}{% if protect_tip %}&#10;{{ protect_tip }}{% endif %}">PBS
               {%- if row.copy_count %} ×{{ row.copy_count }}{% endif %}
               {%- if row.verify_status == 'ok' %} ✓{% elif row.verify_status == 'critical' %} ✗{% elif row.verify_status == 'warning' %} ?{% endif -%}
             </span>
             {%- elif row.last_backup_source == 'pve' %}
-            <span class="protect-pill protect-{{ protect_level }}" data-tooltip="{{ t('cluster.local_tooltip') }}{% if protect_tip %}&#10;{{ protect_tip.strip() }}{% endif %}">{{ t('cluster.local') }}{% if row.copy_count > 1 %} ×{{ row.copy_count }}{% endif %}</span>
+            <span class="protect-pill protect-{{ protect_level }}" data-tooltip="{{ t('cluster.local_tooltip') }}{% if protect_tip %}&#10;{{ protect_tip }}{% endif %}">{{ t('cluster.local') }}{% if row.copy_count > 1 %} ×{{ row.copy_count }}{% endif %}</span>
             {%- else %}<span class="muted">–</span>{% endif -%}
           </td>
           {%- set restore_tip %}{% if row.last_restore_tested_at %}{{ row.last_restore_tested_at|datetime_local('%d.%m.%Y') }} · {{ row.last_restore_duration_minutes }} min · {{ recovery_type_labels.get(row.last_restore_recovery_type, row.last_restore_recovery_type) }}{% else %}{{ t('common.never') }}{% endif %}{% if row.restore_interval_days is not none and row.restore_tone != 'none' %} · {{ t('cluster.interval_days', days=row.restore_interval_days) }}{% endif %}{% endset %}

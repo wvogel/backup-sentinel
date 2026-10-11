@@ -32,8 +32,10 @@ def server_of(location: str) -> str:
 
 
 def server_name(server: str) -> str:
-    """Display name of a server key ("pbs:pbs-berlin" → "pbs-berlin")."""
-    return server.split(":", 1)[-1]
+    """Display name of a server key: short host name, IPs unchanged
+    ("pbs:pbs-berlin.int.example.de" → "pbs-berlin")."""
+    name = server.split(":", 1)[-1]
+    return name if _is_ip(name) else name.split(".")[0]
 
 
 def normalize_fingerprint(fingerprint: str | None) -> str:

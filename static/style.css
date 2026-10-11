@@ -2236,12 +2236,12 @@ details[open] > .encryption-alert-summary::before {
   position: relative;
   cursor: default;
 }
-[data-tooltip]:hover::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 6px);
-  transform: translateX(-50%);
+/* One floating tooltip on <body> (static/js/common.js), so it is never
+   clipped by a scrolling table; it flips below the element near the top. */
+.tooltip-float {
+  position: fixed;
+  z-index: 1000;
+  max-width: min(480px, calc(100vw - 16px));
   white-space: pre-line;
   font-size: 0.78rem;
   font-weight: 400;
@@ -2251,13 +2251,9 @@ details[open] > .encryption-alert-summary::before {
   border: 1px solid #334155;
   border-radius: 8px;
   padding: 6px 10px;
-  z-index: 100;
   pointer-events: none;
-  min-width: max-content;
 }
-[data-tooltip=""]:hover::after {
-  display: none;
-}
+.tooltip-float[hidden] { display: none; }
 
 /* ── Notification page ───────────────────────────────────────────────────── */
 .notification-type-backup_critical,
