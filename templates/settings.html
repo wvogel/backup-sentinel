@@ -328,6 +328,57 @@
   </form>
 </section>
 
+<section class="table-card" id="appearance">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">{{ t('settings.appearance') }}</p>
+      <h2>{{ t('settings.appearance_title') }}</h2>
+    </div>
+  </div>
+  {% if appearance_saved %}<p class="ok-text">{{ t('settings.theme_saved') }}</p>{% endif %}
+  {% for e in appearance_errors %}
+  <p class="critical-text">{{ t('settings.theme_invalid_preset') if e == 'preset' else t('settings.theme_invalid_hex', field=t('settings.theme_' ~ e)) }}</p>
+  {% endfor %}
+  {% for w in appearance_warnings %}
+  <p class="warn-text">{{ t('settings.theme_contrast_warning', field=t('settings.theme_' ~ w.key), ratio=w.ratio, minimum=w.minimum) }}</p>
+  {% endfor %}
+  <form action="/settings/appearance" method="post" class="stack settings-form js-theme-form"
+        data-presets='{{ theme_presets_json }}'>
+    <label class="theme-preset-field">
+      <span>{{ t('settings.theme_preset') }}</span>
+      <select name="preset" class="js-theme-preset">
+        {% for name in theme_presets %}
+        <option value="{{ name }}" {% if name == theme_preset_name %}selected{% endif %}>{{ t('settings.theme_preset_' ~ name) }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="form-row theme-colors">
+      {% for key in theme_keys %}
+      <label class="theme-color">
+        <span>{{ t('settings.theme_' ~ key) }}</span>
+        <span class="theme-color-input">
+          <input type="color" class="js-theme-picker" data-key="{{ key }}" value="{{ theme_base[key] }}" aria-label="{{ t('settings.theme_' ~ key) }}">
+          <input type="text" name="{{ key }}" class="js-theme-hex" data-key="{{ key }}" value="{{ theme_base[key] }}" maxlength="7" spellcheck="false" autocomplete="off">
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="theme-preview js-theme-preview" aria-label="{{ t('settings.theme_preview') }}">
+      <div class="theme-preview-bar">Backup Sentinel</div>
+      <div class="theme-preview-body">
+        <span class="theme-preview-action">{{ t('cluster.sync_now') }}</span>
+        <span class="badge ok">{{ t('common.ok') }}</span>
+        <span class="badge critical">{{ t('common.critical') }}</span>
+        <span class="theme-preview-running"><span style="width:47%"></span></span>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="settings-action-btn button-primary">{{ t('settings.save_settings') }}</button>
+      <button type="submit" name="reset" value="1" class="button-secondary">{{ t('settings.theme_reset') }}</button>
+    </div>
+  </form>
+</section>
+
 <section class="table-card">
   <div class="section-head">
     <div>

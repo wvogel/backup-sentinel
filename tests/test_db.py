@@ -172,11 +172,59 @@ class ThemeSettingsTests(DbTestCase):
         db.save_settings({"theme_preset": "smile_eyes", "theme_primary": "#000000"})
         self.assertIn("--header-bg:#000000", theme_css())
 
+    def test_default_preset_without_overrides_needs_no_inline_css(self) -> None:
+        from app.web.common import theme_css
+
+        db.save_settings({"theme_preset": "smile_eyes", "theme_primary": ""})
+        self.assertEqual(theme_css(), "")
+
     def test_garbage_preset_falls_back(self) -> None:
         from app.web.common import active_theme
 
         db.save_settings({"theme_preset": "x"})
         self.assertEqual(active_theme()[1].accent, "#ffff00")
+
+
+APPEARANCE_FORM = {"preset": "smile_eyes", "primary": "", "accent": "", "background": "", "running": ""}
+
+
+class AppearanceSettingsTests(DbTestCase):
+    def save(self, **fields):
+        from app.web.routes_settings import save_appearance
+
+        return save_appearance({**APPEARANCE_FORM, **fields}, actor="tester")
+
+    def test_valid_colours_are_normalised_and_audited(self) -> None:
+        errors, warnings = self.save(primary=" #000 ")
+        self.assertEqual((errors, warnings), ([], []))
+        self.assertEqual(db.get_setting("theme_primary"), "#000000")
+        keys = {entry["key"] for entry in db.list_settings_audit_entries(10)}
+        self.assertIn("theme_primary", keys)
+
+    def test_invalid_hex_saves_nothing(self) -> None:
+        errors, _ = self.save(primary="#000000", accent="red")
+        self.assertEqual(errors, ["accent"])
+        self.assertEqual(db.get_setting("theme_primary"), "")
+
+    def test_preset_values_are_not_stored_as_overrides(self) -> None:
+        self.save(primary="#141450", accent="#FFFF00")
+        self.assertEqual(db.get_setting("theme_primary"), "")
+        self.assertEqual(db.get_setting("theme_accent"), "")
+
+    def test_reset_clears_overrides(self) -> None:
+        self.save(primary="#000000")
+        self.save(reset="1", primary="#000000")
+        self.assertEqual(db.get_setting("theme_primary"), "")
+
+    def test_poor_contrast_warns_but_saves(self) -> None:
+        errors, warnings = self.save(background="#ffff00", running="#ffff66")
+        self.assertEqual(errors, [])
+        self.assertIn("running", {w.key for w in warnings})
+        self.assertEqual(db.get_setting("theme_background"), "#ffff00")
+
+    def test_unknown_preset_is_an_error(self) -> None:
+        errors, _ = self.save(preset="hacker")
+        self.assertEqual(errors, ["preset"])
 
 
 if __name__ == "__main__":

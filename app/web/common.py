@@ -117,10 +117,9 @@ def active_theme() -> tuple[theme.Preset, theme.BaseColors]:
 def theme_css() -> str:
     """Inline CSS for a non-default theme; '' when the stylesheet defaults apply."""
     try:
-        stored = db.get_settings_dict("theme_")
-        if not any(stored.values()):
-            return ""
         preset, base = active_theme()
+        if preset is theme.PRESETS[theme.DEFAULT_PRESET] and base == preset.base:
+            return ""  # style.css already is the default theme
         return theme.render_css(theme.derive_tokens(preset, base))
     except Exception as exc:
         logger.warning("Theme rendering failed, using stylesheet defaults: %s", exc)

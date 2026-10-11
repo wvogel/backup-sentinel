@@ -360,5 +360,20 @@
   "cluster.restore_class_medium": "180 T",
   "cluster.restore_class_low": "365 T",
   "cluster.restore_class_none": "kein",
-  "cluster.restore_multi_hint": "Mehrfachauswahl mit Strg/⌘"
+  "cluster.restore_multi_hint": "Mehrfachauswahl mit Strg/⌘",
+  "settings.appearance": "Erscheinungsbild",
+  "settings.appearance_title": "Farben und Design",
+  "settings.theme_preset": "Vorlage",
+  "settings.theme_preset_smile_eyes": "smile eyes",
+  "settings.theme_preset_neutral": "Neutral",
+  "settings.theme_primary": "Primärfarbe",
+  "settings.theme_accent": "Akzent (Hauptaktion)",
+  "settings.theme_background": "Hintergrund",
+  "settings.theme_running": "Laufende Backups",
+  "settings.theme_reset": "Auf Vorlage zurücksetzen",
+  "settings.theme_preview": "Vorschau",
+  "settings.theme_saved": "Erscheinungsbild gespeichert.",
+  "settings.theme_invalid_hex": "{field}: kein gültiger Farbwert (z. B. #141450). Nichts gespeichert.",
+  "settings.theme_invalid_preset": "Unbekannte Vorlage. Nichts gespeichert.",
+  "settings.theme_contrast_warning": "{field}: Kontrast nur {ratio}:1 (empfohlen mindestens {minimum}:1) – schwer lesbar. Trotzdem gespeichert."
 }

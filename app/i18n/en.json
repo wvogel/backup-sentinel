@@ -360,5 +360,20 @@
   "cluster.restore_class_medium": "180 d",
   "cluster.restore_class_low": "365 d",
   "cluster.restore_class_none": "none",
-  "cluster.restore_multi_hint": "select several with Ctrl/⌘"
+  "cluster.restore_multi_hint": "select several with Ctrl/⌘",
+  "settings.appearance": "Appearance",
+  "settings.appearance_title": "Colours and design",
+  "settings.theme_preset": "Preset",
+  "settings.theme_preset_smile_eyes": "smile eyes",
+  "settings.theme_preset_neutral": "Neutral",
+  "settings.theme_primary": "Primary",
+  "settings.theme_accent": "Accent (main action)",
+  "settings.theme_background": "Background",
+  "settings.theme_running": "Running backups",
+  "settings.theme_reset": "Reset to preset",
+  "settings.theme_preview": "Preview",
+  "settings.theme_saved": "Appearance saved.",
+  "settings.theme_invalid_hex": "{field}: not a valid colour (e.g. #141450). Nothing saved.",
+  "settings.theme_invalid_preset": "Unknown preset. Nothing saved.",
+  "settings.theme_contrast_warning": "{field}: contrast only {ratio}:1 (at least {minimum}:1 recommended) — hard to read. Saved anyway."
 }
