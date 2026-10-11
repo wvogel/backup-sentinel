@@ -99,6 +99,8 @@ Die Haupttabelle listet jede VM im Cluster mit sortierbaren Spalten:
 
 **Laufende Backups** -- Über der Tabelle erscheint eine Statusleiste mit allen gerade laufenden Backups: Fortschritt, geschriebene Datenmenge und voraussichtliches Ende. Ein Klick springt zur VM. In der Tabelle ist die Zeile bis zum aktuellen Prozentwert eingefärbt und links blau markiert; der Hinweis zeigt Start, ETA und Datenmenge. Die Anzeige aktualisiert sich alle 30 Sekunden, ohne die Seite neu zu laden. Auf der Übersicht zeigt jede Cluster-Karte, wie viele Backups laufen (Stand des letzten Syncs).
 
+**Fremde Backups** -- Tragen Backups den VM-Namen in ihren Notizen (vzdump-Option `--notes-template '{{guestname}}'`), vergleicht Backup Sentinel ihn mit dem Namen der VM. Gehören Backups der letzten 31 Tage laut Notiz zu einem anderen Gast, erscheint das Badge **fremde Backups**. Häufigster Grund: zwei Cluster sichern VMs mit derselben VMID ohne getrennte Namespaces in denselben PBS-Datastore. Eine umbenannte VM löst den Hinweis ebenfalls aus, bis die alten Backups auslaufen.
+
 **Gelöschte VMs** -- VMs, die im Proxmox-Cluster nicht mehr existieren, erscheinen ausgegraut mit dem Badge **gelöscht** (Tooltip: seit wann), solange noch Backups von ihnen vorhanden sind. Sie lösen keine Backup- oder Restore-Warnungen aus. Sobald keine Backups mehr existieren, wird die VM beim nächsten Sync samt Restore-Test-Historie aus der Datenbank entfernt -- allerdings nur, wenn in diesem Sync alle PVE-Nodes, -Speicher und PBS-Datastores erreichbar waren.
 
 **Mobile Ansicht** -- Auf schmalen Bildschirmen (Smartphone) wird die Tabelle automatisch in Karten umgewandelt: pro VM eine Karte mit beschrifteten Feldern, sodass nichts horizontal weggescrollt werden muss.

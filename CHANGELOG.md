@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.8.0] — 2026-10-11
+
+### Added
+
+- **VMID collisions are detected.** The guest name from each backup's notes (PVE `notes` / PBS `comment`, filled by vzdump's `--notes-template '{{guestname}}'`) is stored in `backup_events.guest_name`. A VM with backups of the last 31 days that belong to a different guest gets a **"fremde Backups"** badge with name and count — typically two clusters writing the same VMID into one PBS datastore without namespaces, or a renamed VM. Warn-only: such backups are still counted, so a rename never causes false "critical" alerts.
+
 ## [v2.7.0] — 2026-10-11
 
 ### Added

@@ -143,12 +143,13 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
             cur.execute(
                 """
                 INSERT INTO backup_events
-                    (vm_id, started_at, finished_at, duration_seconds, size_bytes, encrypted, verify_state, status, upid, source)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (vm_id, started_at, finished_at, duration_seconds, size_bytes, encrypted, verify_state, status, upid, source, guest_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (vm_id, started_at) DO UPDATE SET
                     size_bytes    = COALESCE(EXCLUDED.size_bytes, backup_events.size_bytes),
                     encrypted     = COALESCE(EXCLUDED.encrypted, backup_events.encrypted),
                     verify_state  = COALESCE(EXCLUDED.verify_state, backup_events.verify_state),
+                    guest_name    = COALESCE(EXCLUDED.guest_name, backup_events.guest_name),
                     source        = CASE WHEN backup_events.source = 'pbs' AND EXCLUDED.source = 'pve' THEN 'pbs'
                                          ELSE COALESCE(EXCLUDED.source, backup_events.source) END,
                     -- A real backup with size > 1 byte is the source of truth — even if an
@@ -177,6 +178,7 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
                     event["status"],
                     event.get("upid", ""),
                     source,
+                    event.get("guest_name"),
                 ),
             )
 

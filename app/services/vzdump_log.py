@@ -51,6 +51,12 @@ class VmBackupRun:
     failed: bool = False
 
 
+def guest_name_from_notes(notes: object) -> str | None:
+    """First line of a backup's notes — with `--notes-template '{{guestname}}'` the VM name."""
+    first = str(notes or "").strip().splitlines()
+    return first[0].strip()[:200] if first and first[0].strip() else None
+
+
 def _to_bytes(value: str) -> int | None:
     number, _, unit = value.strip().partition(" ")
     unit = unit.upper().removesuffix("/S")

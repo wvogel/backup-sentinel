@@ -2,7 +2,7 @@ import unittest
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from app.services.vzdump_log import parse_vzdump_log
+from app.services.vzdump_log import guest_name_from_notes, parse_vzdump_log
 
 BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -76,6 +76,13 @@ class ParseVzdumpLogTests(unittest.TestCase):
         self.assertEqual(run.started_at, datetime(2026, 10, 9, 20, 15, tzinfo=UTC))
         self.assertEqual(run.throughput_bps, 32 * 1024**3 // 128)
         self.assertIsNone(run.full_backup)
+
+
+class GuestNameTests(unittest.TestCase):
+    def test_first_line_of_notes(self) -> None:
+        self.assertEqual(guest_name_from_notes("zeiss-fh-muc\nextra"), "zeiss-fh-muc")
+        self.assertIsNone(guest_name_from_notes(""))
+        self.assertIsNone(guest_name_from_notes(None))
 
 
 if __name__ == "__main__":

@@ -99,6 +99,8 @@ The main table lists every VM in the cluster with sortable columns:
 
 **Running backups** -- A status bar above the table lists all backups currently running: progress, data written and expected finish. Clicking an entry jumps to the VM. In the table the row is filled up to the current percentage and marked blue on the left; its tooltip shows start, ETA and data volume. The display refreshes every 30 seconds without reloading the page. On the overview, each cluster card shows how many backups are running (as of the last sync).
 
+**Foreign backups** -- If backups carry the VM name in their notes (vzdump option `--notes-template '{{guestname}}'`), Backup Sentinel compares it with the VM's name. If backups of the last 31 days belong to a different guest according to their notes, the VM shows a **foreign backups** badge. Most common cause: two clusters back up VMs with the same VMID to the same PBS datastore without separate namespaces. A renamed VM also triggers it until its old backups expire.
+
 **Deleted VMs** -- VMs that no longer exist in the Proxmox cluster are shown greyed out with a **deleted** badge (tooltip: since when) as long as backups of them remain. They raise no backup or restore warnings. Once no backups are left, the VM is removed from the database on the next sync, including its restore-test history -- but only if every PVE node, storage and PBS datastore was reachable during that sync.
 
 **Mobile view** -- On narrow screens (phones) the table is automatically turned into cards: one card per VM with labelled fields, so nothing is hidden behind horizontal scrolling.
