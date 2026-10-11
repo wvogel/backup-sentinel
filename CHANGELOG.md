@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.14.0] — 2026-10-11
+
+### Added
+
+- **Weekly report by email**, every Monday from 07:00 local time (caught up later in the week if the server was down): VMs with backup problems, failed or stale verifies, VMs with only one backup location, full runs of the week, nearly full datastores and the restore-test status (expired / open / tested this week) — or a short "nothing to report". Language follows `BSENTINEL_REPORT_LANGUAGE`. New switch in the email settings (on by default; requires email to be enabled). Sent at most once per ISO week.
+
 ## [v2.13.0] — 2026-10-11
 
 ### Added

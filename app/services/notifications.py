@@ -467,6 +467,11 @@ def _smtp_login(smtp: smtplib.SMTP, user: str, password: str) -> None:
         raise smtplib.SMTPAuthenticationError(code, resp)
 
 
+def channel_enabled(channel: str) -> bool:
+    """Public check whether a channel ("gotify" / "email") is switched on."""
+    return _is_enabled(channel)
+
+
 def send_email(subject: str, body: str, attachments: list[Path] | None = None) -> bool:
     """Send an email with optional attachments. Returns True on success.
 

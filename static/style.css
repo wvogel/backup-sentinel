@@ -2650,3 +2650,6 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .vm-history-bar.is-full { background: var(--warn); }
 .vm-history-bar.is-failed { background: var(--critical); }
 .vm-history-bar.is-deleted { background: var(--sage); }
+
+.checkbox-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; }
+.checkbox-row input[type="checkbox"] { width: auto; }

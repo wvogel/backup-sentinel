@@ -398,5 +398,21 @@
   "cluster.history_throughput": "Ø Durchsatz",
   "cluster.history_reused": "Wiederverwendet",
   "cluster.history_loading": "Verlauf wird geladen …",
-  "cluster.history_empty": "Keine Backups in den letzten 30 Tagen."
+  "cluster.history_empty": "Keine Backups in den letzten 30 Tagen.",
+  "settings.weekly_report": "Wochenbericht jeden Montag um 7 Uhr per E-Mail senden",
+  "weekly.subject": "Backup Sentinel – Wochenbericht KW {week}/{year} ({critical} kritisch)",
+  "weekly.summary": "{vms} VMs · {critical} kritisch · {warning} Warnungen · {failed} fehlgeschlagene Backups in den letzten 7 Tagen",
+  "weekly.all_good": "Keine Auffälligkeiten – alle Backups, Verifies und Datastores sind in Ordnung.",
+  "weekly.more": "… und {count} weitere",
+  "weekly.section_backup": "Backups ({count}):",
+  "weekly.section_verify": "Verify ({count}):",
+  "weekly.section_copies": "Nur ein Backup-Standort ({count}):",
+  "weekly.section_full_runs": "Voll-Läufe in dieser Woche ({count}):",
+  "weekly.section_datastores": "Datastores ({count}):",
+  "weekly.severity_critical": "kritisch, letztes Backup vor {days} Tagen",
+  "weekly.severity_warning": "Warnung, letztes Backup vor {days} Tagen",
+  "weekly.verify_critical": "Verify fehlgeschlagen",
+  "weekly.verify_warning": "seit über 30 Tagen nicht verifiziert",
+  "weekly.full_at": "voll ca. {date}",
+  "weekly.restore": "Restore-Tests: {expired} abgelaufen · {open} offen · {tested} diese Woche getestet"
 }

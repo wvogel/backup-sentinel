@@ -380,5 +380,23 @@ class VmHistoryTests(DbTestCase):
         self.assertEqual(client.get("/api/clusters/test/vms/999999/history").status_code, 404)
 
 
+class WeeklyStatsTests(DbTestCase):
+    def test_counts_failures_and_lists_full_runs_of_the_last_week(self) -> None:
+        db.sync_backup_events_for_source(
+            self.cid,
+            "pbs",
+            [
+                _event(100, NOW),
+                _event(101, NOW),
+                {**_event(100, NOW - timedelta(days=1)), "status": "failed", "size_bytes": 0},
+                {**_event(101, NOW - timedelta(days=10)), "status": "failed", "size_bytes": 0},
+            ],
+        )
+        db.update_backup_event_details(self.cid, [VmBackupRun(vmid=101, started_at=NOW, full_backup=True)])
+        stats = db.weekly_backup_stats(NOW - timedelta(days=7))
+        self.assertEqual(stats["failed"], 1)
+        self.assertEqual(stats["full_runs"], ["Test / b"])
+
+
 if __name__ == "__main__":
     unittest.main()
