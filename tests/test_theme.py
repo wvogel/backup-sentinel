@@ -85,3 +85,28 @@ class StylesheetSyncTests(unittest.TestCase):
             block = self._block(css, selector)
             for key, value in tokens[mode].items():
                 self.assertEqual(block.get(key, "").lower(), value.lower(), f"{mode} {key}")
+
+
+class DarkModeReadabilityTests(unittest.TestCase):
+    def test_dark_text_stays_readable_for_mid_luminance_primaries(self):
+        preset = theme.PRESETS["smile_eyes"]
+        for primary in ("#4a7eb5", "#808080", "#141450", "#8b1e3f"):
+            base = theme.BaseColors(primary=primary, accent="#ffff00", background="#f8f5f2", running="#4a7eb5")
+            dark = theme.derive_tokens(preset, base)["dark"]
+            for ink, surface in (("--btn-text", "--btn-bg"), ("--ink", "--panel"), ("--header-link", "--header-bg")):
+                ratio = theme.contrast_ratio(dark[ink], dark[surface])
+                self.assertGreaterEqual(ratio, 4.5, f"{primary}: {ink} on {surface} = {ratio:.2f}")
+
+
+class ThemeCssFallbackTests(unittest.TestCase):
+    def test_settings_failure_falls_back_to_stylesheet_defaults(self):
+        from unittest import mock
+
+        from app import db
+        from app.web import common
+
+        with (
+            mock.patch.object(db, "get_settings_dict", side_effect=RuntimeError("db down")),
+            self.assertLogs("app.web.common", level="WARNING"),
+        ):
+            self.assertEqual(common.theme_css(), "")

@@ -27,7 +27,7 @@ test:
     # Throwaway service DB: enables tests/test_db.py (they truncate tables).
     BSENTINEL_DB_TESTS: "1"
   before_script:
-    - pip install --quiet -r requirements.txt pytest
+    - pip install --quiet -r requirements.txt pytest httpx
     - pip install --quiet --no-deps -r requirements-nodeps.txt
   script:
     - pytest tests/ -v

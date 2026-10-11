@@ -179,7 +179,7 @@ class ThemeSettingsTests(DbTestCase):
         self.assertEqual(theme_css(), "")
 
     def test_garbage_preset_falls_back(self) -> None:
-        from app.web.common import active_theme
+        from app.services.theme_store import active_theme
 
         db.save_settings({"theme_preset": "x"})
         self.assertEqual(active_theme()[1].accent, "#ffff00")
@@ -225,6 +225,43 @@ class AppearanceSettingsTests(DbTestCase):
     def test_unknown_preset_is_an_error(self) -> None:
         errors, _ = self.save(preset="hacker")
         self.assertEqual(errors, ["preset"])
+
+
+class AppearanceHttpTests(DbTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_settings
+
+        app = FastAPI()
+        app.include_router(routes_settings.router)
+        self.client = TestClient(app, follow_redirects=False)
+
+    def post(self, **fields):
+        return self.client.post("/settings/appearance", data={**APPEARANCE_FORM, **fields})
+
+    def test_invalid_colour_redirects_with_field_error(self) -> None:
+        response = self.post(primary="red")
+        self.assertEqual(response.status_code, 303)
+        self.assertIn("appearance_error=primary", response.headers["location"])
+        page = self.client.get(response.headers["location"]).text
+        self.assertIn("kein gültiger Farbwert", page)
+
+    def test_contrast_warning_round_trip(self) -> None:
+        response = self.post(background="#ffff00", running="#ffff66")
+        self.assertIn("warn=running:", response.headers["location"])
+        page = self.client.get(response.headers["location"]).text
+        self.assertIn('class="warn-text"', page)
+
+    def test_forged_warning_values_are_ignored(self) -> None:
+        page = self.client.get("/settings?appearance=saved&warn=running:pwned:3.0,background:1.2:hello").text
+        self.assertNotIn('class="warn-text"', page)
+
+    def test_hex_field_accepts_pasted_values_with_spaces(self) -> None:
+        page = self.client.get("/settings").text
+        self.assertNotIn('maxlength="7"', page)
 
 
 if __name__ == "__main__":

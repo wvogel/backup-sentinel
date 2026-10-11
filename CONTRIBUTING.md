@@ -37,7 +37,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ### Running Tests
 
 ```bash
-pip install pytest
+pip install pytest httpx
 pytest tests/ -v
 ```
 

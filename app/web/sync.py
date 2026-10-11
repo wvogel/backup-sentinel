@@ -26,7 +26,7 @@ from app.services.pdf_reports import write_backup_period_pdf
 from app.services.proxmox import fetch_cluster_inventory, fetch_finished_backup_tasks
 from app.services.proxmox_progress import fetch_running_backup_progress
 from app.services.reporting import build_backup_period_report, serialize_report_payload
-from app.web.common import active_theme
+from app.services.theme_store import active_theme
 
 logger = logging.getLogger(__name__)
 

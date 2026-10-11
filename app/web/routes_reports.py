@@ -15,7 +15,8 @@ from app.config import REPORT_DIR, REPORT_LANGUAGE
 from app.i18n import t, ts
 from app.services.pdf_reports import write_backup_period_pdf
 from app.services.reporting import build_backup_period_report, build_month_comparison, serialize_report_payload
-from app.web.common import active_theme, common_context, templates
+from app.services.theme_store import active_theme
+from app.web.common import common_context, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

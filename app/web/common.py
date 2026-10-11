@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
-from app import db
 from app.config import (
     APP_VERSION,
     BRAND_LOGO_DARK_URL,
@@ -22,6 +21,7 @@ from app.config import (
 from app.i18n import SUPPORTED_LANGUAGES, get_language, get_translations, t
 from app.services import theme
 from app.services.backup_status import format_duration
+from app.services.theme_store import active_theme
 
 templates = Jinja2Templates(directory="templates")
 APP_TIMEZONE = ZoneInfo(DEFAULT_TIMEZONE)
@@ -105,13 +105,6 @@ templates.env.globals["supported_languages"] = SUPPORTED_LANGUAGES
 
 
 logger = logging.getLogger(__name__)
-
-
-def active_theme() -> tuple[theme.Preset, theme.BaseColors]:
-    """Preset + the four base colours from the settings (invalid values ignored)."""
-    stored = db.get_settings_dict("theme_")
-    overrides = {key: stored.get(f"theme_{key}", "") for key in theme.BASE_KEYS}
-    return theme.resolve(stored.get("theme_preset"), overrides)
 
 
 def theme_css() -> str:

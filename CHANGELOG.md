@@ -5,6 +5,20 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.9.1] — 2026-10-11
+
+### Fixed
+
+- **Dark mode stays readable with any primary colour.** Dark surfaces are darkened until light text reaches 7:1, and button/topbar text is chosen by contrast — a mid-luminance custom primary (e.g. `#4A7EB5`) no longer yields ~3:1 button text. The default smile eyes theme is unchanged.
+- Contrast warnings on the settings page accept only numeric values from the URL; a crafted link can no longer show arbitrary text.
+- The hex colour fields no longer truncate pasted values with surrounding spaces.
+- `POST /settings/appearance` is a regular (threadpool) route again, so its database calls don't block the event loop.
+
+### Changed
+
+- Theme resolution moved to `app/services/theme_store.py`; the monthly report job no longer imports from the web layer.
+- Tests: HTTP round trip of the appearance settings (errors, warnings, forged warnings), the theme-rendering fallback, and dark-mode contrast for several primaries. CI installs `httpx` for FastAPI's test client.
+
 ## [v2.9.0] — 2026-10-11
 
 ### Added
