@@ -5,6 +5,23 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.7.0] — 2026-10-11
+
+### Added
+
+- **Restore interval per VM** via a picker next to the restore badge: 90 days, 180 days (default), 365 days or no test required (stored as `vm_policies.criticality` / `restore_required`). Weekly backups use at least 365 days.
+- **Restore test for several VMs at once:** the form's VM list is a multi-select; all entries are validated before any is saved.
+
+### Changed
+
+- **Never-tested VMs are "offen" (open) instead of "kritisch".** They still count as due ("Restore-Tests fällig", metrics, reports) but no longer as critically overdue — "kritisch" now means an expired test. Previously 96 of 97 VMs showed "kritisch", which drowned out real problems.
+- Default restore interval for daily backups is now 180 days (was 90); set a VM to "90 T" for the old behaviour.
+- VM table: the backup-policy dropdown sits below the status badges and the restore picker below or next to the restore badge, so the 30-day bar keeps its full width (8 px per day).
+
+### Fixed
+
+- Changing a VM's backup policy silently reset its restore requirement; the two settings are now independent.
+
 ## [v2.6.0] — 2026-10-11
 
 ### Added

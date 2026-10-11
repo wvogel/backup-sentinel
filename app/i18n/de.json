@@ -353,5 +353,12 @@
   "cluster.running_slow": "langsamer als üblich (sonst ~{typical})",
   "notify.backup_slow_title": "Backup langsam: {vm}",
   "notify.backup_slow_message": "Läuft voraussichtlich {projected} statt der üblichen {typical}.",
-  "notifications.type_backup_slow": "Backup langsam"
+  "notifications.type_backup_slow": "Backup langsam",
+  "cluster.restore_open": "offen",
+  "cluster.restore_class": "Restore-Intervall",
+  "cluster.restore_class_high": "90 T",
+  "cluster.restore_class_medium": "180 T",
+  "cluster.restore_class_low": "365 T",
+  "cluster.restore_class_none": "kein",
+  "cluster.restore_multi_hint": "Mehrfachauswahl mit Strg/⌘"
 }

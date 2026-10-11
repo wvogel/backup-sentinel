@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 from app.db_clusters import list_clusters
 from app.db_core import connect
 from app.db_governance import vm_governance_rows
+from app.services.backup_status import RESTORE_DUE_STATUSES
 from app.services.reporting import serialize_report_payload
 from app.types import MonthlyReportRow
 
@@ -64,7 +65,7 @@ def cluster_summaries() -> list[dict[str, Any]]:
         vms = vms_by_cluster.get(cid, [])
         warning_count = sum(int(vm["backup_severity"] == "warning") for vm in vms)
         critical_count = sum(int(vm["backup_severity"] == "critical") for vm in vms)
-        overdue_restore_count = sum(int(vm["restore_due_status"] in {"warning", "critical"}) for vm in vms)
+        overdue_restore_count = sum(int(vm["restore_due_status"] in RESTORE_DUE_STATUSES) for vm in vms)
         summaries.append(
             {
                 "cluster_name": cluster["name"],

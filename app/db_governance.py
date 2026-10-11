@@ -5,7 +5,7 @@ from typing import Any
 
 from app.config import BACKUP_DAY_OFFSET_HOURS, DEFAULT_TIMEZONE
 from app.db_core import connect
-from app.services.backup_status import assess_backup_status
+from app.services.backup_status import RESTORE_CLASS_INTERVALS, RESTORE_DUE_STATUSES, assess_backup_status
 from app.types import RestoreTestRow
 
 
@@ -117,12 +117,17 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             effective_backup_kind if status_backup_kind != "unconfigured" else "", row["backup_kind_label"]
         )
 
+        row["restore_class"] = row["criticality"] if row["restore_required"] else "none"
         if row["restore_required"] and status_backup_kind != "none":
-            default_interval = 365 if status_backup_kind == "weekly" else 90
-            interval_days = row["restore_interval_days"] or default_interval
+            class_interval = RESTORE_CLASS_INTERVALS.get(row["criticality"], RESTORE_CLASS_INTERVALS["medium"])
+            if status_backup_kind == "weekly":
+                class_interval = max(class_interval, 365)
+            interval_days = row["restore_interval_days"] or class_interval
             row["restore_interval_days"] = interval_days
             if row["last_restore_tested_at"] is None:
-                row["restore_due_status"] = "critical"
+                # Never tested: due, but not "critical" — that is reserved for
+                # tests that have actually expired.
+                row["restore_due_status"] = "open"
                 row["restore_age_days"] = None
             else:
                 restore_age = (now.date() - row["last_restore_tested_at"]).days
@@ -140,6 +145,24 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             row["restore_due_status"] = "ok"
             row["restore_age_days"] = None
     return rows
+
+
+def update_vm_restore_class(vm_id: int, restore_class: str) -> None:
+    """high/medium/low → criticality (sets the interval); none → no test required."""
+    required = restore_class != "none"
+    criticality = restore_class if required else "medium"
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO vm_policies (vm_id, owner_name, criticality, restore_interval_days, restore_required, rpo_hours, notes)
+            VALUES (%s, 'unassigned', %s, NULL, %s, 24, '')
+            ON CONFLICT (vm_id) DO UPDATE SET
+                criticality = EXCLUDED.criticality,
+                restore_required = EXCLUDED.restore_required
+            """,
+            (vm_id, criticality, required),
+        )
+        conn.commit()
 
 
 def create_restore_test(
@@ -343,7 +366,7 @@ def restore_test_coverage() -> dict[str, Any]:
         for row in rows
         if row["restore_required"] and row["status_backup_kind"] != "none" and row["last_restore_tested_at"] is not None
     )
-    overdue = sum(1 for row in rows if row["restore_due_status"] in {"warning", "critical"})
+    overdue = sum(1 for row in rows if row["restore_due_status"] in RESTORE_DUE_STATUSES)
     ok = sum(
         1
         for row in rows

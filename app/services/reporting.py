@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 
-from app.services.backup_status import assess_backup_status
+from app.services.backup_status import RESTORE_DUE_STATUSES, assess_backup_status
 
 REPORT_REMOVED_RETENTION_DAYS = 31
 
@@ -177,7 +177,7 @@ def build_month_comparison(
 def build_compliance_summary(governance_rows: list[dict], restore_tests: list[dict]) -> dict:
     return {
         "restore_required": sum(1 for row in governance_rows if row["restore_required"]),
-        "restore_overdue": sum(1 for row in governance_rows if row["restore_due_status"] in {"warning", "critical"}),
+        "restore_overdue": sum(1 for row in governance_rows if row["restore_due_status"] in RESTORE_DUE_STATUSES),
         "restore_critical": sum(1 for row in governance_rows if row["restore_due_status"] == "critical"),
         "tested_this_month": sum(1 for row in restore_tests if row["tested_at"].month == datetime.now(UTC).month),
     }
