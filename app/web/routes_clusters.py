@@ -11,7 +11,7 @@ from starlette import status
 from app import db
 from app.i18n import t
 from app.models import RestoreTestCreate
-from app.services.backup_status import assess_slow_backup, format_duration
+from app.services.backup_status import RESTORE_CLASSES, assess_slow_backup, format_duration
 from app.services.bootstrap import slugify_cluster
 from app.services.proxmox_progress import running_backup_progress_cached
 from app.services.reporting import build_compliance_summary
@@ -177,7 +177,7 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
 def add_restore_test(
     request: Request,
     cluster_slug: str,
-    vm_id: int = Form(...),
+    vm_id: list[int] = Form(...),
     tested_at: str = Form(...),
     result: str = Form(...),
     recovery_type: str = Form(...),
@@ -191,15 +191,23 @@ def add_restore_test(
         parsed_date = datetime.fromisoformat(tested_at).date()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Ungültiges Datum") from exc
+    # Several VMs can be documented at once (e.g. a full restore drill).
+    # Validate everything first so a bad entry doesn't leave half the tests saved.
+    vms = [db.get_vm_for_cluster(cluster["id"], single_vm_id) for single_vm_id in vm_id]
+    if not vms or any(vm is None for vm in vms):
+        raise HTTPException(status_code=404, detail="VM not found")
     try:
-        payload = RestoreTestCreate(
-            vm_id=vm_id,
-            tested_at=parsed_date,
-            result=result,
-            recovery_type=recovery_type,
-            duration_minutes=duration_minutes,
-            evidence_note=evidence_note,
-        )
+        payloads = [
+            RestoreTestCreate(
+                vm_id=vm["id"],
+                tested_at=parsed_date,
+                result=result,
+                recovery_type=recovery_type,
+                duration_minutes=duration_minutes,
+                evidence_note=evidence_note,
+            )
+            for vm in vms
+        ]
     except PydanticValidationError as exc:
         # Surface the first validation problem to the user instead of a 500.
         first = exc.errors()[0]
@@ -207,18 +215,34 @@ def add_restore_test(
             status_code=400,
             detail=f"{'.'.join(str(p) for p in first['loc'])}: {first['msg']}",
         ) from exc
-    db.create_restore_test(**payload.model_dump())
-    try:
-        vm = db.get_vm_for_cluster(cluster["id"], vm_id)
-        vmid_value = vm["vmid"] if vm else vm_id
-        db.append_audit_event(
-            settings_actor(request),
-            "restore_test.added",
-            f"{cluster_slug}/{vmid_value}",
-            f"result={result}, recovery_type={recovery_type}, duration={duration_minutes}min",
-        )
-    except Exception:
-        pass
+    for vm, payload in zip(vms, payloads, strict=True):
+        db.create_restore_test(**payload.model_dump())
+        try:
+            db.append_audit_event(
+                settings_actor(request),
+                "restore_test.added",
+                f"{cluster_slug}/{vm['vmid']}",
+                f"result={result}, recovery_type={recovery_type}, duration={duration_minutes}min",
+            )
+        except Exception:
+            pass
+    return RedirectResponse(url=f"/clusters/{cluster_slug}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/clusters/{cluster_slug}/restore-class")
+def update_restore_class(
+    cluster_slug: str,
+    vm_id: int = Form(...),
+    restore_class: str = Form(...),
+) -> RedirectResponse:
+    cluster = db.get_cluster_by_slug(cluster_slug)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    if not db.get_vm_for_cluster(cluster["id"], vm_id):
+        raise HTTPException(status_code=404, detail="VM not found")
+    if restore_class not in RESTORE_CLASSES:
+        raise HTTPException(status_code=400, detail="Unsupported restore class")
+    db.update_vm_restore_class(vm_id, restore_class)
     return RedirectResponse(url=f"/clusters/{cluster_slug}", status_code=status.HTTP_303_SEE_OTHER)
 
 

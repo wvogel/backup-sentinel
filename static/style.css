@@ -909,11 +909,16 @@ html[data-theme="dark"] select {
   min-width: 5.5rem;
 }
 
+/* Status badges on top, policy dropdown below (like the restore column) so
+   the 30-day bar gets the width. */
 .backup-inline-grid {
   display: grid;
-  grid-template-columns: 44px 70px 42px minmax(120px, 1fr);
+  grid-template-columns: 44px 70px 42px;
   align-items: center;
   gap: 4px;
+}
+.backup-inline-grid .backup-policy-slot {
+  grid-column: 1 / -1;
 }
 
 .backup-kind-slot,
@@ -2130,14 +2135,18 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
 .sparkline {
   display: flex;
   gap: 3px;
-  width: 338px;
-  min-width: 200px;
+  /* Preferred 31 × 8 px + gaps = 338 px; only a very tight table shrinks it
+     (down to 260 px, ~6 px per day) instead of scrolling sideways. */
+  width: max-content;
+  min-width: 260px;
   max-width: 100%;
   height: 22px;
 }
 .spark-day {
-  /* 8 px preferred (31 days + gaps = 338 px), shrinks if the column is narrow. */
-  flex: 0 1 8px;
+  /* 8 px preferred (31 days + gaps = 338 px), shrinks if the column is narrow.
+     `width` (not just flex-basis) so it counts for the table's sizing. */
+  width: 8px;
+  flex: 0 1 auto;
   min-width: 3px;
   border-radius: 2px;
 }
@@ -2540,4 +2549,22 @@ details[open] > .encryption-alert-summary::before {
   background: var(--running-soft);
   color: var(--running);
   border: 1px solid var(--running);
+}
+
+/* Restore badge + class picker: side by side when there is room, picker
+   below the badge when the table is tight (keeps the column narrow). */
+.restore-cell .cell-inner {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.restore-class-form { display: inline-flex; }
+.restore-class-form select {
+  min-width: 0;
+  width: auto;
+  min-height: 0;
+  padding: 3px 18px 3px 6px;
+  font-size: 0.8rem;
+  background-position: right 4px center;
 }

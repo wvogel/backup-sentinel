@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 
 from app import db
+from app.services.backup_status import RESTORE_DUE_STATUSES
 
 router = APIRouter()
 
@@ -89,7 +90,7 @@ def metrics() -> PlainTextResponse:
             for r in rows:
                 sev = r.get("backup_severity", "unknown")
                 severity_count[sev] = severity_count.get(sev, 0) + 1
-                if r.get("restore_due_status") in ("warning", "critical"):
+                if r.get("restore_due_status") in RESTORE_DUE_STATUSES:
                     restore_overdue += 1
 
             for sev, count in severity_count.items():

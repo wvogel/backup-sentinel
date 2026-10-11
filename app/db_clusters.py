@@ -279,10 +279,9 @@ def update_vm_backup_policy(vm_id: int, backup_policy_override: str | None) -> N
             INSERT INTO vm_policies (vm_id, owner_name, criticality, backup_policy_override, restore_interval_days, restore_required, rpo_hours, notes)
             VALUES (%s, 'unassigned', 'medium', %s, NULL, %s, 24, 'Backup policy override')
             ON CONFLICT (vm_id) DO UPDATE SET
-                backup_policy_override = EXCLUDED.backup_policy_override,
-                restore_required = EXCLUDED.restore_required
+                backup_policy_override = EXCLUDED.backup_policy_override
             """,
-            (vm_id, backup_policy_override, backup_policy_override != "none"),
+            (vm_id, backup_policy_override, True),
         )
         conn.commit()
 

@@ -127,5 +127,37 @@ class TypicalDurationTests(DbTestCase):
         self.assertEqual(db.typical_backup_durations(self.cid), {100: 305})
 
 
+class RestoreClassTests(DbTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        db.sync_backup_events_for_source(self.cid, "pbs", [_event(100, NOW), _event(101, NOW)])
+        self.vm100 = self.vm_row(100)["id"]
+
+    def rows(self) -> dict:
+        return {row["vmid"]: row for row in db.vm_governance_rows(self.cid)}
+
+    def test_never_tested_is_open_with_default_180_days(self) -> None:
+        row = self.rows()[100]
+        self.assertEqual(row["restore_due_status"], "open")
+        self.assertEqual(row["restore_interval_days"], 180)
+        self.assertEqual(row["restore_class"], "medium")
+
+    def test_class_sets_interval_and_expiry(self) -> None:
+        db.update_vm_restore_class(self.vm100, "high")
+        db.create_restore_test(self.vm100, (NOW - timedelta(days=100)).date(), "passed", "full", 5)
+        row = self.rows()[100]
+        self.assertEqual(row["restore_interval_days"], 90)
+        self.assertEqual(row["restore_due_status"], "critical")
+        db.update_vm_restore_class(self.vm100, "low")
+        self.assertEqual(self.rows()[100]["restore_due_status"], "ok")
+
+    def test_none_class_needs_no_test_and_survives_backup_policy_changes(self) -> None:
+        db.update_vm_restore_class(self.vm100, "none")
+        db.update_vm_backup_policy(self.vm100, "weekly")
+        row = self.rows()[100]
+        self.assertEqual(row["restore_class"], "none")
+        self.assertEqual(row["restore_due_status"], "ok")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -37,6 +37,13 @@ def assess_backup_status(
     return "unknown", age_days
 
 
+# Restore classes: test interval in days; "none" = no restore test required.
+RESTORE_CLASS_INTERVALS = {"high": 90, "medium": 180, "low": 365}
+RESTORE_CLASSES = (*RESTORE_CLASS_INTERVALS, "none")
+# Restore statuses that count as "due" ("open" = never tested yet).
+RESTORE_DUE_STATUSES = frozenset({"open", "warning", "critical"})
+
+
 def format_duration(seconds: int) -> str:
     """Compact duration: "5 min" or "51 h 23 min"."""
     if seconds < 3600:
