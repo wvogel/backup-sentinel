@@ -12,7 +12,8 @@ from app.config import APP_BASE_URL
 from app.services import theme
 from app.services.crypto import encrypt
 from app.services.notifications import test_email_delivery, test_gotify_notification
-from app.web.common import active_theme, common_context, mask_setting_value, settings_actor, templates
+from app.services.theme_store import active_theme
+from app.web.common import common_context, mask_setting_value, settings_actor, templates
 
 router = APIRouter()
 
@@ -73,8 +74,24 @@ def save_appearance(form: dict[str, str], actor: str) -> tuple[list[str], list[t
 
 
 @router.post("/settings/appearance")
-async def update_appearance(request: Request) -> RedirectResponse:
-    form = {key: str(value) for key, value in (await request.form()).items()}
+def update_appearance(
+    request: Request,
+    preset: str = Form(default=""),
+    primary: str = Form(default=""),
+    accent: str = Form(default=""),
+    background: str = Form(default=""),
+    running: str = Form(default=""),
+    reset: str = Form(default=""),
+) -> RedirectResponse:
+    # Plain `def`: FastAPI runs it in the threadpool, so the DB calls don't block the event loop.
+    form = {
+        "preset": preset,
+        "primary": primary,
+        "accent": accent,
+        "background": background,
+        "running": running,
+        "reset": reset,
+    }
     errors, warnings = save_appearance(form, settings_actor(request))
     if errors:
         query = "appearance_error=" + ",".join(errors)
@@ -90,9 +107,16 @@ def _appearance_context(request: Request) -> dict:
     preset_name = next((name for name, p in theme.PRESETS.items() if p == preset), theme.DEFAULT_PRESET)
     warnings = []
     for item in (request.query_params.get("warn") or "").split(","):
+        # The values come from the URL: accept only numbers so a crafted link
+        # can't put arbitrary text into a warning.
         parts = item.split(":")
-        if len(parts) == 3 and parts[0] in theme.BASE_KEYS:
-            warnings.append({"key": parts[0], "ratio": parts[1], "minimum": parts[2]})
+        if len(parts) != 3 or parts[0] not in theme.BASE_KEYS:
+            continue
+        try:
+            ratio, minimum = float(parts[1]), float(parts[2])
+        except ValueError:
+            continue
+        warnings.append({"key": parts[0], "ratio": f"{ratio:g}", "minimum": f"{minimum:g}"})
     errors = [e for e in (request.query_params.get("appearance_error") or "").split(",") if e]
     return {
         "theme_preset_name": preset_name,
