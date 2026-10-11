@@ -161,6 +161,9 @@ function setColumnWrap(table, shouldWrap) {
   }
 }
 
+const SPARK_WIDTH = 246; // 31 days × 6 px + 30 × 2 px gaps (matches style.css)
+const SPARK_MIN_WIDTH = 122; // 31 × 2 px + gaps
+
 function autosizeTable(table) {
   const wrapper = table.closest(".table-scroll") || table.parentElement;
   const head = table.tHead?.rows?.[0];
@@ -185,8 +188,19 @@ function autosizeTable(table) {
   // Start with everything on a single line so the browser sizes each column to
   // its natural width.
   setColumnWrap(table, () => false);
+  table.style.removeProperty("--spark-w");
   if (table.scrollWidth <= wrapper.clientWidth + 1) {
     return; // fits already — no wrapping needed
+  }
+
+  // Too wide: first narrow the 30-day bars (down to ~2 px per day) — thinner
+  // bars beat wrapped names.
+  if (table.querySelector(".sparkline")) {
+    const excess = table.scrollWidth - wrapper.clientWidth;
+    table.style.setProperty("--spark-w", Math.max(SPARK_MIN_WIDTH, SPARK_WIDTH - excess) + "px");
+    if (table.scrollWidth <= wrapper.clientWidth + 1) {
+      return;
+    }
   }
 
   // Too wide: enable wrapping one column at a time until it fits.
@@ -220,6 +234,28 @@ function scheduleAutosize() {
 
 scheduleAutosize();
 window.addEventListener("resize", scheduleAutosize);
+// Also re-fit when a table's container changes width without a window resize
+// (late layout, scrollbar appearing, zoom).
+if (window.ResizeObserver) {
+  // Width only: autosizing itself changes row heights, which must not re-trigger it.
+  const widths = new WeakMap();
+  const observer = new ResizeObserver((entries) => {
+    let changed = false;
+    for (const entry of entries) {
+      const width = Math.round(entry.contentRect.width);
+      if (widths.get(entry.target) !== width) {
+        widths.set(entry.target, width);
+        changed = true;
+      }
+    }
+    if (changed) {
+      scheduleAutosize();
+    }
+  });
+  for (const table of document.querySelectorAll(".js-autosize-table")) {
+    observer.observe(table.closest(".table-scroll") || table.parentElement);
+  }
+}
 if (document.fonts && document.fonts.ready) {
   document.fonts.ready.then(scheduleAutosize);
 }

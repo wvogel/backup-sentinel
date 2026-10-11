@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.8.1] — 2026-10-11
+
+### Changed
+
+- **VM table rows are single-line again.** Backup badges and the policy dropdown sit side by side, the restore badge and interval picker too; both dropdowns are compact.
+- **Narrower 30-day bars instead of wrapped cells:** 6 px per day with 2 px gaps (246 px). If the table doesn't fit on one line, the auto-sizer first narrows the bars (down to ~2 px per day) and only then lets name columns wrap. It also re-fits when the table's container changes width.
+
+### Removed
+
+- The "fremde Backups" badge from v2.8.0 — it also fired after a VM rename, which happens regularly. The guest name from backup notes is still stored but not shown.
+
 ## [v2.8.0] — 2026-10-11
 
 ### Added

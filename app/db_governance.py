@@ -21,8 +21,6 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             v.name AS vm_name,
             v.backup_kind,
             v.missing_since,
-            be_foreign.foreign_count AS foreign_backup_count,
-            be_foreign.foreign_name AS foreign_backup_name,
             CASE WHEN v.missing_since IS NOT NULL THEN (
                 SELECT ARRAY(
                     SELECT DISTINCT unnest(be.storages)
@@ -58,13 +56,7 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             ORDER BY be.started_at DESC
             LIMIT 1
         ) be_latest ON TRUE
-        LEFT JOIN LATERAL (
-            SELECT COUNT(*) AS foreign_count, MIN(be.guest_name) AS foreign_name
-            FROM backup_events be
-            WHERE be.vm_id = v.id AND be.status = 'ok' AND be.removed_at IS NULL
-              AND be.started_at >= NOW() - INTERVAL '31 days'
-              AND be.guest_name IS NOT NULL AND LOWER(be.guest_name) <> LOWER(v.name)
-        ) be_foreign ON TRUE
+
         LEFT JOIN LATERAL (
             SELECT be.started_at
             FROM backup_events be

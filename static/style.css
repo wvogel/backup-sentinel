@@ -881,10 +881,14 @@ html[data-theme="dark"] select {
   margin: 0;
 }
 
-.backup-policy-form select {
-  min-width: 96px;
-  padding: 5px 8px;
-  font-size: 0.78rem;
+.backup-policy-form select,
+.restore-class-form select {
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 3px 18px 3px 6px;
+  font-size: 0.8rem;
+  background-position: right 4px center;
 }
 
 .backup-cell {
@@ -909,16 +913,12 @@ html[data-theme="dark"] select {
   min-width: 5.5rem;
 }
 
-/* Status badges on top, policy dropdown below (like the restore column) so
-   the 30-day bar gets the width. */
+/* One line: kind · severity · source · compact policy dropdown. */
 .backup-inline-grid {
   display: grid;
-  grid-template-columns: 44px 70px 42px;
+  grid-template-columns: 44px 70px 42px max-content;
   align-items: center;
   gap: 4px;
-}
-.backup-inline-grid .backup-policy-slot {
-  grid-column: 1 / -1;
 }
 
 .backup-kind-slot,
@@ -2134,20 +2134,19 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
    Scales with the column: as large as the table allows, never tiny. */
 .sparkline {
   display: flex;
-  gap: 3px;
-  /* Preferred 31 × 8 px + gaps = 338 px; only a very tight table shrinks it
-     (down to 260 px, ~6 px per day) instead of scrolling sideways. */
-  width: max-content;
-  min-width: 260px;
-  max-width: 100%;
+  gap: 2px;
+  /* 31 × 6 px + gaps = 246 px. When the table is too wide the auto-sizer
+     (tables.js) narrows it via --spark-w before wrapping any text column. */
+  width: var(--spark-w, 246px);
+  min-width: 0;
   height: 22px;
 }
 .spark-day {
-  /* 8 px preferred (31 days + gaps = 338 px), shrinks if the column is narrow.
-     `width` (not just flex-basis) so it counts for the table's sizing. */
-  width: 8px;
+  /* 6 px preferred, shrinks to 2 px if the column is narrow. `width` (not
+     just flex-basis) so it counts for the table's sizing. */
+  width: 6px;
   flex: 0 1 auto;
-  min-width: 3px;
+  min-width: 2px;
   border-radius: 2px;
 }
 .spark-ok   { background: var(--spark-ok); }
@@ -2551,20 +2550,12 @@ details[open] > .encryption-alert-summary::before {
   border: 1px solid var(--running);
 }
 
-/* Restore badge + class picker: side by side when there is room, picker
-   below the badge when the table is tight (keeps the column narrow). */
+/* Restore badge + interval picker side by side, never wrapped. */
 .restore-cell .cell-inner {
   display: inline-flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px 6px;
 }
 .restore-class-form { display: inline-flex; }
-.restore-class-form select {
-  min-width: 0;
-  width: auto;
-  min-height: 0;
-  padding: 3px 18px 3px 6px;
-  font-size: 0.8rem;
-  background-position: right 4px center;
-}
+

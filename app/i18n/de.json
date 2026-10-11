@@ -360,7 +360,5 @@
   "cluster.restore_class_medium": "180 T",
   "cluster.restore_class_low": "365 T",
   "cluster.restore_class_none": "kein",
-  "cluster.restore_multi_hint": "Mehrfachauswahl mit Strg/⌘",
-  "cluster.foreign_backups": "fremde Backups",
-  "cluster.foreign_backups_tooltip": "{count} Backup(s) der letzten 31 Tage gehören laut Notiz zu „{name}“. VMID-Kollision mit einem anderen Cluster oder umbenannte VM?"
+  "cluster.restore_multi_hint": "Mehrfachauswahl mit Strg/⌘"
 }
