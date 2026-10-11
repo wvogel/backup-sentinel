@@ -1,3 +1,5 @@
+import pathlib
+import re
 import unittest
 
 from app.services import theme
@@ -66,3 +68,20 @@ class RenderTests(unittest.TestCase):
         css = theme.render_css({"light": {"--bg": "#fff"}, "dark": {"--bg": "#000"}})
         self.assertIn(":root{--bg:#fff;}", css)
         self.assertIn('html[data-theme="dark"]{--bg:#000;}', css)
+
+
+class StylesheetSyncTests(unittest.TestCase):
+    """style.css defaults must equal the smile eyes theme (no inline style needed)."""
+
+    def _block(self, css: str, selector: str) -> dict[str, str]:
+        body = css.split(selector + " {", 1)[1].split("\n}", 1)[0]
+        return dict(re.findall(r"(--[\w-]+):\s*([^;]+);", body))
+
+    def test_defaults_match_smile_eyes(self):
+        css = pathlib.Path("static/style.css").read_text()
+        preset = theme.PRESETS["smile_eyes"]
+        tokens = theme.derive_tokens(preset, preset.base)
+        for selector, mode in ((":root", "light"), ('html[data-theme="dark"]', "dark")):
+            block = self._block(css, selector)
+            for key, value in tokens[mode].items():
+                self.assertEqual(block.get(key, "").lower(), value.lower(), f"{mode} {key}")

@@ -1,18 +1,35 @@
+/* Instrument Sans (SIL OFL 1.1, see /static/fonts/OFL.txt) — the smile eyes
+   brand font, self-hosted so the app makes no request to Google. */
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("/static/fonts/instrument-sans-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("/static/fonts/instrument-sans-latin-ext.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
   --font-brand: Impact, "Arial Black", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --bg: #f2f5fa;
+  --bg: #f8f5f2;
   --panel: #ffffff;
-  --panel-alt: #f8faff;
-  --ink: #25356a;
-  --muted: #64748b;
+  --panel-alt: #fcfaf8;
+  --ink: #141450;
+  --muted: #747294;
   --accent: #141450;
-  --line: #d9e1ec;
-  --chip: #eef1ff;
-  --chip-border: #cfd6f5;
+  --line: #efe7db;
+  --chip: #f1f1f4;
+  --chip-border: #d5d5e0;
   --header-bg: #141450;
-  --header-border: #2d307a;
+  --header-border: #37376a;
   --header-link: #f6f7ff;
-  --header-link-muted: #cfd4ff;
+  --header-link-muted: #bebed3;
   --header-chip: rgba(255, 255, 255, 0.1);
   --ok: #1d6f50;
   --ok-soft: #e2f4ea;
@@ -27,28 +44,32 @@
   --spark-failed: var(--critical);
   --shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
   --progress-fill: rgba(29, 111, 80, 0.28);
-  --running: #1f5fbf;
-  --running-soft: rgba(31, 95, 191, 0.10);
-  --running-fill: rgba(31, 95, 191, 0.18);
+  --running: #4a7eb5;
+  --running-soft: rgba(74, 126, 181, 0.1);
+  --running-fill: rgba(74, 126, 181, 0.2);
   --btn-bg: #141450;
-  --btn-text: #f5f7ff;
-  --btn-border: color-mix(in srgb, #141450 78%, white 22%);
+  --btn-text: #f6f7ff;
+  --btn-border: #484876;
+  --accent-fill: #ffff00;
+  --accent-ink: #141450;
+  --sage: #d8ddce;
+  --sage-ink: #141450;
 }
 
 html[data-theme="dark"] {
-  --bg: #0e1523;
-  --panel: #111827;
-  --panel-alt: #0f1b2f;
-  --ink: #e2e8f0;
-  --muted: #94a3b8;
-  --accent: #e2e8f0;
-  --line: #243249;
-  --chip: #0f172a;
-  --chip-border: #374151;
-  --header-bg: linear-gradient(135deg, rgba(19, 28, 57, 0.95), rgba(8, 12, 25, 0.98));
-  --header-border: rgba(212, 228, 240, 0.18);
-  --header-link: #d4e4f0;
-  --header-link-muted: #aebfd0;
+  --bg: #0b0b2c;
+  --panel: #121248;
+  --panel-alt: #0e0e38;
+  --ink: #ececf1;
+  --muted: #a1a1b9;
+  --accent: #ececf1;
+  --line: #353568;
+  --chip: #101040;
+  --chip-border: #434373;
+  --header-bg: #101040;
+  --header-border: rgba(255, 255, 255, 0.12);
+  --header-link: #ececf1;
+  --header-link-muted: #ababc1;
   --header-chip: rgba(255, 255, 255, 0.08);
   --ok: #8dd3b0;
   --ok-soft: rgba(52, 211, 153, 0.14);
@@ -63,12 +84,16 @@ html[data-theme="dark"] {
   --spark-failed: #9b3a46;
   --shadow: none;
   --progress-fill: rgba(52, 211, 153, 0.35);
-  --running: #7cb4ff;
-  --running-soft: rgba(124, 180, 255, 0.10);
-  --running-fill: rgba(124, 180, 255, 0.22);
-  --btn-bg: #e2e8f0;
-  --btn-text: #0f172a;
-  --btn-border: #e2e8f0;
+  --running: #89abcf;
+  --running-soft: rgba(137, 171, 207, 0.1);
+  --running-fill: rgba(137, 171, 207, 0.22);
+  --btn-bg: #37376a;
+  --btn-text: #ececf1;
+  --btn-border: #5a5a84;
+  --accent-fill: #ffff00;
+  --accent-ink: #141450;
+  --sage: #3a3b63;
+  --sage-ink: #e4e7dd;
 }
 
 * {
@@ -84,7 +109,7 @@ body {
   min-height: 100vh;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Segoe UI", Arial, sans-serif;
+  font-family: "Instrument Sans", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   line-height: 1.45;
 }
 
@@ -700,8 +725,8 @@ tbody tr:last-child td {
 }
 
 .badge.unknown {
-  background: var(--unknown-soft);
-  color: var(--unknown);
+  background: var(--sage);
+  color: var(--sage-ink);
 }
 
 .vm-gone-row td {
@@ -1124,11 +1149,6 @@ pre {
   border-color: var(--accent);
 }
 
-html[data-theme="dark"] .node-filter-button.is-active {
-  color: #0f172a;
-  background: #e2e8f0;
-  border-color: #e2e8f0;
-}
 
 .report-grid .summary-card {
   text-align: left;
@@ -2559,3 +2579,24 @@ details[open] > .encryption-alert-summary::before {
 }
 .restore-class-form { display: inline-flex; }
 
+/* ── Brand: primary action = Neon Yellow with Dark Blue text ─────────── */
+button.button-primary {
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  border-color: var(--accent-fill);
+}
+button.button-primary:hover { filter: brightness(0.95); }
+
+.icon-button.js-sync-btn {
+  padding: 5px;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+}
+.icon-button.js-sync-btn:hover { filter: brightness(0.95); }
+
+html[data-theme="dark"] .node-filter-button.is-active {
+  color: var(--accent-ink);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+}
