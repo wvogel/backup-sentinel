@@ -160,7 +160,6 @@ class RestoreClassTests(DbTestCase):
         self.assertEqual(row["restore_due_status"], "ok")
 
 
-
 class ThemeSettingsTests(DbTestCase):
     def test_no_settings_means_no_inline_css(self) -> None:
         from app.web.common import theme_css
