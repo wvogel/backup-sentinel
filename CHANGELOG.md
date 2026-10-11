@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.15.2] — 2026-10-11
+
+### Changed
+
+- **Copies tooltip:** one server per line, with a correct singular or plural ("auf 1 Server" / "auf 2 Servern") instead of "Server(n)". Servers are shown by their short host name (`pbs-aboe-muc` instead of `pbs-aboe-muc.int.smileeyes.de`). The stray empty line that appeared when a VM had no copy information is gone.
+- "VM(s) mit unverschlüsselten Backups" now uses a correct singular or plural as well.
+
+### Fixed
+
+- **Tooltips were clipped** inside the VM table (e.g. on the first row in windows under 1200 px). Tooltips are now one floating element on the page. It sits above the element, flips below it when there is no room, and stays inside the window horizontally.
+
 ## [v2.15.1] — 2026-10-11
 
 ### Changed

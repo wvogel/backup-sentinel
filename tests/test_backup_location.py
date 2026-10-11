@@ -85,6 +85,10 @@ class AssignPbsServersTests(unittest.TestCase):
         self.assertEqual(server_name("pbs:pbs-aboe-muc"), "pbs-aboe-muc")
         self.assertEqual(server_name("pve:nfs-backup"), "nfs-backup")
 
+    def test_server_name_is_the_short_host_name(self):
+        self.assertEqual(server_name("pbs:pbs-aboe-muc.int.smileeyes.de"), "pbs-aboe-muc")
+        self.assertEqual(server_name("pbs:192.0.2.4"), "192.0.2.4")
+
 
 if __name__ == "__main__":
     unittest.main()
