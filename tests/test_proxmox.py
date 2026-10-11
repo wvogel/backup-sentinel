@@ -212,6 +212,37 @@ class FetchFinishedBackupTasksTests(unittest.TestCase):
         self.assertEqual(result[0].runs[0].duration_seconds, 305)
 
 
+class BackupLocationTaggingTests(unittest.TestCase):
+    def setUp(self):
+        self.config = [
+            {"storage": "pbs-main", "type": "pbs", "server": "10.0.0.5", "datastore": "nas-b1", "fingerprint": "AA:BB"},
+            {"storage": "nfs", "type": "nfs"},
+        ]
+
+    def fake(self, base_url, path, auth_header, **kwargs):
+        if path == "/api2/json/storage":
+            return self.config
+        if path.endswith("/storage"):
+            return [
+                {"storage": "pbs-main", "content": "backup", "type": "pbs"},
+                {"storage": "nfs", "content": "backup", "type": "nfs"},
+            ]
+        storage = path.split("/storage/")[1].split("/")[0]
+        return [{"volid": f"{storage}:backup/vm/100/x", "vmid": 100, "ctime": 1_700_000_000, "size": 10}]
+
+    def test_events_carry_their_location(self):
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=self.fake):
+            _latest, events, _errors = fetch_backup_details("https://pve", "a", [{"name": "pve1"}], [{"vmid": 100}])
+        self.assertEqual(sorted(e["location"] for e in events), ["pbs:aa:bb/nas-b1", "pve:nfs"])
+
+    def test_pbs_storage_without_config_gets_no_location(self):
+        # Without the storage config a PBS can't be identified; better no location than a fake 2nd copy.
+        self.config = []
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=self.fake):
+            _latest, events, _errors = fetch_backup_details("https://pve", "a", [{"name": "pve1"}], [{"vmid": 100}])
+        self.assertEqual(sorted(str(e["location"]) for e in events), ["None", "pve:nfs"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

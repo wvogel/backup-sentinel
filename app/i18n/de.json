@@ -384,5 +384,12 @@
   "notifications.type_datastore_full": "Datastore fast voll",
   "cluster.datastore_tooltip": "Datastore {store}: {used} von {total} belegt ({pct} %)",
   "cluster.datastore_full_at": "Voraussichtlich voll am {date} (Prognose des PBS)",
-  "cluster.datastore_full_short": "voll ca. {date}"
+  "cluster.datastore_full_short": "voll ca. {date}",
+  "cluster.copies_tooltip": "Backups der letzten 7 Tage auf {count} Server(n): {storages}",
+  "cluster.verify_ok_tooltip": "Zuletzt erfolgreich verifiziert: {date}",
+  "cluster.verify_stale_tooltip": "Seit über 30 Tagen nicht verifiziert (zuletzt: {date})",
+  "cluster.verify_failed_tooltip": "Verify fehlgeschlagen: Backup vom {date}",
+  "notify.verify_failed_title": "Verify fehlgeschlagen: {vm}",
+  "notify.verify_failed_message": "Der PBS konnte das Backup vom {date} nicht verifizieren.",
+  "notifications.type_verify_failed": "Verify fehlgeschlagen"
 }

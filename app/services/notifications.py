@@ -371,6 +371,27 @@ def notify_datastore_full(
     )
 
 
+def notify_verify_failed(cluster_name: str, vm_name: str, vmid: int, started_at: datetime) -> None:
+    # One alert per failed snapshot.
+    key = f"verify-failed:{cluster_name}:{vmid}:{started_at:%Y%m%d%H%M}"
+    if not _should_send(key):
+        return
+    local = started_at.astimezone(ZoneInfo(DEFAULT_TIMEZONE))
+    send_gotify(
+        title=ts("notify.verify_failed_title", vm=vm_name),
+        message=(
+            f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\n"
+            + ts(
+                "notify.verify_failed_message",
+                date=local.strftime("%Y-%m-%d %H:%M" if REPORT_LANGUAGE == "en" else "%d.%m.%Y %H:%M"),
+            )
+        ),
+        priority=8,
+        notification_type="verify_failed",
+        cluster_name=cluster_name,
+    )
+
+
 def notify_unencrypted_backups(cluster_name: str, unencrypted_count: int, vm_names: list[str]) -> None:
     key = f"unencrypted:{cluster_name}"
     if not _should_send(key):

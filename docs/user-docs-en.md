@@ -97,6 +97,10 @@ The main table lists every VM in the cluster with sortable columns:
 
 **Restore interval** -- A picker next to the badge sets how often a VM must be tested: **90 d**, **180 d** (default), **365 d** or **none**. Weekly backups use at least 365 days. A VM never tested so far is **open**: it counts as due, but not as critically overdue. The *Document restore test* form accepts several VMs at once (Ctrl/⌘), e.g. for a full restore drill.
 
+**Second copy and verify** -- The pill next to “PBS” shows on how many servers the backups of the last 7 days are stored (e.g. **×2**) and the PBS verify state: **✓** verified, **?** not verified for over 30 days, **✗** verify failed. Green = at least 2 servers and verified; yellow = a single server or not verified; red = verify failed (also sent as a notification). A PBS counts as one server even if PVE uses its IP and the direct connection its name (matched by certificate fingerprint).
+
+**PBS storage** -- Under each PBS line in the cluster header, every datastore shows its usage and the PBS's estimate of when it will be full. Yellow from 80 % or full within 60 days, red from 90 % or full within 14 days (also sent as a notification).
+
 **Running backups** -- A status bar above the table lists all backups currently running: progress, data written and expected finish. Clicking an entry jumps to the VM. In the table the row is filled up to the current percentage and marked blue on the left; its tooltip shows start, ETA and data volume. The display refreshes every 30 seconds without reloading the page. On the overview, each cluster card shows how many backups are running (as of the last sync).
 
 **Deleted VMs** -- VMs that no longer exist in the Proxmox cluster are shown greyed out with a **deleted** badge (tooltip: since when) as long as backups of them remain. They raise no backup or restore warnings. Once no backups are left, the VM is removed from the database on the next sync, including its restore-test history -- but only if every PVE node, storage and PBS datastore was reachable during that sync.

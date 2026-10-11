@@ -277,5 +277,48 @@ class DatastoreUsageDbTests(DbTestCase):
         self.assertEqual([(u["pbs_name"], u["store"], u["used_bytes"]) for u in usage], [("pbs1", "nas-b1", 70)])
 
 
+class CopiesAndVerifyTests(DbTestCase):
+    def sync(self, events):
+        pbs = [e for e in events if e.get("source", "pbs") == "pbs"]
+        db.sync_backup_events_for_source(self.cid, "pbs", pbs)
+        db.update_backup_event_storages(self.cid, events)
+
+    def row(self, vmid=100):
+        return {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[vmid]
+
+    def test_copies_count_distinct_servers_of_the_last_week(self) -> None:
+        main = {"storage": "pbs-main", "location": "pbs:aa/nas-b1"}
+        alias = {"storage": "pbs-main/nas-b1", "location": "pbs:aa/nas-b1/ns"}
+        offsite = {"storage": "pbs-offsite", "location": "pbs:bb/backup"}
+        self.sync(
+            [
+                {**_event(100, NOW), **main},
+                {**_event(100, NOW), **alias},
+                {**_event(100, NOW - timedelta(days=1)), **offsite},
+                {**_event(101, NOW), **main},
+                {**_event(101, NOW - timedelta(days=20)), **offsite},  # too old
+            ]
+        )
+        self.assertEqual(self.row(100)["copy_count"], 2)
+        self.assertEqual(self.row(101)["copy_count"], 1)
+        self.assertEqual(self.row(101)["copy_status"], "warning")
+
+    def test_verify_status(self) -> None:
+        self.sync(
+            [
+                {**_event(100, NOW), "verify_state": "failed", "location": "pbs:aa/x"},
+                {**_event(101, NOW - timedelta(days=40)), "verify_state": "ok", "location": "pbs:aa/x"},
+            ]
+        )
+        self.assertEqual(self.row(100)["verify_status"], "critical")
+        self.assertEqual(self.row(101)["verify_status"], "warning")
+
+    def test_recently_verified_is_ok(self) -> None:
+        self.sync([{**_event(100, NOW - timedelta(days=2)), "verify_state": "ok", "location": "pbs:aa/x"}])
+        row = self.row(100)
+        self.assertEqual(row["verify_status"], "ok")
+        self.assertIsNotNone(row["last_verified_at"])
+
+
 if __name__ == "__main__":
     unittest.main()

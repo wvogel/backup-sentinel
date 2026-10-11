@@ -210,6 +210,7 @@ def update_backup_event_storages(cluster_id: int, events: list[dict[str, Any]]) 
     sync (PVE and PBS); each row's set is replaced with what was seen now.
     """
     storages_by_key: dict[tuple[int, datetime], set[str]] = {}
+    locations_by_key: dict[tuple[int, datetime], set[str]] = {}
     for event in events:
         storage = event.get("storage")
         started_at = event.get("started_at")
@@ -217,22 +218,25 @@ def update_backup_event_storages(cluster_id: int, events: list[dict[str, Any]]) 
             continue
         key = (event["vmid"], started_at.replace(second=0, microsecond=0))
         storages_by_key.setdefault(key, set()).add(storage)
+        if event.get("location"):
+            locations_by_key.setdefault(key, set()).add(event["location"])
 
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT id, vmid FROM vms WHERE cluster_id = %s", (cluster_id,))
         vmid_to_id = {row["vmid"]: row["id"] for row in cur.fetchall()}
         cur.execute(
-            "UPDATE backup_events SET storages = NULL WHERE vm_id = ANY(%s) AND storages IS NOT NULL",
+            "UPDATE backup_events SET storages = NULL, locations = NULL"
+            " WHERE vm_id = ANY(%s) AND (storages IS NOT NULL OR locations IS NOT NULL)",
             (list(vmid_to_id.values()),),
         )
         rows = [
-            (sorted(storages), vmid_to_id[vmid], started_at)
-            for (vmid, started_at), storages in storages_by_key.items()
-            if vmid in vmid_to_id
+            (sorted(storages), sorted(locations_by_key.get(key, ())), vmid_to_id[key[0]], key[1])
+            for key, storages in storages_by_key.items()
+            if key[0] in vmid_to_id
         ]
         if rows:
             cur.executemany(
-                "UPDATE backup_events SET storages = %s WHERE vm_id = %s AND started_at = %s",
+                "UPDATE backup_events SET storages = %s, locations = %s WHERE vm_id = %s AND started_at = %s",
                 rows,
             )
         conn.commit()

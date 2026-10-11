@@ -21,6 +21,11 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             v.name AS vm_name,
             v.backup_kind,
             v.missing_since,
+            be_copies.copy_servers,
+            be_copies.copy_storages,
+            be_verify.last_verified_at,
+            be_verify.verify_failed_at,
+            COALESCE(be_verify.has_pbs, FALSE) AS has_pbs,
             CASE WHEN v.missing_since IS NOT NULL THEN (
                 SELECT ARRAY(
                     SELECT DISTINCT unnest(be.storages)
@@ -57,6 +62,34 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             LIMIT 1
         ) be_latest ON TRUE
 
+        LEFT JOIN LATERAL (
+            -- Second copy: distinct servers holding a backup of the last 7 days
+            -- (offsite sync jobs often run hours after the backup itself).
+            SELECT
+                ARRAY(
+                    SELECT DISTINCT split_part(loc, '/', 1)
+                    FROM backup_events c, unnest(c.locations) AS loc
+                    WHERE c.vm_id = v.id AND c.status = 'ok' AND c.removed_at IS NULL
+                      AND COALESCE(c.size_bytes, 0) > 1 AND c.started_at >= NOW() - INTERVAL '7 days'
+                ) AS copy_servers,
+                ARRAY(
+                    SELECT DISTINCT unnest(c.storages)
+                    FROM backup_events c
+                    WHERE c.vm_id = v.id AND c.status = 'ok' AND c.removed_at IS NULL
+                      AND COALESCE(c.size_bytes, 0) > 1 AND c.started_at >= NOW() - INTERVAL '7 days'
+                    ORDER BY 1
+                ) AS copy_storages
+        ) be_copies ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT
+                MAX(c.started_at) FILTER (WHERE c.verify_state = 'ok') AS last_verified_at,
+                MAX(c.started_at) FILTER (
+                    WHERE c.verify_state = 'failed' AND c.started_at >= NOW() - INTERVAL '7 days'
+                ) AS verify_failed_at,
+                BOOL_OR(c.source = 'pbs') AS has_pbs
+            FROM backup_events c
+            WHERE c.vm_id = v.id AND c.status = 'ok' AND c.removed_at IS NULL AND COALESCE(c.size_bytes, 0) > 1
+        ) be_verify ON TRUE
         LEFT JOIN LATERAL (
             SELECT be.started_at
             FROM backup_events be
@@ -119,6 +152,8 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         )
 
         row["restore_class"] = row["criticality"] if row["restore_required"] else "none"
+        row["copy_count"] = len(row["copy_servers"] or [])
+        row["copy_status"], row["verify_status"] = _protection_status(row, now)
         if row["restore_required"] and status_backup_kind != "none":
             class_interval = RESTORE_CLASS_INTERVALS.get(row["criticality"], RESTORE_CLASS_INTERVALS["medium"])
             if status_backup_kind == "weekly":
@@ -146,6 +181,27 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             row["restore_due_status"] = "ok"
             row["restore_age_days"] = None
     return rows
+
+
+VERIFY_MAX_AGE_DAYS = 30
+
+
+def _protection_status(row: dict[str, Any], now: datetime) -> tuple[str | None, str | None]:
+    """(second-copy status, verify status); None where it doesn't apply."""
+    if row["vm_gone"]:
+        return None, None
+    copy_status = None
+    if row["copy_count"]:
+        copy_status = "ok" if row["copy_count"] >= 2 else "warning"
+    verify_status = None
+    if row["has_pbs"]:
+        if row["verify_failed_at"]:
+            verify_status = "critical"
+        elif not row["last_verified_at"] or now - row["last_verified_at"] > timedelta(days=VERIFY_MAX_AGE_DAYS):
+            verify_status = "warning"
+        else:
+            verify_status = "ok"
+    return copy_status, verify_status
 
 
 def update_vm_restore_class(vm_id: int, restore_class: str) -> None:
