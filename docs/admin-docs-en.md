@@ -7,11 +7,12 @@
 3. [Environment Variables](#environment-variables)
 4. [OAuth2-Proxy Setup](#oauth2-proxy-setup)
 5. [Cluster Onboarding](#cluster-onboarding)
-6. [Database Management](#database-management)
-7. [HTTPS / Reverse Proxy](#https--reverse-proxy)
-8. [GitLab CI/CD Deployment](#gitlab-cicd-deployment)
-9. [Monitoring](#monitoring)
-10. [Updating](#updating)
+6. [Appearance](#appearance)
+7. [Database Management](#database-management)
+8. [HTTPS / Reverse Proxy](#https--reverse-proxy)
+9. [GitLab CI/CD Deployment](#gitlab-cicd-deployment)
+10. [Monitoring](#monitoring)
+11. [Updating](#updating)
 
 ---
 
@@ -212,6 +213,23 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/pbs-agent.sh) \
 ```
 
 The script creates a PBS API token with audit/read permissions and registers the connection.
+
+---
+
+## Appearance
+
+The default is the **smile eyes** design: Dark Blue `#141450` (topbar, text), Neon Yellow `#FFFF00` (the one main action per page, always with Dark Blue text), Street Blue `#4A7EB5` (running backups), Light Beige `#F8F5F2` (background), Beige `#EFE7DB` (borders) and Light Sage `#D8DDCE` (calm hints). Dark mode is derived from Dark Blue.
+
+Under **Settings → Appearance** you can change:
+
+- **Preset:** *smile eyes* or *Neutral* (the former cool blue-grey).
+- **Four base colours:** primary, accent (main action), background and running backups. All other tones (soft surfaces, borders, dark mode) are derived. A preview shows the result before saving.
+- **Contrast check:** saving checks WCAG contrast (text ≥ 4.5:1, running backups ≥ 3:1). Poor readability shows a warning with the measured ratio; the setting is saved anyway.
+- **Reset to preset** removes custom colours.
+
+Changes are recorded in the settings audit. The PDF report uses the primary, accent and running colours.
+
+**Font:** [Instrument Sans](https://github.com/Instrument/instrument-sans) (SIL Open Font License 1.1), served locally from `static/fonts/` with `OFL.txt` — the app loads nothing from Google.
 
 ---
 

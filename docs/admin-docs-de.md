@@ -7,11 +7,12 @@
 3. [Umgebungsvariablen](#umgebungsvariablen)
 4. [OAuth2-Proxy-Konfiguration](#oauth2-proxy-konfiguration)
 5. [Cluster-Onboarding](#cluster-onboarding)
-6. [Datenbank-Verwaltung](#datenbank-verwaltung)
-7. [HTTPS / Reverse Proxy](#https--reverse-proxy)
-8. [GitLab-CI/CD-Deployment](#gitlab-cicd-deployment)
-9. [Monitoring](#monitoring)
-10. [Aktualisierung](#aktualisierung)
+6. [Erscheinungsbild](#erscheinungsbild)
+7. [Datenbank-Verwaltung](#datenbank-verwaltung)
+8. [HTTPS / Reverse Proxy](#https--reverse-proxy)
+9. [GitLab-CI/CD-Deployment](#gitlab-cicd-deployment)
+10. [Monitoring](#monitoring)
+11. [Aktualisierung](#aktualisierung)
 
 ---
 
@@ -212,6 +213,23 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/pbs-agent.sh) \
 ```
 
 Das Skript erstellt einen PBS-API-Token mit Audit/Lese-Berechtigungen und registriert die Verbindung.
+
+---
+
+## Erscheinungsbild
+
+Standard ist das **smile eyes**-Design: Dark Blue `#141450` (Kopfzeile, Text), Neon Yellow `#FFFF00` (wichtigste Aktion pro Seite, immer mit Dark-Blue-Schrift), Street Blue `#4A7EB5` (laufende Backups), Light Beige `#F8F5F2` (Hintergrund), Beige `#EFE7DB` (Rahmen) und Light Sage `#D8DDCE` (ruhige Hinweise). Der Dark Mode wird aus Dark Blue abgeleitet.
+
+Unter **Einstellungen → Erscheinungsbild** lassen sich anpassen:
+
+- **Vorlage:** *smile eyes* oder *Neutral* (das frühere, kühle Blau-Grau).
+- **Vier Grundfarben:** Primärfarbe, Akzent (Hauptaktion), Hintergrund und laufende Backups. Alle übrigen Töne (zarte Flächen, Rahmen, Dark Mode) werden daraus berechnet. Eine Vorschau zeigt die Wirkung vor dem Speichern.
+- **Kontrastprüfung:** Beim Speichern wird nach WCAG geprüft (Text ≥ 4,5:1, laufende Backups ≥ 3:1). Bei schlechter Lesbarkeit erscheint eine Warnung mit dem gemessenen Wert; gespeichert wird trotzdem.
+- **Auf Vorlage zurücksetzen** entfernt die eigenen Farben.
+
+Änderungen landen im Einstellungs-Audit. Der PDF-Report übernimmt Primär-, Akzent- und Laufend-Farbe.
+
+**Schrift:** [Instrument Sans](https://github.com/Instrument/instrument-sans) (SIL Open Font License 1.1), lokal ausgeliefert aus `static/fonts/` samt `OFL.txt` – die Anwendung lädt nichts von Google.
 
 ---
 
