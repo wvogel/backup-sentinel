@@ -267,6 +267,28 @@ def typical_backup_durations(cluster_id: int) -> dict[int, int]:
         return {row["vmid"]: int(row["median"]) for row in cur.fetchall()}
 
 
+def weekly_backup_stats(since: datetime) -> dict[str, Any]:
+    """Failed backups and full runs (by "cluster / VM") since `since`, for the weekly report."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) AS failed FROM backup_events WHERE status <> 'ok' AND started_at >= %s",
+            (since,),
+        )
+        failed = cur.fetchone()["failed"]
+        cur.execute(
+            """
+            SELECT DISTINCT c.name || ' / ' || v.name AS vm
+            FROM backup_events be
+            JOIN vms v ON v.id = be.vm_id
+            JOIN clusters c ON c.id = v.cluster_id
+            WHERE be.full_backup AND be.started_at >= %s
+            ORDER BY 1
+            """,
+            (since,),
+        )
+        return {"failed": failed, "full_runs": [row["vm"] for row in cur.fetchall()]}
+
+
 def processed_backup_task_upids(cluster_id: int) -> set[str]:
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT upid FROM processed_backup_tasks WHERE cluster_id = %s", (cluster_id,))

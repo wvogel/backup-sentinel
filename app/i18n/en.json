@@ -398,5 +398,21 @@
   "cluster.history_throughput": "Avg. throughput",
   "cluster.history_reused": "Reused",
   "cluster.history_loading": "Loading history …",
-  "cluster.history_empty": "No backups in the last 30 days."
+  "cluster.history_empty": "No backups in the last 30 days.",
+  "settings.weekly_report": "Send a weekly report by email every Monday at 7:00",
+  "weekly.subject": "Backup Sentinel – weekly report W{week}/{year} ({critical} critical)",
+  "weekly.summary": "{vms} VMs · {critical} critical · {warning} warnings · {failed} failed backups in the last 7 days",
+  "weekly.all_good": "Nothing to report — all backups, verifies and datastores are fine.",
+  "weekly.more": "… and {count} more",
+  "weekly.section_backup": "Backups ({count}):",
+  "weekly.section_verify": "Verify ({count}):",
+  "weekly.section_copies": "Only one backup location ({count}):",
+  "weekly.section_full_runs": "Full runs this week ({count}):",
+  "weekly.section_datastores": "Datastores ({count}):",
+  "weekly.severity_critical": "critical, last backup {days} days ago",
+  "weekly.severity_warning": "warning, last backup {days} days ago",
+  "weekly.verify_critical": "verify failed",
+  "weekly.verify_warning": "not verified for over 30 days",
+  "weekly.full_at": "full ~{date}",
+  "weekly.restore": "Restore tests: {expired} expired · {open} open · {tested} tested this week"
 }
