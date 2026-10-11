@@ -14,6 +14,7 @@ from starlette.requests import Request
 from app import db
 from app.config import APP_VERSION, SECRET_KEY
 from app.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, set_language
+from app.web.csrf import OriginCheckMiddleware
 from app.web.routes_bootstrap import router as bootstrap_router
 from app.web.routes_clusters import router as clusters_router
 from app.web.routes_dashboard import router as dashboard_router
@@ -111,6 +112,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="Backup Sentinel", lifespan=lifespan)
 app.add_middleware(LanguageMiddleware)
+app.add_middleware(OriginCheckMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIDMiddleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
