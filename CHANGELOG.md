@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.13.0] — 2026-10-11
+
+### Added
+
+- **VM history on click.** Clicking a VM row (anywhere except its controls) opens four 30-day charts below it: size, duration, average throughput and share reused from the previous backup — full runs in orange, failed in red, deleted in sage, each bar with a tooltip. Data comes from the new endpoint `GET /api/clusters/{slug}/vms/{id}/history` (404 for VMs of other clusters). Open details follow their row through filters and close when the table is sorted.
+
 ## [v2.12.0] — 2026-10-11
 
 ### Added

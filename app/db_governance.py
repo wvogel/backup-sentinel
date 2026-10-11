@@ -217,6 +217,23 @@ def _protection_status(row: dict[str, Any], now: datetime) -> tuple[str | None, 
     return copy_status, verify_status
 
 
+def vm_backup_history(vm_id: int, days: int = 30) -> list[dict[str, Any]]:
+    """Backups of one VM in the last `days` days, oldest first (for the detail charts)."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT started_at, status, size_bytes, duration_seconds, throughput_bps, reused_pct, full_backup,
+                   removed_at IS NOT NULL AS removed
+            FROM backup_events
+            WHERE vm_id = %s AND started_at >= NOW() - make_interval(days => %s)
+              AND (status <> 'ok' OR COALESCE(size_bytes, 0) > 1)
+            ORDER BY started_at
+            """,
+            (vm_id, days),
+        )
+        return list(cur.fetchall())
+
+
 def update_vm_restore_class(vm_id: int, restore_class: str) -> None:
     """high/medium/low → criticality (sets the interval); none → no test required."""
     required = restore_class != "none"

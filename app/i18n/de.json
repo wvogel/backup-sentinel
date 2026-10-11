@@ -392,5 +392,11 @@
   "notify.verify_failed_title": "Verify fehlgeschlagen: {vm}",
   "notify.verify_failed_message": "Der PBS konnte das Backup vom {date} nicht verifizieren.",
   "notifications.type_verify_failed": "Verify fehlgeschlagen",
-  "cluster.only_problems": "Nur Probleme"
+  "cluster.only_problems": "Nur Probleme",
+  "cluster.history_size": "Größe",
+  "cluster.history_duration": "Dauer",
+  "cluster.history_throughput": "Ø Durchsatz",
+  "cluster.history_reused": "Wiederverwendet",
+  "cluster.history_loading": "Verlauf wird geladen …",
+  "cluster.history_empty": "Keine Backups in den letzten 30 Tagen."
 }

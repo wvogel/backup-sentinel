@@ -16,7 +16,7 @@ from app.services.bootstrap import slugify_cluster
 from app.services.pbs import assess_datastore_usage
 from app.services.proxmox_progress import running_backup_progress_cached
 from app.services.reporting import build_compliance_summary
-from app.web.common import common_context, settings_actor, templates
+from app.web.common import common_context, datetime_local, settings_actor, templates
 from app.web.sync import background_sync, sync_executor, sync_logs, syncing_clusters
 
 router = APIRouter()
@@ -148,6 +148,29 @@ def get_sync_status(cluster_slug: str, since: int = 0):
         cached = cache_entry[1]
 
     return {**cached, "log": cached["log"][since:]}
+
+
+@router.get("/api/clusters/{cluster_slug}/vms/{vm_id}/history")
+def vm_history(cluster_slug: str, vm_id: int) -> dict:
+    cluster = db.get_cluster_by_slug(cluster_slug)
+    if not cluster or not db.get_vm_for_cluster(cluster["id"], vm_id):
+        raise HTTPException(status_code=404, detail="VM not found")
+    events = db.vm_backup_history(vm_id, days=30)
+    return {
+        "events": [
+            {
+                "date": event["started_at"].isoformat(),
+                "label": datetime_local(event["started_at"], "%d.%m. %H:%M"),
+                "status": "deleted" if event["removed"] and event["status"] == "ok" else event["status"],
+                "size_bytes": event["size_bytes"],
+                "duration_seconds": event["duration_seconds"],
+                "throughput_bps": event["throughput_bps"],
+                "reused_pct": event["reused_pct"],
+                "full_backup": event["full_backup"],
+            }
+            for event in events
+        ]
+    }
 
 
 @router.get("/clusters/{cluster_slug}", response_class=HTMLResponse)
