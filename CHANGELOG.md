@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.12.0] — 2026-10-11
+
+### Added
+
+- **"Nur Probleme" filter** at the end of the node filter bar, with a count. It shows VMs whose backup is critical or a warning, whose restore test has expired, whose verify failed or is stale, that have only one backup location, or whose running backup is slower than usual (live). A never-tested restore ("offen") alone is not counted. Combines with the node filter and the stat tiles.
+
 ## [v2.11.2] — 2026-10-11
 
 ### Fixed

@@ -391,5 +391,6 @@
   "cluster.verify_failed_tooltip": "Verify fehlgeschlagen: Backup vom {date}",
   "notify.verify_failed_title": "Verify fehlgeschlagen: {vm}",
   "notify.verify_failed_message": "Der PBS konnte das Backup vom {date} nicht verifizieren.",
-  "notifications.type_verify_failed": "Verify fehlgeschlagen"
+  "notifications.type_verify_failed": "Verify fehlgeschlagen",
+  "cluster.only_problems": "Nur Probleme"
 }

@@ -180,7 +180,20 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         else:
             row["restore_due_status"] = "ok"
             row["restore_age_days"] = None
+    for row in rows:
+        row["is_problem"] = is_problem(row)
     return rows
+
+
+def is_problem(row: dict[str, Any]) -> bool:
+    """For the "only problems" filter. A never-tested restore ("open") alone is
+    not a problem — otherwise almost every VM would match."""
+    return (
+        row["backup_severity"] in ("critical", "warning")
+        or row["restore_due_status"] == "critical"
+        or row.get("verify_status") in ("critical", "warning")
+        or row.get("copy_status") == "warning"
+    )
 
 
 VERIFY_MAX_AGE_DAYS = 30

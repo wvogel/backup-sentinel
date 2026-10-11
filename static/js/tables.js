@@ -64,7 +64,39 @@ for (const table of document.querySelectorAll(".js-sortable-table")) {
 function applyRowVisibility(row) {
   const byNode = row.dataset.hiddenByNode === "true";
   const byStats = row.dataset.hiddenByStats === "true";
-  row.classList.toggle("hidden", byNode || byStats);
+  const byProblems = row.dataset.hiddenByProblems === "true";
+  row.classList.toggle("hidden", byNode || byStats || byProblems);
+}
+
+// "Only problems": server-side flag (data-tags "problem") or a running backup
+// flagged as slow by the live status (data-running-warning).
+function rowHasProblem(row) {
+  return (row.dataset.tags || "").split(" ").includes("problem") || Boolean(row.dataset.runningWarning);
+}
+
+for (const button of document.querySelectorAll(".js-problem-filter")) {
+  const table = button.closest(".table-card")?.querySelector("table");
+  const rows = Array.from(table?.tBodies?.[0]?.rows || []);
+  const count = button.querySelector(".js-problem-count");
+  let active = false;
+
+  const apply = () => {
+    if (count) count.textContent = rows.filter(rowHasProblem).length;
+    for (const row of rows) {
+      row.dataset.hiddenByProblems = active && !rowHasProblem(row) ? "true" : "false";
+      applyRowVisibility(row);
+    }
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+    scheduleAutosize();
+  };
+
+  button.addEventListener("click", () => {
+    active = !active;
+    apply();
+  });
+  // Live status may flag/unflag slow backups.
+  document.addEventListener("backup-progress-updated", apply);
 }
 
 for (const list of document.querySelectorAll(".js-node-filter-list")) {
@@ -86,7 +118,7 @@ for (const list of document.querySelectorAll(".js-node-filter-list")) {
       applyRowVisibility(row);
     }
 
-    for (const button of list.querySelectorAll(".node-filter-button")) {
+    for (const button of list.querySelectorAll(".node-filter-button[data-node-filter]")) {
       const buttonNode = button.dataset.nodeFilter || "";
       button.classList.toggle("is-active", buttonNode === activeNode || (!activeNode && buttonNode === ""));
     }
@@ -99,7 +131,7 @@ for (const list of document.querySelectorAll(".js-node-filter-list")) {
     scheduleAutosize();
   };
 
-  for (const button of list.querySelectorAll(".node-filter-button")) {
+  for (const button of list.querySelectorAll(".node-filter-button[data-node-filter]")) {
     button.addEventListener("click", () => {
       const nextNode = button.dataset.nodeFilter || "";
       activeNode = activeNode === nextNode ? "" : nextNode;

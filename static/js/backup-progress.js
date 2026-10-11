@@ -91,6 +91,7 @@
     }
     renderBanner();
     layoutRows();
+    document.dispatchEvent(new CustomEvent("backup-progress-updated"));
   }
 
   async function poll() {

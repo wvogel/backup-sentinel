@@ -2633,3 +2633,6 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* Second copy + verify ("×2 ✓") in the backup cell. */
 .backup-protect-slot { display: inline-flex; align-items: center; min-width: 0; }
 .protect-badge { min-height: 22px; padding: 2px 8px; font-size: 0.75rem; }
+
+/* "Only problems" filter sits at the end of the node filter bar. */
+.problem-filter-button { margin-left: auto; }

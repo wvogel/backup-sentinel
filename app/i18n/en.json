@@ -391,5 +391,6 @@
   "cluster.verify_failed_tooltip": "Verify failed: backup of {date}",
   "notify.verify_failed_title": "Verify failed: {vm}",
   "notify.verify_failed_message": "The PBS could not verify the backup of {date}.",
-  "notifications.type_verify_failed": "Verify failed"
+  "notifications.type_verify_failed": "Verify failed",
+  "cluster.only_problems": "Only problems"
 }
