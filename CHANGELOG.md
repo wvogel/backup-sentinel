@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.11.2] — 2026-10-11
+
+### Fixed
+
+- **Fresh installations failed to start** since v2.10.0: the schema created `pbs_datastore_usage` before the `pbs_connections` table it references. Existing databases were not affected. The table is now created after `pbs_connections`.
+
 ## [v2.11.1] — 2026-10-11
 
 ### Fixed
