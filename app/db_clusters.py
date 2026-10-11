@@ -347,3 +347,44 @@ def get_cluster_sync_health(cluster_id: int) -> SyncHealthRow:
         delta_hours = (datetime.now(UTC) - failure_start).total_seconds() / 3600
         est_failures = max(1, int(delta_hours / (SYNC_INTERVAL_MINUTES / 60)))
         return {"failures": est_failures, "stale": est_failures >= 3}
+
+
+def replace_datastore_usage(pbs_id: int, rows: list[dict[str, Any]]) -> None:
+    """Store the latest capacity of a PBS's datastores (removed stores disappear)."""
+    now = datetime.now(UTC)
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM pbs_datastore_usage WHERE pbs_id = %s", (pbs_id,))
+        for row in rows:
+            cur.execute(
+                """
+                INSERT INTO pbs_datastore_usage
+                    (pbs_id, store, total_bytes, used_bytes, avail_bytes, estimated_full_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    pbs_id,
+                    row["store"],
+                    row["total_bytes"],
+                    row["used_bytes"],
+                    row["avail_bytes"],
+                    row["estimated_full_at"],
+                    now,
+                ),
+            )
+        conn.commit()
+
+
+def list_datastore_usage(cluster_id: int | None = None) -> list[dict[str, Any]]:
+    query = """
+        SELECT u.*, p.name AS pbs_name, p.cluster_id
+        FROM pbs_datastore_usage u
+        JOIN pbs_connections p ON p.id = u.pbs_id
+    """
+    params: tuple[Any, ...] = ()
+    if cluster_id is not None:
+        query += " WHERE p.cluster_id = %s"
+        params = (cluster_id,)
+    query += " ORDER BY p.name, u.store"
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(query, params)
+        return list(cur.fetchall())

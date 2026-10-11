@@ -238,3 +238,52 @@ def fetch_all_pbs_backups(
     pbs_vmids = {e["vmid"] for e in all_events}
     log_lines.append(ts("synclog.pbs_total", events=len(all_events), vms=len(pbs_vmids)))
     return all_events, log_lines, complete
+
+
+def fetch_datastore_usage(conn: dict[str, Any]) -> list[dict[str, Any]]:
+    """Capacity of every datastore on this PBS, incl. PBS's own full-date estimate.
+
+    Datastores reporting an error (e.g. not mounted) are skipped.
+    """
+    rows = _pbs_get_json(
+        conn["api_url"].rstrip("/"),
+        "/api2/json/status/datastore-usage",
+        conn["api_token_id"],
+        conn["api_token_secret"],
+    )
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        if row.get("error") or not row.get("store") or row.get("total") is None:
+            continue
+        estimate = row.get("estimated-full-date")
+        try:
+            full_at = datetime.fromtimestamp(int(estimate), UTC) if estimate and int(estimate) > 0 else None
+        except (TypeError, ValueError, OSError):
+            full_at = None
+        result.append(
+            {
+                "store": str(row["store"]),
+                "total_bytes": int(row.get("total") or 0),
+                "used_bytes": int(row.get("used") or 0),
+                "avail_bytes": int(row.get("avail") or 0),
+                "estimated_full_at": full_at,
+            }
+        )
+    return result
+
+
+def assess_datastore_usage(
+    used_bytes: int, total_bytes: int, estimated_full_at: datetime | None, now: datetime | None = None
+) -> str:
+    """ok / warning (≥ 80 % or full within 60 days) / critical (≥ 90 % or within 14 days)."""
+    if total_bytes <= 0:
+        return "ok"
+    pct = used_bytes / total_bytes * 100
+    days_left = None
+    if estimated_full_at is not None:
+        days_left = (estimated_full_at - (now or datetime.now(UTC))).total_seconds() / 86400
+    if pct >= 90 or (days_left is not None and days_left <= 14):
+        return "critical"
+    if pct >= 80 or (days_left is not None and days_left <= 60):
+        return "warning"
+    return "ok"

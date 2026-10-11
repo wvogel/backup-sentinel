@@ -375,5 +375,14 @@
   "settings.theme_saved": "Appearance saved.",
   "settings.theme_invalid_hex": "{field}: not a valid colour (e.g. #141450). Nothing saved.",
   "settings.theme_invalid_preset": "Unknown preset. Nothing saved.",
-  "settings.theme_contrast_warning": "{field}: contrast only {ratio}:1 (at least {minimum}:1 recommended) — hard to read. Saved anyway."
+  "settings.theme_contrast_warning": "{field}: contrast only {ratio}:1 (at least {minimum}:1 recommended) — hard to read. Saved anyway.",
+  "synclog.datastore_usage": "  Datastore {store}: {pct}% used",
+  "synclog.datastore_usage_failed": "  Datastore usage unavailable: {error}",
+  "notify.datastore_full_title": "Datastore nearly full: {store}",
+  "notify.datastore_used": "{store}: {pct}% used",
+  "notify.datastore_full_at": "Expected to be full on {date}",
+  "notifications.type_datastore_full": "Datastore nearly full",
+  "cluster.datastore_tooltip": "Datastore {store}: {used} of {total} used ({pct}%)",
+  "cluster.datastore_full_at": "Expected to be full on {date} (PBS estimate)",
+  "cluster.datastore_full_short": "full ~{date}"
 }

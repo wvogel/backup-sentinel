@@ -48,6 +48,16 @@
           PBS {{ pbs.name }}: {% if pbs.last_sync_at %}{{ pbs.last_sync_at|datetime_local }}{% else %}{{ t('cluster.never_synced') }}{% endif %}
         </span>
       </div>
+      {% if datastore_usage.get(pbs.id) %}
+      <div class="datastore-row">
+        {% for ds in datastore_usage.get(pbs.id, []) %}
+        <span class="badge datastore-badge {{ ds.status }}"
+              data-tooltip="{{ t('cluster.datastore_tooltip', store=ds.store, used=ds.used_bytes|format_bytes, total=ds.total_bytes|format_bytes, pct=ds.pct) }}{% if ds.estimated_full_at %}&#10;{{ t('cluster.datastore_full_at', date=ds.estimated_full_at|datetime_local('%d.%m.%Y')) }}{% endif %}">
+          {{ ds.store }} · {{ ds.pct }} %{% if ds.estimated_full_at and ds.status != 'ok' %} · {{ t('cluster.datastore_full_short', date=ds.estimated_full_at|datetime_local('%d.%m.%y')) }}{% endif %}
+        </span>
+        {% endfor %}
+      </div>
+      {% endif %}
       {% endfor %}
     </div>
   </div>
