@@ -162,12 +162,11 @@
           </td>
           <td class="sparkline-cell" data-label="{{ t('cluster.th_30days') }}">
             {%- set spark = sparklines.get(row.id, []) -%}
-            <svg class="sparkline-svg" viewBox="0 0 {{ spark|length * 11 - 3 }} 22" width="{{ spark|length * 11 - 3 }}" height="22" preserveAspectRatio="none" aria-label="{{ t('cluster.backup_trend') }}">
-              {%- for s in spark -%}
-              <rect x="{{ loop.index0 * 11 }}" y="0" width="8" height="22" rx="2"
-                    class="spark-{{ s }}" />
+            <div class="sparkline" role="img" aria-label="{{ t('cluster.backup_trend') }}">
+              {%- for day in spark -%}
+              <span class="spark-day spark-{{ day.status }}" data-tooltip="{{ day.date.strftime('%d.%m.') }}: {{ t('spark.' ~ day.status) }}{% if day.size_bytes %} · {{ day.size_bytes|format_bytes }}{% endif %}"></span>
               {%- endfor -%}
-            </svg>
+            </div>
           </td>
           <td class="backup-cell" data-label="{{ t('cluster.th_backup') }}" data-sort-value="{{ row.backup_severity }} {{ row.status_backup_kind }} {{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
             <div class="backup-inline-grid">

@@ -26,7 +26,7 @@ test:
     BSENTINEL_SECRET_KEY: "dUwD46AT9M2L9EYpKahkU8mC7A5pvxjFTqX5hxBbdcQ="
   before_script:
     - pip install --quiet -r requirements.txt pytest
-    - pip install --quiet --no-deps svglib==1.6.0
+    - pip install --quiet --no-deps -r requirements-nodeps.txt
   script:
     - pytest tests/ -v
 

@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from app import db
-from app.config import SECRET_KEY
+from app.config import APP_VERSION, SECRET_KEY
 from app.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, set_language
 from app.web.routes_bootstrap import router as bootstrap_router
 from app.web.routes_clusters import router as clusters_router
@@ -135,5 +135,5 @@ def healthz() -> JSONResponse:
         with db.connect() as conn, conn.cursor() as cur:
             cur.execute("SELECT 1")
     except Exception as exc:
-        return JSONResponse({"status": "degraded", "database": str(exc)}, status_code=503)
-    return JSONResponse({"status": "ok"})
+        return JSONResponse({"status": "degraded", "version": APP_VERSION, "database": str(exc)}, status_code=503)
+    return JSONResponse({"status": "ok", "version": APP_VERSION})

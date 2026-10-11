@@ -1,0 +1,4 @@
+# Installed with `pip install --no-deps -r requirements-nodeps.txt`.
+# svglib 1.6.0+ pulls in rlpycairo → pycairo, which needs a C compiler; its
+# runtime deps (reportlab, lxml, cssselect2, tinycss2) are in requirements.txt.
+svglib==1.6.0

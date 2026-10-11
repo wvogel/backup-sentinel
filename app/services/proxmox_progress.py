@@ -28,6 +28,9 @@ _PROGRESS_RE = re.compile(
     r"(?P<pct>\d+)%\s+\((?P<written>[^)]+?)\s+of\s+(?P<total>[^)]+?)\)\s+in\s+(?P<elapsed>[\ddhms\s]+),",
     re.IGNORECASE,
 )
+_RATE_RE = re.compile(
+    r"read:\s*(?P<read>[\d.]+\s*[KMGTPE]?i?B/s),\s*write:\s*(?P<write>[\d.]+\s*[KMGTPE]?i?B/s)", re.IGNORECASE
+)
 _DIRTY_RE = re.compile(
     r"using fast incremental mode .*?,\s*(?P<dirty>[\d.]+\s+[KMGTPE]?i?B)\s+dirty\s+of\s+(?P<full>[\d.]+\s+[KMGTPE]?i?B)\s+total",
     re.IGNORECASE,
@@ -198,6 +201,11 @@ def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -
             target_label = progress_match.group("total")
             elapsed_seconds = _parse_elapsed_to_seconds(progress_match.group("elapsed"))
             progress["percent"] = percent
+            # Average since the previous progress line, not an instant value.
+            rate_match = _RATE_RE.search(line)
+            if rate_match:
+                progress["read_label"] = rate_match.group("read")
+                progress["write_label"] = rate_match.group("write")
             progress["written_bytes"] = _parse_size_to_bytes(written_label)
             progress["target_bytes"] = _parse_size_to_bytes(target_label)
             progress["written_label"] = written_label
