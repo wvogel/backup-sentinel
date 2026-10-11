@@ -320,5 +320,31 @@ class CopiesAndVerifyTests(DbTestCase):
         self.assertIsNotNone(row["last_verified_at"])
 
 
+class ProblemFlagTests(DbTestCase):
+    def test_problem_flag(self) -> None:
+        healthy = {"location": "pbs:aa/x", "storage": "a", "verify_state": "ok"}
+        db.sync_backup_events_for_source(
+            self.cid,
+            "pbs",
+            [
+                {**_event(100, NOW), **healthy},
+                {**_event(100, NOW), "location": "pbs:bb/y", "storage": "b"},
+                {**_event(101, NOW), **healthy, "verify_state": "failed"},
+            ],
+        )
+        db.update_backup_event_storages(
+            self.cid,
+            [
+                {**_event(100, NOW), **healthy},
+                {**_event(100, NOW), "location": "pbs:bb/y", "storage": "b"},
+                {**_event(101, NOW), **healthy},
+                {**_event(101, NOW), "location": "pbs:bb/y", "storage": "b"},
+            ],
+        )
+        rows = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}
+        self.assertFalse(rows[100]["is_problem"])  # restore "open" alone is not a problem
+        self.assertTrue(rows[101]["is_problem"])  # failed verify
+
+
 if __name__ == "__main__":
     unittest.main()

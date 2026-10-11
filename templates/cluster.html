@@ -142,6 +142,9 @@
       {{ node.name }}
     </button>
     {% endfor %}
+    <button type="button" class="node-filter-button problem-filter-button js-problem-filter" aria-pressed="false">
+      {{ t('cluster.only_problems') }} (<span class="js-problem-count">{{ vm_rows|selectattr('is_problem')|list|length }}</span>)
+    </button>
   </div>
   <div class="table-scroll vm-table-scroll">
     <table id="vm-table" class="js-sortable-table js-node-filter-table js-autosize-table">
@@ -158,7 +161,7 @@
       </thead>
       <tbody>
         {% for row in vm_rows %}
-        {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['open', 'warning', 'critical'] %}restore-overdue {% endif %}{% if row.vm_gone %}vm-gone{% endif %}{% endset %}
+        {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['open', 'warning', 'critical'] %}restore-overdue {% endif %}{% if row.vm_gone %}vm-gone{% endif %}{% if row.is_problem %} problem{% endif %}{% endset %}
         <tr class="{% if row.vm_gone %}vm-gone-row{% endif %}{% if row.running %} is-running{% endif %}"{% if row.running and row.running.percent is not none %} style="--pct:{{ row.running.percent }}"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}" data-vm-name="{{ row.vm_name }}"{% if row.live_backup_progress %} data-live="1"{% endif %}{% if row.running %} data-running-warning="{{ row.running.warning }}" title="{{ row.running.line }}{% if row.running.warning %}&#10;{{ row.running.warning }}{% endif %}{% if row.running.title %}&#10;{{ row.running.title }}{% elif row.in_progress_since %}&#10;{{ t('progress.start', time=row.in_progress_since|datetime_local) }}{% endif %}"{% endif %}>
           <td data-label="{{ t('common.node') }}" data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
           <td data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}">{{ row.vm_name }}{% if row.vm_gone %} <span class="badge unknown vm-gone-badge" title="{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}{% if row.remaining_storages %}&#10;{{ t('cluster.vm_gone_storages', storages=row.remaining_storages|join(', ')) }}{% endif %}">{{ t('cluster.vm_gone') }}</span>{% endif %}</td>
