@@ -11,7 +11,7 @@ from urllib import parse
 from app.config import API_TIMEOUT
 from app.i18n import ts
 from app.services.api_client import APIError, api_get, api_get_dict, api_get_json, api_test_connection
-from app.services.vzdump_log import VmBackupRun, parse_vzdump_log
+from app.services.vzdump_log import VmBackupRun, guest_name_from_notes, parse_vzdump_log
 
 logger = logging.getLogger(__name__)
 
@@ -428,6 +428,7 @@ def fetch_backup_details(
             "encrypted": encrypted,
             "verify_state": verify_state,
             "status": "ok",
+            "guest_name": guest_name_from_notes(item.get("notes")),
         }
 
     for vmid in sorted(all_vmids):

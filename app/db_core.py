@@ -163,6 +163,8 @@ def init_db() -> None:
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS throughput_bps BIGINT")
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS reused_pct SMALLINT")
             cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS full_backup BOOLEAN")
+            # Guest name from the backup notes; detects VMID collisions across clusters.
+            cur.execute("ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS guest_name TEXT")
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS processed_backup_tasks (

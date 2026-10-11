@@ -8,6 +8,7 @@ from urllib import parse
 
 from app.i18n import ts
 from app.services.api_client import APIError, api_get_json, api_test_connection
+from app.services.vzdump_log import guest_name_from_notes
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +189,7 @@ def fetch_pbs_backups(
                 "verify_state": verify_state,
                 "status": "ok",
                 "storage": f"{conn.get('name') or base_url}/{datastore}",
+                "guest_name": guest_name_from_notes(snap.get("comment")),
             }
         )
 

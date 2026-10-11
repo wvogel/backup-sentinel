@@ -360,5 +360,7 @@
   "cluster.restore_class_medium": "180 d",
   "cluster.restore_class_low": "365 d",
   "cluster.restore_class_none": "none",
-  "cluster.restore_multi_hint": "select several with Ctrl/⌘"
+  "cluster.restore_multi_hint": "select several with Ctrl/⌘",
+  "cluster.foreign_backups": "foreign backups",
+  "cluster.foreign_backups_tooltip": "{count} backup(s) of the last 31 days belong to “{name}” according to their notes. VMID collision with another cluster, or a renamed VM?"
 }
