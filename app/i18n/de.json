@@ -410,6 +410,7 @@
   "cluster.history_duration": "Dauer",
   "cluster.history_throughput": "Ø Durchsatz",
   "cluster.history_reused": "Wiederverwendet",
+  "cluster.status_info": "ok, nur ein Backup-Standort",
   "cluster.collapse": "Einklappen",
   "cluster.history_legend_ok": "Backup",
   "cluster.history_legend_full": "Dirty-Bitmap nicht nutzbar: ganze Disk gelesen",

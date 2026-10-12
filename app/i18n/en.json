@@ -410,6 +410,7 @@
   "cluster.history_duration": "Duration",
   "cluster.history_throughput": "Avg. throughput",
   "cluster.history_reused": "Reused",
+  "cluster.status_info": "ok, single backup location",
   "cluster.collapse": "Collapse",
   "cluster.history_legend_ok": "Backup",
   "cluster.history_legend_full": "Dirty bitmap not usable: whole disk read",

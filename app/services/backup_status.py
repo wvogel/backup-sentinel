@@ -80,11 +80,15 @@ _SEVERITY_RANK = {"ok": 0, "warning": 1, "critical": 2}
 
 
 def overall_status(backup_severity: str, copy_status: str | None, verify_status: str | None, *, vm_gone: bool) -> str:
-    """Status dot of a VM row: the worst of backup age, second copy and verify."""
+    """Status dot of a VM row: the worst of backup age, second copy and verify.
+
+    All fine but only one backup location is "info" — worth knowing, not a problem.
+    """
     if vm_gone:
         return "gone"
     statuses = [s for s in (backup_severity, copy_status, verify_status) if s in _SEVERITY_RANK]
-    return max(statuses, key=_SEVERITY_RANK.__getitem__, default="ok")
+    worst = max(statuses, key=_SEVERITY_RANK.__getitem__, default="ok")
+    return "info" if worst == "ok" and copy_status == "single" else worst
 
 
 def restore_summary(

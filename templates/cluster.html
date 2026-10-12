@@ -3,7 +3,7 @@
 {% block content %}
 {% set critical_count = vm_rows | selectattr("backup_severity", "equalto", "critical") | list | length %}
 {% set warning_count = vm_rows | selectattr("backup_severity", "equalto", "warning") | list | length %}
-{% set severity_labels = {"ok": t('common.ok'), "warning": t('common.warning'), "critical": t('common.critical'), "unknown": t('common.unknown'), "open": t('cluster.restore_open')} %}
+{% set severity_labels = {"ok": t('common.ok'), "info": t('cluster.status_info'), "warning": t('common.warning'), "critical": t('common.critical'), "unknown": t('common.unknown'), "open": t('cluster.restore_open')} %}
 {% set restore_result_labels = {"passed": t('cluster.result_passed'), "limited": t('cluster.result_limited'), "failed": t('cluster.result_failed')} %}
 {% set recovery_type_labels = {"full": t('cluster.recovery_full'), "partial": t('cluster.recovery_partial'), "file": t('cluster.recovery_file')} %}
 {% set recovery_type_icons = {"full": "●", "partial": "◐", "file": "▤"} %}
@@ -173,7 +173,7 @@
           {%- elif row.verify_status == 'warning' %}{% set _ = protect_lines.append(t('cluster.verify_stale_tooltip', date=row.last_verified_at|datetime_local('%d.%m.%Y') if row.last_verified_at else t('common.never'))) %}
           {%- elif row.verify_status == 'ok' %}{% set _ = protect_lines.append(t('cluster.verify_ok_tooltip', date=row.last_verified_at|datetime_local('%d.%m.%Y'))) %}{% endif -%}
           {%- set protect_tip = protect_lines|join('\n') %}
-          <td class="status-cell" data-label="{{ t('cluster.th_status') }}" data-sort-value="{{ {'critical': 0, 'warning': 1, 'ok': 2, 'gone': 3}[row.status_level] }}">
+          <td class="status-cell" data-label="{{ t('cluster.th_status') }}" data-sort-value="{{ {'critical': 0, 'warning': 1, 'info': 2, 'ok': 3, 'gone': 4}[row.status_level] }}">
             <span class="status-dot status-{{ row.status_level }}" role="img" aria-label="{{ t('cluster.vm_gone') if row.vm_gone else severity_labels.get(row.status_level) }}"
                   data-tooltip="{% if row.vm_gone %}{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}{% if row.remaining_storages %}&#10;{{ t('cluster.vm_gone_storages', storages=row.remaining_storages|join(', ')) }}{% endif %}{% else %}{{ t('cluster.status_backup', status=severity_labels.get(row.backup_severity, row.backup_severity)) }}{% if row.backup_age_days %} ({{ t('cluster.age_days', days=row.backup_age_days) }}){% endif %}&#10;{{ t('cluster.backup_frequency') }}: {{ row.backup_kind_label }}{% if protect_tip %}&#10;{{ protect_tip }}{% endif %}{% endif %}"></span>
           </td>

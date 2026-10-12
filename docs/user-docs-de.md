@@ -79,7 +79,7 @@ Die Haupttabelle listet jede VM im Cluster mit sortierbaren Spalten:
 
 | Spalte         | Beschreibung                                                |
 |----------------|-------------------------------------------------------------|
-| ●              | Statuspunkt: grün = alles in Ordnung, gelb = Warnung, rot = kritisch (schlechtester Wert aus Backup-Alter und Verify; nur ein Backup-Ziel ist kein Problem); hohler Kreis = VM gelöscht. Der Tooltip nennt die Gründe |
+| ●              | Statuspunkt: grün = alles in Ordnung und mindestens 2 Backup-Standorte, blau = in Ordnung, aber nur ein Backup-Standort (Info, kein Problem), gelb = Warnung, rot = kritisch (schlechtester Wert aus Backup-Alter und Verify); hohler Kreis = VM gelöscht. Der Tooltip nennt die Gründe |
 | VM             | Gastname; ein kleines **w** bzw. **–** zeigt wöchentliche Backups bzw. „kein Backup vorgesehen“ |
 | Node           | Der Proxmox-Node, auf dem die VM läuft                     |
 | VMID           | Proxmox-VM-ID                                               |
@@ -225,7 +225,7 @@ Ein Seitenbereich fasst die NIST-CSF-2.0-Ausrichtung zusammen:
 - **Detect** -- Automatische Alarmierung bei Fehlern und Anomalien.
 - **Recover** -- Dokumentierte Restore-Tests mit Compliance-Tracking.
 
-**Wochenbericht** -- Ist E-Mail aktiv und der Schalter *Wochenbericht* gesetzt (Standard), kommt jeden Montag ab 7 Uhr eine Zusammenfassung: VMs mit Backup-Problemen, fehlgeschlagene oder veraltete Verifies, Voll-Läufe der Woche (ganze Disk gelesen, weil die Dirty-Bitmap nicht nutzbar war), fast volle Datastores und der Stand der Restore-Tests. War der Server montags aus, wird der Bericht im Lauf der Woche nachgeholt.
+**Wochenbericht** -- Ist E-Mail aktiv und der Schalter *Wochenbericht* gesetzt (Standard), kommt jeden Montag ab 7 Uhr eine Zusammenfassung: VMs mit Backup-Problemen, fehlgeschlagene oder veraltete Verifies, Voll-Läufe der Woche (ganze Disk gelesen, weil die Dirty-Bitmap nicht nutzbar war), fast volle Datastores und der Stand der Restore-Tests. Als Info, nicht als Problem, folgen die VMs mit nur einem Backup-Standort. War der Server montags aus, wird der Bericht im Lauf der Woche nachgeholt.
 
 ### Einstellungs-Auditlog
 

@@ -59,7 +59,6 @@ def build(
                 if r.get("verify_status") in ("critical", "warning")
             ],
         ),
-        ("weekly.section_copies", [f"- {name(r)}" for r in vms if r.get("copy_status") == "warning"]),
         ("weekly.section_full_runs", [f"- {vm}" for vm in stats.get("full_runs", [])]),
         (
             "weekly.section_datastores",
@@ -87,6 +86,10 @@ def build(
             lines += [ts(key, count=len(items)), *_listed(items), ""]
     if not problems:
         lines += [ts("weekly.all_good"), ""]
+    # Information, not a problem: VMs whose backups sit on a single server.
+    single = [f"- {name(r)}" for r in vms if r.get("copy_status") == "single"]
+    if single:
+        lines += [ts("weekly.section_copies", count=len(single)), *_listed(single), ""]
 
     tested = sum(
         1 for r in vms if isinstance(r.get("last_restore_tested_at"), date) and r["last_restore_tested_at"] >= week_ago

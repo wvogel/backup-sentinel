@@ -97,6 +97,11 @@ class OverallStatusTests(unittest.TestCase):
         self.assertEqual(overall_status("warning", "ok", "critical", vm_gone=False), "critical")
         self.assertEqual(overall_status("critical", None, None, vm_gone=False), "critical")
 
+    def test_single_backup_location_is_info(self) -> None:
+        self.assertEqual(overall_status("ok", "single", "ok", vm_gone=False), "info")
+        self.assertEqual(overall_status("warning", "single", "ok", vm_gone=False), "warning")
+        self.assertEqual(overall_status("ok", "single", "critical", vm_gone=False), "critical")
+
     def test_missing_copy_and_verify_info_counts_as_ok(self) -> None:
         self.assertEqual(overall_status("ok", None, None, vm_gone=False), "ok")
 
