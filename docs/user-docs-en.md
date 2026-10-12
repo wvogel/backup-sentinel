@@ -225,7 +225,7 @@ A sidebar panel summarizes the NIST CSF 2.0 alignment:
 - **Detect** -- Automated alerting on failures and anomalies.
 - **Recover** -- Documented restore tests with compliance tracking.
 
-**Weekly report** -- With email enabled and *weekly report* switched on (default), a summary arrives every Monday from 7:00: VMs with backup problems, failed or stale verifies, VMs with a single backup location, full runs of the week, nearly full datastores and the restore-test status. If the server was down on Monday, the report is sent later that week.
+**Weekly report** -- With email enabled and *weekly report* switched on (default), a summary arrives every Monday from 7:00: VMs with backup problems, failed or stale verifies, full runs of the week (whole disk read because the dirty bitmap was not usable), nearly full datastores and the restore-test status. If the server was down on Monday, the report is sent later that week.
 
 ### Settings Audit Log
 

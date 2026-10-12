@@ -304,9 +304,9 @@ def mark_backup_tasks_processed(cluster_id: int, upids: list[str]) -> None:
                 " ON CONFLICT (upid) DO NOTHING",
                 (upid, cluster_id, now),
             )
-        # Tasks are only fetched for the last few days; older markers are useless.
+        # Tasks are fetched for the last 31 days (fetch_finished_backup_tasks); older markers are useless.
         cur.execute(
-            "DELETE FROM processed_backup_tasks WHERE cluster_id = %s AND processed_at < %s - INTERVAL '14 days'",
+            "DELETE FROM processed_backup_tasks WHERE cluster_id = %s AND processed_at < %s - INTERVAL '35 days'",
             (cluster_id, now),
         )
         conn.commit()

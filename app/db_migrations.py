@@ -41,6 +41,14 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         # where the size proves the backup completed.
         ["UPDATE backup_events SET status = 'ok' WHERE status = 'failed' AND COALESCE(size_bytes, 0) > 1"],
     ),
+    (
+        2,
+        "Re-read vzdump logs: TPM state bitmap no longer marks a full run",
+        # The always-new bitmap of tpmstate0-backup flagged nearly every backup of
+        # VMs with a TPM as a full run. Forget the flags and the processed tasks so
+        # the next sync parses the logs again (as far as PVE still keeps them).
+        ["UPDATE backup_events SET full_backup = NULL WHERE full_backup", "DELETE FROM processed_backup_tasks"],
+    ),
 ]
 
 

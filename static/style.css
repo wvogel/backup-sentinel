@@ -2556,6 +2556,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .vm-history-bars { display: flex; align-items: flex-end; gap: 2px; height: 56px; border-bottom: 1px solid var(--line); overflow: hidden; }
 .vm-history-bar { flex: 1 1 0; min-width: 2px; max-width: 14px; border-radius: 2px 2px 0 0; background: var(--running); }
 .vm-history-bar.is-full { background: var(--warn); }
+.vm-history-legend { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.75rem; color: var(--muted); }
+.vm-history-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.vm-history-legend .vm-history-bar { display: inline-block; width: 8px; height: 10px; flex: none; border-radius: 2px; }
 .vm-history-bar.is-failed { background: var(--critical); }
 .vm-history-bar.is-deleted { background: var(--sage); }
 
