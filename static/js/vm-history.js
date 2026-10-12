@@ -1,4 +1,4 @@
-// ── Click a VM row → 30-day history charts (size, duration, throughput, reuse) ─
+// ── Click a VM row → 30-day history charts (size, duration, throughput, reuse), one bar per day ─
 (function () {
   const table = document.getElementById("vm-table");
   if (!table) return;
@@ -42,6 +42,7 @@
       bar.className = "vm-history-bar is-" + (e.status === "ok" ? (e.full_backup ? "full" : "ok") : e.status);
       bar.style.height = v ? Math.max(4, Math.round((v / max) * 100)) + "%" : "4%";
       bar.dataset.tooltip = e.label + ": " + (v !== null && v !== undefined ? spec.fmt(v) : "–")
+        + (e.backups > 1 ? " · " + T("cluster.history_runs").replace("{n}", e.backups) : "")
         + (e.full_backup ? " · " + T("spark.full") : "") + (e.status !== "ok" ? " · " + T("spark." + e.status) : "");
       bars.append(bar);
     }

@@ -410,6 +410,7 @@
   "cluster.history_duration": "Dauer",
   "cluster.history_throughput": "Ø Durchsatz",
   "cluster.history_reused": "Wiederverwendet",
+  "cluster.history_runs": "{n} Backups",
   "cluster.history_loading": "Verlauf wird geladen …",
   "cluster.history_empty": "Keine Backups in den letzten 30 Tagen.",
   "settings.weekly_report": "Wochenbericht jeden Montag um 7 Uhr per E-Mail senden",

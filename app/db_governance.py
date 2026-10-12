@@ -235,20 +235,39 @@ def _protection_status(row: dict[str, Any], now: datetime) -> tuple[str | None, 
 
 
 def vm_backup_history(vm_id: int, days: int = 30) -> list[dict[str, Any]]:
-    """Backups of one VM in the last `days` days, oldest first (for the detail charts)."""
+    """One entry per backup day of one VM in the last `days` days, oldest first (for the detail charts).
+
+    VMs backed up several times a day would otherwise get hundreds of bars. Like the
+    table sparkline, a day is ok/deleted/failed and carries its latest successful
+    backup's values; `backups` counts the runs of that day.
+    """
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT started_at, status, size_bytes, duration_seconds, throughput_bps, reused_pct, full_backup,
-                   removed_at IS NOT NULL AS removed
+            SELECT
+                MAX(started_at) AS started_at,
+                COUNT(*) AS backups,
+                BOOL_OR(status = 'ok' AND removed_at IS NULL) AS has_ok,
+                BOOL_OR(status = 'ok') AS has_deleted,
+                (ARRAY_AGG(size_bytes ORDER BY started_at DESC) FILTER (WHERE status = 'ok'))[1] AS size_bytes,
+                (ARRAY_AGG(duration_seconds ORDER BY started_at DESC) FILTER (WHERE status = 'ok'))[1]
+                    AS duration_seconds,
+                (ARRAY_AGG(throughput_bps ORDER BY started_at DESC) FILTER (WHERE status = 'ok'))[1] AS throughput_bps,
+                (ARRAY_AGG(reused_pct ORDER BY started_at DESC) FILTER (WHERE status = 'ok'))[1] AS reused_pct,
+                (ARRAY_AGG(full_backup ORDER BY started_at DESC) FILTER (WHERE status = 'ok'))[1] AS full_backup
             FROM backup_events
             WHERE vm_id = %s AND started_at >= NOW() - make_interval(days => %s)
               AND (status <> 'ok' OR COALESCE(size_bytes, 0) > 1)
-            ORDER BY started_at
+            GROUP BY ((started_at - make_interval(hours => %s)) AT TIME ZONE %s)::date
+            ORDER BY 1
             """,
-            (vm_id, days),
+            (vm_id, days, BACKUP_DAY_OFFSET_HOURS, DEFAULT_TIMEZONE),
         )
-        return list(cur.fetchall())
+        rows = list(cur.fetchall())
+    for row in rows:
+        has_ok, has_deleted = row.pop("has_ok"), row.pop("has_deleted")
+        row["status"] = "ok" if has_ok else ("deleted" if has_deleted else "failed")
+    return rows
 
 
 def update_vm_restore_class(vm_id: int, restore_class: str) -> None:

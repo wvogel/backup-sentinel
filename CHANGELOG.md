@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.15.3] — 2026-10-12
+
+### Fixed
+
+- **VM detail charts overflowed** for VMs backed up several times a day (e.g. hourly): every single backup got its own bar, so 30 days became hundreds of bars that ran far past the four chart columns. The charts now show one bar per backup day, like the 30-day sparkline in the table: the day's latest successful backup, coloured ok / deleted / failed. The tooltip names how many backups ran that day.
+
 ## [v2.15.2] — 2026-10-11
 
 ### Changed

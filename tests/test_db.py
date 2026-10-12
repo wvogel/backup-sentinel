@@ -365,6 +365,16 @@ class VmHistoryTests(DbTestCase):
         self.assertEqual([h["size_bytes"] for h in history], [1002, 1001, 1000])
         self.assertEqual((history[-1]["duration_seconds"], history[-1]["reused_pct"]), (300, 90))
 
+    def test_history_has_one_entry_per_backup_day_for_hourly_backups(self) -> None:
+        start = NOW - timedelta(days=10)
+        db.sync_backup_events_for_source(
+            self.cid, "pbs", [_event(101, start + timedelta(hours=h), size=2000 + h) for h in range(72)]
+        )
+        history = db.vm_backup_history(self.vm_row(101)["id"], days=30)
+        self.assertLessEqual(len(history), 4)  # 72 hourly backups span 3–4 backup days
+        self.assertEqual(sum(h["backups"] for h in history), 72)
+        self.assertEqual(history[-1]["size_bytes"], 2071)  # latest backup of the last day
+
     def test_api_returns_history_only_for_vms_of_that_cluster(self) -> None:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient

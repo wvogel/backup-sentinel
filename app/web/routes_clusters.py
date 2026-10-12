@@ -161,7 +161,8 @@ def vm_history(cluster_slug: str, vm_id: int) -> dict:
             {
                 "date": event["started_at"].isoformat(),
                 "label": datetime_local(event["started_at"], "%d.%m. %H:%M"),
-                "status": "deleted" if event["removed"] and event["status"] == "ok" else event["status"],
+                "status": event["status"],
+                "backups": event["backups"],
                 "size_bytes": event["size_bytes"],
                 "duration_seconds": event["duration_seconds"],
                 "throughput_bps": event["throughput_bps"],
