@@ -50,6 +50,22 @@
     return box;
   }
 
+  // Only the kinds of bars that actually appear.
+  function legend(events) {
+    const kinds = new Set(events.map((e) => (e.status === "ok" ? (e.full_backup ? "full" : "ok") : e.status)));
+    const box = document.createElement("div");
+    box.className = "vm-history-legend";
+    for (const kind of ["ok", "full", "deleted", "failed"]) {
+      if (!kinds.has(kind)) continue;
+      const item = document.createElement("span");
+      const swatch = document.createElement("span");
+      swatch.className = "vm-history-bar is-" + kind;
+      item.append(swatch, T("cluster.history_legend_" + kind));
+      box.append(item);
+    }
+    return box;
+  }
+
   async function open(row) {
     const detail = document.createElement("tr");
     detail.className = "vm-detail-row";
@@ -81,6 +97,7 @@
         return;
       }
       for (const spec of CHARTS) box.append(chart(data.events, spec));
+      box.append(legend(data.events));
     } catch {
       box.textContent = T("cluster.history_empty");
     }

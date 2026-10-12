@@ -225,7 +225,7 @@ Ein Seitenbereich fasst die NIST-CSF-2.0-Ausrichtung zusammen:
 - **Detect** -- Automatische Alarmierung bei Fehlern und Anomalien.
 - **Recover** -- Dokumentierte Restore-Tests mit Compliance-Tracking.
 
-**Wochenbericht** -- Ist E-Mail aktiv und der Schalter *Wochenbericht* gesetzt (Standard), kommt jeden Montag ab 7 Uhr eine Zusammenfassung: VMs mit Backup-Problemen, fehlgeschlagene oder veraltete Verifies, VMs mit nur einem Backup-Standort, Voll-Läufe der Woche, fast volle Datastores und der Stand der Restore-Tests. War der Server montags aus, wird der Bericht im Lauf der Woche nachgeholt.
+**Wochenbericht** -- Ist E-Mail aktiv und der Schalter *Wochenbericht* gesetzt (Standard), kommt jeden Montag ab 7 Uhr eine Zusammenfassung: VMs mit Backup-Problemen, fehlgeschlagene oder veraltete Verifies, Voll-Läufe der Woche (ganze Disk gelesen, weil die Dirty-Bitmap nicht nutzbar war), fast volle Datastores und der Stand der Restore-Tests. War der Server montags aus, wird der Bericht im Lauf der Woche nachgeholt.
 
 ### Einstellungs-Auditlog
 

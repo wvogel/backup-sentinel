@@ -48,6 +48,39 @@ class ParseVzdumpLogTests(unittest.TestCase):
         self.assertIsNone(run.reused_pct)
         self.assertEqual(run.duration_seconds, 51 * 3600 + 23 * 60 + 20)
 
+    def test_tpm_and_efi_bitmaps_do_not_make_a_full_run(self) -> None:
+        # Real log (S-APP04): the TPM state is attached for the backup only, so its
+        # bitmap is always "created new" — the data disk still ran incrementally.
+        runs = parse_vzdump_log(
+            [
+                "INFO: Starting Backup of VM 21434 (qemu)",
+                "INFO: creating Proxmox Backup Server archive 'vm/21434/2026-10-11T16:16:40Z'",
+                "INFO: efidisk0: dirty-bitmap status: OK (drive clean)",
+                "INFO: scsi0: dirty-bitmap status: OK (11.2 GiB of 120.0 GiB dirty)",
+                "INFO: tpmstate0-backup: dirty-bitmap status: created new",
+                "INFO: using fast incremental mode (dirty-bitmap), 11.2 GiB dirty of 120.0 GiB total",
+                "INFO: backup was done incrementally, reused 109.76 GiB (91%)",
+                "INFO: transferred 11.21 GiB in 61 seconds (188.3 MiB/s)",
+                "INFO: Finished Backup of VM 21434 (00:01:03)",
+            ],
+            BERLIN,
+        )
+        self.assertIs(runs[0].full_backup, False)
+
+    def test_unusable_bitmap_of_any_data_disk_means_full_run(self) -> None:
+        runs = parse_vzdump_log(
+            [
+                "INFO: Starting Backup of VM 21433 (qemu)",
+                "INFO: scsi0: dirty-bitmap status: OK (7.8 GiB of 120.0 GiB dirty)",
+                "INFO: scsi1: dirty-bitmap status: created new",
+                "INFO: tpmstate0-backup: dirty-bitmap status: created new",
+                "INFO: backup was done incrementally, reused 193.23 GiB (45%)",
+                "INFO: Finished Backup of VM 21433 (00:20:45)",
+            ],
+            BERLIN,
+        )
+        self.assertIs(runs[0].full_backup, True)
+
     def test_failed_vm(self) -> None:
         runs = parse_vzdump_log(
             [

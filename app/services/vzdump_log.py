@@ -20,7 +20,13 @@ _TRANSFERRED_RE = re.compile(
     re.IGNORECASE,
 )
 _REUSED_RE = re.compile(r"backup was done incrementally, reused [\d.]+ [KMGTPE]?i?B \((?P<pct>\d+)%\)", re.IGNORECASE)
-_FULL_RE = re.compile(r"dirty-bitmap status: (?:existing bitmap was invalid|created new)", re.IGNORECASE)
+# A data disk whose dirty bitmap was unusable had to be read completely. TPM state
+# and EFI vars are tiny and not tracked like data disks — the TPM state is attached
+# for the backup only, so its bitmap is "created new" on every run.
+_FULL_RE = re.compile(
+    r"(?P<drive>[\w-]+): dirty-bitmap status: (?:existing bitmap was invalid|created new)", re.IGNORECASE
+)
+_SMALL_DRIVES = ("tpmstate", "efidisk")
 _FINISHED_RE = re.compile(r"Finished Backup of (?:VM|CT) \d+ \((?P<h>\d+):(?P<m>\d\d):(?P<s>\d\d)\)", re.IGNORECASE)
 _FAILED_RE = re.compile(r"ERROR: Backup of (?:VM|CT) \d+ failed", re.IGNORECASE)
 
@@ -109,8 +115,9 @@ def parse_vzdump_log(lines: list[str], node_tz: tzinfo) -> list[VmBackupRun]:
         elif match := _REUSED_RE.search(line):
             current.reused_pct = int(match.group("pct"))
             seen_incremental = True
-        elif _FULL_RE.search(line):
-            seen_full = True
+        elif match := _FULL_RE.search(line):
+            if not match.group("drive").lower().startswith(_SMALL_DRIVES):
+                seen_full = True
         elif match := _FINISHED_RE.search(line):
             current.duration_seconds = int(match.group("h")) * 3600 + int(match.group("m")) * 60 + int(match.group("s"))
         elif _FAILED_RE.search(line):
