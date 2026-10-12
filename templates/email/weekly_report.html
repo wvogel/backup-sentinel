@@ -24,7 +24,7 @@
   @media (max-width: 620px) {
     .wr-pad { padding-left: 20px !important; padding-right: 20px !important; }
     .wr-kpi { display: inline-block !important; width: 44% !important; min-height: 64px; margin: 0 2% 8px 0; vertical-align: top; }
-    .wr-h1 { font-size: 24px !important; }
+    .wr-title { padding-top: 12px !important; }
     .wr-cell { display: block !important; width: 100% !important; text-align: left !important; padding-left: 0 !important; }
     .wr-detail { padding-top: 6px !important; }
   }
@@ -38,22 +38,31 @@
 <tr><td align="center" style="padding:28px 12px;">
 <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;font-family:{{ font }};color:{{ ink }};">
 
-  {#- Header -#}
-  <tr><td class="wr-pad" style="background:{{ primary }};border-radius:16px 16px 0 0;padding:28px 36px 26px;">
-    {#- Like the web header: brand logo, then the wordmark (both PNG, see email_assets). -#}
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-      {%- if images.logo %}
-      <td valign="middle" style="padding-right:14px;"><img src="{{ images.logo }}" height="28" alt="" style="display:block;height:28px;width:auto;border:0;"></td>
-      {%- endif %}
-      <td valign="middle">
-        {%- if images.wordmark %}<img src="{{ images.wordmark }}" height="22" width="161" alt="Backup Sentinel" style="display:block;height:22px;width:161px;border:0;">
-        {%- else %}<span style="font-size:12px;font-weight:700;letter-spacing:2px;color:{{ header_ink }};"><span style="color:{{ mark }};font-style:italic;">//</span>&nbsp;BACKUP SENTINEL</span>{% endif -%}
+  {#- Header: one compact row — logos left; title block right, its two lines left-aligned
+      to each other. On phones the title block moves below the logos. -#}
+  <tr><td class="wr-pad" style="background:{{ primary }};border-radius:16px 16px 0 0;padding:18px 28px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td class="wr-cell" valign="middle">
+        {#- Like the web header: brand logo, then the wordmark (both PNG, see email_assets). -#}
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          {%- if images.logo %}
+          <td valign="middle" style="padding-right:14px;"><img src="{{ images.logo }}" height="24" alt="" style="display:block;height:24px;width:auto;border:0;"></td>
+          {%- endif %}
+          <td valign="middle">
+            {%- if images.wordmark %}<img src="{{ images.wordmark }}" height="20" width="146" alt="Backup Sentinel" style="display:block;height:20px;width:146px;border:0;">
+            {%- else %}<span style="font-size:12px;font-weight:700;letter-spacing:2px;color:{{ header_ink }};"><span style="color:{{ mark }};font-style:italic;">//</span>&nbsp;BACKUP SENTINEL</span>{% endif -%}
+          </td>
+        </tr></table>
+      </td>
+      <td class="wr-cell wr-title" valign="middle" align="right">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-table;"><tr><td align="left">
+          <div style="font-size:20px;line-height:1.2;font-weight:700;color:{{ header_ink }};">{{ t('weekly.title') }}</div>
+          <div style="font-size:13px;line-height:1.3;color:{{ header_ink }};opacity:0.72;margin-top:2px;white-space:nowrap;">
+            {{ t('weekly.week_label', week=r.week) }} · {{ r.period_start.strftime('%d.%m.') }} – {{ r.period_end.strftime('%d.%m.%Y') }}
+          </div>
+        </td></tr></table>
       </td>
     </tr></table>
-    <div class="wr-h1" style="font-size:30px;line-height:1.2;font-weight:700;color:{{ header_ink }};margin-top:20px;">{{ t('weekly.title') }}</div>
-    <div style="font-size:15px;color:{{ header_ink }};opacity:0.72;margin-top:4px;">
-      {{ t('weekly.week_label', week=r.week) }} · {{ r.period_start.strftime('%d.%m.') }} – {{ r.period_end.strftime('%d.%m.%Y') }}
-    </div>
   </td></tr>
   <tr><td style="background:{{ mark }};height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>
 
