@@ -79,7 +79,7 @@ The main table lists every VM in the cluster with sortable columns:
 
 | Column         | Description                                                |
 |----------------|------------------------------------------------------------|
-| ●              | Status dot: green = all fine, yellow = warning, red = critical (worst of backup age and verify; a single backup target is not a problem); hollow circle = VM deleted. The tooltip lists the reasons |
+| ●              | Status dot: green = all fine and at least 2 backup locations, blue = fine but a single backup location (information, not a problem), yellow = warning, red = critical (worst of backup age and verify); hollow circle = VM deleted. The tooltip lists the reasons |
 | VM             | Guest name; a small **w** or **–** marks weekly backups or "no backup expected" |
 | Node           | The Proxmox node the VM runs on                           |
 | VMID           | Proxmox VM ID                                             |
@@ -225,7 +225,7 @@ A sidebar panel summarizes the NIST CSF 2.0 alignment:
 - **Detect** -- Automated alerting on failures and anomalies.
 - **Recover** -- Documented restore tests with compliance tracking.
 
-**Weekly report** -- With email enabled and *weekly report* switched on (default), a summary arrives every Monday from 7:00: VMs with backup problems, failed or stale verifies, full runs of the week (whole disk read because the dirty bitmap was not usable), nearly full datastores and the restore-test status. If the server was down on Monday, the report is sent later that week.
+**Weekly report** -- With email enabled and *weekly report* switched on (default), a summary arrives every Monday from 7:00: VMs with backup problems, failed or stale verifies, full runs of the week (whole disk read because the dirty bitmap was not usable), nearly full datastores and the restore-test status. VMs with a single backup location follow as information, not as a problem. If the server was down on Monday, the report is sent later that week.
 
 ### Settings Audit Log
 

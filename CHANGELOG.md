@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.17.0] — 2026-10-12
+
+### Changed
+
+- **Single backup location is shown as information.** Since v2.16.0 a single location was no longer a warning, but the status dot was green like a VM with several locations. There is now an *info* level: everything fine but only one backup location gives a blue status dot (tooltip "ok, nur ein Backup-Standort"); green means fine with at least two locations. Warnings and critical states still take precedence. Such VMs stay out of "Only problems".
+- **Weekly report** lists VMs with a single backup location again (dropped by mistake in v2.16.0), now as information after the problem sections: they do not count as problems, so "all good" can still appear.
+
 ## [v2.16.2] — 2026-10-12
 
 ### Fixed

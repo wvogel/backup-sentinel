@@ -2593,6 +2593,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   background: var(--ok);
 }
 .status-dot.status-warning { background: var(--warn); }
+.status-dot.status-info { background: var(--running); }
 .status-dot.status-critical {
   background: var(--critical);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 25%, transparent);

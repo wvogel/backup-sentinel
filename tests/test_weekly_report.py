@@ -51,7 +51,7 @@ class BuildTests(unittest.TestCase):
             [
                 _row(vm_name="ok-vm"),
                 _row(vm_name="crit-vm", backup_severity="critical", backup_age_days=3),
-                _row(vm_name="one-copy", copy_status="warning", copy_count=1),
+                _row(vm_name="one-copy", copy_status="single", copy_count=1),
                 _row(vm_name="bad-verify", verify_status="critical"),
                 _row(vm_name="gone", vm_gone=True, backup_severity="critical"),
             ],
@@ -72,6 +72,12 @@ class BuildTests(unittest.TestCase):
     def test_all_good_says_so(self):
         _subject, body = self.build([_row(vm_name="ok-vm")])
         self.assertIn("weekly.all_good", body)
+
+    def test_single_backup_location_is_listed_as_info_not_as_problem(self):
+        _subject, body = self.build([_row(vm_name="one-copy", copy_status="single", copy_count=1)])
+        self.assertIn("weekly.all_good", body)
+        self.assertIn("weekly.section_copies", body)
+        self.assertIn("one-copy", body)
 
 
 class SendIfDueTests(unittest.TestCase):
