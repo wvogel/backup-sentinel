@@ -2564,6 +2564,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; }
 .checkbox-row input[type="checkbox"] { width: auto; }
+.weekly-preview-link { margin-left: 8px; font-size: 0.85rem; }
 
 /* ── VM table: zebra rows, one status dot, quiet text, colour only for problems ── */
 #vm-table {

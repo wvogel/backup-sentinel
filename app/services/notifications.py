@@ -472,8 +472,8 @@ def channel_enabled(channel: str) -> bool:
     return _is_enabled(channel)
 
 
-def send_email(subject: str, body: str, attachments: list[Path] | None = None) -> bool:
-    """Send an email with optional attachments. Returns True on success.
+def send_email(subject: str, body: str, attachments: list[Path] | None = None, html: str | None = None) -> bool:
+    """Send an email with optional attachments and HTML part. Returns True on success.
 
     Respects the email_enabled toggle. Test emails bypass this check.
     """
@@ -481,10 +481,10 @@ def send_email(subject: str, body: str, attachments: list[Path] | None = None) -
         logger.debug("E-Mail disabled, dropping: %s", subject)
         return False
 
-    return _send_email_raw(subject, body, attachments)
+    return _send_email_raw(subject, body, attachments, html)
 
 
-def _send_email_raw(subject: str, body: str, attachments: list[Path] | None = None) -> bool:
+def _send_email_raw(subject: str, body: str, attachments: list[Path] | None = None, html: str | None = None) -> bool:
     """Actually send an email (no enable check)."""
     cfg = _email_config()
     host = cfg.get("email_host", "")
@@ -505,6 +505,9 @@ def _send_email_raw(subject: str, body: str, attachments: list[Path] | None = No
     msg["From"] = _encode_address(sender)
     msg["To"] = tuple(parsed_recipients) if parsed_recipients else recipients
     msg.set_content(body, charset="utf-8")
+    if html:
+        # multipart/alternative: clients show the HTML, the text stays as fallback.
+        msg.add_alternative(html, subtype="html", charset="utf-8")
 
     if attachments:
         for path in attachments:
