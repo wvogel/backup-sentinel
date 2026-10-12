@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 if os.environ.get("BSENTINEL_DB_TESTS") != "1":
     raise unittest.SkipTest("set BSENTINEL_DB_TESTS=1 to run database tests (they truncate all tables)")
 
-from app import db
+from app import db, db_governance
 from app.services.vzdump_log import VmBackupRun
 
 NOW = datetime.now(UTC).replace(second=0, microsecond=0)
@@ -301,7 +301,9 @@ class CopiesAndVerifyTests(DbTestCase):
         )
         self.assertEqual(self.row(100)["copy_count"], 2)
         self.assertEqual(self.row(101)["copy_count"], 1)
-        self.assertEqual(self.row(101)["copy_status"], "warning")
+        self.assertEqual(self.row(101)["copy_status"], "single")
+        single_copy_verified = {**self.row(101), "verify_status": "ok"}
+        self.assertFalse(db_governance.is_problem(single_copy_verified))
 
     def test_verify_status(self) -> None:
         self.sync(

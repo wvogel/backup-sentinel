@@ -55,6 +55,12 @@
     detail.className = "vm-detail-row";
     const cell = document.createElement("td");
     cell.colSpan = row.cells.length;
+    const collapse = document.createElement("button");
+    collapse.type = "button";
+    collapse.className = "button-secondary vm-detail-close";
+    collapse.textContent = T("cluster.collapse");
+    collapse.addEventListener("click", () => close(row));
+    cell.append(collapse);
     const settings = row.querySelector("template.vm-settings-template");
     if (settings) cell.append(settings.content.cloneNode(true));
     const box = document.createElement("div");
@@ -89,6 +95,12 @@
 
   table.tBodies[0].addEventListener("click", (event) => {
     if (event.target.closest(INTERACTIVE)) return;
+    // A click on free space of the opened details closes them again (bars keep their tooltips).
+    const detail = event.target.closest(".vm-detail-row");
+    if (detail) {
+      if (!event.target.closest(".vm-history-bars")) close(detail.previousElementSibling);
+      return;
+    }
     const row = event.target.closest("tr[data-vm-id]");
     if (!row) return;
     if (row.classList.contains("is-expanded")) close(row);
