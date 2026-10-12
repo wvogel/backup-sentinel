@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.18.0] — 2026-10-12
+
+### Changed
+
+- **The weekly report is a designed HTML email.** Instead of plain text it now shows the week's verdict ("Alles im grünen Bereich" / "N Punkte brauchen Aufmerksamkeit"), key figures as tiles (VMs, critical, warnings, failed backups), the problems as sections with coloured status chips (backups, verifies, nearly full datastores with a fill bar and the estimated full date), then as information the week's full runs and VMs with a single backup location, the restore-test status and a button to open Backup Sentinel. VM names link to their cluster when `APP_URL` is set. Header colours follow the installation's theme. The layout uses tables and inline styles so Outlook, Gmail and Apple Mail render it alike, and stacks on phones. A plain-text part stays in the same email for clients without HTML.
+- **Full runs no longer count as problems** in the weekly report: they are listed as information (slower, not an error), so "all good" can still appear.
+
+### Added
+
+- **Preview** next to the weekly report switch (Settings → Notifications) shows the report as it would be sent now.
+
 ## [v2.17.0] — 2026-10-12
 
 ### Changed

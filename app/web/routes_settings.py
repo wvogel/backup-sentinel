@@ -224,3 +224,12 @@ def test_gotify() -> JSONResponse:
 def test_email() -> JSONResponse:
     ok, detail = test_email_delivery()
     return JSONResponse({"ok": ok, "detail": detail}, status_code=200 if ok else 503)
+
+
+@router.get("/settings/notifications/weekly-preview", response_class=HTMLResponse)
+def weekly_report_preview() -> HTMLResponse:
+    """The weekly report email as it would be sent now."""
+    from app.web.sync import weekly_report_email
+
+    _subject, _text, html = weekly_report_email()
+    return HTMLResponse(html)

@@ -80,6 +80,47 @@ class BuildTests(unittest.TestCase):
         self.assertIn("one-copy", body)
 
 
+class HtmlTests(unittest.TestCase):
+    NOW = datetime(2026, 10, 12, 8, 0, tzinfo=UTC)
+
+    def render(self, rows, datastores=(), stats=None, app_url="https://bs.example"):
+        report = weekly_report.collect(rows, list(datastores), stats or {"full_runs": [], "failed": 0}, self.NOW)
+        return weekly_report.render_html(report, primary="#141450", accent="#ffff00", app_url=app_url, version="v9.9.9")
+
+    def test_problems_link_to_their_cluster_and_are_escaped(self):
+        html = self.render(
+            [
+                _row(vm_name="crit<vm>", cluster_slug="pve-x", backup_severity="critical", backup_age_days=3),
+                _row(vm_name="one-copy", copy_status="single", copy_count=1),
+            ],
+            datastores=[
+                {"pbs_name": "pbs1", "store": "nas", "pct": 93, "status": "critical", "estimated_full_at": None}
+            ],
+        )
+        self.assertIn("crit&lt;vm&gt;", html)
+        self.assertNotIn("crit<vm>", html)
+        self.assertIn('href="https://bs.example/clusters/pve-x"', html)
+        self.assertIn("width:93%", html)
+        self.assertIn("one-copy", html)
+        self.assertIn("v9.9.9", html)
+
+    def test_all_good_has_no_problem_sections(self):
+        report = weekly_report.collect([_row()], [], {"full_runs": [], "failed": 0}, self.NOW)
+        self.assertEqual(report.problems, [])
+        html = self.render([_row()], app_url="")
+        self.assertIn("✓", html)
+        self.assertNotIn("/clusters/", html)  # no app URL configured → no links
+
+    def test_full_runs_are_information_not_problems(self):
+        report = weekly_report.collect([_row()], [], {"full_runs": ["pve-x / big-vm"], "failed": 0}, self.NOW)
+        self.assertEqual(report.problems, [])
+        self.assertEqual([(i.cluster, i.name) for i in report.infos[0].items], [("pve-x", "big-vm")])
+
+    def test_period_is_the_last_seven_days(self):
+        report = weekly_report.collect([_row()], [], {"full_runs": [], "failed": 0}, self.NOW)
+        self.assertEqual((report.period_start.isoformat(), report.period_end.isoformat()), ("2026-10-05", "2026-10-11"))
+
+
 class SendIfDueTests(unittest.TestCase):
     def run_with(self, settings, email_enabled=True, sent=True, week="2026-W42"):
         from app.web import sync
@@ -124,3 +165,21 @@ class SendIfDueTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EmailPartsTests(unittest.TestCase):
+    def test_html_is_sent_as_alternative_to_the_text(self):
+        from app.services import notifications
+
+        sent = []
+        smtp = mock.MagicMock()
+        smtp.__enter__.return_value.send_message.side_effect = sent.append
+        config = {"email_host": "mail.example", "email_recipients": "ops@example.org", "email_from": "bs@example.org"}
+        with (
+            mock.patch.object(notifications, "_email_config", return_value=config),
+            mock.patch.object(notifications.smtplib, "SMTP_SSL", return_value=smtp),
+        ):
+            self.assertTrue(notifications._send_email_raw("Subject", "plain text", html="<p>rich</p>"))
+        msg = sent[0]
+        self.assertEqual(msg.get_content_type(), "multipart/alternative")
+        self.assertEqual([p.get_content_type() for p in msg.iter_parts()], ["text/plain", "text/html"])

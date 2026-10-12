@@ -9,7 +9,14 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app import db
-from app.config import DEFAULT_TIMEZONE, REPORT_DIR, REPORT_LANGUAGE, SYNC_INTERVAL_MINUTES
+from app.config import (
+    APP_BASE_URL,
+    APP_VERSION,
+    DEFAULT_TIMEZONE,
+    REPORT_DIR,
+    REPORT_LANGUAGE,
+    SYNC_INTERVAL_MINUTES,
+)
 from app.i18n import ts
 from app.services import weekly_report
 from app.services.backup_location import assign_pbs_servers
@@ -361,6 +368,24 @@ def notify_overdue_cluster_syncs() -> None:
         )
 
 
+def weekly_report_email() -> tuple[str, str, str]:
+    """(subject, text, HTML) of the weekly report as of now — also used for the preview."""
+    now = datetime.now(UTC)
+    datastores = []
+    for row in db.list_datastore_usage():
+        total = row["total_bytes"]
+        row["pct"] = round(row["used_bytes"] / total * 100) if total else 0
+        row["status"] = assess_datastore_usage(row["used_bytes"], total, row["estimated_full_at"])
+        datastores.append(row)
+    stats = db.weekly_backup_stats(now - timedelta(days=7))
+    report = weekly_report.collect(db.vm_governance_rows(), datastores, stats, now)
+    _preset, colors = active_theme()
+    html = weekly_report.render_html(
+        report, primary=colors.primary, accent=colors.accent, app_url=APP_BASE_URL, version=APP_VERSION
+    )
+    return weekly_report.subject(report), weekly_report.text(report), html
+
+
 def send_weekly_report_if_due() -> None:
     """Monday 07:00 summary email (see app.services.weekly_report)."""
     settings = db.get_settings_dict()
@@ -374,16 +399,8 @@ def send_weekly_report_if_due() -> None:
         # Mark the week handled — no point rebuilding it every sync until Sunday.
         db.save_settings({"weekly_report_last_week": week})
         return
-    now = datetime.now(UTC)
-    datastores = []
-    for row in db.list_datastore_usage():
-        total = row["total_bytes"]
-        row["pct"] = round(row["used_bytes"] / total * 100) if total else 0
-        row["status"] = assess_datastore_usage(row["used_bytes"], total, row["estimated_full_at"])
-        datastores.append(row)
-    stats = db.weekly_backup_stats(now - timedelta(days=7))
-    subject, body = weekly_report.build(db.vm_governance_rows(), datastores, stats, now)
-    if send_email(subject, body):  # failure → retried on the next loop
+    subject, body, html = weekly_report_email()
+    if send_email(subject, body, html=html):  # failure → retried on the next loop
         db.save_settings({"weekly_report_last_week": week})
         logger.info("Weekly report sent for %s", week)
 

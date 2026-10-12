@@ -295,6 +295,7 @@
           <input type="hidden" name="notify_weekly_report" value="false">
           <input type="checkbox" name="notify_weekly_report" value="true" {{ 'checked' if app_settings.get('notify_weekly_report', 'true') == 'true' }}>
           <span>{{ t('settings.weekly_report') }}</span>
+          <a class="weekly-preview-link" href="/settings/notifications/weekly-preview" target="_blank" rel="noopener">{{ t('settings.weekly_preview') }}</a>
         </label>
         <div class="form-actions">
           <button type="button" class="button-secondary js-test-email">{{ t('settings.test_email') }}</button>
