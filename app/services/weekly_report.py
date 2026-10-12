@@ -63,6 +63,28 @@ class Section:
 
 
 @dataclass
+class ClusterLine:
+    """One cluster's row: the figures of its dashboard card plus the week's failed backups."""
+
+    name: str
+    slug: str
+    nodes: int
+    vms: int
+    critical: int
+    warning: int
+    restore_due: int
+    encrypted_pct: int
+    failed: int
+    sync_ok: bool
+
+    @property
+    def tone(self) -> str:
+        if self.critical or not self.sync_ok:
+            return "critical"
+        return "warning" if self.warning or self.failed else "ok"
+
+
+@dataclass
 class WeeklyReport:
     week: int
     year: int
@@ -77,6 +99,7 @@ class WeeklyReport:
     restore_tested: int
     problems: list[Section]
     infos: list[Section]
+    clusters: list[ClusterLine] = field(default_factory=list)
 
     @property
     def problem_count(self) -> int:
@@ -88,8 +111,10 @@ def collect(
     datastores: list[dict[str, Any]],
     stats: dict[str, Any],
     now: datetime,
+    clusters: list[dict[str, Any]] = (),
 ) -> WeeklyReport:
-    """Everything the report shows, from governance rows, datastore usage and 7-day backup stats."""
+    """Everything the report shows, from governance rows, datastore usage, 7-day backup
+    stats and the dashboard's cluster summaries (`db.cluster_summaries()`)."""
     vms = [r for r in rows if not r.get("vm_gone")]
     critical = [r for r in vms if r["backup_severity"] == "critical"]
     warning = [r for r in vms if r["backup_severity"] == "warning"]
@@ -174,6 +199,22 @@ def collect(
         ),
         problems=[s for s in problems if s.items],
         infos=[s for s in infos if s.items],
+        clusters=[
+            ClusterLine(
+                name=c["cluster_name"],
+                slug=c["cluster_slug"],
+                nodes=c["node_count"],
+                vms=c["vm_count"],
+                critical=c["critical_count"],
+                warning=c["warning_count"],
+                restore_due=c["overdue_restore_count"],
+                encrypted_pct=c["encryption"]["pct_encrypted"],
+                failed=stats.get("failed_by_cluster", {}).get(c["cluster_slug"], 0),
+                # Failing since the last success (cleared on the next successful sync).
+                sync_ok=not c.get("last_pve_sync_failure_started_at"),
+            )
+            for c in clusters
+        ],
     )
 
 
@@ -187,6 +228,23 @@ def text(report: WeeklyReport) -> str:
         ts("weekly.summary", vms=report.vms, critical=report.critical, warning=report.warning, failed=report.failed),
         "",
     ]
+    if report.clusters:
+        lines.append(ts("weekly.title_clusters") + ":")
+        lines += [
+            "- "
+            + ts(
+                "weekly.cluster_line",
+                name=c.name,
+                vms=c.vms,
+                critical=c.critical,
+                warning=c.warning,
+                failed=c.failed,
+                restore=c.restore_due,
+            )
+            + ("" if c.sync_ok else " · " + ts("weekly.cluster_sync_failing"))
+            for c in report.clusters
+        ]
+        lines.append("")
 
     def line(item: Item) -> str:
         if item.pct is not None:
@@ -223,8 +281,20 @@ def build(
 _env = Environment(loader=FileSystemLoader("templates"), autoescape=select_autoescape(["html"]))
 
 
-def render_html(report: WeeklyReport, *, primary: str, accent: str, app_url: str, version: str) -> str:
-    """HTML part: table layout with inline styles, so mail clients (Outlook included) render it as designed."""
+def render_html(
+    report: WeeklyReport,
+    *,
+    primary: str,
+    accent: str,
+    app_url: str,
+    version: str,
+    images: dict[str, str] | None = None,
+) -> str:
+    """HTML part: table layout with inline styles, so mail clients (Outlook included) render it as designed.
+
+    `images` maps "wordmark" / "logo" to an image source (cid: in the email,
+    data: in the preview); missing ones fall back to text.
+    """
     base = app_url.rstrip("/")
 
     def link(item: Item) -> str:
@@ -242,4 +312,5 @@ def render_html(report: WeeklyReport, *, primary: str, accent: str, app_url: str
         mark=accent if contrast_ratio(accent, primary) >= 3 else header_ink,
         app_url=base,
         version=version,
+        images=images or {},
     )

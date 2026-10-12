@@ -472,8 +472,16 @@ def channel_enabled(channel: str) -> bool:
     return _is_enabled(channel)
 
 
-def send_email(subject: str, body: str, attachments: list[Path] | None = None, html: str | None = None) -> bool:
+def send_email(
+    subject: str,
+    body: str,
+    attachments: list[Path] | None = None,
+    html: str | None = None,
+    inline_images: dict[str, bytes] | None = None,
+) -> bool:
     """Send an email with optional attachments and HTML part. Returns True on success.
+
+    `inline_images` maps a content ID to PNG data; the HTML refers to it as "cid:<id>".
 
     Respects the email_enabled toggle. Test emails bypass this check.
     """
@@ -481,10 +489,16 @@ def send_email(subject: str, body: str, attachments: list[Path] | None = None, h
         logger.debug("E-Mail disabled, dropping: %s", subject)
         return False
 
-    return _send_email_raw(subject, body, attachments, html)
+    return _send_email_raw(subject, body, attachments, html, inline_images)
 
 
-def _send_email_raw(subject: str, body: str, attachments: list[Path] | None = None, html: str | None = None) -> bool:
+def _send_email_raw(
+    subject: str,
+    body: str,
+    attachments: list[Path] | None = None,
+    html: str | None = None,
+    inline_images: dict[str, bytes] | None = None,
+) -> bool:
     """Actually send an email (no enable check)."""
     cfg = _email_config()
     host = cfg.get("email_host", "")
@@ -508,6 +522,9 @@ def _send_email_raw(subject: str, body: str, attachments: list[Path] | None = No
     if html:
         # multipart/alternative: clients show the HTML, the text stays as fallback.
         msg.add_alternative(html, subtype="html", charset="utf-8")
+        html_part = msg.get_body(preferencelist=("html",))
+        for cid, png in (inline_images or {}).items():
+            html_part.add_related(png, maintype="image", subtype="png", cid=f"<{cid}>", filename=f"{cid}.png")
 
     if attachments:
         for path in attachments:

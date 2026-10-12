@@ -116,6 +116,37 @@ class HtmlTests(unittest.TestCase):
         self.assertEqual(report.problems, [])
         self.assertEqual([(i.cluster, i.name) for i in report.infos[0].items], [("pve-x", "big-vm")])
 
+    def test_cluster_lines_follow_the_dashboard_cards(self):
+        summary = {
+            "cluster_name": "pve-x",
+            "cluster_slug": "pve-x",
+            "node_count": 3,
+            "vm_count": 28,
+            "critical_count": 0,
+            "warning_count": 0,
+            "overdue_restore_count": 24,
+            "encryption": {"pct_encrypted": 100},
+            "last_pve_sync_failure_started_at": None,
+        }
+        stats = {"full_runs": [], "failed": 2, "failed_by_cluster": {"pve-x": 2}}
+        report = weekly_report.collect([_row()], [], stats, self.NOW, [summary])
+        line = report.clusters[0]
+        self.assertEqual((line.vms, line.restore_due, line.failed, line.tone), (28, 24, 2, "warning"))
+        failing = weekly_report.collect(
+            [_row()], [], stats, self.NOW, [{**summary, "last_pve_sync_failure_started_at": self.NOW}]
+        )
+        self.assertEqual(failing.clusters[0].tone, "critical")
+        html = weekly_report.render_html(
+            report,
+            primary="#141450",
+            accent="#ffff00",
+            app_url="https://bs.example",
+            version="v1",
+            images={"wordmark": "cid:wordmark", "logo": "cid:logo"},
+        )
+        self.assertIn('href="https://bs.example/clusters/pve-x"', html)
+        self.assertIn('src="cid:logo"', html)
+
     def test_period_is_the_last_seven_days(self):
         report = weekly_report.collect([_row()], [], {"full_runs": [], "failed": 0}, self.NOW)
         self.assertEqual((report.period_start.isoformat(), report.period_end.isoformat()), ("2026-10-05", "2026-10-11"))
@@ -130,6 +161,8 @@ class SendIfDueTests(unittest.TestCase):
             mock.patch.object(sync.db, "vm_governance_rows", return_value=[]),
             mock.patch.object(sync.db, "list_datastore_usage", return_value=[]),
             mock.patch.object(sync.db, "weekly_backup_stats", return_value={"failed": 0, "full_runs": []}),
+            mock.patch.object(sync.db, "cluster_summaries", return_value=[]),
+            mock.patch.object(sync.email_assets, "brand_logo_png", return_value=None),
             mock.patch.object(sync.db, "save_settings") as save,
             mock.patch.object(sync.weekly_report, "due_week", return_value=week),
             mock.patch.object(sync, "channel_enabled", return_value=email_enabled),
@@ -141,6 +174,8 @@ class SendIfDueTests(unittest.TestCase):
     def test_due_and_sent_marks_the_week(self):
         save, send = self.run_with({})
         send.assert_called_once()
+        self.assertEqual(set(send.call_args.kwargs["inline_images"]), {"wordmark"})
+        self.assertIn('src="cid:wordmark"', send.call_args.kwargs["html"])
         save.assert_called_once_with({"weekly_report_last_week": "2026-W42"})
 
     def test_send_failure_retries_later(self):
@@ -179,7 +214,17 @@ class EmailPartsTests(unittest.TestCase):
             mock.patch.object(notifications, "_email_config", return_value=config),
             mock.patch.object(notifications.smtplib, "SMTP_SSL", return_value=smtp),
         ):
-            self.assertTrue(notifications._send_email_raw("Subject", "plain text", html="<p>rich</p>"))
+            self.assertTrue(
+                notifications._send_email_raw(
+                    "Subject", "plain text", html='<img src="cid:logo">', inline_images={"logo": b"\x89PNG"}
+                )
+            )
         msg = sent[0]
         self.assertEqual(msg.get_content_type(), "multipart/alternative")
-        self.assertEqual([p.get_content_type() for p in msg.iter_parts()], ["text/plain", "text/html"])
+        text_part, related = msg.iter_parts()
+        self.assertEqual(
+            (text_part.get_content_type(), related.get_content_type()), ("text/plain", "multipart/related")
+        )
+        html_part, image = related.iter_parts()
+        self.assertEqual(html_part.get_content_type(), "text/html")
+        self.assertEqual((image.get_content_type(), image["Content-ID"]), ("image/png", "<logo>"))

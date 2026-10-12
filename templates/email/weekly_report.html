@@ -23,7 +23,7 @@
 <style>
   @media (max-width: 620px) {
     .wr-pad { padding-left: 20px !important; padding-right: 20px !important; }
-    .wr-kpi { display: block !important; width: 50% !important; float: left; box-sizing: border-box; }
+    .wr-kpi { display: inline-block !important; width: 44% !important; min-height: 64px; margin: 0 2% 8px 0; vertical-align: top; }
     .wr-h1 { font-size: 24px !important; }
     .wr-cell { display: block !important; width: 100% !important; text-align: left !important; padding-left: 0 !important; }
     .wr-detail { padding-top: 6px !important; }
@@ -40,10 +40,17 @@
 
   {#- Header -#}
   <tr><td class="wr-pad" style="background:{{ primary }};border-radius:16px 16px 0 0;padding:28px 36px 26px;">
-    <div style="font-size:12px;font-weight:700;letter-spacing:2px;color:{{ header_ink }};">
-      <span style="color:{{ mark }};font-style:italic;">//</span>&nbsp;BACKUP SENTINEL
-    </div>
-    <div class="wr-h1" style="font-size:30px;line-height:1.2;font-weight:700;color:{{ header_ink }};margin-top:14px;">{{ t('weekly.title') }}</div>
+    {#- Like the web header: brand logo, then the wordmark (both PNG, see email_assets). -#}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+      {%- if images.logo %}
+      <td valign="middle" style="padding-right:14px;"><img src="{{ images.logo }}" height="28" alt="" style="display:block;height:28px;width:auto;border:0;"></td>
+      {%- endif %}
+      <td valign="middle">
+        {%- if images.wordmark %}<img src="{{ images.wordmark }}" height="22" width="161" alt="Backup Sentinel" style="display:block;height:22px;width:161px;border:0;">
+        {%- else %}<span style="font-size:12px;font-weight:700;letter-spacing:2px;color:{{ header_ink }};"><span style="color:{{ mark }};font-style:italic;">//</span>&nbsp;BACKUP SENTINEL</span>{% endif -%}
+      </td>
+    </tr></table>
+    <div class="wr-h1" style="font-size:30px;line-height:1.2;font-weight:700;color:{{ header_ink }};margin-top:20px;">{{ t('weekly.title') }}</div>
     <div style="font-size:15px;color:{{ header_ink }};opacity:0.72;margin-top:4px;">
       {{ t('weekly.week_label', week=r.week) }} · {{ r.period_start.strftime('%d.%m.') }} – {{ r.period_end.strftime('%d.%m.%Y') }}
     </div>
@@ -76,18 +83,47 @@
       (r.warning, t('weekly.kpi_warning'), "warning"),
       (r.failed, t('weekly.kpi_failed'), "critical"),
     ] %}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;">
+    {#- Cells of one row share their height, so the tiles stay equal even when a label wraps. -#}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="8" border="0" style="margin:10px -8px 0;width:calc(100% + 16px);border-collapse:separate;">
       <tr>
         {%- for value, label, tone in kpis %}
-        <td class="wr-kpi" width="25%" valign="top" style="padding:4px;">
-          <div style="background:{{ tones[tone].bg if tone and value else '#f5f6f9' }};border-radius:10px;padding:14px 14px 12px;">
-            <div style="font-size:26px;font-weight:700;line-height:1.1;color:{{ tones[tone].fg if tone and value else ink }};">{{ value }}</div>
-            <div style="font-size:12px;color:{{ muted }};margin-top:4px;">{{ label }}</div>
-          </div>
+        <td class="wr-kpi" width="25%" valign="top" style="background:{{ tones[tone].bg if tone and value else '#f5f6f9' }};border-radius:10px;padding:14px 14px 12px;">
+          <div style="font-size:26px;font-weight:700;line-height:1.1;color:{{ tones[tone].fg if tone and value else ink }};">{{ value }}</div>
+          <div style="font-size:12px;color:{{ muted }};margin-top:4px;">{{ label }}</div>
         </td>
         {%- endfor %}
       </tr>
     </table>
+
+    {#- Per cluster: the dashboard card's figures; chips only for what needs attention. -#}
+    {%- if r.clusters %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:22px;">
+      <tr><td style="padding-bottom:8px;border-bottom:2px solid {{ line }};font-size:16px;font-weight:700;">{{ t('weekly.title_clusters') }}</td></tr>
+      {%- for c in r.clusters %}
+      <tr><td style="padding:11px 0;border-bottom:1px solid {{ line }};">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td class="wr-cell" valign="middle">
+            <div style="font-size:15px;font-weight:700;">
+              <span style="display:inline-block;width:9px;height:9px;border-radius:5px;background:{{ tones[c.tone].fg }};margin-right:7px;"></span>
+              {%- if app_url %}<a href="{{ app_url }}/clusters/{{ c.slug|urlencode }}" style="color:{{ ink }};text-decoration:none;">{{ c.name }}</a>{% else %}{{ c.name }}{% endif -%}
+            </div>
+            <div style="font-size:12px;color:{{ muted }};margin-top:2px;padding-left:16px;">{{ t('weekly.cluster_meta', vms=c.vms, nodes=c.nodes, pct=c.encrypted_pct) }}</div>
+          </td>
+          <td class="wr-cell wr-detail" valign="middle" align="right" style="padding-left:12px;">
+            {%- set chips = [] %}
+            {%- if not c.sync_ok %}{% set _ = chips.append((t('weekly.cluster_sync_failing'), "critical")) %}{% endif %}
+            {%- if c.critical %}{% set _ = chips.append((t('weekly.chip_critical', count=c.critical), "critical")) %}{% endif %}
+            {%- if c.warning %}{% set _ = chips.append((t('weekly.chip_warning_one' if c.warning == 1 else 'weekly.chip_warning_other', count=c.warning), "warning")) %}{% endif %}
+            {%- if c.failed %}{% set _ = chips.append((t('weekly.chip_failed', count=c.failed), "critical")) %}{% endif %}
+            {%- if c.restore_due %}{% set _ = chips.append((t('weekly.chip_restore', count=c.restore_due), "warning")) %}{% endif %}
+            {%- if not chips %}{% set _ = chips.append((t('common.ok'), "ok")) %}{% endif %}
+            {%- for label, tone in chips %}<span style="display:inline-block;margin:2px 0 2px 4px;padding:4px 10px;border-radius:12px;background:{{ tones[tone].bg }};color:{{ tones[tone].fg }};font-size:12px;font-weight:600;white-space:nowrap;">{{ label }}</span>{% endfor %}
+          </td>
+        </tr></table>
+      </td></tr>
+      {%- endfor %}
+    </table>
+    {%- endif %}
 
     {#- Sections: problems first, then information -#}
     {%- for section in r.problems + r.infos %}

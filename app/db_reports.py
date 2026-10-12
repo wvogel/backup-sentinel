@@ -268,13 +268,25 @@ def typical_backup_durations(cluster_id: int) -> dict[int, int]:
 
 
 def weekly_backup_stats(since: datetime) -> dict[str, Any]:
-    """Failed backups and full runs (by "cluster / VM") since `since`, for the weekly report."""
+    """Failed backups (total and per cluster slug) and full runs (by "cluster / VM") since `since`, for the weekly report."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT COUNT(*) AS failed FROM backup_events WHERE status <> 'ok' AND started_at >= %s",
             (since,),
         )
         failed = cur.fetchone()["failed"]
+        cur.execute(
+            """
+            SELECT c.slug, COUNT(*) AS failed
+            FROM backup_events be
+            JOIN vms v ON v.id = be.vm_id
+            JOIN clusters c ON c.id = v.cluster_id
+            WHERE be.status <> 'ok' AND be.started_at >= %s
+            GROUP BY c.slug
+            """,
+            (since,),
+        )
+        failed_by_cluster = {row["slug"]: row["failed"] for row in cur.fetchall()}
         cur.execute(
             """
             SELECT DISTINCT c.name || ' / ' || v.name AS vm
@@ -286,7 +298,11 @@ def weekly_backup_stats(since: datetime) -> dict[str, Any]:
             """,
             (since,),
         )
-        return {"failed": failed, "full_runs": [row["vm"] for row in cur.fetchall()]}
+        return {
+            "failed": failed,
+            "failed_by_cluster": failed_by_cluster,
+            "full_runs": [row["vm"] for row in cur.fetchall()],
+        }
 
 
 def processed_backup_task_upids(cluster_id: int) -> set[str]:

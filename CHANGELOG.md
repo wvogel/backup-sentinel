@@ -5,6 +5,18 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.20.0] — 2026-10-12
+
+### Added
+
+- **Per-cluster breakdown in the weekly report**: one line per cluster with VMs, nodes and encryption, and chips for what needs attention — critical, warnings, failed backups of the week, due restore tests, a failing sync — or "ok". The figures match the dashboard's cluster cards.
+- **Brand logo and wordmark in the weekly report header**, as in the web header. The logo (`BSENTINEL_BRAND_LOGO_LIGHT_URL`) is converted from SVG to PNG and, like the wordmark, embedded in the email (cid:), because many mail clients block remote images and don't render SVG. New dependency: `resvg-py` (prebuilt wheels, no system libraries). `scripts/render_email_wordmark.py` regenerates the wordmark image.
+
+### Changed
+
+- The weekly report's key-figure tiles have equal heights when a label wraps.
+- **Weekly report preview** is a button next to "Test-E-Mail senden" instead of a small link.
+
 ## [v2.19.0] — 2026-10-12
 
 ### Changed
