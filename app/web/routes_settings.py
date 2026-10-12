@@ -231,5 +231,5 @@ def weekly_report_preview() -> HTMLResponse:
     """The weekly report email as it would be sent now."""
     from app.web.sync import weekly_report_email
 
-    _subject, _text, html = weekly_report_email()
+    _subject, _text, html, _pngs = weekly_report_email(inline_images=False)
     return HTMLResponse(html)

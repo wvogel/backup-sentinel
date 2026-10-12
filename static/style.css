@@ -805,7 +805,8 @@ select:focus {
   border-color: color-mix(in srgb, var(--line) 45%, var(--accent) 55%);
 }
 
-button {
+button,
+:where(a.button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -822,7 +823,10 @@ button {
   transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
 }
 
-button:hover {
+:where(a.button) { text-decoration: none; }
+
+button:hover,
+:where(a.button):hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 14px rgba(20, 20, 80, 0.18);
 }
@@ -2567,7 +2571,6 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; }
 .checkbox-row input[type="checkbox"] { width: auto; }
-.weekly-preview-link { margin-left: 8px; font-size: 0.85rem; }
 
 /* ── VM table: zebra rows, one status dot, quiet text, colour only for problems ── */
 #vm-table {

@@ -18,7 +18,7 @@ from app.config import (
     SYNC_INTERVAL_MINUTES,
 )
 from app.i18n import ts
-from app.services import weekly_report
+from app.services import email_assets, weekly_report
 from app.services.backup_location import assign_pbs_servers
 from app.services.backup_status import assess_slow_backup
 from app.services.notifications import (
@@ -368,8 +368,11 @@ def notify_overdue_cluster_syncs() -> None:
         )
 
 
-def weekly_report_email() -> tuple[str, str, str]:
-    """(subject, text, HTML) of the weekly report as of now — also used for the preview."""
+def weekly_report_email(*, inline_images: bool = True) -> tuple[str, str, str, dict[str, bytes]]:
+    """(subject, text, HTML, inline PNGs by content ID) of the weekly report as of now.
+
+    The preview passes inline_images=False: the HTML then carries the images as data: URIs.
+    """
     now = datetime.now(UTC)
     datastores = []
     for row in db.list_datastore_usage():
@@ -378,12 +381,16 @@ def weekly_report_email() -> tuple[str, str, str]:
         row["status"] = assess_datastore_usage(row["used_bytes"], total, row["estimated_full_at"])
         datastores.append(row)
     stats = db.weekly_backup_stats(now - timedelta(days=7))
-    report = weekly_report.collect(db.vm_governance_rows(), datastores, stats, now)
+    report = weekly_report.collect(db.vm_governance_rows(), datastores, stats, now, db.cluster_summaries())
+    pngs = {"wordmark": email_assets.wordmark_png()}
+    if logo := email_assets.brand_logo_png():
+        pngs["logo"] = logo
+    images = {cid: f"cid:{cid}" if inline_images else email_assets.data_uri(png) for cid, png in pngs.items()}
     _preset, colors = active_theme()
     html = weekly_report.render_html(
-        report, primary=colors.primary, accent=colors.accent, app_url=APP_BASE_URL, version=APP_VERSION
+        report, primary=colors.primary, accent=colors.accent, app_url=APP_BASE_URL, version=APP_VERSION, images=images
     )
-    return weekly_report.subject(report), weekly_report.text(report), html
+    return weekly_report.subject(report), weekly_report.text(report), html, pngs
 
 
 def send_weekly_report_if_due() -> None:
@@ -399,8 +406,8 @@ def send_weekly_report_if_due() -> None:
         # Mark the week handled — no point rebuilding it every sync until Sunday.
         db.save_settings({"weekly_report_last_week": week})
         return
-    subject, body, html = weekly_report_email()
-    if send_email(subject, body, html=html):  # failure → retried on the next loop
+    subject, body, html, pngs = weekly_report_email()
+    if send_email(subject, body, html=html, inline_images=pngs):  # failure → retried on the next loop
         db.save_settings({"weekly_report_last_week": week})
         logger.info("Weekly report sent for %s", week)
 

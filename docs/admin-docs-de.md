@@ -98,7 +98,7 @@ Ihr Reverse Proxy sollte den Traffic an den OAuth2-Proxy-Container auf Port **41
 | `BSENTINEL_API_TIMEOUT` | `60` | Timeout in Sekunden für Proxmox/PBS-API-Anfragen. |
 | `BSENTINEL_DEBUG` | `false` | Debug-Logging aktivieren (`true` / `false`). |
 | `BSENTINEL_INSECURE_SSL` | `false` | SSL-Zertifikatsprüfung für Proxmox/PBS-APIs deaktivieren. Auf `true` setzen bei selbstsignierten Zertifikaten. |
-| `BSENTINEL_BRAND_LOGO_LIGHT_URL` | `/static/logo.svg` | Logo-URL für helles Design. |
+| `BSENTINEL_BRAND_LOGO_LIGHT_URL` | `/static/logo.svg` | Logo-URL für helles Design. Erscheint auch im Kopf des Wochenberichts (SVG wird dafür in PNG umgewandelt und eingebettet; relative URLs außerhalb von `/static/` brauchen `APP_URL`). |
 | `BSENTINEL_BRAND_LOGO_DARK_URL` | `/static/logo.svg` | Logo-URL für dunkles Design. |
 | `BSENTINEL_LOGOUT_URL` | `/oauth2/sign_out` | Logout-Weiterleitungs-URL. |
 | `FOOTER_LINKS` | *(leer)* | Footer-Links. Format: `Label1\|URL1,Label2\|URL2` |
