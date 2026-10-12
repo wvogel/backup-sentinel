@@ -97,9 +97,9 @@ class DarkModeReadabilityTests(unittest.TestCase):
                 ratio = theme.contrast_ratio(dark[ink], dark[surface])
                 self.assertGreaterEqual(ratio, 4.5, f"{primary}: {ink} on {surface} = {ratio:.2f}")
 
-    def test_dark_surfaces_are_only_lightly_tinted(self):
+    def test_dark_surfaces_are_only_moderately_tinted(self):
         # A saturated primary (smile eyes Dark Blue) must not turn the dark
-        # mode into a navy page: surfaces keep its hue, not its saturation.
+        # mode into a saturated navy page: surfaces keep its hue, capped saturation.
         import colorsys
 
         preset = theme.PRESETS["smile_eyes"]
@@ -109,7 +109,7 @@ class DarkModeReadabilityTests(unittest.TestCase):
             for key in ("--bg", "--panel", "--panel-alt", "--chip", "--header-bg", "--line", "--btn-bg", "--sage"):
                 r, g, b = (int(dark[key][i : i + 2], 16) / 255 for i in (1, 3, 5))
                 _h, _l, sat = colorsys.rgb_to_hls(r, g, b)
-                self.assertLessEqual(sat, 0.2, f"{primary}: {key} = {dark[key]} saturation {sat:.2f}")
+                self.assertLessEqual(sat, 0.35, f"{primary}: {key} = {dark[key]} saturation {sat:.2f}")
 
 
 class ThemeCssFallbackTests(unittest.TestCase):

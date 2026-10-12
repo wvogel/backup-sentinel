@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.16.1] — 2026-10-12
+
+### Changed
+
+- **Dark mode between navy and grey.** Since v2.15.1 the dark surfaces were near-black greys (saturation capped at 14 %); before that, a saturated navy. They now sit in between: the primary's hue with up to 32 % saturation and slightly lighter surfaces, for smile eyes Dark Blue page `#131325` and panel `#1b1b34`.
+- **No neon yellow in dark mode.** Active filters, the sync button and primary buttons used the accent `#ffff00` unchanged on dark surfaces. In dark mode the accent is now lighter and less saturated (`#e8e87d` for smile eyes Neon Yellow). The warning amber is calmer as well (`#dfb97f`).
+
 ## [v2.16.0] — 2026-10-12
 
 ### Changed
