@@ -410,6 +410,7 @@
   "cluster.history_duration": "Duration",
   "cluster.history_throughput": "Avg. throughput",
   "cluster.history_reused": "Reused",
+  "cluster.collapse": "Collapse",
   "cluster.history_runs": "{n} backups",
   "cluster.history_loading": "Loading history …",
   "cluster.history_empty": "No backups in the last 30 days.",

@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.16.0] — 2026-10-12
+
+### Changed
+
+- **A single backup target is no longer a warning.** VMs whose backups sit on exactly one PBS showed a yellow status dot and a yellow "PBS ×1" pill and counted as a problem, although many setups have one PBS by design. One verified target now keeps the status dot green; the pill is blue ("fine, just no second copy") and the VM no longer appears under "Only problems" or in the weekly report. Two or more targets stay green.
+- **Expanding a VM row is visible.** A ▶ before each VM name shows the row can be opened and turns when it is. The opened details have a **Collapse** button, and a click on free space in the details closes them as well (clicks on chart bars still only show their tooltip).
+
+### Fixed
+
+- **Duration, throughput and reuse only for the last few days.** These values come from the vzdump task logs, which were read for tasks of the last 4 days only, so older bars of the 30-day charts stayed empty. Task logs of the last 31 days are now read; already processed tasks are skipped, so the first sync after the update fetches the older logs once (as far as PVE still keeps them).
+
 ## [v2.15.3] — 2026-10-12
 
 ### Fixed

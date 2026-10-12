@@ -578,13 +578,14 @@ def fetch_finished_backup_tasks(
     nodes: list[str],
     skip_upids: set[str],
     node_tz: Any,
-    lookback_days: int = 4,
+    lookback_days: int = 31,
     timeout: float = API_TIMEOUT,
 ) -> list[FinishedBackupTask]:
     """Read the logs of finished vzdump tasks not processed yet.
 
-    The task list covers `lookback_days` so jobs running for days are still
-    picked up once they end; only unseen UPIDs get their (large) log fetched.
+    The task list covers `lookback_days` — the 30-day detail charts — so older
+    backups get their details too and jobs running for days are still picked up
+    once they end; only unseen UPIDs get their (large) log fetched.
     Node errors are logged and skipped — these details are best effort.
     """
     base_url = cluster["api_url"].rstrip("/")

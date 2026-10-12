@@ -217,12 +217,16 @@ VERIFY_MAX_AGE_DAYS = 30
 
 
 def _protection_status(row: dict[str, Any], now: datetime) -> tuple[str | None, str | None]:
-    """(second-copy status, verify status); None where it doesn't apply."""
+    """(second-copy status, verify status); None where it doesn't apply.
+
+    A single copy is "single": shown as information, not as a problem — many
+    setups have exactly one PBS by design.
+    """
     if row["vm_gone"]:
         return None, None
     copy_status = None
     if row["copy_count"]:
-        copy_status = "ok" if row["copy_count"] >= 2 else "warning"
+        copy_status = "ok" if row["copy_count"] >= 2 else "single"
     verify_status = None
     if row["has_pbs"]:
         if row["verify_failed_at"]:

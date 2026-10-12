@@ -79,7 +79,7 @@ Die Haupttabelle listet jede VM im Cluster mit sortierbaren Spalten:
 
 | Spalte         | Beschreibung                                                |
 |----------------|-------------------------------------------------------------|
-| ●              | Statuspunkt: grün = alles in Ordnung, gelb = Warnung, rot = kritisch (schlechtester Wert aus Backup-Alter, Zweitkopie und Verify); hohler Kreis = VM gelöscht. Der Tooltip nennt die Gründe |
+| ●              | Statuspunkt: grün = alles in Ordnung, gelb = Warnung, rot = kritisch (schlechtester Wert aus Backup-Alter und Verify; nur ein Backup-Ziel ist kein Problem); hohler Kreis = VM gelöscht. Der Tooltip nennt die Gründe |
 | VM             | Gastname; ein kleines **w** bzw. **–** zeigt wöchentliche Backups bzw. „kein Backup vorgesehen“ |
 | Node           | Der Proxmox-Node, auf dem die VM läuft                     |
 | VMID           | Proxmox-VM-ID                                               |
@@ -88,7 +88,7 @@ Die Haupttabelle listet jede VM im Cluster mit sortierbaren Spalten:
 | Schutz         | Quelle (PBS/lokal), Anzahl Server mit Backups der letzten 7 Tage (**×2**) und Verify-Status (**✓**/**?**/**✗**). Nur umrandet, wenn alles passt; farbig bei Warnung/Fehler |
 | Restore-Test   | „fällig in N T“, **offen** (noch nie getestet), „N T überfällig“ oder „–“ (kein Test vorgesehen). Der Tooltip zeigt den letzten Test |
 
-Die Zeilen sind abwechselnd hinterlegt. **Ein Klick auf eine Zeile** öffnet darunter die Details: die Einstellungen der VM und den Verlauf der letzten 30 Tage (Größe, Dauer, Durchsatz, wiederverwendete Daten).
+Die Zeilen sind abwechselnd hinterlegt. **Ein Klick auf eine Zeile** (erkennbar am ▶ vor dem VM-Namen) öffnet darunter die Details: die Einstellungen der VM und den Verlauf der letzten 30 Tage mit einem Balken pro Tag (Größe, Dauer, Durchsatz, wiederverwendete Daten). Zugeklappt wird mit **Einklappen**, einem Klick auf eine freie Stelle der Details oder erneut auf die Zeile.
 
 **Node-Filterleiste** -- Buttons oberhalb der Tabelle filtern VMs nach Node.
 
@@ -100,7 +100,7 @@ Die Zeilen sind abwechselnd hinterlegt. **Ein Klick auf eine Zeile** öffnet dar
 
 **Restore-Intervall** -- In den Details einer VM legt ein Auswahlfeld fest, wie oft eine VM getestet werden muss: **90 T**, **180 T** (Standard), **365 T** oder **kein** Test nötig. Bei wöchentlichen Backups gelten mindestens 365 Tage. Eine VM, die noch nie getestet wurde, steht auf **offen**: Sie zählt als fällig, aber nicht als kritisch überfällig. Im Formular *Wiederherstellung dokumentieren* lassen sich mehrere VMs auf einmal auswählen (Strg/⌘), z. B. für eine komplette Restore-Übung.
 
-**Zweitkopie und Verify** -- Die Pill in der Spalte Schutz zeigt, auf wie vielen Servern die Backups der letzten 7 Tage liegen (z. B. **×2**), und den Verify-Status des PBS: **✓** verifiziert, **?** seit über 30 Tagen nicht verifiziert, **✗** Verify fehlgeschlagen. Grün = mindestens 2 Server und verifiziert; gelb = nur ein Server oder nicht verifiziert; rot = Verify fehlgeschlagen (dazu kommt eine Benachrichtigung). Ein PBS zählt als ein Server, auch wenn er in PVE unter einem anderen Storage-Namen, per IP oder ohne Fingerabdruck (z. B. mit ACME-Zertifikat) eingetragen ist: Backup Sentinel ordnet den PVE-Storage der registrierten PBS-Verbindung zu (Fingerabdruck, Hostname, Kurzname oder aufgelöste IP) und zeigt im Tooltip die Servernamen.
+**Zweitkopie und Verify** -- Die Pill in der Spalte Schutz zeigt, auf wie vielen Servern die Backups der letzten 7 Tage liegen (z. B. **×2**), und den Verify-Status des PBS: **✓** verifiziert, **?** seit über 30 Tagen nicht verifiziert, **✗** Verify fehlgeschlagen. Grün = mindestens 2 Server und verifiziert; blau = ein Server und verifiziert (in Ordnung, nur ohne Zweitkopie); gelb = nicht verifiziert; rot = Verify fehlgeschlagen (dazu kommt eine Benachrichtigung). Ein PBS zählt als ein Server, auch wenn er in PVE unter einem anderen Storage-Namen, per IP oder ohne Fingerabdruck (z. B. mit ACME-Zertifikat) eingetragen ist: Backup Sentinel ordnet den PVE-Storage der registrierten PBS-Verbindung zu (Fingerabdruck, Hostname, Kurzname oder aufgelöste IP) und zeigt im Tooltip die Servernamen.
 
 **PBS-Speicherplatz** -- Unter jeder PBS-Zeile im Cluster-Kopf steht die Belegung jedes Datastores mit der Prognose des PBS, wann er voll ist. Gelb ab 80 % oder voll in ≤ 60 Tagen, rot ab 90 % oder voll in ≤ 14 Tagen (dann auch als Benachrichtigung).
 
