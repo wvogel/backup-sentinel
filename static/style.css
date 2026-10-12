@@ -1081,6 +1081,9 @@ pre {
   border-color: var(--accent);
 }
 
+.settings-tabs { margin-bottom: 16px; }
+.settings-tab-panel[hidden] { display: none; }
+
 
 .report-grid .summary-card {
   text-align: left;

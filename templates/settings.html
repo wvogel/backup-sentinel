@@ -1,56 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ t('settings.title') }}{% endblock %}
 {% block content %}
-<section class="panel-grid">
-  <section class="table-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">{{ t('settings.new_cluster') }}</p>
-      </div>
-    </div>
-    <form id="cluster-form" class="stack" data-app-base-url="{{ app_base_url }}">
-      <label>
-        <span>{{ t('settings.cluster_name') }}</span>
-        <input name="name" placeholder="pve-x" required>
-      </label>
-      <label>
-        <span>{{ t('settings.api_url') }}</span>
-        <input name="api_url" placeholder="https://pve.example.internal:8006" required>
-      </label>
-      <button type="submit" class="button-secondary">{{ t('settings.prepare_cluster') }}</button>
-    </form>
-    <div id="bootstrap-result" class="bootstrap-result hidden" data-cluster-slug="">
-      <div class="section-head">
-        <div>
-          <h3>{{ t('settings.setup_script') }}</h3>
-        </div>
-        <button type="button" class="button-secondary copy-button" data-copy-target="bootstrap-commands">
-          <span aria-hidden="true">&#x2398;</span>
-          <span>{{ t('common.copy') }}</span>
-        </button>
-      </div>
-      <pre id="bootstrap-commands"></pre>
-      <p class="bootstrap-poll-status muted" id="pve-poll-status">{{ t('settings.waiting_bootstrap') }}</p>
-    </div>
-  </section>
+{# Tabs: the active one is the URL hash, so redirects after saving land on it. #}
+<div class="node-filter-bar settings-tabs" role="tablist" aria-label="{{ t('header.settings') }}">
+  <button type="button" class="node-filter-button" role="tab" id="tab-cluster" data-tab="cluster" aria-controls="panel-cluster">{{ t('settings.tab_clusters') }}</button>
+  <button type="button" class="node-filter-button" role="tab" id="tab-benachrichtigungen" data-tab="benachrichtigungen" aria-controls="panel-benachrichtigungen">{{ t('settings.notifications') }}</button>
+  <button type="button" class="node-filter-button" role="tab" id="tab-appearance" data-tab="appearance" aria-controls="panel-appearance">{{ t('settings.appearance') }}</button>
+  <button type="button" class="node-filter-button" role="tab" id="tab-audit" data-tab="audit" aria-controls="panel-audit">{{ t('settings.tab_audit') }}</button>
+</div>
 
-  <aside class="table-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">{{ t('settings.governance') }}</p>
-        <h2>{{ t('settings.nist_title') }}</h2>
-      </div>
-    </div>
-    <ul class="plain-list">
-      <li><strong>Identify:</strong> {{ t('settings.nist_identify') }}</li>
-      <li><strong>Protect:</strong> {{ t('settings.nist_protect') }}</li>
-      <li><strong>Detect:</strong> {{ t('settings.nist_detect') }}</li>
-      <li><strong>Recover:</strong> {{ t('settings.nist_recover') }}</li>
-    </ul>
-  </aside>
-</section>
-
-<section class="table-card">
+<div class="settings-tab-panel" id="panel-cluster" role="tabpanel" aria-labelledby="tab-cluster">
+<section class="table-card" id="cluster">
   <div class="section-head">
     <div>
       <p class="eyebrow">{{ t('settings.cluster_overview') }}</p>
@@ -162,6 +122,70 @@
 </section>
 
 <!-- Lightbox for cluster rename -->
+
+<section class="panel-grid">
+  <section class="table-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">{{ t('settings.new_cluster') }}</p>
+      </div>
+    </div>
+    <form id="cluster-form" class="stack" data-app-base-url="{{ app_base_url }}">
+      <label>
+        <span>{{ t('settings.cluster_name') }}</span>
+        <input name="name" placeholder="pve-x" required>
+      </label>
+      <label>
+        <span>{{ t('settings.api_url') }}</span>
+        <input name="api_url" placeholder="https://pve.example.internal:8006" required>
+      </label>
+      <button type="submit" class="button-secondary">{{ t('settings.prepare_cluster') }}</button>
+    </form>
+    <div id="bootstrap-result" class="bootstrap-result hidden" data-cluster-slug="">
+      <div class="section-head">
+        <div>
+          <h3>{{ t('settings.setup_script') }}</h3>
+        </div>
+        <button type="button" class="button-secondary copy-button" data-copy-target="bootstrap-commands">
+          <span aria-hidden="true">&#x2398;</span>
+          <span>{{ t('common.copy') }}</span>
+        </button>
+      </div>
+      <pre id="bootstrap-commands"></pre>
+      <p class="bootstrap-poll-status muted" id="pve-poll-status">{{ t('settings.waiting_bootstrap') }}</p>
+    </div>
+  </section>
+
+  <aside class="table-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">{{ t('settings.governance') }}</p>
+        <h2>{{ t('settings.nist_title') }}</h2>
+      </div>
+    </div>
+    <ul class="plain-list">
+      <li><strong>Identify:</strong> {{ t('settings.nist_identify') }}</li>
+      <li><strong>Protect:</strong> {{ t('settings.nist_protect') }}</li>
+      <li><strong>Detect:</strong> {{ t('settings.nist_detect') }}</li>
+      <li><strong>Recover:</strong> {{ t('settings.nist_recover') }}</li>
+    </ul>
+  </aside>
+</section>
+
+
+{# ── Sync-Log-Panel ──────────────────────────────────────────────────── #}
+<section class="table-card hidden js-sync-log-panel" id="sync-log-panel">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">{{ t('settings.sync_log') }}</p>
+      <h3 id="sync-log-title">{{ t('settings.sync_protocol') }}</h3>
+    </div>
+    <button type="button" class="button-secondary" id="sync-log-close">{{ t('common.close') }}</button>
+  </div>
+  <pre id="sync-log-content" class="sync-log-pre"></pre>
+</section>
+</div>
+
 <div class="lightbox-overlay hidden" id="rename-cluster-lightbox">
   <div class="lightbox-box">
     <h3>{{ t('settings.rename_title') }}</h3>
@@ -202,6 +226,7 @@
   </div>
 </div>
 
+<div class="settings-tab-panel" id="panel-benachrichtigungen" role="tabpanel" aria-labelledby="tab-benachrichtigungen">
 {# ── Notifications ──────────────────────────────────────────────── #}
 <section class="table-card" id="benachrichtigungen">
   <div class="section-head">
@@ -333,7 +358,9 @@
     </div>
   </form>
 </section>
+</div>
 
+<div class="settings-tab-panel" id="panel-appearance" role="tabpanel" aria-labelledby="tab-appearance">
 <section class="table-card" id="appearance">
   <div class="section-head">
     <div>
@@ -384,8 +411,10 @@
     </div>
   </form>
 </section>
+</div>
 
-<section class="table-card">
+<div class="settings-tab-panel" id="panel-audit" role="tabpanel" aria-labelledby="tab-audit">
+<section class="table-card" id="audit">
   <div class="section-head">
     <div>
       <p class="eyebrow">{{ t('settings.audit') }}</p>
@@ -419,18 +448,7 @@
     </tbody>
   </table>
 </section>
-
-{# ── Sync-Log-Panel ──────────────────────────────────────────────────── #}
-<section class="table-card hidden js-sync-log-panel" id="sync-log-panel">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow">{{ t('settings.sync_log') }}</p>
-      <h3 id="sync-log-title">{{ t('settings.sync_protocol') }}</h3>
-    </div>
-    <button type="button" class="button-secondary" id="sync-log-close">{{ t('common.close') }}</button>
-  </div>
-  <pre id="sync-log-content" class="sync-log-pre"></pre>
-</section>
+</div>
 
 <script>
 document.querySelectorAll('.js-fieldset-toggle').forEach(function(cb) {

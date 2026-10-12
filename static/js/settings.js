@@ -117,3 +117,57 @@ document.addEventListener("click", (event) => {
     updatePreview();
   });
 })();
+
+// ── Settings: tabs ───────────────────────────────────────────────────────────
+// The active tab is the URL hash (#cluster, #benachrichtigungen, …). A hash that
+// names any element inside a panel opens that panel, so existing links and the
+// redirects after saving keep working. Without JS all panels stay visible.
+(function () {
+  const bar = document.querySelector(".settings-tabs");
+  if (!bar) return;
+  const tabs = [...bar.querySelectorAll('[role="tab"]')];
+  const panels = tabs.map((tab) => document.getElementById(tab.getAttribute("aria-controls")));
+
+  function activate(key, { focus = false } = {}) {
+    tabs.forEach((tab, i) => {
+      const on = tab.dataset.tab === key;
+      tab.classList.toggle("is-active", on);
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+      tab.tabIndex = on ? 0 : -1;
+      panels[i].hidden = !on;
+      if (on && focus) tab.focus();
+    });
+  }
+
+  function fromHash() {
+    const target = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    const panel = target && target.closest('[role="tabpanel"]');
+    const tab = panel && tabs.find((t) => t.getAttribute("aria-controls") === panel.id);
+    activate(tab ? tab.dataset.tab : tabs[0].dataset.tab);
+  }
+
+  bar.addEventListener("click", (event) => {
+    const tab = event.target.closest('[role="tab"]');
+    if (!tab) return;
+    activate(tab.dataset.tab);
+    history.replaceState(null, "", "#" + tab.dataset.tab);
+  });
+  // Arrow keys move between tabs (WAI-ARIA tabs pattern).
+  bar.addEventListener("keydown", (event) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+    if (!step) return;
+    const current = tabs.findIndex((t) => t.classList.contains("is-active"));
+    const next = tabs[(current + step + tabs.length) % tabs.length];
+    activate(next.dataset.tab, { focus: true });
+    history.replaceState(null, "", "#" + next.dataset.tab);
+    event.preventDefault();
+  });
+  window.addEventListener("hashchange", fromHash);
+  fromHash();
+  // The browser scrolls to the hash's section once the page has loaded; the tab
+  // bar belongs in view instead.
+  if (location.hash) {
+    window.scrollTo(0, 0);
+    window.addEventListener("load", () => requestAnimationFrame(() => window.scrollTo(0, 0)), { once: true });
+  }
+})();

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.19.0] — 2026-10-12
+
+### Changed
+
+- **Settings in tabs.** The settings page was one long column. It now has four tabs: *Cluster* (cluster overview with PBS connections first, then new cluster, governance and the sync log), *Benachrichtigungen*, *Erscheinungsbild* and *Änderungsprotokoll*. The active tab is the URL hash (`#cluster`, `#benachrichtigungen`, `#appearance`, `#audit`), so the redirects after saving land on the right tab and links can point to one; arrow keys switch tabs. Without JavaScript all sections stay visible as before.
+
 ## [v2.18.0] — 2026-10-12
 
 ### Changed
