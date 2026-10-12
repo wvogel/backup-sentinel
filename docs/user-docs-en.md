@@ -162,7 +162,7 @@ Monthly reports are generated automatically at the end of each month. You can al
 
 ## Settings
 
-The settings page (`/settings`) is the central place for managing clusters, PBS connections, and notifications.
+The settings page (`/settings`) is the central place for managing clusters, PBS connections, and notifications. It has four tabs: **Clusters** (clusters, PBS connections, new cluster, governance), **Notifications**, **Appearance** and **Change log**. The active tab is part of the address (e.g. `/settings#benachrichtigungen`), so links open that tab directly; the arrow keys switch between tabs.
 
 ### Add a New Cluster
 

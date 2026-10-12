@@ -125,6 +125,8 @@
   "cluster.restore_tests_eyebrow": "Restore-Tests",
   "cluster.sync_log_eyebrow": "Sync-Log",
   "cluster.start_label": "Start:",
+  "settings.tab_clusters": "Cluster",
+  "settings.tab_audit": "Änderungsprotokoll",
   "settings.title": "Einstellungen | Backup Sentinel",
   "settings.new_cluster": "Neuer Cluster",
   "settings.cluster_name": "Cluster-Name",
