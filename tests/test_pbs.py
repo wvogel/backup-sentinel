@@ -106,6 +106,12 @@ class DatastoreUsageTests(unittest.TestCase):
         self.assertEqual(usage[0]["estimated_full_at"].year, 2027)
         self.assertIsNone(usage[1]["estimated_full_at"])
 
+    def test_past_full_estimate_is_dropped(self) -> None:
+        rows = [{"store": "nas-pve-fh-muc", "total": 100, "used": 75, "avail": 25, "estimated-full-date": 1776297600}]
+        with mock.patch.object(pbs, "_pbs_get_json", return_value=rows):
+            usage = pbs.fetch_datastore_usage(CONN)
+        self.assertIsNone(usage[0]["estimated_full_at"])
+
 
 class DatastoreAssessmentTests(unittest.TestCase):
     NOW = datetime(2026, 10, 11, tzinfo=UTC)
@@ -121,6 +127,10 @@ class DatastoreAssessmentTests(unittest.TestCase):
         self.assertEqual(self.assess(30, full_in_days=40), "warning")
         self.assertEqual(self.assess(30, full_in_days=10), "critical")
         self.assertEqual(self.assess(30, full_in_days=400), "ok")
+
+    def test_past_full_estimate_is_ignored(self) -> None:
+        # PBS extrapolates shrinking usage backwards: a past date means "not filling up".
+        self.assertEqual(self.assess(75, full_in_days=-180), "ok")
 
     def test_unknown_total_is_ok(self) -> None:
         self.assertEqual(pbs.assess_datastore_usage(0, 0, None, self.NOW), "ok")

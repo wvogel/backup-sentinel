@@ -277,6 +277,7 @@ def fetch_datastore_usage(conn: dict[str, Any]) -> list[dict[str, Any]]:
         conn["api_token_id"],
         conn["api_token_secret"],
     )
+    now = datetime.now(UTC)
     result: list[dict[str, Any]] = []
     for row in rows:
         if row.get("error") or not row.get("store") or row.get("total") is None:
@@ -285,6 +286,10 @@ def fetch_datastore_usage(conn: dict[str, Any]) -> list[dict[str, Any]]:
         try:
             full_at = datetime.fromtimestamp(int(estimate), UTC) if estimate and int(estimate) > 0 else None
         except (TypeError, ValueError, OSError):
+            full_at = None
+        # PBS extrapolates the last month linearly; shrinking usage (prune/GC)
+        # puts the 100 % crossing in the past, meaning it is not filling up.
+        if full_at is not None and full_at <= now:
             full_at = None
         result.append(
             {
@@ -308,6 +313,8 @@ def assess_datastore_usage(
     days_left = None
     if estimated_full_at is not None:
         days_left = (estimated_full_at - (now or datetime.now(UTC))).total_seconds() / 86400
+        if days_left < 0:  # a past estimate means shrinking usage, see fetch_datastore_usage
+            days_left = None
     if pct >= 90 or (days_left is not None and days_left <= 14):
         return "critical"
     if pct >= 80 or (days_left is not None and days_left <= 60):

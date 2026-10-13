@@ -276,6 +276,24 @@ class DatastoreUsageDbTests(DbTestCase):
         usage = db.list_datastore_usage(self.cid)
         self.assertEqual([(u["pbs_name"], u["store"], u["used_bytes"]) for u in usage], [("pbs1", "nas-b1", 70)])
 
+    def test_past_full_estimate_is_not_listed(self) -> None:
+        db.upsert_pbs_connection(
+            self.cid, {"name": "pbs1", "api_url": "https://pbs1:8007", "api_token_id": "t", "api_token_secret": "s"}
+        )
+        pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
+        now = datetime.now(UTC)
+        row = {"store": "past", "total_bytes": 100, "used_bytes": 75, "avail_bytes": 25, "estimated_full_at": None}
+        db.replace_datastore_usage(
+            pbs_id,
+            [
+                {**row, "estimated_full_at": now - timedelta(days=180)},
+                {**row, "store": "soon", "estimated_full_at": now + timedelta(days=30)},
+            ],
+        )
+        full = {u["store"]: u["estimated_full_at"] for u in db.list_datastore_usage(self.cid)}
+        self.assertIsNone(full["past"])
+        self.assertIsNotNone(full["soon"])
+
 
 PBS_FH_MUC = {"name": "pbs-fh-muc", "api_url": "https://pbs:8007", "api_token_id": "t", "api_token_secret": "s"}
 
