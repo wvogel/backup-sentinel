@@ -277,6 +277,33 @@ class DatastoreUsageDbTests(DbTestCase):
         self.assertEqual([(u["pbs_name"], u["store"], u["used_bytes"]) for u in usage], [("pbs1", "nas-b1", 70)])
 
 
+PBS_FH_MUC = {"name": "pbs-fh-muc", "api_url": "https://pbs:8007", "api_token_id": "t", "api_token_secret": "s"}
+
+
+class PbsNamespaceTests(DbTestCase):
+    PBS = PBS_FH_MUC
+
+    def namespace(self) -> str:
+        return db.list_pbs_connections(self.cid)[0]["namespace"]
+
+    def test_bootstrap_rerun_without_namespace_keeps_it(self) -> None:
+        db.upsert_pbs_connection(self.cid, self.PBS)
+        self.assertEqual(self.namespace(), "")
+        pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
+        self.assertTrue(db.update_pbs_namespace(self.cid, pbs_id, " /pano//muc/ "))
+        self.assertEqual(self.namespace(), "pano/muc")
+        db.upsert_pbs_connection(self.cid, self.PBS)
+        self.assertEqual(self.namespace(), "pano/muc")
+        db.upsert_pbs_connection(self.cid, {**self.PBS, "namespace": ""})
+        self.assertEqual(self.namespace(), "")
+
+    def test_namespace_of_other_cluster_is_not_changed(self) -> None:
+        db.upsert_pbs_connection(self.cid, {**self.PBS, "namespace": "pano"})
+        pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
+        self.assertFalse(db.update_pbs_namespace(self.cid + 1, pbs_id, "x"))
+        self.assertEqual(self.namespace(), "pano")
+
+
 class CopiesAndVerifyTests(DbTestCase):
     def sync(self, events):
         pbs = [e for e in events if e.get("source", "pbs") == "pbs"]

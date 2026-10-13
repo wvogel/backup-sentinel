@@ -109,6 +109,26 @@ def fetch_pbs_datastores(conn: dict[str, Any]) -> tuple[list[str], str, bool]:
     return [], " | ".join(debug_lines), not had_error
 
 
+def fetch_pbs_namespaces(conn: dict[str, Any], datastore: str) -> list[str]:
+    """Namespaces of a datastore this connection covers.
+
+    Without a configured namespace only the root is read, as other namespaces
+    may hold other clusters' guests with the same VMIDs. With one (e.g. the
+    target of a pull sync) it and its child namespaces are read, if present.
+    """
+    scope = str(conn.get("namespace") or "")
+    if not scope:
+        return [""]
+    rows = _pbs_get_json(
+        conn["api_url"].rstrip("/"),
+        f"/api2/json/admin/datastore/{parse.quote(datastore, safe='')}/namespace",
+        conn["api_token_id"],
+        conn["api_token_secret"],
+    )
+    namespaces = {str(row.get("ns") or "") for row in rows}
+    return sorted(ns for ns in namespaces if ns == scope or ns.startswith(f"{scope}/"))
+
+
 def fetch_pbs_backups(
     conn: dict[str, Any],
     vmids: set[int],
@@ -121,13 +141,17 @@ def fetch_pbs_backups(
     token_secret = conn["api_token_secret"]
     conn_label = f"{base_url}/{datastore}"
 
+    snapshots: list[tuple[str, dict[str, Any]]] = []
     try:
-        snapshots = _pbs_get_json(
-            base_url,
-            f"/api2/json/admin/datastore/{parse.quote(datastore, safe='')}/snapshots",
-            token_id,
-            token_secret,
-        )
+        for namespace in fetch_pbs_namespaces(conn, datastore):
+            rows = _pbs_get_json(
+                base_url,
+                f"/api2/json/admin/datastore/{parse.quote(datastore, safe='')}/snapshots",
+                token_id,
+                token_secret,
+                query={"ns": namespace} if namespace else None,
+            )
+            snapshots.extend((namespace, snap) for snap in rows)
     except PBSSyncError as exc:
         logger.error("PBS fetch failed for %s: %s", conn_label, exc)
         raise
@@ -137,7 +161,7 @@ def fetch_pbs_backups(
     events: list[dict[str, Any]] = []
     skipped_vmid = skipped_old = 0
 
-    for snap in snapshots:
+    for namespace, snap in snapshots:
         backup_type = str(snap.get("backup-type") or "")
         if backup_type not in ("vm", "ct"):
             continue
@@ -189,9 +213,9 @@ def fetch_pbs_backups(
                 "encrypted": encrypted,
                 "verify_state": verify_state,
                 "status": "ok",
-                "storage": f"{conn.get('name') or base_url}/{datastore}",
+                "storage": "/".join(filter(None, (conn.get("name") or base_url, datastore, namespace))),
                 "guest_name": guest_name_from_notes(snap.get("comment")),
-                "location": connection_location(conn, datastore),
+                "location": connection_location(conn, datastore, namespace),
             }
         )
 

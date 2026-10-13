@@ -292,13 +292,15 @@ def upsert_pbs_connection(cluster_id: int, payload: dict[str, Any]) -> None:
         cur.execute(
             """
             INSERT INTO pbs_connections
-                (cluster_id, name, api_url, api_token_id, api_token_secret, fingerprint, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (cluster_id, name, api_url, api_token_id, api_token_secret, fingerprint, namespace, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, COALESCE(%s, ''), %s)
             ON CONFLICT (cluster_id, api_url) DO UPDATE SET
                 name = EXCLUDED.name,
                 api_token_id = EXCLUDED.api_token_id,
                 api_token_secret = EXCLUDED.api_token_secret,
-                fingerprint = EXCLUDED.fingerprint
+                fingerprint = EXCLUDED.fingerprint,
+                -- A re-run without --namespace keeps the configured one.
+                namespace = COALESCE(%s, pbs_connections.namespace)
             """,
             (
                 cluster_id,
@@ -307,7 +309,9 @@ def upsert_pbs_connection(cluster_id: int, payload: dict[str, Any]) -> None:
                 payload["api_token_id"],
                 payload["api_token_secret"],
                 payload.get("fingerprint", ""),
+                payload.get("namespace"),
                 now,
+                payload.get("namespace"),
             ),
         )
         conn.commit()
@@ -323,6 +327,22 @@ def list_pbs_connections(cluster_id: int | None = None) -> list[PBSConnectionRow
     with connect() as conn, conn.cursor() as cur:
         cur.execute(query, params)
         return list(cur.fetchall())
+
+
+def normalize_namespace(namespace: str) -> str:
+    """PBS namespace path without surrounding or doubled slashes ("/a//b/" → "a/b")."""
+    return "/".join(part for part in namespace.strip().split("/") if part)
+
+
+def update_pbs_namespace(cluster_id: int, conn_id: int, namespace: str) -> bool:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE pbs_connections SET namespace = %s WHERE id = %s AND cluster_id = %s",
+            (normalize_namespace(namespace), conn_id, cluster_id),
+        )
+        updated = cur.rowcount > 0
+        conn.commit()
+        return updated
 
 
 def delete_pbs_connection(conn_id: int) -> bool:

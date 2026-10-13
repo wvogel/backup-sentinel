@@ -197,6 +197,9 @@ def init_db() -> None:
                 );
                 """
             )
+            # Restricts a PBS connection to one namespace subtree ('' = root only),
+            # e.g. a pull-sync target holding this cluster's copies.
+            cur.execute("ALTER TABLE pbs_connections ADD COLUMN IF NOT EXISTS namespace TEXT NOT NULL DEFAULT ''")
             # After pbs_connections, which it references.
             cur.execute(
                 """

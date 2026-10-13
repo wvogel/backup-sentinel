@@ -1708,6 +1708,23 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
   flex-wrap: wrap;
 }
 
+.pbs-namespace-form,
+.pbs-namespace-form label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pbs-namespace-form {
+  margin-top: 6px;
+}
+
+.pbs-namespace-form input {
+  width: 14rem;
+  padding: 4px 8px;
+}
+
 .settings-subcard-add {
   background: transparent;
   border-style: dashed;

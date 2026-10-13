@@ -44,6 +44,53 @@ class FetchAllPBSBackupsTests(unittest.TestCase):
         self.assertEqual([e["guest_name"] for e in events], ["mgmfw"])
         self.assertEqual([e["location"] for e in events], ["pbs:pbs-fh-muc/nas-b1"])
 
+    def test_without_namespace_only_root_is_read(self) -> None:
+        snap = {"backup-type": "vm", "backup-id": "121", "backup-time": 1_760_000_000, "size": 10}
+        calls = []
+
+        def fake_get(base_url, path, token_id, token_secret, **kwargs):
+            calls.append((path, kwargs.get("query")))
+            return [snap]
+
+        with mock.patch.object(pbs, "_pbs_get_json", side_effect=fake_get):
+            events = pbs.fetch_pbs_backups(CONN, {121}, datastore="nas-b1")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(calls, [("/api2/json/admin/datastore/nas-b1/snapshots", None)])
+
+    def test_namespace_subtree_is_read(self) -> None:
+        snap = {"backup-type": "vm", "backup-id": "121", "backup-time": 1_760_000_000, "size": 10}
+        calls = []
+
+        def fake_get(base_url, path, token_id, token_secret, **kwargs):
+            calls.append((path, kwargs.get("query")))
+            if path.endswith("/namespace"):
+                return [{"ns": ""}, {"ns": "pano"}, {"ns": "pano/muc"}, {"ns": "panorama"}, {"ns": "other"}]
+            ns = (kwargs.get("query") or {}).get("ns", "")
+            return [snap] if ns == "pano/muc" else []
+
+        conn = {**CONN, "name": "pbs-fh-muc", "namespace": "pano"}
+        with mock.patch.object(pbs, "_pbs_get_json", side_effect=fake_get):
+            events = pbs.fetch_pbs_backups(conn, {121}, datastore="nas-b1")
+        self.assertEqual([e["location"] for e in events], ["pbs:pbs-fh-muc/nas-b1/pano/muc"])
+        self.assertEqual([e["storage"] for e in events], ["pbs-fh-muc/nas-b1/pano/muc"])
+        snapshot_queries = [q for path, q in calls if path.endswith("/snapshots")]
+        self.assertEqual(snapshot_queries, [{"ns": "pano"}, {"ns": "pano/muc"}])
+
+    def test_namespace_missing_on_datastore_is_skipped(self) -> None:
+        def fake_get(base_url, path, token_id, token_secret, **kwargs):
+            if path.endswith("/namespace"):
+                return [{"ns": ""}, {"ns": "other"}]
+            raise AssertionError("snapshots must not be read")
+
+        with mock.patch.object(pbs, "_pbs_get_json", side_effect=fake_get):
+            events = pbs.fetch_pbs_backups({**CONN, "namespace": "pano"}, {121}, datastore="nas-b1")
+        self.assertEqual(events, [])
+
+    def test_namespace_listing_failure_raises(self) -> None:
+        with mock.patch.object(pbs, "_pbs_get_json", side_effect=pbs.PBSSyncError("timeout")):
+            with self.assertRaises(pbs.PBSSyncError):
+                pbs.fetch_pbs_backups({**CONN, "namespace": "pano"}, {121}, datastore="nas-b1")
+
 
 class DatastoreUsageTests(unittest.TestCase):
     def test_parses_usage_and_full_estimate(self) -> None:
