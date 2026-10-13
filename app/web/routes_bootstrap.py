@@ -112,6 +112,8 @@ def pbs_bootstrap_finalize(request: Request) -> JSONResponse:
         "api_token_secret": params.get("api_token_secret", ""),
         "fingerprint": params.get("fingerprint", ""),
     }
+    if "namespace" in params:
+        payload["namespace"] = db.normalize_namespace(params["namespace"])
     db.upsert_pbs_connection(cluster["id"], payload)
     try:
         db.append_audit_event(

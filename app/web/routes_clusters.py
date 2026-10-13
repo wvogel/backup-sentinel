@@ -302,6 +302,27 @@ def update_backup_policy(
     return RedirectResponse(url=f"/clusters/{cluster_slug}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/clusters/{cluster_slug}/pbs/{pbs_id}/namespace")
+def update_pbs_namespace(
+    request: Request, cluster_slug: str, pbs_id: int, namespace: str = Form("")
+) -> RedirectResponse:
+    cluster = db.get_cluster_by_slug(cluster_slug)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    if not db.update_pbs_namespace(cluster["id"], pbs_id, namespace):
+        raise HTTPException(status_code=404, detail="PBS not found")
+    try:
+        db.append_audit_event(
+            settings_actor(request),
+            "pbs.namespace",
+            cluster_slug,
+            f"pbs_id={pbs_id}, namespace={db.normalize_namespace(namespace)}",
+        )
+    except Exception:
+        pass
+    return RedirectResponse(url="/settings", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.post("/clusters/{cluster_slug}/pbs/{pbs_id}/delete")
 def delete_pbs_connection(request: Request, cluster_slug: str, pbs_id: int) -> RedirectResponse:
     pbs_name = str(pbs_id)

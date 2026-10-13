@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.21.0] — 2026-10-13
+
+### Added
+
+- **Namespace per PBS connection.** A PBS connection of a cluster can be limited to one namespace (Settings → Cluster, field "Namespace"; or `--namespace NS` in the PBS bootstrap). The direct PBS sync then reads that namespace and its child namespaces instead of only the root. This makes copies from a **pull sync** into a namespace on another PBS count as an additional copy (×2), without registering that PBS as a storage in PVE. Empty keeps the old behaviour (root only), so other clusters' guests with the same VMIDs in other namespaces are never mixed in. A bootstrap re-run without `--namespace` keeps the configured namespace.
+
 ## [v2.20.1] — 2026-10-12
 
 ### Changed

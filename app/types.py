@@ -53,6 +53,7 @@ class PBSConnectionRow(TypedDict):
     api_token_id: str
     api_token_secret: str
     fingerprint: str
+    namespace: str
     last_sync_at: datetime | None
     last_sync_ok: bool | None
     last_sync_log: str | None

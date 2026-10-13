@@ -5,9 +5,11 @@ usage() {
   cat <<'EOF'
 Usage:
   pbs-bootstrap.sh --server-url URL --cluster-slug SLUG --enrollment-secret SECRET \
-                   [--api-url URL]
+                   [--api-url URL] [--namespace NS]
 
 Run this script on a Proxmox Backup Server node (as root).
+--namespace limits the cluster to that namespace and its children, e.g. the
+target of a pull sync; without it only the root namespace is read.
 The token receives Admin access (can be tightened later).
 EOF
 }
@@ -16,6 +18,8 @@ SERVER_URL=""
 CLUSTER_SLUG=""
 ENROLLMENT_SECRET=""
 API_URL_OVERRIDE=""
+NAMESPACE=""
+NAMESPACE_SET=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -23,6 +27,7 @@ while [[ $# -gt 0 ]]; do
     --cluster-slug)      CLUSTER_SLUG="$2";       shift 2 ;;
     --enrollment-secret) ENROLLMENT_SECRET="$2";  shift 2 ;;
     --api-url)           API_URL_OVERRIDE="$2";   shift 2 ;;
+    --namespace)         NAMESPACE="$2"; NAMESPACE_SET=1; shift 2 ;;
     *) usage; exit 1 ;;
   esac
 done
@@ -104,6 +109,11 @@ fi
 PBS_NAME="$(hostname -s)"
 
 # ── Register with backup-sentinel ─────────────────────────────────────────────
+# Re-runs without --namespace keep the namespace configured in the UI.
+NAMESPACE_ARGS=()
+if [[ "$NAMESPACE_SET" == 1 ]]; then
+  NAMESPACE_ARGS=(--data-urlencode "namespace=${NAMESPACE}")
+fi
 curl -fsSL -G "${SERVER_URL}/api/bootstrap/pbs-finalize" \
   --data-urlencode "cluster_slug=${CLUSTER_SLUG}" \
   --data-urlencode "enrollment_secret=${ENROLLMENT_SECRET}" \
@@ -111,7 +121,8 @@ curl -fsSL -G "${SERVER_URL}/api/bootstrap/pbs-finalize" \
   --data-urlencode "api_url=${PBS_API_URL}" \
   --data-urlencode "api_token_id=${TOKEN_ID}" \
   --data-urlencode "api_token_secret=${TOKEN_SECRET}" \
-  --data-urlencode "fingerprint=${FINGERPRINT}"
+  --data-urlencode "fingerprint=${FINGERPRINT}" \
+  "${NAMESPACE_ARGS[@]}"
 
 echo ""
 echo "PBS ${PBS_NAME} registered for cluster '${CLUSTER_SLUG}'."

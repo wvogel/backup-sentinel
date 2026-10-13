@@ -74,6 +74,13 @@
               <span class="muted">{{ pbs.api_url }}</span>
               <span class="muted">{{ t('settings.pbs_created') }} {{ pbs.created_at|datetime_local }}</span>
             </div>
+            <form action="/clusters/{{ cluster.slug }}/pbs/{{ pbs.id }}/namespace" method="post" class="inline-form pbs-namespace-form">
+              <label class="muted" title="{{ t('settings.pbs_namespace_hint') }}">
+                {{ t('settings.pbs_namespace') }}
+                <input type="text" name="namespace" value="{{ pbs.namespace }}" placeholder="{{ t('settings.pbs_namespace_root') }}">
+              </label>
+              <button type="submit" class="button-secondary">{{ t('common.save') }}</button>
+            </form>
           </div>
           <form action="/clusters/{{ cluster.slug }}/pbs/{{ pbs.id }}/delete" method="post" class="inline-form js-pbs-remove-form">
             <button type="submit" class="button-danger pbs-remove-btn">{{ t('settings.pbs_remove') }}</button>
