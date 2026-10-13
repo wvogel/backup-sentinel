@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.21.1] — 2026-10-13
+
+### Fixed
+
+- **"Full on" dates in the past.** PBS extrapolates the last month's datastore usage linearly; when usage shrinks (prune/GC), the 100 % crossing lies in the past and PBS still reports it. Backup Sentinel showed it ("voll ca. 16.04.26") and treated it as "full within 14 days": the datastore turned critical and could trigger a "datastore full" notification at e.g. 75 %. A full date that is not in the future now means "not filling up" — no date shown, status from usage alone. Already stored values are hidden right away.
+
 ## [v2.21.0] — 2026-10-13
 
 ### Added
