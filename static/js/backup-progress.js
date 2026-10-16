@@ -81,7 +81,9 @@
     banner.classList.toggle("hidden", rows.length === 0);
   }
 
-  function applyProgress(progress) {
+  // `complete`: PVE answered for every node, so a row not listed is not
+  // running, even one the server rendered from a sync placeholder.
+  function applyProgress(progress, complete) {
     for (const tr of table.querySelectorAll("tbody tr[data-vmid]")) {
       const info = progress[tr.dataset.vmid];
       if (info) {
@@ -93,7 +95,7 @@
         if (info.percent === null || info.percent === undefined) tr.style.removeProperty("--pct");
         else tr.style.setProperty("--pct", info.percent);
         tr.title = [info.line, info.warning, info.title].filter(Boolean).join("\n");
-      } else if (tr.dataset.live === "1") {
+      } else if (tr.dataset.live === "1" || (complete && tr.classList.contains("is-running"))) {
         // Finished since the last poll; the new backup date arrives with the next sync.
         tr.classList.remove("is-running");
         tr.style.removeProperty("--pct");
@@ -115,7 +117,7 @@
       const resp = await fetch(`/api/clusters/${encodeURIComponent(slug)}/sync-status?since=999999`);
       if (resp.ok) {
         const data = await resp.json();
-        applyProgress(data.backup_progress || {});
+        applyProgress(data.backup_progress || {}, data.backup_progress_complete === true);
         running = table.querySelector("tr.is-running") !== null;
       }
     } catch { /* keep the last state */ }

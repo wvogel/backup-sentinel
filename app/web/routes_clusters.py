@@ -174,7 +174,9 @@ def get_sync_status(cluster_slug: str, since: int = 0):
     cache_entry = _sync_status_cache.get(cluster_slug)
     if cache_entry is None or (now - cache_entry[0]) >= _SYNC_STATUS_TTL:
         buf = list(sync_logs.get(cid, []))
-        progress, _ = running_backup_progress_cached(cluster, [node["name"] for node in db.list_nodes(cluster["id"])])
+        progress, complete = running_backup_progress_cached(
+            cluster, [node["name"] for node in db.list_nodes(cluster["id"])]
+        )
         typical = db.typical_backup_durations(cid) if progress else {}
         serializable_progress = {
             str(vmid): running_backup_info(item, typical.get(vmid)) for vmid, item in progress.items()
@@ -184,6 +186,8 @@ def get_sync_status(cluster_slug: str, since: int = 0):
             "log": buf,
             "offset": len(buf),
             "backup_progress": serializable_progress,
+            # All nodes answered: what is not listed is not running.
+            "backup_progress_complete": complete,
             "running_count_label": running_count_label(len(serializable_progress)),
         }
         _sync_status_cache[cluster_slug] = (now, cached)
@@ -225,17 +229,20 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
     vm_rows = db.vm_governance_rows(cluster["id"])
     # Never wait for PVE here: the page's poll fills in progress right away
     # when nothing recent is cached.
-    live_backup_progress, _ = running_backup_progress_peek(
+    live_backup_progress, live_complete = running_backup_progress_peek(
         cluster, [node["name"] for node in db.list_nodes(cluster["id"])]
     )
     progress_pending = live_backup_progress is None
+    # Complete live data from PVE says what runs; the sync's in-progress
+    # placeholders (a failed backup leaves one behind) only count without it.
+    live_complete = live_backup_progress is not None and live_complete
     live_backup_progress = live_backup_progress or {}
     running_backups = []
     typical = db.typical_backup_durations(cluster["id"]) if live_backup_progress else {}
     for row in vm_rows:
         row["live_backup_progress"] = live_backup_progress.get(row["vmid"])
         row["running"] = None
-        if row["live_backup_progress"] or row["in_progress_since"]:
+        if row["live_backup_progress"] or (row["in_progress_since"] and not live_complete):
             row["running"] = running_backup_info(row["live_backup_progress"], typical.get(row["vmid"]))
             running_backups.append(row)
     restore_tests = db.recent_restore_tests(cluster["id"])
