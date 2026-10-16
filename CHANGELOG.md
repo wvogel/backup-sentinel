@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.28.1] — 2026-10-17
+
+### Added
+
+- **"Replikation läuft" on the overview.** Next to "N Backups laufen", a cluster card shows when a PBS sync job is copying into the cluster's datastores right now ("2 Replikationen laufen" for several); the tooltip names source and target. Read from the precomputed diagram, so the overview stays fast; a sync the cluster page has already seen finish is left out.
+
 ## [v2.28.0] — 2026-10-17
 
 ### Changed
