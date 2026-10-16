@@ -2483,43 +2483,33 @@ details[open] > .encryption-alert-summary::before {
   cursor: pointer;
 }
 .running-item:hover { border-color: var(--running); }
-/* Data is moving: stripes travel calmly along the filled arc. The arc is a
-   mask on .running-flow; only its striped child turns (plain transform). */
+/* A running backup breathes: the whole ring (done and open part alike)
+   fades gently in and out, so 3 % moves as visibly as 90 %. The ring is
+   drawn by ::before so the percentage itself stays steady. */
 .running-ring {
   --ring: var(--running);
   position: relative;
   flex: none;
-}
-.topo-ring .running-flow {
-  display: block;
-  position: absolute;
-  inset: 0;
-  width: auto;
-  height: auto;
   background: none;
-  border-radius: 50%;
-  -webkit-mask: conic-gradient(#000 calc(var(--p) * 1%), transparent 0);
-  mask: conic-gradient(#000 calc(var(--p) * 1%), transparent 0);
 }
-.running-flow > i {
+.running-ring::before {
+  content: "";
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: repeating-conic-gradient(rgba(255, 255, 255, 0.5) 0 4deg, transparent 4deg 14deg);
-  animation: running-spin 9s linear infinite;
+  background: conic-gradient(var(--ring) calc(var(--p) * 1%), var(--line) 0);
+  animation: running-breathe 2.8s ease-in-out infinite alternate;
 }
 .running-ring-label { position: relative; z-index: 1; }
-/* Without a percentage: one arc turning slowly. */
-.running-ring.is-indeterminate {
+@keyframes running-breathe { from { opacity: 1; } to { opacity: 0.4; } }
+/* Without a percentage: one arc turning slowly (and breathing). */
+.running-ring.is-indeterminate::before {
   background: conic-gradient(var(--ring) 0 25%, var(--line) 0);
-  animation: running-spin 6s linear infinite;
+  animation: running-breathe 2.8s ease-in-out infinite alternate, running-spin 6s linear infinite;
 }
-.running-ring.is-indeterminate .running-flow { display: none; }
-.running-ring.is-indeterminate .running-ring-label { animation: running-spin 6s linear infinite reverse; }
 @media (prefers-reduced-motion: reduce) {
-  .running-flow > i,
-  .running-ring.is-indeterminate,
-  .running-ring.is-indeterminate .running-ring-label { animation: none; }
+  .running-ring::before,
+  .running-ring.is-indeterminate::before { animation: none; }
 }
 .running-item-body {
   display: grid;

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.25.3] — 2026-10-16
+
+### Changed
+
+- **Running-backup rings pulse gently** — the whole ring, done and open part alike, fades in and out every few seconds, so a backup at 3 % shows movement as clearly as one at 90 %. Replaces the stripes on the filled arc, which were invisible at low percentages. The percentage stays steady; a ring without percentage also turns slowly.
+
 ## [v2.25.2] — 2026-10-16
 
 ### Added
