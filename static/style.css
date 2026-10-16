@@ -2590,17 +2590,15 @@ html[data-theme="dark"] .node-filter-button.is-active {
   display: flex;
   align-items: center;
   gap: 28px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel-alt);
+  /* No frame of its own: the boxes sit on the card like the key-figure tiles. */
+  padding: 0;
   overflow-x: auto;
   overflow-y: hidden;
 }
 
 /* Room for lines running above or below the boxes. */
-.topology.has-top-lane { padding-top: 28px; }
-.topology.has-bottom-lane { padding-bottom: 28px; }
+.topology.has-top-lane { padding-top: 22px; }
+.topology.has-bottom-lane { padding-bottom: 22px; }
 
 .topology-lines {
   position: absolute;
@@ -2633,14 +2631,16 @@ html[data-theme="dark"] .node-filter-button.is-active {
   min-width: 0;
 }
 
+/* Same look as the key-figure tiles (.cluster-stat). */
 .topo-cluster,
 .topo-server {
   position: relative;
   z-index: 1;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--panel);
+  background: var(--panel-alt);
 }
+.topology .topo-ring span { background: var(--panel-alt); }
 
 .topo-cluster {
   display: grid;
@@ -2660,6 +2660,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   padding: 8px 12px 10px;
 }
 .topo-server.is-unregistered { border-style: dashed; background: transparent; }
+.topology .topo-server.is-unregistered .topo-ring span { background: var(--panel); }
 
 .topo-server-name {
   display: flex;
