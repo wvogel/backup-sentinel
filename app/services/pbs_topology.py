@@ -265,7 +265,6 @@ def build_topology(
             "last_run_state": job["last_run_state"],
             "next_run_at": job["next_run_at"],
             "running_since": job.get("running_since"),
-            "running_percent": job.get("running_percent"),
             # Where to ask for live progress (cluster page poll).
             "pbs_id": job["pbs_id"],
             "running_upid": job.get("running_upid"),

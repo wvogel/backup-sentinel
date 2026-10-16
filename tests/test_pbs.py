@@ -1,14 +1,8 @@
 import unittest
 from datetime import UTC, datetime, timedelta
 from unittest import mock
-from urllib.parse import quote as _quote
 
 from app.services import pbs
-
-
-def parse_quote(value: str) -> str:
-    return _quote(value, safe="")
-
 
 CONN = {"api_url": "https://pbs", "api_token_id": "id", "api_token_secret": "secret"}
 
@@ -246,30 +240,53 @@ class CertFingerprintTests(unittest.TestCase):
 class SyncProgressTests(unittest.TestCase):
     UPID = "UPID:pbs-fh-muc:0000ABCD:0012F00D:00000002:68F15A40:syncjob:s-pano:sync@pbs:"
 
-    def test_latest_percentage_from_the_task_log(self) -> None:
-        log = [
-            {"n": 1, "t": "Starting datastore sync job 'pano:nas-pbs-pano:nas-offsite-fh-muc'"},
-            {"n": 2, "t": "percentage done: 5.00% (1/20 groups)"},
-            {"n": 3, "t": "percentage done: 45.31% (9/20 groups, 3/10 snapshots in group #10)"},
-            {"n": 4, "t": "sync snapshot vm/121/2026-10-16T20:00:01Z"},
+    def state(self, total, tail, active=None):
+        calls = []
+
+        def fake(conn, path, **kwargs):
+            calls.append(kwargs.get("query"))
+            if kwargs["query"]["limit"] == "1":
+                head = {"data": [{"n": 1, "t": "Starting"}], "total": total}
+                if active is not None:
+                    head["active"] = active
+                return head
+            return {"data": tail}
+
+        with mock.patch.object(pbs, "_pbs_get_payload", side_effect=fake):
+            return pbs.sync_task_state(CONN, self.UPID), calls
+
+    def test_reads_only_the_end_of_a_long_log(self) -> None:
+        tail = [
+            {"n": 4801, "t": "percentage done: 45.31% (9/20 groups, 3/10 snapshots in group #10)"},
+            {"n": 4802, "t": "sync snapshot vm/121/2026-10-16T20:00:01Z"},
         ]
-        with mock.patch.object(pbs, "_pbs_get_json", return_value=log) as get:
-            self.assertEqual(pbs.fetch_sync_progress(CONN, self.UPID), 45.31)
-        self.assertIn("/tasks/", get.call_args.args[1])
-        self.assertIn(parse_quote(self.UPID), get.call_args.args[1])
+        (percent, finished), calls = self.state(5000, tail, active=True)
+        self.assertEqual((percent, finished), (45.31, False))
+        self.assertEqual(calls[0], {"start": "0", "limit": "1", "test-status": "1"})
+        self.assertEqual(calls[1], {"start": "4800", "limit": "200"})
+
+    def test_finished_task_from_test_status(self) -> None:
+        (percent, finished), _ = self.state(
+            10, [{"n": 9, "t": "percentage done: 100.00% (20/20 groups)"}], active=False
+        )
+        self.assertEqual((percent, finished), (100.0, True))
+
+    def test_finished_task_from_end_marker_on_older_pbs(self) -> None:
+        tail = [{"n": 9, "t": "percentage done: 99.00% (19/20 groups)"}, {"n": 10, "t": "TASK OK"}]
+        (_, finished), _ = self.state(10, tail)
+        self.assertTrue(finished)
 
     def test_no_percentage_yet(self) -> None:
-        with mock.patch.object(pbs, "_pbs_get_json", return_value=[{"n": 1, "t": "Starting"}]):
-            self.assertIsNone(pbs.fetch_sync_progress(CONN, self.UPID))
+        (percent, finished), _ = self.state(1, [{"n": 1, "t": "Starting"}], active=True)
+        self.assertEqual((percent, finished), (None, False))
 
-    def test_running_job_carries_upid_and_progress(self) -> None:
+    def test_running_job_carries_its_upid(self) -> None:
         def fake_get(base_url, path, token_id, token_secret, **kwargs):
             if path.endswith("/config/remote"):
                 return []
-            if "/tasks/" in path:
-                return [{"n": 1, "t": "percentage done: 12.50% (1/8 groups)"}]
             return [{"id": "s", "store": "a", "remote-store": "b", "last-run-upid": self.UPID}]
 
         with mock.patch.object(pbs, "_pbs_get_json", side_effect=fake_get):
             job = pbs.fetch_pbs_sync_jobs(CONN)[0]
-        self.assertEqual((job["running_upid"], job["running_percent"]), (self.UPID, 12.5))
+        self.assertEqual(job["running_upid"], self.UPID)
+        self.assertNotIn("running_percent", job)

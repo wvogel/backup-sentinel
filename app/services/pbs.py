@@ -8,7 +8,7 @@ from typing import Any
 from urllib import parse
 
 from app.i18n import ts
-from app.services.api_client import APIError, api_get_json, api_test_connection
+from app.services.api_client import APIError, api_get_json, api_get_payload, api_test_connection
 from app.services.backup_location import connection_location
 from app.services.vzdump_log import guest_name_from_notes
 
@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 
 class PBSSyncError(APIError):
     pass
+
+
+def _pbs_get_payload(conn: dict[str, Any], path: str, **kwargs: Any) -> dict[str, Any]:
+    auth_header = f"PBSAPIToken={conn['api_token_id']}:{conn['api_token_secret']}"
+    try:
+        return api_get_payload(conn["api_url"].rstrip("/"), path, auth_header, label="PBS", **kwargs)
+    except APIError as exc:
+        raise PBSSyncError(str(exc)) from exc
 
 
 def _pbs_get_json(
@@ -287,23 +295,35 @@ def _upid_start(upid: Any) -> datetime | None:
 _SYNC_PERCENT_RE = re.compile(r"percentage done:\s*([\d.]+)\s*%")
 
 
-def fetch_sync_progress(conn: dict[str, Any], upid: str) -> float | None:
-    """Progress of a running sync job from its task log ("percentage done:
-    45.31% (9/20 groups, …)"), or None before the first such line."""
-    return sync_task_state(conn, upid)[0]
+# Enough log lines to hold the latest "percentage done" and the end marker.
+_SYNC_LOG_TAIL = 200
 
 
 def sync_task_state(conn: dict[str, Any], upid: str) -> tuple[float | None, bool]:
-    """(percent done, finished) of a sync task; a finished task's log ends
-    with a "TASK OK" / "TASK ERROR: …" line."""
-    rows = _pbs_get_json(
-        conn["api_url"].rstrip("/"),
-        f"/api2/json/nodes/localhost/tasks/{parse.quote(upid, safe='')}/log",
-        conn["api_token_id"],
-        conn["api_token_secret"],
-        query={"start": "0", "limit": "100000"},
+    """(percent done, finished) of a sync task, from the end of its task log
+    ("percentage done: 45.31% (9/20 groups, …)"). Reads only the last lines:
+    a long sync's log has many thousands.
+
+    PBS's task log API answers with the line count ("total", lines numbered
+    from 1, `start` skips lines below it) and, with test-status, whether the
+    task is still "active"; the node in the path is not used (the UPID names it).
+    """
+    path = f"/api2/json/nodes/localhost/tasks/{parse.quote(upid, safe='')}/log"
+    head = _pbs_get_payload(conn, path, query={"start": "0", "limit": "1", "test-status": "1"})
+    total = head.get("total")
+    if isinstance(total, int):
+        start = max(0, total - _SYNC_LOG_TAIL)
+        rows = _pbs_get_payload(conn, path, query={"start": str(start), "limit": str(_SYNC_LOG_TAIL)}).get("data")
+    else:  # no line count reported: read it all
+        rows = _pbs_get_payload(conn, path, query={"start": "0", "limit": "100000"}).get("data")
+    rows = rows if isinstance(rows, list) else []
+    active = head.get("active")
+    # Older PBS without "active": a finished task's log ends with "TASK OK/ERROR".
+    finished = (
+        active is False
+        if isinstance(active, bool)
+        else (bool(rows) and str(rows[-1].get("t") or "").startswith("TASK "))
     )
-    finished = bool(rows) and str(rows[-1].get("t") or "").startswith("TASK ")
     for row in reversed(rows):
         match = _SYNC_PERCENT_RE.search(str(row.get("t") or ""))
         if match:
@@ -351,17 +371,13 @@ def fetch_pbs_sync_jobs(conn: dict[str, Any]) -> list[dict[str, Any]]:
                 # While a job runs PBS reports only its task UPID, no end or state.
                 "running_since": None if job.get("last-run-endtime") else _upid_start(job.get("last-run-upid")),
                 "running_upid": None,
-                "running_percent": None,
                 "next_run_at": _timestamp(job.get("next-run")),
             }
         )
+    # Progress is fetched live by the cluster page, never stored.
     for job, raw in zip(result, [j for j in jobs if j.get("id") and j.get("store")], strict=True):
         if job["running_since"]:
             job["running_upid"] = str(raw.get("last-run-upid"))
-            try:
-                job["running_percent"] = fetch_sync_progress(conn, job["running_upid"])
-            except PBSSyncError as exc:  # progress is a nicety
-                logger.warning("Sync progress of %s unavailable: %s", job["job_id"], exc)
     return result
 
 

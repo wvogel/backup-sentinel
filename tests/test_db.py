@@ -17,7 +17,7 @@ if os.environ.get("BSENTINEL_DB_TESTS") != "1":
     raise unittest.SkipTest("set BSENTINEL_DB_TESTS=1 to run database tests (they truncate all tables)")
 
 from app import db, db_governance
-from app.services import topology_store
+from app.services import sync_progress, topology_store
 from app.services.vzdump_log import VmBackupRun
 
 NOW = datetime.now(UTC).replace(second=0, microsecond=0)
@@ -374,7 +374,7 @@ class TopologyDbTests(DbTestCase):
         db.replace_pve_pbs_targets(self.cid, [target])
         self.assertEqual([t["storage_id"] for t in db.list_pve_pbs_targets(self.cid)], ["pbs"])
 
-    def test_vm_count_by_storage(self) -> None:
+    def test_recent_storages_and_guest_count_per_storage(self) -> None:
         started = (datetime.now(UTC) - timedelta(hours=2)).replace(second=0, microsecond=0)
         events = [
             {
@@ -393,8 +393,9 @@ class TopologyDbTests(DbTestCase):
         ]
         db.sync_backup_events_for_source(self.cid, "pve", events)
         db.update_backup_event_storages(self.cid, events)
-        self.assertEqual(db.vm_count_by_storage(self.cid), {"pbs-main": 2, "pbs-side": 1})
-        self.assertEqual(db.recent_storages_by_vmid(self.cid), {100: ["pbs-main", "pbs-side"], 101: ["pbs-main"]})
+        storages = db.recent_storages_by_vmid(self.cid)
+        self.assertEqual(storages, {100: ["pbs-main", "pbs-side"], 101: ["pbs-main"]})
+        self.assertEqual(topology_store.vm_count_by_storage(storages), {"pbs-main": 2, "pbs-side": 1})
 
     def test_guest_type_is_stored(self) -> None:
         vm = {
@@ -587,10 +588,8 @@ class ClusterPageTests(DbTestCase):
         self.assertEqual(html.count('class="sync-dot '), 2)  # PVE + pbs-fh-muc
 
     def running_sync(self) -> tuple[int, str]:
-        """A sync job running right now, stored with 10 % from the last sync."""
-        from app.web import routes_clusters
-
-        routes_clusters._sync_progress_cache.clear()
+        """A sync job running right now."""
+        sync_progress.clear()
         db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
         pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
         db.replace_datastore_usage(
@@ -616,7 +615,6 @@ class ClusterPageTests(DbTestCase):
             "next_run_at": None,
             "running_since": datetime.now(UTC),
             "running_upid": upid,
-            "running_percent": 10.0,
         }
         db.replace_pbs_sync_jobs(pbs_id, [job])
         topology_store.refresh_all()
@@ -629,18 +627,18 @@ class ClusterPageTests(DbTestCase):
 
     def test_live_sync_progress(self) -> None:
         pbs_id, upid = self.running_sync()
-        with mock.patch("app.web.routes_clusters.sync_task_state", return_value=(45.31, False)) as state:
+        with mock.patch("app.services.sync_progress.sync_task_state", return_value=(45.31, False)) as state:
             response = self.client.get("/api/clusters/test/sync-progress")
         self.assertEqual(response.json(), {f"{pbs_id}:s": {"percent": 45.31, "finished": False}})
         self.assertEqual(state.call_args.args[1], upid)
-        # The page shows that live value, not the 10 % stored with the diagram.
+        # The page shows that live value.
         self.assertTrue(self.ring(self.page()).endswith(">45%"))
 
     def test_page_without_live_value_shows_no_stale_percent(self) -> None:
         self.running_sync()
         ring = self.ring(self.page())
         self.assertIn("is-indeterminate", ring)
-        self.assertNotIn("10%", ring)
+        self.assertFalse(ring.endswith("%"))
 
     def test_placeholder_is_not_running_when_live_data_says_otherwise(self) -> None:
         db.sync_backup_events_for_source(self.cid, "pbs", [_event(100, NOW - timedelta(minutes=30), size=1)])
@@ -661,7 +659,7 @@ class ClusterPageTests(DbTestCase):
         self.running_sync()
         app = FastAPI()
         app.include_router(routes_dashboard.router)
-        with mock.patch("app.web.routes_dashboard.running_backups_for_clusters", return_value={}):
+        with mock.patch("app.web.routes_dashboard.cached_running_backups", return_value={}):
             html = TestClient(app).get("/").text
         self.assertIn("Replikation läuft", html)
         self.assertIn("pbs-fh-muc/nas → copy", html)
