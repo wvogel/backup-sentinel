@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.22.1] — 2026-10-16
+
+### Fixed
+
+- **PBS shown twice in the replication diagram.** A PBS registered for several clusters — e.g. once with and once without certificate fingerprint — counted as two servers, so its datastores and replicas appeared twice. Connections sharing a fingerprint, name or API host are now one server, and a sync job read through several connections is one edge.
+
 ## [v2.22.0] — 2026-10-16
 
 ### Added
