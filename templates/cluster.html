@@ -95,7 +95,7 @@
     {% for row in running_backups %}
     <li>
       <button type="button" class="running-item" data-vmid="{{ row.vmid }}" title="{{ t('cluster.running_jump') }}">
-        <span class="topo-ring running-ring{% if row.running.percent is none %} is-indeterminate{% endif %}" style="--p:{{ row.running.percent or 0 }}"><span class="running-flow" aria-hidden="true"><i></i></span><span class="running-ring-label">{{ row.running.percent ~ '%' if row.running.percent is not none else '' }}</span></span>
+        <span class="topo-ring running-ring{% if row.running.percent is none %} is-indeterminate{% endif %}" style="--p:{{ row.running.percent or 0 }}"><span class="running-ring-label">{{ row.running.percent ~ '%' if row.running.percent is not none else '' }}</span></span>
         <span class="running-item-body">
           <span class="running-item-name">{{ row.vm_name }}<span class="running-item-id">{{ row.vmid }}</span></span>
           {%- for line in row.running.details %}<span class="running-item-meta">{{ line }}</span>{% endfor %}
