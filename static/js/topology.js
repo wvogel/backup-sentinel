@@ -290,7 +290,9 @@
   document.addEventListener("DOMContentLoaded", function () {
     drawAll();
     document.querySelectorAll("[data-topology]").forEach(function (root) {
-      setTimeout(function () { pollSyncProgress(root); }, 2000);
+      // Without a live value yet (ring turning, no number): ask right away.
+      var pending = root.querySelector("[data-sync-ring].is-indeterminate");
+      setTimeout(function () { pollSyncProgress(root); }, pending ? 100 : 2000);
     });
     if (window.ResizeObserver) {
       document.querySelectorAll("[data-topology]").forEach(function (root) {

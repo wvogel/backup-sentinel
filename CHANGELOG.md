@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.27.2] — 2026-10-16
+
+### Fixed
+
+- **Sync progress jumped after loading** (e.g. 47 % → 59 %). The page showed the progress stored with the precomputed diagram at the last background sync — up to an hour old — until the live poll answered. Now the page shows only a live value (at most 2 minutes old from the cache); without one the ring turns without a number and the page asks for the live value right away.
+
 ## [v2.27.1] — 2026-10-16
 
 ### Fixed
