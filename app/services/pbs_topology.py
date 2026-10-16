@@ -76,9 +76,10 @@ class _Servers:
             return conn_id
 
         for conn in connections:
-            fp = normalize_fingerprint(conn.get("fingerprint"))
+            fps = {normalize_fingerprint(f) for f in [conn.get("fingerprint"), *(conn.get("cert_fingerprints") or [])]}
             host = urlsplit(str(conn.get("api_url") or "")).hostname or ""
-            for ident in (f"fp:{fp}" if fp else "", f"name:{str(conn.get('name') or '').lower()}", f"host:{host}"):
+            idents = [f"fp:{fp}" for fp in sorted(fps) if fp]
+            for ident in (*idents, f"name:{str(conn.get('name') or '').lower()}", f"host:{host}"):
                 if not ident or ident.endswith(":"):
                     continue
                 if ident in owner:
@@ -91,7 +92,10 @@ class _Servers:
             self.name.setdefault(key, str(conn.get("name") or ""))
             self.registered.add(key)
 
-    def resolve(self, fingerprint: str, host: str, fallback_name: str = "") -> str:
+    def resolve(self, fingerprint: str, host: str, fallback_name: str = "", pbs_id: int | None = None) -> str:
+        # Resolved at sync time (DNS, certificate probe) when available.
+        if pbs_id in self.key_of_conn:
+            return self.key_of_conn[pbs_id]
         conn = match_pbs_connection(fingerprint, host, self.connections, _no_dns)
         if conn:
             return self.key_of_conn[conn["id"]]
@@ -130,7 +134,9 @@ def build_topology(
             continue
         seen_jobs.add((here, job["job_id"]))
         if job["remote_name"]:
-            there = servers.resolve(job["remote_fingerprint"], job["remote_host"], job["remote_name"])
+            there = servers.resolve(
+                job["remote_fingerprint"], job["remote_host"], job["remote_name"], job.get("remote_pbs_id")
+            )
         else:
             there = here  # local sync between two datastores of this PBS
         local = ((here, job["store"]), job["ns"])
@@ -166,7 +172,7 @@ def build_topology(
 
     primary_edges: list[dict[str, Any]] = []
     for t in targets:
-        node = (servers.resolve(t["fingerprint"], t["server"]), str(t["datastore"]))
+        node = (servers.resolve(t["fingerprint"], t["server"], pbs_id=t.get("pbs_id")), str(t["datastore"]))
         primary_edges.append({"dst": node, "dst_ns": str(t["namespace"] or ""), "storage_id": t["storage_id"]})
         reach(node, str(t["namespace"] or ""), 1)
     walk()

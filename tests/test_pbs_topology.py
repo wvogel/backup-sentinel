@@ -37,6 +37,7 @@ def job(pbs_id, job_id, store, remote="", remote_store="", ns="", remote_ns="", 
         "last_run_state": state,
         "last_run_at": NOW if state else None,
         "next_run_at": None,
+        "remote_pbs_id": kw.get("remote_pbs_id"),
     }
 
 
@@ -204,3 +205,28 @@ class TopologyTests(unittest.TestCase):
         )
         self.assertEqual(names(topo), [[("pbs-kiel", ["nas-kiel"])], [("pbs-hamburg", ["nas-offsite-hamburg"])]])
         self.assertEqual(len([e for e in topo["edges"] if e["kind"] == "sync"]), 1)
+
+    def test_target_resolved_at_sync_time_joins_the_registered_pbs(self) -> None:
+        # PVE knows the PBS as pbs-dresden, Sentinel as mgm-pbs-dresden.
+        mgm = conn(8, 50, "mgm-pbs-dresden")
+        berlin = conn(9, 50, "pbs-berlin", fingerprint="AA:01")
+        side = {**target("pbs-dresden", "nas-b0-volume1"), "pbs_id": 8}
+        jobs = [
+            job(
+                9,
+                "s-dresden",
+                "nas-off",
+                remote="lej",
+                remote_store="nas-b0-volume1",
+                remote_host="10.1.1.1",
+                remote_pbs_id=8,
+            )
+        ]
+        topo = self.build(50, [side], [mgm, berlin], jobs, [usage(8, "nas-b0-volume1", 35)])
+        self.assertEqual(names(topo), [[("mgm-pbs-dresden", ["nas-b0-volume1"])], [("pbs-berlin", ["nas-off"])]])
+
+    def test_certificate_fingerprints_merge_registrations(self) -> None:
+        a = {**conn(10, 60, "mgm-pbs-dresden"), "cert_fingerprints": ["AB:CD"]}
+        b = conn(11, 61, "pbs-dresden", fingerprint="ab:cd")
+        topo = self.build(60, [target("x", "nas", fingerprint="AB:CD")], [a, b], [], [usage(11, "nas", 5)])
+        self.assertEqual(names(topo), [[("mgm-pbs-dresden", ["nas"])]])

@@ -215,6 +215,12 @@ def init_db() -> None:
             # Restricts a PBS connection to one namespace subtree ('' = root only),
             # e.g. a pull-sync target holding this cluster's copies.
             cur.execute("ALTER TABLE pbs_connections ADD COLUMN IF NOT EXISTS namespace TEXT NOT NULL DEFAULT ''")
+            cur.execute(
+                "ALTER TABLE pbs_connections ADD COLUMN IF NOT EXISTS cert_fingerprints TEXT[] NOT NULL DEFAULT '{}'"
+            )
+            # Registered PBS behind a PVE storage, resolved at sync time
+            # (fingerprint, name, DNS or the certificate the server serves).
+            cur.execute("ALTER TABLE pve_pbs_targets ADD COLUMN IF NOT EXISTS pbs_id BIGINT")
             # After pbs_connections, which it references.
             cur.execute(
                 """
@@ -237,6 +243,7 @@ def init_db() -> None:
                 );
                 """
             )
+            cur.execute("ALTER TABLE pbs_sync_jobs ADD COLUMN IF NOT EXISTS remote_pbs_id BIGINT")
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS pbs_datastore_usage (

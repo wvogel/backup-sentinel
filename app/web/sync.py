@@ -19,7 +19,7 @@ from app.config import (
 )
 from app.i18n import ts
 from app.services import email_assets, weekly_report
-from app.services.backup_location import assign_pbs_servers
+from app.services.backup_location import CachedLookups, assign_pbs_servers
 from app.services.backup_status import assess_slow_backup
 from app.services.notifications import (
     channel_enabled,
@@ -39,6 +39,7 @@ from app.services.pbs import (
     assess_datastore_usage,
     fetch_all_pbs_backups,
     fetch_datastore_usage,
+    fetch_pbs_cert_fingerprints,
     fetch_pbs_sync_jobs,
 )
 from app.services.pdf_reports import write_backup_period_pdf
@@ -95,8 +96,6 @@ def sync_cluster_backups(cluster: dict) -> None:
         )
         pve_log.append(f"Nodes: {len(inventory.nodes)}, VMs: {len(inventory.vms)}")
         db.sync_cluster_inventory(cluster["id"], inventory.nodes, inventory.vms)
-        if inventory.pbs_targets is not None:
-            db.replace_pve_pbs_targets(cluster["id"], inventory.pbs_targets)
         if not inventory.vms:
             prune_blockers.append(ts("synclog.pve_zero_vms"))
         prune_blockers.extend(f"PVE {err}" for err in inventory.fetch_errors)
@@ -112,10 +111,20 @@ def sync_cluster_backups(cluster: dict) -> None:
 
         db.sync_backup_events_for_source(cluster["id"], "pve", pve_events)
 
+        lookups = CachedLookups()
+        for conn in db.list_pbs_connections(cluster["id"]):
+            record_cert_fingerprints(conn)
         pbs_conns = db.list_pbs_connections(cluster["id"])
         # Name PBS storages seen through PVE after the registered PBS behind them,
         # so one server is one copy however it was reached.
-        assign_pbs_servers(inventory.backup_events or [], pbs_conns)
+        assign_pbs_servers(inventory.backup_events or [], pbs_conns, lookups.resolve, lookups.probe)
+        if inventory.pbs_targets is not None:
+            # Any cluster's registration counts: the PBS may be registered elsewhere.
+            all_conns = db.list_pbs_connections()
+            for target in inventory.pbs_targets:
+                match = lookups.connection(target["fingerprint"], target["server"], all_conns)
+                target["pbs_id"] = match["id"] if match else None
+            db.replace_pve_pbs_targets(cluster["id"], inventory.pbs_targets)
         if not pbs_conns:
             pve_log.append(ts("synclog.no_pbs"))
         else:
@@ -145,7 +154,7 @@ def sync_cluster_backups(cluster: dict) -> None:
                         event["source"] = "pbs"
                     all_pbs_events.extend(events)
                     record_datastore_usage(cluster, conn, pbs_log)
-                    record_sync_jobs(conn, pbs_log)
+                    record_sync_jobs(conn, pbs_log, lookups)
                 except PBSSyncError as exc:
                     pbs_ok = False
                     pbs_log.append(ts("synclog.error", error=exc))
@@ -269,7 +278,18 @@ def record_datastore_usage(cluster: dict, conn: dict, pbs_log: list[str]) -> Non
             notify_datastore_full(cluster["name"], conn.get("name", ""), row["store"], pct, row["estimated_full_at"])
 
 
-def record_sync_jobs(conn: dict, pbs_log: list[str]) -> None:
+def record_cert_fingerprints(conn: dict) -> None:
+    """Remember the certificates this PBS serves (best effort)."""
+    try:
+        fingerprints = fetch_pbs_cert_fingerprints(conn)
+    except Exception as exc:
+        logger.warning("Certificate info failed for PBS %s: %s", conn.get("name"), exc)
+        return
+    if fingerprints != list(conn.get("cert_fingerprints") or []):
+        db.update_pbs_cert_fingerprints(conn["id"], fingerprints)
+
+
+def record_sync_jobs(conn: dict, pbs_log: list[str], lookups: CachedLookups | None = None) -> None:
     """Store this PBS's sync jobs for the replication view (best effort:
     missing rights must not fail the PBS sync; old rows stay)."""
     try:
@@ -278,6 +298,12 @@ def record_sync_jobs(conn: dict, pbs_log: list[str]) -> None:
         pbs_log.append(ts("synclog.sync_jobs_failed", error=exc))
         logger.warning("Sync jobs failed for PBS %s: %s", conn.get("name"), exc)
         return
+    all_conns = db.list_pbs_connections()
+    lookups = lookups or CachedLookups()
+    for job in jobs:
+        if job["remote_name"]:
+            match = lookups.connection(job["remote_fingerprint"], job["remote_host"], all_conns)
+            job["remote_pbs_id"] = match["id"] if match else None
     db.replace_pbs_sync_jobs(conn["id"], jobs)
     pbs_log.append(ts("synclog.sync_jobs", count=len(jobs)))
 

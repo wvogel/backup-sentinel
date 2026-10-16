@@ -202,3 +202,14 @@ class SyncJobTests(unittest.TestCase):
     def test_unknown_remote_keeps_name(self) -> None:
         result, _ = self.fetch([{"id": "x", "store": "a", "remote": "gone", "remote-store": "b"}], remotes=[])
         self.assertEqual((result[0]["remote_name"], result[0]["remote_host"]), ("gone", ""))
+
+
+class CertFingerprintTests(unittest.TestCase):
+    def test_fingerprints_of_the_pbs_certificates(self) -> None:
+        rows = [
+            {"filename": "proxy.pem", "fingerprint": "ab:cd:ef"},
+            {"filename": "proxy.pem", "fingerprint": ""},
+        ]
+        with mock.patch.object(pbs, "_pbs_get_json", return_value=rows) as get:
+            self.assertEqual(pbs.fetch_pbs_cert_fingerprints(CONN), ["ab:cd:ef"])
+        self.assertEqual(get.call_args.args[1], "/api2/json/nodes/localhost/certificates/info")

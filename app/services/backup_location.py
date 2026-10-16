@@ -8,9 +8,11 @@ local, …) are their own location.
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import re
 import socket
+import ssl
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 from urllib.parse import urlsplit
@@ -91,7 +93,10 @@ def match_pbs_connection(
     fp = normalize_fingerprint(fingerprint)
     if fp:
         for conn in connections:
-            if fp == normalize_fingerprint(conn.get("fingerprint")):
+            # The fingerprint from the bootstrap or the ones the PBS reports
+            # for its own certificates (fetched on every sync).
+            known = [conn.get("fingerprint"), *(conn.get("cert_fingerprints") or [])]
+            if fp in {normalize_fingerprint(f) for f in known}:
                 return conn
     names = _names(host)
     for conn in connections:
@@ -105,10 +110,47 @@ def match_pbs_connection(
     return None
 
 
+def probe_tls_fingerprint(host: str, port: int = 8007, timeout: float = 3.0) -> str:
+    """SHA-256 fingerprint of the certificate a PBS serves, or "" if
+    unreachable. Identifies a PBS known under different names or IPs."""
+    try:
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        with (
+            socket.create_connection((host, port), timeout=timeout) as sock,
+            context.wrap_socket(sock, server_hostname=host) as tls,
+        ):
+            der = tls.getpeercert(binary_form=True)
+    except (OSError, ValueError):
+        return ""
+    return hashlib.sha256(der).hexdigest() if der else ""
+
+
+def resolve_pbs_connection(
+    fingerprint: str,
+    host: str,
+    connections: Iterable[Mapping[str, Any]],
+    resolve: Callable[[str], set[str]] = _dns,
+    probe: Callable[[str, int], str] = probe_tls_fingerprint,
+    port: int = 8007,
+) -> Mapping[str, Any] | None:
+    """Like match_pbs_connection, but asks the server for its certificate
+    when nothing matches and no fingerprint is known (e.g. an ACME
+    certificate, or the PBS registered under its management name)."""
+    connections = list(connections)
+    conn = match_pbs_connection(fingerprint, host, connections, resolve)
+    if conn or normalize_fingerprint(fingerprint) or not host:
+        return conn
+    probed = probe(host, port)
+    return match_pbs_connection(probed, "", connections, resolve) if probed else None
+
+
 def assign_pbs_servers(
     events: list[dict[str, Any]],
     connections: Iterable[Mapping[str, Any]],
     resolve: Callable[[str], set[str]] = _dns,
+    probe: Callable[[str, int], str] | None = None,
 ) -> None:
     """Give PVE events on a PBS storage the location of the matching registered
     PBS connection, so the same server counts once whichever way it was seen.
@@ -129,7 +171,10 @@ def assign_pbs_servers(
     pending: list[dict[str, Any]] = []
     for event in targets:
         t = event["pbs_target"]
-        conn = match_pbs_connection(t["fingerprint"], t["server"], connections, cached)
+        if probe:
+            conn = resolve_pbs_connection(t["fingerprint"], t["server"], connections, cached, probe)
+        else:
+            conn = match_pbs_connection(t["fingerprint"], t["server"], connections, cached)
         if conn:
             event["location"] = connection_location(conn, t["datastore"], t["namespace"])
             continue
@@ -144,3 +189,31 @@ def assign_pbs_servers(
         host = unmatched_hosts.get(normalize_fingerprint(t["fingerprint"])) or str(t["server"]).strip().lower()
         location = f"pbs:{host}/{t['datastore']}"
         event["location"] = f"{location}/{t['namespace']}" if t["namespace"] else location
+
+
+class CachedLookups:
+    """DNS and certificate lookups, each host asked once per sync."""
+
+    def __init__(
+        self,
+        resolve: Callable[[str], set[str]] = _dns,
+        probe: Callable[[str, int], str] = probe_tls_fingerprint,
+    ):
+        self._resolve, self._probe = resolve, probe
+        self._dns: dict[str, set[str]] = {}
+        self._certs: dict[tuple[str, int], str] = {}
+
+    def resolve(self, host: str) -> set[str]:
+        if host not in self._dns:
+            self._dns[host] = self._resolve(host)
+        return self._dns[host]
+
+    def probe(self, host: str, port: int) -> str:
+        if (host, port) not in self._certs:
+            self._certs[(host, port)] = self._probe(host, port)
+        return self._certs[(host, port)]
+
+    def connection(
+        self, fingerprint: str, host: str, connections: Iterable[Mapping[str, Any]]
+    ) -> Mapping[str, Any] | None:
+        return resolve_pbs_connection(fingerprint, host, connections, self.resolve, self.probe)
