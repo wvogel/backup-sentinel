@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.27.3] — 2026-10-16
+
+### Changed
+
+- **Datastores inside a box are sorted alphabetically** (naturally: volume1, volume2, volume10) instead of by guest count; the sync lines under a datastore likewise. The order of the boxes still follows the data flow so lines do not cross.
+
 ## [v2.27.2] — 2026-10-16
 
 ### Fixed

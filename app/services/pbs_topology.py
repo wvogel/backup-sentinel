@@ -12,6 +12,7 @@ clusters' copies in separate namespaces only shows the ones of this cluster.
 
 from __future__ import annotations
 
+import re
 from collections import deque
 from collections.abc import Iterable, Mapping
 from datetime import datetime
@@ -43,6 +44,11 @@ def _map_ns(data_ns: str, source_ns: str, target_ns: str) -> str | None:
     if source_ns.startswith(f"{data_ns}/") or not data_ns:
         return target_ns  # the job copies a part of this data
     return None
+
+
+def _natural(text: str) -> list[Any]:
+    """Sort key putting "volume2" before "volume10"."""
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", text)]
 
 
 def _job_state(job: Mapping[str, Any]) -> str:
@@ -376,6 +382,11 @@ def _columns(
             )
             group["stores"].append(nodes[node])
         ordered = sorted(groups.values(), key=lambda g: (g.pop("_weight"), g["server"]))
+        # Boxes follow the flow; inside a box datastores read alphabetically.
+        for group in ordered:
+            group["stores"].sort(key=lambda store: _natural(store["store"]))
+            for store in group["stores"]:
+                store["incoming"].sort(key=lambda e: _natural(e["source_label"]))
         index = 0
         for group in ordered:
             for store in group["stores"]:

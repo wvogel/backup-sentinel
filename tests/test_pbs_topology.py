@@ -277,3 +277,9 @@ class TopologyStoreTests(unittest.TestCase):
         topology_store.mark_full_soon(topo, NOW)
         self.assertEqual([s["full_soon"] for s in stores], ["critical", "warning", None, None])
         self.assertEqual([s["full_in_days"] for s in stores], [10, 25, None, None])
+
+    def test_stores_in_a_box_are_sorted_naturally(self) -> None:
+        targets = [target("pbs-aboe-muc", s) for s in ("nas-b0-volume2", "nas-b0-volume10", "nas-b0-volume1")]
+        vms = {"st-nas-b0-volume2": 24, "st-nas-b0-volume10": 3, "st-nas-b0-volume1": 20}
+        topo = build_topology(10, targets, [ABOE], [], [], now=NOW, vms_by_storage=vms)
+        self.assertEqual(names(topo), [[("pbs-aboe-muc", ["nas-b0-volume1", "nas-b0-volume2", "nas-b0-volume10"])]])
