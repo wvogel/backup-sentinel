@@ -34,7 +34,13 @@ from app.services.notifications import (
     send_email,
     send_monthly_report_email,
 )
-from app.services.pbs import PBSSyncError, assess_datastore_usage, fetch_all_pbs_backups, fetch_datastore_usage
+from app.services.pbs import (
+    PBSSyncError,
+    assess_datastore_usage,
+    fetch_all_pbs_backups,
+    fetch_datastore_usage,
+    fetch_pbs_sync_jobs,
+)
 from app.services.pdf_reports import write_backup_period_pdf
 from app.services.proxmox import fetch_cluster_inventory, fetch_finished_backup_tasks
 from app.services.proxmox_progress import fetch_running_backup_progress
@@ -89,6 +95,8 @@ def sync_cluster_backups(cluster: dict) -> None:
         )
         pve_log.append(f"Nodes: {len(inventory.nodes)}, VMs: {len(inventory.vms)}")
         db.sync_cluster_inventory(cluster["id"], inventory.nodes, inventory.vms)
+        if inventory.pbs_targets is not None:
+            db.replace_pve_pbs_targets(cluster["id"], inventory.pbs_targets)
         if not inventory.vms:
             prune_blockers.append(ts("synclog.pve_zero_vms"))
         prune_blockers.extend(f"PVE {err}" for err in inventory.fetch_errors)
@@ -137,6 +145,7 @@ def sync_cluster_backups(cluster: dict) -> None:
                         event["source"] = "pbs"
                     all_pbs_events.extend(events)
                     record_datastore_usage(cluster, conn, pbs_log)
+                    record_sync_jobs(conn, pbs_log)
                 except PBSSyncError as exc:
                     pbs_ok = False
                     pbs_log.append(ts("synclog.error", error=exc))
@@ -258,6 +267,19 @@ def record_datastore_usage(cluster: dict, conn: dict, pbs_log: list[str]) -> Non
         pbs_log.append(ts("synclog.datastore_usage", store=row["store"], pct=pct))
         if status == "critical":
             notify_datastore_full(cluster["name"], conn.get("name", ""), row["store"], pct, row["estimated_full_at"])
+
+
+def record_sync_jobs(conn: dict, pbs_log: list[str]) -> None:
+    """Store this PBS's sync jobs for the replication view (best effort:
+    missing rights must not fail the PBS sync; old rows stay)."""
+    try:
+        jobs = fetch_pbs_sync_jobs(conn)
+    except Exception as exc:
+        pbs_log.append(ts("synclog.sync_jobs_failed", error=exc))
+        logger.warning("Sync jobs failed for PBS %s: %s", conn.get("name"), exc)
+        return
+    db.replace_pbs_sync_jobs(conn["id"], jobs)
+    pbs_log.append(ts("synclog.sync_jobs", count=len(jobs)))
 
 
 def enrich_backup_events_from_task_logs(cluster: dict, nodes: list[str]) -> None:

@@ -281,3 +281,31 @@ class FetchBackupDetailsTests(unittest.TestCase):
             _latest, events, errors = fetch_backup_details("https://pve", "auth", nodes, [{"vmid": 100}])
         self.assertEqual(events, [])
         self.assertEqual(len(errors), 1)
+
+
+class PbsStorageTargetTests(unittest.TestCase):
+    def test_only_enabled_pbs_storages(self) -> None:
+        config = [
+            {
+                "storage": "pbs-main",
+                "type": "pbs",
+                "server": "10.0.0.5",
+                "datastore": "nas-b1",
+                "fingerprint": "AA",
+                "namespace": "x",
+            },
+            {"storage": "pbs-old", "type": "pbs", "server": "10.0.0.6", "datastore": "old", "disable": 1},
+            {"storage": "nfs", "type": "nfs"},
+        ]
+        self.assertEqual(
+            proxmox.pbs_storage_targets(config),
+            [
+                {
+                    "storage_id": "pbs-main",
+                    "server": "10.0.0.5",
+                    "fingerprint": "AA",
+                    "datastore": "nas-b1",
+                    "namespace": "x",
+                }
+            ],
+        )

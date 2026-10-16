@@ -322,6 +322,48 @@ class PbsNamespaceTests(DbTestCase):
         self.assertEqual(self.namespace(), "pano")
 
 
+class TopologyDbTests(DbTestCase):
+    def test_sync_jobs_and_targets_are_replaced(self) -> None:
+        db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
+        pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
+        job = {
+            "job_id": "s-pano",
+            "direction": "pull",
+            "store": "nas",
+            "ns": "pano",
+            "remote_name": "pano",
+            "remote_host": "pbs-pano",
+            "remote_fingerprint": "AA",
+            "remote_store": "nas-pano",
+            "remote_ns": "",
+            "schedule": "daily",
+            "last_run_state": "OK",
+            "last_run_at": datetime.now(UTC),
+            "next_run_at": None,
+        }
+        db.replace_pbs_sync_jobs(pbs_id, [job, {**job, "job_id": "old"}])
+        db.replace_pbs_sync_jobs(pbs_id, [job])
+        self.assertEqual([j["job_id"] for j in db.list_pbs_sync_jobs()], ["s-pano"])
+
+        target = {"storage_id": "pbs", "server": "10.0.0.5", "fingerprint": "AA", "datastore": "nas", "namespace": ""}
+        db.replace_pve_pbs_targets(self.cid, [target, {**target, "storage_id": "old"}])
+        db.replace_pve_pbs_targets(self.cid, [target])
+        self.assertEqual([t["storage_id"] for t in db.list_pve_pbs_targets(self.cid)], ["pbs"])
+
+    def test_guest_type_is_stored(self) -> None:
+        vm = {
+            "node_name": "n1",
+            "vmid": 300,
+            "name": "ct",
+            "guest_type": "lxc",
+            "backup_kind": "daily",
+            "last_backup_at": None,
+        }
+        db.sync_cluster_inventory(self.cid, [{"name": "n1", "status": "online"}], [vm])
+        rows = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}
+        self.assertEqual(rows[300]["guest_type"], "lxc")
+
+
 class CopiesAndVerifyTests(DbTestCase):
     def sync(self, events):
         pbs = [e for e in events if e.get("source", "pbs") == "pbs"]

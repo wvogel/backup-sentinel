@@ -41,3 +41,32 @@ INSERT INTO backup_events (vm_id, started_at, finished_at, duration_seconds, siz
 SELECT v.id, now() - (g || ' days')::interval, now() - (g || ' days')::interval + interval '20 min',
        1200, 5000000000, true, 'ok', 'pbs'
 FROM vms v, generate_series(0, 13) g;
+
+-- Containers next to VMs (guest type icons).
+UPDATE vms SET guest_type = 'lxc' WHERE vmid IN (1105, 1102);
+
+-- Topology: PVE backs up to pbs-aboe-muc/nas-b1; nas-b1 is copied locally to
+-- nas-off and pulled by pbs-fh-muc into namespace "aboe"; pbs-fh-muc pushes
+-- to an unregistered offsite PBS whose last run failed.
+INSERT INTO pbs_connections (cluster_id, name, api_url, api_token_id, api_token_secret, fingerprint, namespace,
+                             last_sync_at, last_sync_ok, created_at) VALUES
+ (1, 'pbs-aboe-muc', 'https://pbs-aboe-muc:8007', 'x', 'y', 'AA:01', '', now(), true, now()),
+ (1, 'pbs-fh-muc',   'https://pbs-fh-muc:8007',   'x', 'y', 'FF:02', 'aboe', now(), true, now());
+
+INSERT INTO pve_pbs_targets (cluster_id, storage_id, server, fingerprint, datastore, namespace) VALUES
+ (1, 'pbs-aboe', '10.0.0.5', 'aa:01', 'nas-b1', '');
+
+INSERT INTO pbs_datastore_usage (pbs_id, store, total_bytes, used_bytes, avail_bytes, estimated_full_at, updated_at) VALUES
+ (1, 'nas-b1', 71441000000000, 59296000000000, 12145000000000, now() + interval '195 days', now()),
+ (1, 'nas-off', 71441000000000, 7858000000000, 63583000000000, NULL, now()),
+ (2, 'nas-pve-fh-muc', 71441000000000, 54295000000000, 17146000000000, NULL, now()),
+ (2, 'nas-offsite-fh-muc', 71441000000000, 12859000000000, 58582000000000, NULL, now());
+
+INSERT INTO pbs_sync_jobs (pbs_id, job_id, direction, store, ns, remote_name, remote_host, remote_fingerprint,
+                           remote_store, remote_ns, schedule, last_run_state, last_run_at, next_run_at) VALUES
+ (1, 's-local-off', 'pull', 'nas-off', '', '', '', '', 'nas-b1', '', 'daily', 'OK',
+  now() - interval '3 hours', now() + interval '21 hours'),
+ (2, 's-aboe', 'pull', 'nas-pve-fh-muc', 'aboe', 'aboe', 'pbs-aboe-muc.int.example.de', 'AA:01', 'nas-b1', '',
+  'daily', 'OK', now() - interval '5 hours', now() + interval '19 hours'),
+ (2, 's-offsite', 'push', 'nas-pve-fh-muc', 'aboe', 'vault', 'backup.offsite.example.org', 'EE:99', 'vault', 'smile',
+  'sat 02:00', 'connection refused', now() - interval '4 days', now() + interval '2 days');

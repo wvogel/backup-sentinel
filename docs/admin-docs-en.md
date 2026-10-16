@@ -38,7 +38,7 @@ Earlier versions may work but are not regularly tested. If you deploy Backup Sen
 
 API tokens used by Backup Sentinel require:
 - On PVE: `Sys.Audit` on `/` and `VM.Audit` on `/vms` (read-only inventory) plus `Datastore.Audit` for backup storage discovery
-- On PBS: `Datastore.Audit` on the datastore(s) to be monitored
+- On PBS: `Datastore.Audit` on the datastore(s) to be monitored; for the replication diagram also reading sync jobs and remotes (`Datastore.Audit` on `/datastore`, `Remote.Audit` on `/remote`). Without these the PBS sync stays green and the sync log names the reason.
 
 ---
 

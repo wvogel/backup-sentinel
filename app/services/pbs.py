@@ -266,6 +266,56 @@ def fetch_all_pbs_backups(
     return all_events, log_lines, complete
 
 
+def _timestamp(value: Any) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(int(value), UTC) if value else None
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def fetch_pbs_sync_jobs(conn: dict[str, Any]) -> list[dict[str, Any]]:
+    """Sync jobs on this PBS (pull, push and local), with the remote resolved
+    to its host and fingerprint so it can be matched to a registered PBS."""
+    base_url = conn["api_url"].rstrip("/")
+    token_id = conn["api_token_id"]
+    token_secret = conn["api_token_secret"]
+    path = "/api2/json/admin/sync"
+    try:
+        # Push jobs (PBS 3.3+) are only listed on request.
+        jobs = _pbs_get_json(base_url, path, token_id, token_secret, query={"sync-direction": "all"})
+    except PBSSyncError as exc:
+        if "HTTP 400" not in str(exc):
+            raise
+        jobs = _pbs_get_json(base_url, path, token_id, token_secret)
+    remotes = {
+        str(r.get("name")): r for r in _pbs_get_json(base_url, "/api2/json/config/remote", token_id, token_secret)
+    }
+    result: list[dict[str, Any]] = []
+    for job in jobs:
+        if not job.get("id") or not job.get("store"):
+            continue
+        remote_name = str(job.get("remote") or "")
+        remote = remotes.get(remote_name, {})
+        result.append(
+            {
+                "job_id": str(job["id"]),
+                "direction": "push" if job.get("sync-direction") == "push" else "pull",
+                "store": str(job["store"]),
+                "ns": str(job.get("ns") or ""),
+                "remote_name": remote_name,
+                "remote_host": str(remote.get("host") or ""),
+                "remote_fingerprint": str(remote.get("fingerprint") or ""),
+                "remote_store": str(job.get("remote-store") or ""),
+                "remote_ns": str(job.get("remote-ns") or ""),
+                "schedule": str(job.get("schedule") or ""),
+                "last_run_state": str(job.get("last-run-state") or ""),
+                "last_run_at": _timestamp(job.get("last-run-endtime")),
+                "next_run_at": _timestamp(job.get("next-run")),
+            }
+        )
+    return result
+
+
 def fetch_datastore_usage(conn: dict[str, Any]) -> list[dict[str, Any]]:
     """Capacity of every datastore on this PBS, incl. PBS's own full-date estimate.
 

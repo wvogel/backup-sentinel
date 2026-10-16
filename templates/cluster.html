@@ -48,19 +48,10 @@
           PBS {{ pbs.name }}: {% if pbs.last_sync_at %}{{ pbs.last_sync_at|datetime_local }}{% else %}{{ t('cluster.never_synced') }}{% endif %}
         </span>
       </div>
-      {% if datastore_usage.get(pbs.id) %}
-      <div class="datastore-row">
-        {% for ds in datastore_usage.get(pbs.id, []) %}
-        <span class="badge datastore-badge {{ ds.status }}"
-              data-tooltip="{{ t('cluster.datastore_tooltip', store=ds.store, used=ds.used_bytes|format_bytes, total=ds.total_bytes|format_bytes, pct=ds.pct) }}{% if ds.estimated_full_at %}&#10;{{ t('cluster.datastore_full_at', date=ds.estimated_full_at|datetime_local('%d.%m.%Y')) }}{% endif %}">
-          {{ ds.store }} · {{ ds.pct }} %{% if ds.estimated_full_at and ds.status != 'ok' %} · {{ t('cluster.datastore_full_short', date=ds.estimated_full_at|datetime_local('%d.%m.%y')) }}{% endif %}
-        </span>
-        {% endfor %}
-      </div>
-      {% endif %}
       {% endfor %}
     </div>
   </div>
+  <div class="cluster-hero-side">
   <div class="cluster-row-stats js-stat-filter-tiles" data-filter-target="#vm-table">
     <div class="cluster-stat">
       <strong>{{ nodes|length }}</strong>
@@ -87,6 +78,8 @@
       <strong>{{ compliance_summary.restore_overdue }}</strong>
       <span>{{ t('common.restore_due') }}</span>
     </div>
+  </div>
+  {% if topology.columns %}{% include "_topology.html" %}{% endif %}
   </div>
 </section>
 
@@ -174,8 +167,12 @@
           {%- elif row.verify_status == 'ok' %}{% set _ = protect_lines.append(t('cluster.verify_ok_tooltip', date=row.last_verified_at|datetime_local('%d.%m.%Y'))) %}{% endif -%}
           {%- set protect_tip = protect_lines|join('\n') %}
           <td class="status-cell" data-label="{{ t('cluster.th_status') }}" data-sort-value="{{ {'critical': 0, 'warning': 1, 'info': 2, 'ok': 3, 'gone': 4}[row.status_level] }}">
-            <span class="status-dot status-{{ row.status_level }}" role="img" aria-label="{{ t('cluster.vm_gone') if row.vm_gone else severity_labels.get(row.status_level) }}"
-                  data-tooltip="{% if row.vm_gone %}{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}{% if row.remaining_storages %}&#10;{{ t('cluster.vm_gone_storages', storages=row.remaining_storages|join(', ')) }}{% endif %}{% else %}{{ t('cluster.status_backup', status=severity_labels.get(row.backup_severity, row.backup_severity)) }}{% if row.backup_age_days %} ({{ t('cluster.age_days', days=row.backup_age_days) }}){% endif %}&#10;{{ t('cluster.backup_frequency') }}: {{ row.backup_kind_label }}{% if protect_tip %}&#10;{{ protect_tip }}{% endif %}{% endif %}"></span>
+            {%- set guest_label = t('cluster.guest_ct') if row.guest_type == 'lxc' else t('cluster.guest_vm') %}
+            <span class="guest-icon status-{{ row.status_level }}" role="img" aria-label="{{ guest_label }} · {{ t('cluster.vm_gone') if row.vm_gone else severity_labels.get(row.status_level) }}"
+                  data-tooltip="{% if row.vm_gone %}{{ t('cluster.vm_gone_tooltip', date=row.missing_since|datetime_local('%d.%m.%Y')) }}{% if row.remaining_storages %}&#10;{{ t('cluster.vm_gone_storages', storages=row.remaining_storages|join(', ')) }}{% endif %}{% else %}{{ t('cluster.status_backup', status=severity_labels.get(row.backup_severity, row.backup_severity)) }}{% if row.backup_age_days %} ({{ t('cluster.age_days', days=row.backup_age_days) }}){% endif %}&#10;{{ t('cluster.backup_frequency') }}: {{ row.backup_kind_label }}{% if protect_tip %}&#10;{{ protect_tip }}{% endif %}{% endif %}">
+              {%- if row.guest_type == 'lxc' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+              {%- else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>{% endif -%}
+            </span>
           </td>
           <td class="vm-name-cell" data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}"><span class="vm-expand-icon" aria-hidden="true">▶</span>{{ row.vm_name }}
             {%- if not row.vm_gone and row.status_backup_kind in ['weekly', 'none'] %} <span class="kind-tag" data-tooltip="{{ t('cluster.backup_frequency') }}: {{ row.backup_kind_label }}">{{ row.backup_kind_short }}</span>{% endif %}

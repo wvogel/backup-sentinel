@@ -38,7 +38,7 @@ Backup Sentinel wird gegen folgende Proxmox-Versionen getestet:
 
 API-Tokens benötigen:
 - PVE: `Sys.Audit` auf `/` und `VM.Audit` auf `/vms` (Read-Only-Inventory) sowie `Datastore.Audit` für Backup-Storage-Erkennung
-- PBS: `Datastore.Audit` auf die zu überwachenden Datastores
+- PBS: `Datastore.Audit` auf die zu überwachenden Datastores; für das Replikations-Schaubild zusätzlich Lesen der Sync-Jobs und Remotes (`Datastore.Audit` auf `/datastore`, `Remote.Audit` auf `/remote`). Fehlen diese Rechte, bleibt der PBS-Sync grün, das Sync-Log nennt den Grund.
 
 ---
 

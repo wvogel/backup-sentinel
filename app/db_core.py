@@ -90,6 +90,21 @@ def init_db() -> None:
                 """
             )
             cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS missing_since TIMESTAMPTZ")
+            cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS guest_type TEXT NOT NULL DEFAULT 'qemu'")
+            # PBS storages in the cluster's PVE config: where PVE backs up to.
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pve_pbs_targets (
+                    cluster_id BIGINT NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
+                    storage_id TEXT NOT NULL,
+                    server TEXT NOT NULL,
+                    fingerprint TEXT NOT NULL DEFAULT '',
+                    datastore TEXT NOT NULL,
+                    namespace TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY (cluster_id, storage_id)
+                );
+                """
+            )
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS monthly_reports (
@@ -201,6 +216,27 @@ def init_db() -> None:
             # e.g. a pull-sync target holding this cluster's copies.
             cur.execute("ALTER TABLE pbs_connections ADD COLUMN IF NOT EXISTS namespace TEXT NOT NULL DEFAULT ''")
             # After pbs_connections, which it references.
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pbs_sync_jobs (
+                    pbs_id BIGINT NOT NULL REFERENCES pbs_connections(id) ON DELETE CASCADE,
+                    job_id TEXT NOT NULL,
+                    direction TEXT NOT NULL,
+                    store TEXT NOT NULL,
+                    ns TEXT NOT NULL DEFAULT '',
+                    remote_name TEXT NOT NULL DEFAULT '',
+                    remote_host TEXT NOT NULL DEFAULT '',
+                    remote_fingerprint TEXT NOT NULL DEFAULT '',
+                    remote_store TEXT NOT NULL DEFAULT '',
+                    remote_ns TEXT NOT NULL DEFAULT '',
+                    schedule TEXT NOT NULL DEFAULT '',
+                    last_run_state TEXT NOT NULL DEFAULT '',
+                    last_run_at TIMESTAMPTZ,
+                    next_run_at TIMESTAMPTZ,
+                    PRIMARY KEY (pbs_id, job_id)
+                );
+                """
+            )
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS pbs_datastore_usage (
