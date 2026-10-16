@@ -2555,19 +2555,16 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 /* PBS datastore capacity next to the PBS sync line. */
 /* ── Topology: PVE → PBS datastores → replicas (templates/_topology.html) ── */
-.cluster-hero-side {
-  display: grid;
-  gap: 12px;
-  justify-items: stretch;
-  min-width: 0;
-}
+.cluster-hero { flex-wrap: wrap; }
+.cluster-hero > .topology { flex: 1 1 100%; align-self: stretch; width: 100%; }
+.cluster-hero-side { min-width: 0; }
 
 .topology {
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 44px;
-  padding: 12px 14px 22px;
+  gap: 36px;
+  padding: 26px 14px 26px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel-alt);
@@ -2587,6 +2584,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 .topo-line { fill: none; stroke-width: 1.6; }
 .topo-line-primary { stroke: var(--muted); opacity: 0.7; }
+.topo-line.topo-minor { stroke-width: 1; opacity: 0.45; }
 .topo-line-sync { stroke-dasharray: 5 4; }
 .topo-line-sync.topo-state-ok { stroke: var(--running); }
 .topo-line-sync.topo-state-warning { stroke: var(--warn); }
@@ -2644,8 +2642,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   display: grid;
   justify-items: center;
   gap: 3px;
-  min-width: 72px;
-  max-width: 132px;
+  width: 128px;
   text-align: center;
 }
 
@@ -2689,13 +2686,29 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-full.status-text-critical { color: var(--critical); }
 
 .topo-sync {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0 4px;
+  display: grid;
+  justify-items: center;
+  max-width: 100%;
   font-size: 0.68rem;
   line-height: 1.3;
   color: var(--muted);
+}
+
+.topo-sync-from,
+.topo-tag {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topo-tag {
+  padding: 0 6px;
+  border: 1px solid var(--chip-border);
+  border-radius: 8px;
+  background: var(--chip);
+  color: var(--muted);
+  font-size: 0.66rem;
 }
 
 .topo-sync-icon { font-weight: 700; }
@@ -2711,6 +2724,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
     gap: 28px;
   }
   .topo-stores { flex-wrap: wrap; }
+  .topology-col { display: flex; flex-wrap: wrap; justify-content: center; padding-left: 14px; }
+  .topo-cluster { min-width: 160px; }
 }
 
 

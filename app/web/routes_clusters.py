@@ -113,6 +113,7 @@ def cluster_topology(cluster_id: int) -> dict:
         db.list_pbs_connections(),
         db.list_pbs_sync_jobs(),
         db.list_datastore_usage(),
+        vms_by_storage=db.vm_count_by_storage(cluster_id),
     )
 
 

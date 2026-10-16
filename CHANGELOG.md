@@ -5,6 +5,18 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.22.2] — 2026-10-16
+
+### Changed
+
+- **Clearer replication diagram.**
+  - Datastores are placed by the **longest** path from the cluster: a store that is both a (side) backup target and a replica now stands behind its source, so the main flow reads left to right (e.g. PVE → pbs-fh-muc → pull copy on pbs-aboe-muc).
+  - Direct PVE targets show how many guests backed up there in the last 7 days ("PVE · 1 VM"); a target used by at most a quarter of the main target's guests (such as the PBS VM backing up to another PBS) is drawn thin.
+  - Lines only run between columns: neighbours are joined directly, lines skipping a column use a lane above the boxes, lines back to an earlier column (mutual backup) a lane below; on phones a lane at the side. No line runs behind a box any more.
+  - Within a column, datastores follow the order of their sources to avoid crossings.
+  - The diagram spans the full width of the cluster card; labels under the rings are one line each (last run, source) and shortened if needed.
+  - Datastores of a PBS that takes part in the flow but are not involved themselves are no longer shown.
+
 ## [v2.22.1] — 2026-10-16
 
 ### Fixed

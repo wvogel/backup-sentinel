@@ -350,6 +350,27 @@ class TopologyDbTests(DbTestCase):
         db.replace_pve_pbs_targets(self.cid, [target])
         self.assertEqual([t["storage_id"] for t in db.list_pve_pbs_targets(self.cid)], ["pbs"])
 
+    def test_vm_count_by_storage(self) -> None:
+        started = (datetime.now(UTC) - timedelta(hours=2)).replace(second=0, microsecond=0)
+        events = [
+            {
+                "vmid": vmid,
+                "upid": "",
+                "started_at": started,
+                "finished_at": None,
+                "duration_seconds": None,
+                "size_bytes": 10,
+                "encrypted": True,
+                "verify_state": None,
+                "status": "ok",
+                "storage": storage,
+            }
+            for vmid, storage in ((100, "pbs-main"), (101, "pbs-main"), (100, "pbs-side"))
+        ]
+        db.sync_backup_events_for_source(self.cid, "pve", events)
+        db.update_backup_event_storages(self.cid, events)
+        self.assertEqual(db.vm_count_by_storage(self.cid), {"pbs-main": 2, "pbs-side": 1})
+
     def test_guest_type_is_stored(self) -> None:
         vm = {
             "node_name": "n1",

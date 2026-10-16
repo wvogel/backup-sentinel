@@ -32,12 +32,14 @@
           {%- if ds.estimated_full_at and ds.status != 'ok' %}
           <div class="topo-full status-text-{{ ds.status }}">{{ t('cluster.datastore_full_short', date=ds.estimated_full_at|datetime_local('%m/%y')) }}</div>
           {%- endif %}
+          {%- for e in ds.primary %}
+          <div class="topo-tag" data-tooltip="{{ t('topology.primary_tooltip', storage=e.storage_id, ns=e.to_ns or '/') }}">PVE{% if e.vms is not none %} · {{ t('topology.vms_one' if e.vms == 1 else 'topology.vms_other', count=e.vms) }}{% endif %}</div>
+          {%- endfor %}
           {%- for e in ds.incoming %}
           <div class="topo-sync topo-state-{{ e.state }}"
                data-tooltip="{{ t('topology.sync_tooltip', job=e.job_id, source=e.source_label ~ ('/' ~ e.from_ns if e.from_ns else ''), target=ds.store ~ ('/' ~ e.to_ns if e.to_ns else '')) }}&#10;{{ t('topology.schedule', schedule=e.schedule or '–') }}&#10;{{ t('topology.last_run', when=e.last_run_at|datetime_local if e.last_run_at else t('common.never'), state=e.last_run_state or '–') }}{% if e.next_run_at %}&#10;{{ t('topology.next_run', when=e.next_run_at|datetime_local) }}{% endif %}">
-            <span class="topo-sync-icon" aria-hidden="true">{{ state_icons[e.state] }}</span>
-            <span>{{ e.source_label }}</span>
-            {%- if e.last_run_at %}<span class="muted">· {{ e.last_run_at|datetime_local('%d.%m. %H:%M') }}</span>{% endif %}
+            <span class="topo-sync-when"><span class="topo-sync-icon" aria-hidden="true">{{ state_icons[e.state] }}</span> {{ e.last_run_at|datetime_local('%d.%m. %H:%M') if e.last_run_at else t('common.never') }}</span>
+            <span class="topo-sync-from">← {{ e.source_label }}</span>
           </div>
           {%- endfor %}
         </div>

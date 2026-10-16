@@ -53,8 +53,14 @@ INSERT INTO pbs_connections (cluster_id, name, api_url, api_token_id, api_token_
  (1, 'pbs-aboe-muc', 'https://pbs-aboe-muc:8007', 'x', 'y', 'AA:01', '', now(), true, now()),
  (1, 'pbs-fh-muc',   'https://pbs-fh-muc:8007',   'x', 'y', 'FF:02', 'aboe', now(), true, now());
 
+-- One guest also backs up directly into the store that holds the pull copy
+-- (a minor primary target that is a replica at the same time).
 INSERT INTO pve_pbs_targets (cluster_id, storage_id, server, fingerprint, datastore, namespace) VALUES
- (1, 'pbs-aboe', '10.0.0.5', 'aa:01', 'nas-b1', '');
+ (1, 'pbs-aboe', '10.0.0.5', 'aa:01', 'nas-b1', ''),
+ (1, 'pbs-side', 'pbs-fh-muc', 'ff:02', 'nas-pve-fh-muc', 'aboe');
+UPDATE backup_events SET storages = ARRAY['pbs-aboe'] WHERE started_at >= now() - interval '7 days';
+UPDATE backup_events SET storages = ARRAY['pbs-aboe', 'pbs-side']
+WHERE started_at >= now() - interval '7 days' AND vm_id = (SELECT id FROM vms WHERE vmid = 112);
 
 INSERT INTO pbs_datastore_usage (pbs_id, store, total_bytes, used_bytes, avail_bytes, estimated_full_at, updated_at) VALUES
  (1, 'nas-b1', 71441000000000, 59296000000000, 12145000000000, now() + interval '195 days', now()),

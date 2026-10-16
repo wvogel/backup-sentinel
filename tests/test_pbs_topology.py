@@ -159,12 +159,34 @@ class TopologyTests(unittest.TestCase):
         self.assertEqual(names(topo), [[("pbs-aboe-muc", ["nas-b1"])]])
         self.assertEqual(topo["edges"], [])
 
-    def test_unreached_store_of_own_pbs_is_listed_unconnected(self) -> None:
+    def test_unrelated_stores_of_a_used_pbs_are_hidden(self) -> None:
         topo = self.build(
             10, [target("pbs-aboe-muc", "nas-b1")], [ABOE], [], [usage(1, "nas-b1", 83), usage(1, "spare", 2)]
         )
-        self.assertEqual(names(topo), [[("pbs-aboe-muc", ["nas-b1", "spare"])]])
+        self.assertEqual(names(topo), [[("pbs-aboe-muc", ["nas-b1"])]])
         self.assertEqual(len(topo["edges"]), 1)
+
+    def test_minor_primary_target_that_is_also_a_copy_stands_behind_its_source(self) -> None:
+        # pve-fh-muc backs up to pbs-fh-muc; pbs-aboe-muc pulls that into
+        # nas-off, where one VM (the PBS itself) also backs up directly.
+        fh = conn(6, 40, "pbs-fh-muc", fingerprint="FF:02")
+        aboe = conn(7, 40, "pbs-aboe-muc", fingerprint="AA:01")
+        topo = build_topology(
+            40,
+            [target("pbs-fh-muc", "nas-pve-fh-muc", "FF:02"), target("pbs-aboe-muc", "nas-off", "AA:01")],
+            [fh, aboe],
+            [job(7, "s-fh", "nas-off", remote="fh", remote_store="nas-pve-fh-muc", remote_fingerprint="FF:02")],
+            [usage(6, "nas-pve-fh-muc", 76), usage(7, "nas-off", 11), usage(7, "nas-b1", 83)],
+            now=NOW,
+            vms_by_storage={"st-nas-pve-fh-muc": 8, "st-nas-off": 1},
+        )
+        self.assertEqual(names(topo), [[("pbs-fh-muc", ["nas-pve-fh-muc"])], [("pbs-aboe-muc", ["nas-off"])]])
+        lines = {(line["kind"], line["to"]): line for line in topo["lines"]}
+        main = lines[("primary", "ds-0")]
+        side = lines[("primary", "ds-1")]
+        self.assertEqual((main["minor"], main["span"]), (False, 1))
+        self.assertEqual((side["minor"], side["span"]), (True, 2))
+        self.assertEqual((lines[("sync", "ds-1")]["span"], lines[("sync", "ds-1")]["back"]), (1, False))
 
     def test_empty_without_targets_and_connections(self) -> None:
         self.assertEqual(self.build(10, [], [PANO])["columns"], [])
