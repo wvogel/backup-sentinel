@@ -100,14 +100,23 @@ def match_pbs_connection(
                 return conn
     names = _names(host)
     for conn in connections:
-        if names & (_names(_connection_host(conn)) | {_connection_name(conn)}):
+        if names & _connection_names(conn):
             return conn
     addresses = resolve(host) if host else set()
     if addresses:
         for conn in connections:
-            if addresses & resolve(_connection_host(conn)):
+            hosts = [_connection_host(conn), *(conn.get("aliases") or [])]
+            if any(addresses & resolve(h) for h in hosts):
                 return conn
     return None
+
+
+def _connection_names(conn: Mapping[str, Any]) -> set[str]:
+    """Names and addresses a registered PBS is known by, incl. its aliases."""
+    names = _names(_connection_host(conn)) | {_connection_name(conn)}
+    for alias in conn.get("aliases") or []:
+        names |= _names(str(alias))
+    return names
 
 
 def probe_tls_fingerprint(host: str, port: int = 8007, timeout: float = 3.0) -> str:

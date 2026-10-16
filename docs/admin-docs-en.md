@@ -39,6 +39,7 @@ Earlier versions may work but are not regularly tested. If you deploy Backup Sen
 API tokens used by Backup Sentinel require:
 - On PVE: `Sys.Audit` on `/` and `VM.Audit` on `/vms` (read-only inventory) plus `Datastore.Audit` for backup storage discovery
 - On PBS: `Datastore.Audit` on the datastore(s) to be monitored; for the replication diagram also reading sync jobs and remotes (`Datastore.Audit` on `/datastore`, `Remote.Audit` on `/remote`). Without these the PBS sync stays green and the sync log names the reason.
+- PBS connection fields under Settings → Cluster: **Namespace** limits the connection to one namespace and its children (e.g. the target of a pull sync; empty = root only). **Aliases** are other host names or IPs PVE or a sync remote uses for this PBS. Backup Sentinel usually recognises a PBS itself (fingerprint, name, DNS, certificate over TLS); aliases are only needed when it cannot reach it under the other name, e.g. in a separate backup network.
 
 ---
 

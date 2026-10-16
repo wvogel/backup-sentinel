@@ -308,17 +308,24 @@ class PbsNamespaceTests(DbTestCase):
         db.upsert_pbs_connection(self.cid, self.PBS)
         self.assertEqual(self.namespace(), "")
         pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
-        self.assertTrue(db.update_pbs_namespace(self.cid, pbs_id, " /pano//muc/ "))
+        self.assertTrue(db.update_pbs_settings(self.cid, pbs_id, " /pano//muc/ ", ""))
         self.assertEqual(self.namespace(), "pano/muc")
         db.upsert_pbs_connection(self.cid, self.PBS)
         self.assertEqual(self.namespace(), "pano/muc")
         db.upsert_pbs_connection(self.cid, {**self.PBS, "namespace": ""})
         self.assertEqual(self.namespace(), "")
 
+    def test_aliases_are_normalized(self) -> None:
+        db.upsert_pbs_connection(self.cid, self.PBS)
+        pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
+        self.assertTrue(db.update_pbs_settings(self.cid, pbs_id, "pano", "PBS-mar-lej, 10.20.0.2\npbs-mar-lej"))
+        row = db.list_pbs_connections(self.cid)[0]
+        self.assertEqual((row["namespace"], row["aliases"]), ("pano", ["pbs-mar-lej", "10.20.0.2"]))
+
     def test_namespace_of_other_cluster_is_not_changed(self) -> None:
         db.upsert_pbs_connection(self.cid, {**self.PBS, "namespace": "pano"})
         pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
-        self.assertFalse(db.update_pbs_namespace(self.cid + 1, pbs_id, "x"))
+        self.assertFalse(db.update_pbs_settings(self.cid + 1, pbs_id, "x", ""))
         self.assertEqual(self.namespace(), "pano")
 
 

@@ -39,6 +39,7 @@ Backup Sentinel wird gegen folgende Proxmox-Versionen getestet:
 API-Tokens benötigen:
 - PVE: `Sys.Audit` auf `/` und `VM.Audit` auf `/vms` (Read-Only-Inventory) sowie `Datastore.Audit` für Backup-Storage-Erkennung
 - PBS: `Datastore.Audit` auf die zu überwachenden Datastores; für das Replikations-Schaubild zusätzlich Lesen der Sync-Jobs und Remotes (`Datastore.Audit` auf `/datastore`, `Remote.Audit` auf `/remote`). Fehlen diese Rechte, bleibt der PBS-Sync grün, das Sync-Log nennt den Grund.
+- PBS-Verbindung, Felder in Einstellungen → Cluster: **Namespace** beschränkt die Verbindung auf einen Namespace samt Unter-Namespaces (z. B. das Ziel eines Pull-Syncs; leer = nur Root). **Aliase** sind weitere Hostnamen oder IPs, unter denen PVE oder ein Sync-Remote diesen PBS kennt. Normalerweise erkennt Backup Sentinel einen PBS selbst (Fingerprint, Name, DNS, Zertifikat per TLS); Aliase braucht es nur, wenn er unter dem anderen Namen nicht erreichbar ist, etwa in einem getrennten Backup-Netz.
 
 ---
 

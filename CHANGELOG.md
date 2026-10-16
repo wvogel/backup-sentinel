@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.23.0] — 2026-10-16
+
+### Added
+
+- **Aliases per PBS connection** (Settings → Cluster, next to "Namespace"): other host names or IPs under which PVE or a sync remote knows this PBS, separated by commas. Needed when Backup Sentinel cannot recognise the PBS by itself — e.g. PVE uses `pbs-mar-lej` in a backup network Backup Sentinel cannot reach, while the PBS is registered as `mgm-pbs-mar-lej`. Aliases count for the replication diagram (one box instead of two) and for counting backup copies, right away and without a sync. The namespace form route is now `/clusters/{slug}/pbs/{id}/settings` and saves both fields.
+
 ## [v2.22.3] — 2026-10-16
 
 ### Fixed
