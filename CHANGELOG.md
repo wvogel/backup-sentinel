@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.29.0] — 2026-10-17
+
+### Changed
+
+- **Replication diagram as pipes.** Direct connections are three times as broad (24 px) with a matching filled arrowhead; replications are pipes of blocks; lines running the long way around stay thin (5 px). At rest pipes are dimmed and still.
+- **New animation, only while data moves.** A running backup's or sync's pipe lights up, light data packets flow through it, a light streak sweeps along it every couple of seconds, and a replication's blocks move like a conveyor. Replaces the moving arrowheads.
+- **Layout:** boxes keep their natural width and all spare room goes into the gaps (at least 88 px), so pipes are as long as the card allows; with many columns, name and sync rows wrap instead of the diagram overflowing.
+
 ## [v2.28.1] — 2026-10-17
 
 ### Added

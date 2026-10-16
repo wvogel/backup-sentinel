@@ -38,49 +38,56 @@
 
   // Chevrons moving along a line: backups fast, replication slower but still
   // visible. A failed or never-run sync moves nothing.
-  // Line widths (match static/style.css) and the arrowhead size they get.
+  // Direct lines are broad pipes; the long way around stays thin.
   function widthOf(edge) {
-    if (edge.minor) return 3;
-    return edge.lane ? 5 : 8;
+    if (edge.minor) return edge.lane ? 3 : 10;
+    return edge.lane ? 5 : 24;
   }
 
-  // Filled arrowhead with its tip at (x, y), pointing along (dx, dy).
+  function headLength(width) {
+    return width * 0.8 + 6;
+  }
+
+  // Filled arrowhead with its tip at (x, y), pointing along (dx, dy); a bit
+  // wider than the pipe it ends.
   function head(x, y, dx, dy, width) {
-    var len = width * 1.9, half = width * 1.25;
+    var len = headLength(width), half = width * 0.8 + 5;
     var bx = x - dx * len, by = y - dy * len;
     return "M" + x + "," + y + " L" + (bx - dy * half) + "," + (by + dx * half) +
       " L" + (bx + dy * half) + "," + (by - dx * half) + " Z";
   }
 
-  // Data moving right now (running backup or sync) — and only then: dashes
-  // flow and filled arrows run along the line, faster for backups.
+  function overlay(svg, d, cls, width) {
+    var el = document.createElementNS(SVG_NS, "path");
+    el.setAttribute("d", d);
+    el.setAttribute("class", cls);
+    el.setAttribute("stroke-width", width);
+    svg.appendChild(el);
+    return el;
+  }
+
+  // Only while data moves (running backup or sync): packets flow through
+  // the pipe, a light sweep runs along it, a replication's blocks move.
   function animate(svg, path, d, edge, cls, width) {
     if (calm || !edge.active) return;
-    var speed = edge.kind === "primary" ? 70 : 45; // px per second
-    if (edge.kind === "sync") {
-      var dashes = getComputedStyle(path).strokeDasharray.split(/[ ,]+/).map(parseFloat);
-      var period = (dashes[0] || 14) + (dashes[1] || 9);
-      path.style.setProperty("--dash-shift", -period + "px");
-      path.style.animation = "topo-dash " + (period / speed).toFixed(3) + "s linear infinite, " +
-        "topo-active-pulse 1.8s ease-in-out infinite alternate";
-    }
+    var speed = edge.kind === "primary" ? 80 : 55; // px per second
     var length = path.getTotalLength();
-    var count = Math.max(1, Math.floor(length / 60));
-    var dur = length / speed;
-    var size = width * 0.75;
-    for (var i = 0; i < count; i++) {
-      var arrow = document.createElementNS(SVG_NS, "path");
-      arrow.setAttribute("d", "M" + size + ",0 L" + -size + "," + -size + " L" + -size * 0.4 + ",0 L" + -size + "," + size + " Z");
-      arrow.setAttribute("class", "topo-flow " + cls);
-      var motion = document.createElementNS(SVG_NS, "animateMotion");
-      motion.setAttribute("path", d);
-      motion.setAttribute("dur", dur.toFixed(2) + "s");
-      motion.setAttribute("begin", (-i * dur / count).toFixed(2) + "s");
-      motion.setAttribute("repeatCount", "indefinite");
-      motion.setAttribute("rotate", "auto");
-      arrow.appendChild(motion);
-      svg.appendChild(arrow);
+    if (edge.kind === "sync") {
+      var period = edge.lane ? width * 3.4 : width * 2; // dash + gap, see below
+      path.style.setProperty("--flow-shift", -period + "px");
+      path.style.setProperty("--flow-time", (period / speed).toFixed(3) + "s");
     }
+    var dot = Math.max(2, width * 0.36), gap = Math.max(10, width * 1.4);
+    var packets = overlay(svg, d, "topo-packets " + cls, dot);
+    packets.setAttribute("stroke-dasharray", "0.1 " + gap);
+    packets.style.setProperty("--flow-shift", -gap - 0.1 + "px");
+    packets.style.setProperty("--flow-time", ((gap + 0.1) / speed).toFixed(3) + "s");
+    var streak = Math.min(90, length * 0.35);
+    var sweep = overlay(svg, d, "topo-sweep " + cls, width * 0.8);
+    sweep.setAttribute("stroke-dasharray", streak + " " + (length + streak));
+    sweep.style.strokeDashoffset = streak + "px";
+    sweep.style.setProperty("--flow-shift", -length + "px");
+    sweep.style.setProperty("--sweep-time", Math.max(1.4, length / 160).toFixed(2) + "s");
   }
 
   // PVE storages running backups write to: the guests' recent backup
@@ -210,7 +217,7 @@
       var a = edge.a, b = edge.b;
       edge.lane = !stacked && (edge.back || edge.span > 1);
       var width = widthOf(edge);
-      var tip = width * 1.9; // the line stops where the arrowhead begins
+      var tip = headLength(width) - 1; // the line stops where the arrowhead begins
       var d, end, dir;
       if (stacked) {
         if (!edge.back && b.top > a.bottom && !blocked(a, b)) {
@@ -250,6 +257,11 @@
       var path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
       path.setAttribute("class", "topo-line " + cls);
+      path.setAttribute("stroke-width", width);
+      if (edge.kind === "sync") {
+        // Replication: a pipe of blocks (dashed), thin lanes finer.
+        path.setAttribute("stroke-dasharray", edge.lane ? width * 2 + " " + width * 1.4 : width * 1.4 + " " + width * 0.6);
+      }
       svg.appendChild(path);
       var arrowhead = document.createElementNS(SVG_NS, "path");
       arrowhead.setAttribute("d", head(end[0], end[1], dir[0], dir[1], width));

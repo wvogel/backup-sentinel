@@ -2613,7 +2613,10 @@ html[data-theme="dark"] .node-filter-button.is-active {
   position: relative;
   display: flex;
   align-items: center;
-  gap: clamp(56px, 5vw, 96px);
+  /* Boxes keep their natural width; all spare room goes into the gaps, so
+     the pipes get as long as the card allows and nothing overflows. */
+  gap: 88px;
+  justify-content: space-between;
   /* No frame of its own: the boxes sit on the card like the key-figure tiles. */
   padding: 0;
   overflow-x: auto;
@@ -2634,12 +2637,15 @@ html[data-theme="dark"] .node-filter-button.is-active {
   overflow: visible;
 }
 
-/* Lines of the topology (static/js/topology.js). One colour per kind and
-   state; line, filled arrowhead and moving arrows all take it. Nothing
-   moves unless data is moving right now (running backup or sync). */
+/* Lines of the topology (static/js/topology.js). Direct lines are broad
+   pipes, the long way around stays thin. One colour per kind and state for
+   line and arrowhead. At rest a pipe is dimmed and still; while data moves
+   (running backup or sync) it lights up, packets flow through it and a
+   light sweep runs along. */
 .topo-line,
 .topo-head,
-.topo-flow { color: var(--muted); }
+.topo-packets,
+.topo-sweep { color: var(--muted); }
 .topo-line-sync.topo-state-ok,
 .topo-line-sync.topo-state-running { color: var(--running); }
 .topo-line-sync.topo-state-warning { color: var(--warn); }
@@ -2650,29 +2656,39 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-line {
   fill: none;
   stroke: currentColor;
-  stroke-width: 8;
   stroke-linecap: butt;
   stroke-linejoin: round;
+  opacity: 0.45;
 }
-.topo-line.topo-line-sync { stroke-dasharray: 14 9; }
-/* The long way around (skipping a column, or back): clearly thinner. */
-.topo-line.topo-lane { stroke-width: 5; }
-.topo-line.topo-lane.topo-line-sync { stroke-dasharray: 10 7; }
-.topo-line.topo-minor { stroke-width: 3; opacity: 0.6; }
-.topo-line.topo-minor.topo-line-sync { stroke-dasharray: 7 5; }
-.topo-line.topo-state-never { opacity: 0.55; }
+.topo-head { fill: currentColor; opacity: 0.45; }
+.topo-line.topo-active,
+.topo-head.topo-active { opacity: 1; }
+.topo-line.topo-lane,
+.topo-head.topo-lane { opacity: 0.7; }
+.topo-line.topo-state-never,
+.topo-head.topo-state-never { opacity: 0.3; }
 
-.topo-head { fill: currentColor; }
-.topo-head.topo-minor { opacity: 0.6; }
-.topo-head.topo-state-never { opacity: 0.55; }
-
-/* Data moving right now: the line breathes, filled arrows run along it. */
-.topo-line.topo-active { animation: topo-active-pulse 1.8s ease-in-out infinite alternate; }
-.topo-flow { fill: var(--ink); opacity: 0.9; }
-@keyframes topo-active-pulse { from { opacity: 1; } to { opacity: 0.6; } }
-@keyframes topo-dash { to { stroke-dashoffset: var(--dash-shift, -23); } }
+/* Moving parts, only drawn while data moves (sized by the script). */
+.topo-packets {
+  fill: none;
+  stroke: #fff;
+  stroke-linecap: round;
+  opacity: 0.8;
+  animation: topo-flow var(--flow-time, 1s) linear infinite;
+}
+.topo-sweep {
+  fill: none;
+  stroke: #fff;
+  stroke-linecap: round;
+  opacity: 0.35;
+  animation: topo-flow var(--sweep-time, 2.4s) ease-in-out infinite;
+}
+.topo-line.topo-active.topo-line-sync { animation: topo-flow var(--flow-time, 1s) linear infinite; }
+@keyframes topo-flow { to { stroke-dashoffset: var(--flow-shift, -24px); } }
 @media (prefers-reduced-motion: reduce) {
-  .topo-line.topo-active { animation: none !important; }
+  .topo-packets,
+  .topo-sweep,
+  .topo-line.topo-active.topo-line-sync { animation: none; }
 }
 
 /* Columns share the full width; boxes fill their column's width and get
@@ -2683,7 +2699,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   flex-direction: column;
   justify-content: center;
   gap: 10px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   /* Never narrower than names that must not wrap. */
   min-width: min-content;
 }
@@ -2800,7 +2816,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-full { font-size: 0.7rem; font-weight: 600; }
 
 /* Warning sign: the PBS expects the datastore to be full within 30 days. */
-.topo-store-name { display: flex; align-items: center; gap: 6px; }
+/* May wrap (tag below the name) when the pipes need the room. */
+.topo-store-name { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .topo-store-name .topo-tag { font-weight: 400; }
 .topo-full-soon { display: inline-flex; flex: none; cursor: default; }
 .topo-full-soon svg { width: 17px; height: 17px; }
