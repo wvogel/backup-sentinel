@@ -16,6 +16,7 @@ from collections import deque
 from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlsplit
 
 from app.services.backup_location import match_pbs_connection, normalize_fingerprint, server_name
 from app.services.pbs import assess_datastore_usage
@@ -64,9 +65,28 @@ class _Servers:
         self.key_of_conn: dict[int, str] = {}
         self.name: dict[str, str] = {}
         self.registered: set[str] = set()
+        # Connections sharing a fingerprint, name or API host are one server,
+        # even if one of them was registered without a fingerprint.
+        owner: dict[str, int] = {}
+        parent = {conn["id"]: conn["id"] for conn in connections}
+
+        def root(conn_id: int) -> int:
+            while parent[conn_id] != conn_id:
+                conn_id = parent[conn_id]
+            return conn_id
+
         for conn in connections:
             fp = normalize_fingerprint(conn.get("fingerprint"))
-            key = f"fp:{fp}" if fp else f"conn:{str(conn.get('name') or '').lower()}"
+            host = urlsplit(str(conn.get("api_url") or "")).hostname or ""
+            for ident in (f"fp:{fp}" if fp else "", f"name:{str(conn.get('name') or '').lower()}", f"host:{host}"):
+                if not ident or ident.endswith(":"):
+                    continue
+                if ident in owner:
+                    parent[root(conn["id"])] = root(owner[ident])
+                else:
+                    owner[ident] = conn["id"]
+        for conn in connections:
+            key = f"pbs:{root(conn['id'])}"
             self.key_of_conn[conn["id"]] = key
             self.name.setdefault(key, str(conn.get("name") or ""))
             self.registered.add(key)

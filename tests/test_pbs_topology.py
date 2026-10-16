@@ -168,3 +168,17 @@ class TopologyTests(unittest.TestCase):
 
     def test_empty_without_targets_and_connections(self) -> None:
         self.assertEqual(self.build(10, [], [PANO])["columns"], [])
+
+    def test_same_pbs_registered_twice_is_one_server(self) -> None:
+        # Registered for two clusters, once without fingerprint: still one PBS,
+        # and its sync job (read through both connections) is one edge.
+        fh_no_fp = conn(5, 30, "pbs-fh-muc")
+        jobs = [
+            job(c, "s-pano", "nas-offsite-fh-muc", remote="pano", remote_store="nas-pano", remote_fingerprint="CC:03")
+            for c in (4, 5)
+        ]
+        topo = self.build(
+            20, [target("pbs-pano", "nas-pano", fingerprint="CC:03")], [PANO, FH_FOR_PANO, fh_no_fp], jobs
+        )
+        self.assertEqual(names(topo), [[("pbs-pano", ["nas-pano"])], [("pbs-fh-muc", ["nas-offsite-fh-muc"])]])
+        self.assertEqual(len([e for e in topo["edges"] if e["kind"] == "sync"]), 1)
