@@ -120,6 +120,22 @@ def running_count_label(count: int) -> str:
 
 _sync_progress_cache: dict[str, tuple[float, tuple[float | None, bool]]] = {}
 _SYNC_PROGRESS_TTL = 30.0
+# How old a live value may be to still be shown when the page loads.
+_SYNC_PROGRESS_SHOW_AGE = 120.0
+
+
+def with_live_sync_progress(topology: dict) -> dict:
+    """Running syncs show only live progress, never the value stored with the
+    diagram at the last sync (up to an hour old): a fresh cached value, or
+    none (the ring turns until the page's first poll answers)."""
+    incoming = [e for column in topology["columns"] for g in column for s in g["stores"] for e in s["incoming"]]
+    for edge in [*topology["edges"], *incoming]:
+        if edge.get("state") != "running":
+            continue
+        hit = _sync_progress_cache.get(edge.get("running_upid") or "")
+        fresh = hit is not None and _time.monotonic() - hit[0] < _SYNC_PROGRESS_SHOW_AGE
+        edge["running_percent"] = hit[1][0] if fresh else None
+    return topology
 
 
 @router.get("/api/clusters/{cluster_slug}/sync-progress")
@@ -234,7 +250,7 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
         "restore_tests": restore_tests,
         "compliance_summary": build_compliance_summary(vm_rows, restore_tests),
         "pbs_connections": db.list_pbs_connections(cluster["id"]),
-        "topology": topology_store.load(cluster["id"]),
+        "topology": with_live_sync_progress(topology_store.load(cluster["id"])),
         "storages_by_vmid": db.recent_storages_by_vmid(cluster["id"]),
         "sparklines": db.vm_backup_sparkline_data(cluster["id"], days=31),
         "encryption": encryption,

@@ -571,7 +571,11 @@ class ClusterPageTests(DbTestCase):
         self.assertNotIn('class="sync-dots"', html)
         self.assertEqual(html.count('class="sync-dot '), 2)  # PVE + pbs-fh-muc
 
-    def test_live_sync_progress(self) -> None:
+    def running_sync(self) -> tuple[int, str]:
+        """A sync job running right now, stored with 10 % from the last sync."""
+        from app.web import routes_clusters
+
+        routes_clusters._sync_progress_cache.clear()
         db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
         pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
         db.replace_datastore_usage(
@@ -581,31 +585,44 @@ class ClusterPageTests(DbTestCase):
         target = {"storage_id": "pbs", "server": "pbs-fh-muc", "fingerprint": "", "datastore": "nas", "namespace": ""}
         db.replace_pve_pbs_targets(self.cid, [target])
         upid = "UPID:pbs-fh-muc:0000ABCD:0012F00D:00000002:68F15A40:syncjob:s:sync@pbs:"
-        db.replace_pbs_sync_jobs(
-            pbs_id,
-            [
-                {
-                    "job_id": "s",
-                    "direction": "pull",
-                    "store": "copy",
-                    "ns": "",
-                    "remote_name": "",
-                    "remote_host": "",
-                    "remote_fingerprint": "",
-                    "remote_store": "nas",
-                    "remote_ns": "",
-                    "schedule": "daily",
-                    "last_run_state": "",
-                    "last_run_at": None,
-                    "next_run_at": None,
-                    "running_since": datetime.now(UTC),
-                    "running_upid": upid,
-                    "running_percent": 10.0,
-                }
-            ],
-        )
+        job = {
+            "job_id": "s",
+            "direction": "pull",
+            "store": "copy",
+            "ns": "",
+            "remote_name": "",
+            "remote_host": "",
+            "remote_fingerprint": "",
+            "remote_store": "nas",
+            "remote_ns": "",
+            "schedule": "daily",
+            "last_run_state": "",
+            "last_run_at": None,
+            "next_run_at": None,
+            "running_since": datetime.now(UTC),
+            "running_upid": upid,
+            "running_percent": 10.0,
+        }
+        db.replace_pbs_sync_jobs(pbs_id, [job])
         topology_store.refresh_all()
+        return pbs_id, upid
+
+    @staticmethod
+    def ring(html: str) -> str:
+        start = html.rindex("<span", 0, html.index('data-sync-ring="'))
+        return "".join(html[start : html.index("</span>", html.index("running-ring-label", start))].split())
+
+    def test_live_sync_progress(self) -> None:
+        pbs_id, upid = self.running_sync()
         with mock.patch("app.web.routes_clusters.sync_task_state", return_value=(45.31, False)) as state:
             response = self.client.get("/api/clusters/test/sync-progress")
         self.assertEqual(response.json(), {f"{pbs_id}:s": {"percent": 45.31, "finished": False}})
         self.assertEqual(state.call_args.args[1], upid)
+        # The page shows that live value, not the 10 % stored with the diagram.
+        self.assertTrue(self.ring(self.page()).endswith(">45%"))
+
+    def test_page_without_live_value_shows_no_stale_percent(self) -> None:
+        self.running_sync()
+        ring = self.ring(self.page())
+        self.assertIn("is-indeterminate", ring)
+        self.assertNotIn("10%", ring)
