@@ -2483,9 +2483,9 @@ details[open] > .encryption-alert-summary::before {
   cursor: pointer;
 }
 .running-item:hover { border-color: var(--running); }
-/* A running backup breathes: the whole ring (done and open part alike)
-   fades gently in and out, so 3 % moves as visibly as 90 %. The ring is
-   drawn by ::before so the percentage itself stays steady. */
+/* A running backup is visibly moving: the whole ring (done and open part
+   alike) turns slowly and pulses, so even a 3 % arc travels around. The
+   ring is drawn by ::before so the percentage itself stays upright. */
 /* Doubled class: must beat the generic .topo-ring rule further down. */
 .topo-ring.running-ring {
   --ring: var(--running);
@@ -2499,18 +2499,18 @@ details[open] > .encryption-alert-summary::before {
   inset: 0;
   border-radius: 50%;
   background: conic-gradient(var(--ring) calc(var(--p) * 1%), var(--line) 0);
-  animation: running-breathe 2.8s ease-in-out infinite alternate;
+  animation:
+    running-spin 8s linear infinite,
+    running-breathe 1.6s ease-in-out infinite alternate;
 }
 .running-ring-label { position: relative; z-index: 1; }
-@keyframes running-breathe { from { opacity: 1; } to { opacity: 0.4; } }
-/* Without a percentage: one arc turning slowly (and breathing). */
+@keyframes running-breathe { from { opacity: 1; } to { opacity: 0.3; } }
+/* Without a percentage: a quarter arc turning. */
 .running-ring.is-indeterminate::before {
   background: conic-gradient(var(--ring) 0 25%, var(--line) 0);
-  animation: running-breathe 2.8s ease-in-out infinite alternate, running-spin 6s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .running-ring::before,
-  .running-ring.is-indeterminate::before { animation: none; }
+  .running-ring::before { animation: none; }
 }
 .running-item-body {
   display: grid;
