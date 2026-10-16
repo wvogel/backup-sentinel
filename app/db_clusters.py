@@ -518,3 +518,22 @@ def update_pbs_cert_fingerprints(pbs_id: int, fingerprints: list[str]) -> None:
     with connect() as conn, conn.cursor() as cur:
         cur.execute("UPDATE pbs_connections SET cert_fingerprints = %s WHERE id = %s", (fingerprints, pbs_id))
         conn.commit()
+
+
+def save_cluster_topology(cluster_id: int, data_json: str) -> None:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO cluster_topology (cluster_id, data, built_at) VALUES (%s, %s::jsonb, %s)
+            ON CONFLICT (cluster_id) DO UPDATE SET data = EXCLUDED.data, built_at = EXCLUDED.built_at
+            """,
+            (cluster_id, data_json, datetime.now(UTC)),
+        )
+        conn.commit()
+
+
+def get_cluster_topology(cluster_id: int) -> dict[str, Any] | None:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT data FROM cluster_topology WHERE cluster_id = %s", (cluster_id,))
+        row = cur.fetchone()
+        return row["data"] if row else None

@@ -11,11 +11,13 @@ They TRUNCATE all tables, so they only run when BSENTINEL_DB_TESTS=1 is set
 import os
 import unittest
 from datetime import UTC, datetime, timedelta
+from unittest import mock
 
 if os.environ.get("BSENTINEL_DB_TESTS") != "1":
     raise unittest.SkipTest("set BSENTINEL_DB_TESTS=1 to run database tests (they truncate all tables)")
 
 from app import db, db_governance
+from app.services import topology_store
 from app.services.vzdump_log import VmBackupRun
 
 NOW = datetime.now(UTC).replace(second=0, microsecond=0)
@@ -527,3 +529,43 @@ class WeeklyStatsTests(DbTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClusterPageTests(DbTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_clusters
+
+        app = FastAPI()
+        app.include_router(routes_clusters.router)
+        self.client = TestClient(app, follow_redirects=False)
+
+    def page(self) -> str:
+        with mock.patch("app.web.routes_clusters.running_backup_progress_peek", return_value=(None, False)):
+            response = self.client.get("/clusters/test")
+        self.assertEqual(response.status_code, 200)
+        return response.text
+
+    def test_without_diagram_the_sync_dots_stay_in_the_header(self) -> None:
+        db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
+        html = self.page()
+        self.assertIn('class="sync-dots"', html)
+        self.assertNotIn("data-topology", html)
+
+    def test_diagram_carries_the_sync_dots(self) -> None:
+        db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
+        pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
+        db.replace_datastore_usage(
+            pbs_id,
+            [{"store": "nas", "total_bytes": 100, "used_bytes": 40, "avail_bytes": 60, "estimated_full_at": None}],
+        )
+        target = {"storage_id": "pbs", "server": "pbs-fh-muc", "fingerprint": "", "datastore": "nas", "namespace": ""}
+        db.replace_pve_pbs_targets(self.cid, [target])
+        topology_store.refresh_all()
+        html = self.page()
+        self.assertIn("data-topology", html)
+        self.assertNotIn('class="sync-dots"', html)
+        self.assertEqual(html.count('class="sync-dot '), 2)  # PVE + pbs-fh-muc

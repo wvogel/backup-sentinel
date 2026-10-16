@@ -18,7 +18,7 @@ from app.config import (
     SYNC_INTERVAL_MINUTES,
 )
 from app.i18n import ts
-from app.services import email_assets, weekly_report
+from app.services import email_assets, topology_store, weekly_report
 from app.services.backup_location import CachedLookups, assign_pbs_servers
 from app.services.backup_status import assess_slow_backup
 from app.services.notifications import (
@@ -198,6 +198,8 @@ def sync_cluster_backups(cluster: dict) -> None:
             if pruned:
                 logger.info("  %s", ts("synclog.pruned", count=pruned))
             pve_log.append(ts("synclog.pruned", count=pruned))
+        # Shared PBS and sync jobs can change other clusters' diagrams too.
+        topology_store.refresh_all()
     except Exception as exc:
         pve_log.append(ts("synclog.error", error=exc))
         logger.error("Sync failed for cluster %s: %s", cluster["name"], exc)

@@ -28,6 +28,7 @@
     }
   }
 
+  // One tile per running backup: progress ring, name, detail lines.
   function renderBanner() {
     const rows = table.querySelectorAll("tbody tr.is-running");
     const list = banner.querySelector(".js-running-list");
@@ -40,28 +41,39 @@
       btn.className = "running-item";
       btn.dataset.vmid = tr.dataset.vmid;
       btn.title = T("cluster.running_jump");
+
+      const pct = tr.style.getPropertyValue("--pct");
+      const ring = document.createElement("span");
+      ring.className = "topo-ring running-ring" + (pct === "" ? " is-indeterminate" : "");
+      ring.style.setProperty("--p", pct || 0);
+      const label = document.createElement("span");
+      label.textContent = pct === "" ? "" : Math.round(Number(pct)) + "%";
+      ring.append(label);
+
+      const body = document.createElement("span");
+      body.className = "running-item-body";
       const name = document.createElement("span");
       name.className = "running-item-name";
       name.textContent = tr.dataset.vmName + " ";
       const id = document.createElement("span");
       id.className = "muted";
-      id.textContent = "(" + tr.dataset.vmid + ")";
+      id.textContent = tr.dataset.vmid;
       name.append(id);
-      const meta = document.createElement("span");
-      meta.className = "running-item-meta";
-      meta.textContent = tr.dataset.runningLine || T("cluster.backup_running");
+      body.append(name);
+      const details = (tr.dataset.runningDetails || T("cluster.backup_running")).split("\n");
+      for (const text of details) {
+        const line = document.createElement("span");
+        line.className = "running-item-meta";
+        line.textContent = text;
+        body.append(line);
+      }
       if (tr.dataset.runningWarning) {
         const warn = document.createElement("span");
         warn.className = "running-slow";
-        warn.textContent = " " + tr.dataset.runningWarning;
-        meta.append(warn);
+        warn.textContent = tr.dataset.runningWarning;
+        body.append(warn);
       }
-      const bar = document.createElement("span");
-      bar.className = "running-bar";
-      const fill = document.createElement("span");
-      fill.style.width = (tr.style.getPropertyValue("--pct") || 0) + "%";
-      bar.append(fill);
-      btn.append(name, meta, bar);
+      btn.append(ring, body);
       li.append(btn);
       list.append(li);
     }
@@ -75,6 +87,7 @@
         tr.classList.add("is-running");
         tr.dataset.live = "1";
         tr.dataset.runningLine = info.line;
+        tr.dataset.runningDetails = (info.details || []).join("\n");
         tr.dataset.runningWarning = info.warning || "";
         if (info.percent === null || info.percent === undefined) tr.style.removeProperty("--pct");
         else tr.style.setProperty("--pct", info.percent);
@@ -85,6 +98,7 @@
         tr.style.removeProperty("--pct");
         delete tr.dataset.live;
         delete tr.dataset.runningLine;
+        delete tr.dataset.runningDetails;
         delete tr.dataset.runningWarning;
         tr.removeAttribute("title");
       }
@@ -123,16 +137,11 @@
     tr.classList.add("running-flash");
   });
 
-  // Rows rendered as running by the server: remember their banner line.
-  for (const item of banner.querySelectorAll(".running-item")) {
-    const tr = table.querySelector(`tbody tr[data-vmid="${CSS.escape(item.dataset.vmid)}"]`);
-    const meta = item.querySelector(".running-item-meta");
-    if (tr && meta) tr.dataset.runningLine = meta.textContent;
-  }
-
   window.addEventListener("resize", layoutRows);
   window.addEventListener("load", layoutRows);
   new ResizeObserver(layoutRows).observe(table);
   layoutRows();
-  setTimeout(poll, table.querySelector("tr.is-running") ? POLL_RUNNING_MS : POLL_IDLE_MS);
+  // Rendered without live data (nothing cached yet): fetch it right away.
+  const first = banner.dataset.pending ? 1500 : table.querySelector("tr.is-running") ? POLL_RUNNING_MS : POLL_IDLE_MS;
+  setTimeout(poll, first);
 })();

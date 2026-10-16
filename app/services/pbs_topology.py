@@ -355,7 +355,8 @@ def _columns(
                 {
                     "server": servers.name[node[0]],
                     "registered": node[0] in servers.registered,
-                    "conn": own_conn_by_server.get(node[0]),
+                    # The cluster's own connection (sync dot), looked up at render.
+                    "conn_id": own_conn_by_server[node[0]]["id"] if node[0] in own_conn_by_server else None,
                     "stores": [],
                     "_weight": weight(node),
                 },

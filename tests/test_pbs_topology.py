@@ -236,3 +236,22 @@ class TopologyTests(unittest.TestCase):
         topo = self.build(70, [target("pbs-mar-lej", "nas-b0-volume1")], [mgm], [], [usage(12, "nas-b0-volume1", 35)])
         self.assertEqual(names(topo), [[("mgm-pbs-mar-lej", ["nas-b0-volume1"])]])
         self.assertEqual(topo["columns"][0][0]["stores"][0]["pct"], 35)
+
+
+class TopologyStoreTests(unittest.TestCase):
+    def test_round_trip_keeps_dates(self) -> None:
+        from app.services import topology_store
+
+        topo = build_topology(
+            10,
+            [target("pbs-aboe-muc", "nas-b1")],
+            [ABOE],
+            [job(1, "local", "nas-off", remote_store="nas-b1")],
+            [usage(1, "nas-b1", 83), usage(1, "nas-off", 11)],
+            now=NOW,
+        )
+        import json
+
+        restored = topology_store._decode(json.loads(topology_store._encode(topo)))
+        self.assertEqual(restored, topo)
+        self.assertEqual(restored["columns"][1][0]["stores"][0]["incoming"][0]["last_run_at"], NOW)

@@ -35,15 +35,34 @@
     var stacked = getComputedStyle(root).flexDirection === "column";
     while (svg.firstChild) svg.removeChild(svg.firstChild);
 
+    // Horizontal extent of the boxes in each column, for the gaps between.
+    var cols = Array.prototype.map.call(root.querySelectorAll(".topology-col"), function (col) {
+      var left = Infinity, right = -Infinity;
+      col.querySelectorAll(".topo-server, .topo-cluster").forEach(function (el) {
+        var r = el.getBoundingClientRect();
+        left = Math.min(left, r.left - ox);
+        right = Math.max(right, r.right - ox);
+      });
+      return { el: col, left: left, right: right };
+    });
+    function gapAfter(i) {
+      return i + 1 < cols.length ? (cols[i].right + cols[i + 1].left) / 2 : cols[i].right + GAP;
+    }
+    function gapBefore(i) {
+      return i > 0 ? (cols[i - 1].right + cols[i].left) / 2 : cols[i].left - GAP;
+    }
+
     function anchor(id) {
       var el = root.querySelector('[data-node="' + id + '"]');
       if (!el) return null;
       var box = (el.closest(".topo-server") || el).getBoundingClientRect();
       var ring = el.querySelector(".topo-ring") || el;
       var r = ring.getBoundingClientRect();
+      var col = el.closest(".topology-col");
       return {
         left: box.left - ox, right: box.right - ox, top: box.top - oy, bottom: box.bottom - oy,
         cx: box.left + box.width / 2 - ox, y: r.top + r.height / 2 - oy,
+        col: cols.findIndex(function (c) { return c.el === col; }),
       };
     }
 
@@ -69,12 +88,13 @@
           var lx = 6 + 4 * sideLane++;
           d = rounded([[a.left, a.y], [lx, a.y], [lx, b.y], [b.left, b.y]]);
         }
-      } else if (edge.back) {
-        var low = height - 10 - 4 * bottomLane++;
-        d = rounded([[a.right, a.y], [a.right + GAP, a.y], [a.right + GAP, low], [b.left - GAP, low], [b.left - GAP, b.y], [b.left, b.y]]);
-      } else if (edge.span > 1) {
-        var high = 10 + 4 * topLane++;
-        d = rounded([[a.right, a.y], [a.right + GAP, a.y], [a.right + GAP, high], [b.left - GAP, high], [b.left - GAP, b.y], [b.left, b.y]]);
+      } else if (edge.back || edge.span > 1) {
+        // Out into the gap after the source column, along a lane above (or,
+        // back to an earlier column, below) all boxes, down the gap before
+        // the target column.
+        var lane = edge.back ? height - 10 - 4 * bottomLane++ : 10 + 4 * topLane++;
+        var xa = gapAfter(a.col), xb = gapBefore(b.col);
+        d = rounded([[a.right, a.y], [xa, a.y], [xa, lane], [xb, lane], [xb, b.y], [b.left, b.y]]);
       } else {
         var mx = (a.right + b.left) / 2;
         d = "M" + a.right + "," + a.y + " C" + mx + "," + a.y + " " + mx + "," + b.y + " " + b.left + "," + b.y;

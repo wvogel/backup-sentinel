@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.24.0] — 2026-10-16
+
+### Changed
+
+- **Cluster page loads fast.** It no longer waits for PVE to list running backups (task lists and logs of every node, often seconds): it shows what is cached and the page fetches live progress right after loading. The overview no longer waits up to 6 s either. The replication diagram is precomputed at the end of every sync (and after PBS settings change) and stored in `cluster_topology`; the page reads one row.
+- **Cluster header without the sync text lines.** The sync status is a dot in the diagram — in the cluster box for PVE and in each PBS box's header — with the time in the tooltip and the sync log on click. Name and key-figure tiles share one row; PBS without a box in the diagram keep a dot under the name.
+- **Diagram uses the full width.** Columns share the card width, lines skipping or going back run through the middle of the gaps between columns.
+- **Running backups as tiles** with a progress ring (spinning without a percentage), data written, expected finish and throughput, instead of a list with bars.
+- **Throughput without decimals** ("188 MiB/s"; one decimal only below 10) and with arrows instead of words: ↓ read, ↑ write, ⇅ when both are equal.
+
 ## [v2.23.0] — 2026-10-16
 
 ### Added
