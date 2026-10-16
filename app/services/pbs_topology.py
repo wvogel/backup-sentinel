@@ -109,6 +109,7 @@ def build_topology(
     jobs: Iterable[Mapping[str, Any]],
     usage: Iterable[Mapping[str, Any]],
     now: datetime | None = None,
+    vms_by_storage: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """Columns of datastore groups (by distance from the cluster) and edges."""
     servers = _Servers(connections)
@@ -173,10 +174,13 @@ def build_topology(
     # Datastores of this cluster's PBS that no edge reaches: still show their
     # capacity, unless the connection is limited to a namespace (then the
     # other stores belong to someone else).
+    # Only for PBS that take no part in the flow at all: next to used
+    # datastores, unrelated ones would just be noise.
+    involved = {server for server, _store in depth}
     for conn in own_conns:
-        if conn.get("namespace"):
-            continue
         key = servers.key_of_conn[conn["id"]]
+        if conn.get("namespace") or key in involved:
+            continue
         for server, store in sorted(usage_by_node):
             if server == key and (server, store) not in depth:
                 reach((server, store), "", 1)
@@ -185,8 +189,17 @@ def build_topology(
     if not depth:
         return {"columns": [], "edges": [], "lines": []}
 
+    vms_by_storage = vms_by_storage or {}
+    primary_vms: dict[Node, int] = {}
+    for p in primary_edges:
+        p["vms"] = vms_by_storage.get(p["storage_id"])
+        primary_vms[p["dst"]] = primary_vms.get(p["dst"], 0) + (p["vms"] or 0)
+    max_vms = max((p["vms"] or 0 for p in primary_edges), default=0)
+
+    layer, back_edges = _layers(depth, primary_edges, edges, primary_vms)
+
     own_conn_by_server = {servers.key_of_conn[c["id"]]: c for c in own_conns}
-    node_ids = {node: f"ds-{i}" for i, node in enumerate(sorted(depth, key=lambda n: (depth[n], n)))}
+    node_ids = {node: f"ds-{i}" for i, node in enumerate(sorted(depth, key=lambda n: (layer[n], n)))}
     nodes: dict[Node, dict[str, Any]] = {}
     for node in node_ids:
         row = usage_by_node.get(node)
@@ -201,22 +214,27 @@ def build_topology(
             "used_bytes": int(row["used_bytes"]) if row else None,
             "total_bytes": total or None,
             "estimated_full_at": row["estimated_full_at"] if row else None,
+            "primary": [],
             "incoming": [],
         }
 
     out_edges: list[dict[str, Any]] = []
     for p in primary_edges:
-        out_edges.append(
-            {
-                "kind": "primary",
-                "from": "cluster",
-                "to": node_ids[p["dst"]],
-                "to_ns": p["dst_ns"],
-                "state": "ok",
-                "storage_id": p["storage_id"],
-                "back": False,
-            }
-        )
+        edge = {
+            "kind": "primary",
+            "from": "cluster",
+            "to": node_ids[p["dst"]],
+            "to_ns": p["dst_ns"],
+            "state": "ok",
+            "storage_id": p["storage_id"],
+            "vms": p["vms"],
+            # A target only a few guests use (e.g. the PBS VM backing up
+            # to another PBS) is drawn thinner than the main path.
+            "minor": p["vms"] is not None and max_vms > 0 and p["vms"] <= max_vms / 4,
+            "back": False,
+        }
+        out_edges.append(edge)
+        nodes[p["dst"]]["primary"].append(edge)
     for e in edges:
         job = e["job"]
         edge = {
@@ -232,26 +250,116 @@ def build_topology(
             "last_run_state": job["last_run_state"],
             "next_run_at": job["next_run_at"],
             "source_label": f"{servers.name[e['src'][0]]}/{e['src'][1]}",
-            "back": depth[e["dst"]] <= depth[e["src"]],
+            "minor": False,
+            "back": id(e) in back_edges,
         }
         out_edges.append(edge)
         nodes[e["dst"]]["incoming"].append(edge)
 
+    columns = _columns(layer, nodes, primary_vms, edges, primary_edges, servers, own_conn_by_server)
+    for p, edge in zip(primary_edges, out_edges, strict=False):
+        edge["span"] = layer[p["dst"]]
+    for e, edge in zip(edges, out_edges[len(primary_edges) :], strict=True):
+        edge["span"] = layer[e["dst"]] - layer[e["src"]]
+    lines = [{k: e[k] for k in ("from", "to", "kind", "state", "back", "minor", "span")} for e in out_edges]
+    return {"columns": columns, "edges": out_edges, "lines": lines}
+
+
+def _layers(
+    reached: Mapping[Node, int],
+    primary_edges: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    primary_vms: Mapping[Node, int],
+) -> tuple[dict[Node, int], set[int]]:
+    """Column per datastore: longest path from the cluster, so a store that is
+    both a (minor) primary target and a copy stands behind its source.
+    Edges closing a cycle (mutual backup) are back edges and not counted."""
+    out: dict[Node, list[dict[str, Any]]] = {}
+    for e in edges:
+        out.setdefault(e["src"], []).append(e)
+    roots = sorted({p["dst"] for p in primary_edges}, key=lambda n: (-primary_vms.get(n, 0), n))
+    roots += sorted(n for n in reached if n not in roots)
+
+    back: set[int] = set()
+    done: set[Node] = set()
+    for root in roots:
+        if root in done:
+            continue
+        on_path = {root}
+        stack = [(root, iter(out.get(root, [])))]
+        while stack:
+            node, children = stack[-1]
+            edge = next(children, None)
+            if edge is None:
+                stack.pop()
+                on_path.discard(node)
+                done.add(node)
+                continue
+            dst = edge["dst"]
+            if dst in on_path:
+                back.add(id(edge))
+            elif dst not in done:
+                on_path.add(dst)
+                stack.append((dst, iter(out.get(dst, []))))
+
+    layer = {node: 1 for node in reached}
+    forward = [e for e in edges if id(e) not in back]
+    for _ in range(len(reached)):  # longest path on the DAG (small graphs)
+        changed = False
+        for e in forward:
+            if layer[e["dst"]] < layer[e["src"]] + 1:
+                layer[e["dst"]] = layer[e["src"]] + 1
+                changed = True
+        if not changed:
+            break
+    return layer, back
+
+
+def _columns(
+    layer: Mapping[Node, int],
+    nodes: Mapping[Node, dict[str, Any]],
+    primary_vms: Mapping[Node, int],
+    edges: list[dict[str, Any]],
+    primary_edges: list[dict[str, Any]],
+    servers: _Servers,
+    own_conn_by_server: Mapping[str, Mapping[str, Any]],
+) -> list[list[dict[str, Any]]]:
+    """Groups per (column, server), ordered by their predecessors' positions
+    so lines cross as little as possible."""
+    preds: dict[Node, list[Node]] = {}
+    for e in edges:
+        preds.setdefault(e["dst"], []).append(e["src"])
+    position: dict[Node, float] = {}
     columns: list[list[dict[str, Any]]] = []
-    for level in sorted(set(depth.values())):
+    for level in sorted(set(layer.values())):
+        level_nodes = [n for n in layer if layer[n] == level]
+
+        def weight(node: Node, first: bool = level == 1) -> float:
+            before = [position[p] for p in preds.get(node, []) if p in position]
+            if before:
+                return sum(before) / len(before)
+            # First column: the main backup target first.
+            return -primary_vms.get(node, 0) if first else 1e9
+
         groups: dict[str, dict[str, Any]] = {}
-        for node in sorted(n for n in depth if depth[n] == level):
-            server = node[0]
+        for node in sorted(level_nodes, key=lambda n: (weight(n), n)):
             group = groups.setdefault(
-                server,
+                node[0],
                 {
-                    "server": servers.name[server],
-                    "registered": server in servers.registered,
-                    "conn": own_conn_by_server.get(server),
+                    "server": servers.name[node[0]],
+                    "registered": node[0] in servers.registered,
+                    "conn": own_conn_by_server.get(node[0]),
                     "stores": [],
+                    "_weight": weight(node),
                 },
             )
             group["stores"].append(nodes[node])
-        columns.append(sorted(groups.values(), key=lambda g: g["server"]))
-    lines = [{k: e[k] for k in ("from", "to", "kind", "state", "back")} for e in out_edges]
-    return {"columns": columns, "edges": out_edges, "lines": lines}
+        ordered = sorted(groups.values(), key=lambda g: (g.pop("_weight"), g["server"]))
+        index = 0
+        for group in ordered:
+            for store in group["stores"]:
+                node = next(n for n in level_nodes if nodes[n] is store)
+                position[node] = index
+                index += 1
+        columns.append(ordered)
+    return columns

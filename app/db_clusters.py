@@ -478,3 +478,22 @@ def list_pbs_sync_jobs() -> list[dict[str, Any]]:
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT * FROM pbs_sync_jobs ORDER BY pbs_id, job_id")
         return list(cur.fetchall())
+
+
+def vm_count_by_storage(cluster_id: int, days: int = 7) -> dict[str, int]:
+    """Guests with a backup on each storage in the last days (storage IDs as
+    PVE names them), to tell a cluster's main backup target from a side one."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT s.storage, COUNT(DISTINCT be.vm_id) AS vms
+            FROM backup_events be
+            JOIN vms v ON v.id = be.vm_id
+            CROSS JOIN LATERAL unnest(be.storages) AS s(storage)
+            WHERE v.cluster_id = %s AND be.removed_at IS NULL
+              AND be.started_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY s.storage
+            """,
+            (cluster_id, days),
+        )
+        return {row["storage"]: row["vms"] for row in cur.fetchall()}

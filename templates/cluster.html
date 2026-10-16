@@ -7,7 +7,7 @@
 {% set restore_result_labels = {"passed": t('cluster.result_passed'), "limited": t('cluster.result_limited'), "failed": t('cluster.result_failed')} %}
 {% set recovery_type_labels = {"full": t('cluster.recovery_full'), "partial": t('cluster.recovery_partial'), "file": t('cluster.recovery_file')} %}
 {% set recovery_type_icons = {"full": "●", "partial": "◐", "file": "▤"} %}
-<section class="hero-card">
+<section class="hero-card cluster-hero">
   <div class="cluster-hero-main">
     <h2>
       <form action="/clusters/{{ cluster.slug }}/sync" method="post" class="inline-form js-sync-form"
@@ -79,8 +79,8 @@
       <span>{{ t('common.restore_due') }}</span>
     </div>
   </div>
-  {% if topology.columns %}{% include "_topology.html" %}{% endif %}
   </div>
+  {% if topology.columns %}{% include "_topology.html" %}{% endif %}
 </section>
 
 {% if unencrypted_vms %}
