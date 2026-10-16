@@ -2532,6 +2532,13 @@ details[open] > .encryption-alert-summary::before {
   white-space: nowrap;
   font-weight: 700;
 }
+/* VMID: clearly apart from the name, not part of it. */
+.running-item-id {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
 .running-item-meta { color: var(--muted); font-size: 0.8rem; }
 .running-slow { color: var(--warn); font-weight: 700; font-size: 0.8rem; white-space: nowrap; }
 

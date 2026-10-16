@@ -59,9 +59,9 @@
       body.className = "running-item-body";
       const name = document.createElement("span");
       name.className = "running-item-name";
-      name.textContent = tr.dataset.vmName + " ";
+      name.textContent = tr.dataset.vmName;
       const id = document.createElement("span");
-      id.className = "muted";
+      id.className = "running-item-id";
       id.textContent = tr.dataset.vmid;
       name.append(id);
       body.append(name);
