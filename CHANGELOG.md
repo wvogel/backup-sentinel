@@ -5,6 +5,15 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.25.0] — 2026-10-16
+
+### Changed
+
+- **Moving arrows in the replication diagram.** Chevrons travel along every line in the direction of the data — fast on the lines from PVE, clearly slower on the dashed replication lines; failed or never-run syncs stand still. Lines are thicker and the gaps between columns wider (adapting to the window width) so the movement reads. Respects "reduce motion".
+- **Running backups without a frame or heading.** The tiles stand on their own; the "N Backups laufen" heading is gone (kept for screen readers). Stripes travel calmly along the filled arc of each progress ring so a running backup is visibly moving; a ring without percentage turns slowly (6 s per turn instead of 1.2 s).
+- **"langsam, sonst 40 min"** instead of "langsamer als üblich (sonst ~40 min)", on one line.
+- Datastore names and the PVE tag in the diagram are never shortened any more; only sync lines may wrap.
+
 ## [v2.24.2] — 2026-10-16
 
 ### Changed

@@ -34,6 +34,31 @@
     boxes.forEach(function (el) { el.style.minHeight = tallest + "px"; });
   }
 
+  var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Chevrons moving along a line: backups fast, replication slower but still
+  // visible. A failed or never-run sync moves nothing.
+  function addArrows(svg, path, d, edge, cls) {
+    if (calm || edge.state === "failed" || edge.state === "never") return;
+    var length = path.getTotalLength();
+    var speed = edge.kind === "primary" ? 40 : 16; // px per second
+    var count = Math.max(1, Math.floor(length / 70));
+    var dur = length / speed;
+    for (var i = 0; i < count; i++) {
+      var arrow = document.createElementNS(SVG_NS, "path");
+      arrow.setAttribute("d", "M-4,-5 L2,0 L-4,5");
+      arrow.setAttribute("class", "topo-arrow " + cls);
+      var motion = document.createElementNS(SVG_NS, "animateMotion");
+      motion.setAttribute("path", d);
+      motion.setAttribute("dur", dur.toFixed(2) + "s");
+      motion.setAttribute("begin", (-i * dur / count).toFixed(2) + "s");
+      motion.setAttribute("repeatCount", "indefinite");
+      motion.setAttribute("rotate", "auto");
+      arrow.appendChild(motion);
+      svg.appendChild(arrow);
+    }
+  }
+
   function draw(root) {
     var svg = root.querySelector(".topology-lines");
     var data = root.querySelector(".topology-edges");
@@ -111,10 +136,12 @@
         var mx = (a.right + b.left) / 2;
         d = "M" + a.right + "," + a.y + " C" + mx + "," + a.y + " " + mx + "," + b.y + " " + b.left + "," + b.y;
       }
+      var cls = "topo-line-" + edge.kind + " topo-state-" + edge.state + (edge.minor ? " topo-minor" : "");
       var path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
-      path.setAttribute("class", "topo-line topo-line-" + edge.kind + " topo-state-" + edge.state + (edge.minor ? " topo-minor" : ""));
+      path.setAttribute("class", "topo-line " + cls);
       svg.appendChild(path);
+      addArrows(svg, path, d, edge, cls);
     });
   }
 

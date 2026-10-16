@@ -360,7 +360,7 @@
   "progress.written_so_far": "Bisher: {written}",
   "progress.delta": "Delta: {size}",
   "progress.vm_total": "VM gesamt: {size}",
-  "cluster.running_slow": "langsamer als üblich (sonst ~{typical})",
+  "cluster.running_slow": "langsam, sonst {typical}",
   "notify.backup_slow_title": "Backup langsam: {vm}",
   "notify.backup_slow_message": "Läuft voraussichtlich {projected} statt der üblichen {typical}.",
   "notifications.type_backup_slow": "Backup langsam",

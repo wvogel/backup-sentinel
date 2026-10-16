@@ -89,15 +89,13 @@
 {% endif %}
 
 <section class="running-banner js-running-banner{% if not running_backups %} hidden{% endif %}" aria-live="polite"{% if progress_pending %} data-pending="1"{% endif %}>
-  <div class="running-banner-head">
-    <svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg>
-    <strong class="js-running-count">{{ running_count_label }}</strong>
-  </div>
+  {#- The tiles speak for themselves; the count is for screen readers. #}
+  <h2 class="sr-only js-running-count">{{ running_count_label }}</h2>
   <ul class="running-list js-running-list">
     {% for row in running_backups %}
     <li>
       <button type="button" class="running-item" data-vmid="{{ row.vmid }}" title="{{ t('cluster.running_jump') }}">
-        <span class="topo-ring running-ring{% if row.running.percent is none %} is-indeterminate{% endif %}" style="--p:{{ row.running.percent or 0 }}"><span>{{ row.running.percent ~ '%' if row.running.percent is not none else '' }}</span></span>
+        <span class="topo-ring running-ring{% if row.running.percent is none %} is-indeterminate{% endif %}" style="--p:{{ row.running.percent or 0 }}"><span class="running-flow" aria-hidden="true"><i></i></span><span class="running-ring-label">{{ row.running.percent ~ '%' if row.running.percent is not none else '' }}</span></span>
         <span class="running-item-body">
           <span class="running-item-name">{{ row.vm_name }} <span class="muted">{{ row.vmid }}</span></span>
           {%- for line in row.running.details %}<span class="running-item-meta">{{ line }}</span>{% endfor %}
