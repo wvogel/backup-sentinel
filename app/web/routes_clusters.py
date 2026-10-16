@@ -14,6 +14,7 @@ from app.models import RestoreTestCreate
 from app.services import topology_store
 from app.services.backup_status import RESTORE_CLASSES, assess_slow_backup, format_duration
 from app.services.bootstrap import slugify_cluster
+from app.services.pbs import sync_task_state
 from app.services.proxmox_progress import running_backup_progress_cached, running_backup_progress_peek
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, datetime_local, settings_actor, templates
@@ -117,6 +118,35 @@ def running_count_label(count: int) -> str:
     return t("cluster.running_one" if count == 1 else "cluster.running_other", count=count)
 
 
+_sync_progress_cache: dict[str, tuple[float, tuple[float | None, bool]]] = {}
+_SYNC_PROGRESS_TTL = 30.0
+
+
+@router.get("/api/clusters/{cluster_slug}/sync-progress")
+def get_sync_progress(cluster_slug: str) -> JSONResponse:
+    """Live progress of the replication syncs running in this cluster's
+    diagram, keyed "pbs_id:job_id" (cached 30 s per task)."""
+    cluster = db.get_cluster_by_slug(cluster_slug)
+    if not cluster:
+        raise HTTPException(status_code=404)
+    conns = {c["id"]: c for c in db.list_pbs_connections()}
+    result: dict[str, dict] = {}
+    for edge in topology_store.load(cluster["id"])["edges"]:
+        upid, conn = edge.get("running_upid"), conns.get(edge.get("pbs_id"))
+        if edge.get("state") != "running" or not upid or not conn:
+            continue
+        hit = _sync_progress_cache.get(upid)
+        if hit is None or _time.monotonic() - hit[0] >= _SYNC_PROGRESS_TTL:
+            try:
+                hit = (_time.monotonic(), sync_task_state(dict(conn), upid))
+            except Exception:  # PBS unreachable: keep what the page shows
+                continue
+            _sync_progress_cache[upid] = hit
+        percent, finished = hit[1]
+        result[f"{edge['pbs_id']}:{edge['job_id']}"] = {"percent": percent, "finished": finished}
+    return JSONResponse(result)
+
+
 @router.get("/api/clusters/{cluster_slug}/sync-status")
 def get_sync_status(cluster_slug: str, since: int = 0):
     cluster = db.get_cluster_by_slug(cluster_slug)
@@ -205,6 +235,7 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
         "compliance_summary": build_compliance_summary(vm_rows, restore_tests),
         "pbs_connections": db.list_pbs_connections(cluster["id"]),
         "topology": topology_store.load(cluster["id"]),
+        "storages_by_vmid": db.recent_storages_by_vmid(cluster["id"]),
         "sparklines": db.vm_backup_sparkline_data(cluster["id"], days=31),
         "encryption": encryption,
         "unencrypted_vms": db.unencrypted_vms(cluster["id"]) if encryption["pct_encrypted"] < 100 else [],

@@ -41,12 +41,15 @@
   function addArrows(svg, path, d, edge, cls) {
     if (calm || edge.state === "failed" || edge.state === "never") return;
     var length = path.getTotalLength();
+    // Data moving right now: faster and denser than a line that only carried
+    // data before.
     var speed = edge.kind === "primary" ? 40 : 16; // px per second
-    var count = Math.max(1, Math.floor(length / 70));
+    if (edge.active) speed = edge.kind === "primary" ? 70 : 45;
+    var count = Math.max(1, Math.floor(length / (edge.active ? 38 : 70)));
     var dur = length / speed;
     for (var i = 0; i < count; i++) {
       var arrow = document.createElementNS(SVG_NS, "path");
-      arrow.setAttribute("d", "M-4,-5 L2,0 L-4,5");
+      arrow.setAttribute("d", edge.active ? "M-5,-6 L3,0 L-5,6" : "M-4,-5 L2,0 L-4,5");
       arrow.setAttribute("class", "topo-arrow " + cls);
       var motion = document.createElementNS(SVG_NS, "animateMotion");
       motion.setAttribute("path", d);
@@ -59,11 +62,28 @@
     }
   }
 
+  // PVE storages running backups write to: the guests' recent backup
+  // storages, for the rows the progress poll marks as running.
+  function activeStorages(root) {
+    var result = new Set();
+    var data = root.querySelector(".topology-vm-storages");
+    if (!data) return result;
+    var byVmid = JSON.parse(data.textContent || "{}");
+    document.querySelectorAll("#vm-table tbody tr.is-running[data-vmid]").forEach(function (tr) {
+      (byVmid[tr.dataset.vmid] || []).forEach(function (s) { result.add(s); });
+    });
+    return result;
+  }
+
   function draw(root) {
     var svg = root.querySelector(".topology-lines");
     var data = root.querySelector(".topology-edges");
     if (!svg || !data) return;
     var edges = JSON.parse(data.textContent || "[]");
+    var active = activeStorages(root);
+    edges.forEach(function (edge) {
+      edge.active = edge.state === "running" || (edge.kind === "primary" && active.has(edge.storage_id));
+    });
     var outer = root.getBoundingClientRect();
     var ox = outer.left + root.clientLeft - root.scrollLeft;
     var oy = outer.top + root.clientTop;
@@ -136,7 +156,7 @@
         var mx = (a.right + b.left) / 2;
         d = "M" + a.right + "," + a.y + " C" + mx + "," + a.y + " " + mx + "," + b.y + " " + b.left + "," + b.y;
       }
-      var cls = "topo-line-" + edge.kind + " topo-state-" + edge.state + (edge.minor ? " topo-minor" : "");
+      var cls = "topo-line-" + edge.kind + " topo-state-" + edge.state + (edge.minor ? " topo-minor" : "") + (edge.active ? " topo-active" : "");
       var path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
       path.setAttribute("class", "topo-line " + cls);
@@ -149,8 +169,50 @@
     document.querySelectorAll("[data-topology]").forEach(draw);
   }
 
+  // Live progress of running replication syncs, every 30 s while one runs.
+  function pollSyncProgress(root) {
+    if (!root.querySelector("[data-sync-key]")) return;
+    var slug = decodeURIComponent(location.pathname.split("/")[2] || "");
+    fetch("/api/clusters/" + encodeURIComponent(slug) + "/sync-progress")
+      .then(function (resp) { return resp.ok ? resp.json() : {}; })
+      .then(function (progress) {
+        var finishedAny = false;
+        root.querySelectorAll("[data-sync-key]").forEach(function (el) {
+          var info = progress[el.dataset.syncKey];
+          if (!info) return;
+          var pct = el.querySelector(".js-sync-pct");
+          if (info.finished) {
+            el.classList.remove("topo-state-running");
+            el.classList.add("topo-state-ok");
+            el.removeAttribute("data-sync-key");
+            if (pct) pct.textContent = T("topology.just_finished") + " · ";
+            finishedAny = true;
+          } else if (pct && info.percent !== null) {
+            pct.textContent = Math.round(info.percent) + " % · ";
+          }
+        });
+        if (finishedAny) {
+          // The line stops glowing; the full result arrives with the next sync.
+          var data = root.querySelector(".topology-edges");
+          var finishedKeys = Object.keys(progress).filter(function (k) { return progress[k].finished; });
+          var edges = JSON.parse(data.textContent || "[]");
+          edges.forEach(function (edge) {
+            if (edge.state === "running" && finishedKeys.indexOf(edge.sync_key) !== -1) edge.state = "ok";
+          });
+          data.textContent = JSON.stringify(edges);
+          draw(root);
+        }
+      })
+      .catch(function () { /* keep the last state */ })
+      .then(function () { setTimeout(function () { pollSyncProgress(root); }, 30000); });
+  }
+
+  document.addEventListener("backup-progress-updated", drawAll);
   document.addEventListener("DOMContentLoaded", function () {
     drawAll();
+    document.querySelectorAll("[data-topology]").forEach(function (root) {
+      setTimeout(function () { pollSyncProgress(root); }, 2000);
+    });
     if (window.ResizeObserver) {
       document.querySelectorAll("[data-topology]").forEach(function (root) {
         new ResizeObserver(function () { draw(root); }).observe(root);

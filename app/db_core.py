@@ -247,6 +247,9 @@ def init_db() -> None:
                 """
             )
             cur.execute("ALTER TABLE pbs_sync_jobs ADD COLUMN IF NOT EXISTS remote_pbs_id BIGINT")
+            cur.execute("ALTER TABLE pbs_sync_jobs ADD COLUMN IF NOT EXISTS running_since TIMESTAMPTZ")
+            cur.execute("ALTER TABLE pbs_sync_jobs ADD COLUMN IF NOT EXISTS running_upid TEXT")
+            cur.execute("ALTER TABLE pbs_sync_jobs ADD COLUMN IF NOT EXISTS running_percent REAL")
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS cluster_topology (

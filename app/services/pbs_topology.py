@@ -46,6 +46,8 @@ def _map_ns(data_ns: str, source_ns: str, target_ns: str) -> str | None:
 
 
 def _job_state(job: Mapping[str, Any]) -> str:
+    if job.get("running_since"):
+        return "running"
     state = str(job.get("last_run_state") or "")
     if not state and not job.get("last_run_at"):
         return "never"
@@ -256,6 +258,11 @@ def build_topology(
             "last_run_at": job["last_run_at"],
             "last_run_state": job["last_run_state"],
             "next_run_at": job["next_run_at"],
+            "running_since": job.get("running_since"),
+            "running_percent": job.get("running_percent"),
+            # Where to ask for live progress (cluster page poll).
+            "pbs_id": job["pbs_id"],
+            "running_upid": job.get("running_upid"),
             "source_label": f"{servers.name[e['src'][0]]}/{e['src'][1]}",
             "source_server": servers.name[e["src"][0]],
             "source_store": e["src"][1],
@@ -270,7 +277,11 @@ def build_topology(
         edge["span"] = layer[p["dst"]]
     for e, edge in zip(edges, out_edges[len(primary_edges) :], strict=True):
         edge["span"] = layer[e["dst"]] - layer[e["src"]]
-    lines = [{k: e[k] for k in ("from", "to", "kind", "state", "back", "minor", "span")} for e in out_edges]
+    lines = [
+        {k: e.get(k) for k in ("from", "to", "kind", "state", "back", "minor", "span", "storage_id")}
+        | ({"sync_key": f"{e['pbs_id']}:{e['job_id']}"} if e["kind"] == "sync" else {})
+        for e in out_edges
+    ]
     return {"columns": columns, "edges": out_edges, "lines": lines}
 
 

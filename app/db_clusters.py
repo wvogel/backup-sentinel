@@ -473,6 +473,9 @@ _SYNC_JOB_COLUMNS = (
     "last_run_at",
     "next_run_at",
     "remote_pbs_id",
+    "running_since",
+    "running_upid",
+    "running_percent",
 )
 
 
@@ -537,3 +540,22 @@ def get_cluster_topology(cluster_id: int) -> dict[str, Any] | None:
         cur.execute("SELECT data FROM cluster_topology WHERE cluster_id = %s", (cluster_id,))
         row = cur.fetchone()
         return row["data"] if row else None
+
+
+def recent_storages_by_vmid(cluster_id: int, days: int = 7) -> dict[int, list[str]]:
+    """Storages each guest backed up to recently: where a running backup
+    is most likely writing to (PVE does not say in the task)."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT v.vmid, ARRAY_AGG(DISTINCT s.storage ORDER BY s.storage) AS storages
+            FROM backup_events be
+            JOIN vms v ON v.id = be.vm_id
+            CROSS JOIN LATERAL unnest(be.storages) AS s(storage)
+            WHERE v.cluster_id = %s AND be.removed_at IS NULL
+              AND be.started_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY v.vmid
+            """,
+            (cluster_id, days),
+        )
+        return {row["vmid"]: row["storages"] for row in cur.fetchall()}

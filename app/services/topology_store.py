@@ -16,7 +16,7 @@ from app.services.pbs_topology import build_topology
 
 logger = logging.getLogger(__name__)
 
-_DATE_KEYS = {"estimated_full_at", "last_run_at", "next_run_at"}
+_DATE_KEYS = {"estimated_full_at", "last_run_at", "next_run_at", "running_since"}
 
 
 def build(cluster_id: int) -> dict[str, Any]:

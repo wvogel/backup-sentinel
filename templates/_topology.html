@@ -2,7 +2,7 @@
     Lines between the nodes are drawn by static/js/topology.js; without JS
     every replica still names its source in the sync line below its ring. -#}
 {% import "_sync_dots.html" as dots with context %}
-{%- set state_icons = {"ok": "✓", "warning": "!", "failed": "✗", "never": "–"} %}
+{%- set state_icons = {"ok": "✓", "warning": "!", "failed": "✗", "never": "–", "running": "⟳"} %}
 {%- set top_lane = topology.lines | selectattr("span", "gt", 1) | rejectattr("back") | list %}
 {%- set bottom_lane = topology.lines | selectattr("back") | list %}
 <div class="topology{% if top_lane %} has-top-lane{% endif %}{% if bottom_lane %} has-bottom-lane{% endif %}" data-topology aria-label="{{ t('topology.label') }}">
@@ -41,18 +41,20 @@
                   data-tooltip="{{ t('topology.full_soon', days=ds.full_in_days) }}&#10;{{ t('cluster.datastore_full_at', date=ds.estimated_full_at|datetime_local('%d.%m.%Y')) }}">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 22 20.5H2z" fill="currentColor"/><path d="M12 9.5v5" stroke="var(--panel-alt)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.25" fill="var(--panel-alt)"/></svg>
             </span>
-            {%- endif %}</div>
-          {%- if ds.estimated_full_at and ds.status != 'ok' %}
+            {%- endif %}
+            {#- PVE backs up here directly: tag in the name row, saves a line. #}
+            {%- for e in ds.primary %}
+            <span class="topo-tag" data-tooltip="{{ t('topology.primary_tooltip', storage=e.storage_id, ns=e.to_ns or '/') }}">PVE{% if e.vms is not none %} · {{ t('topology.vms_one' if e.vms == 1 else 'topology.vms_other', count=e.vms) }}{% endif %}</span>
+            {%- endfor %}</div>
+          {#- The warning triangle already says it (date in its tooltip). #}
+          {%- if ds.estimated_full_at and ds.status != 'ok' and not ds.full_soon %}
           <div class="topo-full status-text-{{ ds.status }}">{{ t('cluster.datastore_full_short', date=ds.estimated_full_at|datetime_local('%m/%y')) }}</div>
           {%- endif %}
-          {%- for e in ds.primary %}
-          <div class="topo-tag" data-tooltip="{{ t('topology.primary_tooltip', storage=e.storage_id, ns=e.to_ns or '/') }}">PVE{% if e.vms is not none %} · {{ t('topology.vms_one' if e.vms == 1 else 'topology.vms_other', count=e.vms) }}{% endif %}</div>
-          {%- endfor %}
           {%- for e in ds.incoming %}
-          <div class="topo-sync topo-state-{{ e.state }}"
-               data-tooltip="{{ t('topology.sync_tooltip', job=e.job_id, source=e.source_label ~ ('/' ~ e.from_ns if e.from_ns else ''), target=ds.store ~ ('/' ~ e.to_ns if e.to_ns else '')) }}&#10;{{ t('topology.schedule', schedule=e.schedule or '–') }}&#10;{{ t('topology.last_run', when=e.last_run_at|datetime_local if e.last_run_at else t('common.never'), state=e.last_run_state or '–') }}{% if e.next_run_at %}&#10;{{ t('topology.next_run', when=e.next_run_at|datetime_local) }}{% endif %}">
+          <div class="topo-sync topo-state-{{ e.state }}"{% if e.state == 'running' %} data-sync-key="{{ e.pbs_id }}:{{ e.job_id }}"{% endif %}
+               data-tooltip="{{ t('topology.sync_tooltip', job=e.job_id, source=e.source_label ~ ('/' ~ e.from_ns if e.from_ns else ''), target=ds.store ~ ('/' ~ e.to_ns if e.to_ns else '')) }}&#10;{{ t('topology.schedule', schedule=e.schedule or '–') }}&#10;{% if e.running_since %}{{ t('topology.running_since', when=e.running_since|datetime_local) }}{% else %}{{ t('topology.last_run', when=e.last_run_at|datetime_local if e.last_run_at else t('common.never'), state=e.last_run_state or '–') }}{% endif %}{% if e.next_run_at %}&#10;{{ t('topology.next_run', when=e.next_run_at|datetime_local) }}{% endif %}">
             <span class="topo-sync-icon" aria-hidden="true">{{ state_icons[e.state] }}</span>
-            <span class="topo-sync-when">{{ e.last_run_at|datetime_local('%d.%m. %H:%M') if e.last_run_at else t('common.never') }}</span>
+            <span class="topo-sync-when">{% if e.running_since %}<span class="js-sync-pct">{{ (e.running_percent|round|int ~ ' % · ') if e.running_percent is not none else '' }}</span>{{ t('topology.running_short', when=e.running_since|datetime_local('%H:%M')) }}{% else %}{{ e.last_run_at|datetime_local('%d.%m. %H:%M') if e.last_run_at else t('common.never') }}{% endif %}</span>
             <span class="topo-sync-from">← {{ e.source_store if e.source_server == group.server else e.source_label }}</span>
           </div>
           {%- endfor %}
@@ -65,4 +67,6 @@
   </div>
   {%- endfor %}
   <script type="application/json" class="topology-edges">{{ topology.lines|tojson }}</script>
+  {#- Where running backups write to, so their PVE line can light up live. #}
+  <script type="application/json" class="topology-vm-storages">{{ storages_by_vmid|tojson }}</script>
 </div>

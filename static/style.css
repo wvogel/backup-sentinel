@@ -2486,7 +2486,8 @@ details[open] > .encryption-alert-summary::before {
 /* A running backup breathes: the whole ring (done and open part alike)
    fades gently in and out, so 3 % moves as visibly as 90 %. The ring is
    drawn by ::before so the percentage itself stays steady. */
-.running-ring {
+/* Doubled class: must beat the generic .topo-ring rule further down. */
+.topo-ring.running-ring {
   --ring: var(--running);
   position: relative;
   flex: none;
@@ -2647,9 +2648,24 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 .topo-arrow.topo-line-primary { stroke: var(--ink); opacity: 0.85; }
 .topo-arrow.topo-minor { stroke-width: 1.8; opacity: 0.5; }
-.topo-arrow.topo-line-sync.topo-state-ok { stroke: var(--running); }
+.topo-arrow.topo-line-sync.topo-state-ok,
+.topo-arrow.topo-line-sync.topo-state-running { stroke: var(--running); }
 .topo-arrow.topo-line-sync.topo-state-warning { stroke: var(--warn); }
-.topo-line-sync.topo-state-ok { stroke: var(--running); }
+
+/* Data moving right now (running backup or sync): thick, blue, breathing. */
+.topo-line.topo-active {
+  stroke: var(--running);
+  stroke-width: 4;
+  opacity: 1;
+  animation: topo-active-pulse 1.8s ease-in-out infinite alternate;
+}
+.topo-arrow.topo-active { stroke: var(--running); stroke-width: 3; opacity: 1; }
+@keyframes topo-active-pulse { from { opacity: 1; } to { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) {
+  .topo-line.topo-active { animation: none; }
+}
+.topo-line-sync.topo-state-ok,
+.topo-line-sync.topo-state-running { stroke: var(--running); }
 .topo-line-sync.topo-state-warning { stroke: var(--warn); }
 .topo-line-sync.topo-state-failed { stroke: var(--critical); }
 .topo-line-sync.topo-state-never { stroke: var(--unknown); opacity: 0.6; }
@@ -2682,6 +2698,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   justify-items: center;
   align-content: center;
   gap: 2px;
+  white-space: nowrap;
   padding: 10px 14px;
   font-size: 0.82rem;
 }
@@ -2701,6 +2718,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
   margin-bottom: 8px;
   font-size: 0.82rem;
   font-weight: 600;
@@ -2738,6 +2756,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-store-text .topo-tag { overflow: visible; }
 
 .topo-ring {
+  flex: none;
   --p: 0;
   --ring: var(--ok);
   width: 52px;
@@ -2776,6 +2795,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 /* Warning sign: the PBS expects the datastore to be full within 30 days. */
 .topo-store-name { display: flex; align-items: center; gap: 6px; }
+.topo-store-name .topo-tag { font-weight: 400; }
 .topo-full-soon { display: inline-flex; flex: none; cursor: default; }
 .topo-full-soon svg { width: 17px; height: 17px; }
 .topo-full-soon.status-text-warning { color: var(--warn); }
@@ -2816,6 +2836,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 .topo-sync-icon { font-weight: 700; }
 .topo-sync.topo-state-ok .topo-sync-icon { color: var(--ok); }
+.topo-sync.topo-state-running,
+.topo-sync.topo-state-running .topo-sync-icon { color: var(--running); }
 .topo-sync.topo-state-warning .topo-sync-icon { color: var(--warn); }
 .topo-sync.topo-state-failed,
 .topo-sync.topo-state-failed .topo-sync-icon { color: var(--critical); }
