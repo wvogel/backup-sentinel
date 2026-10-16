@@ -2588,15 +2588,19 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topology {
   position: relative;
   display: flex;
-  align-items: flex-start;
-  gap: 36px;
-  padding: 26px 14px 26px;
+  align-items: center;
+  gap: 28px;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel-alt);
   overflow-x: auto;
   overflow-y: hidden;
 }
+
+/* Room for lines running above or below the boxes. */
+.topology.has-top-lane { padding-top: 28px; }
+.topology.has-bottom-lane { padding-bottom: 28px; }
 
 .topology-lines {
   position: absolute;
@@ -2617,14 +2621,16 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-line-sync.topo-state-failed { stroke: var(--critical); }
 .topo-line-sync.topo-state-never { stroke: var(--unknown); opacity: 0.6; }
 
-/* Columns share the full width, content centred in each. */
+/* Columns share the full width; boxes fill their column's width and get
+   one common height (static/js/topology.js), columns centred vertically. */
 .topology-col {
   position: relative;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 10px;
-  align-content: start;
-  justify-items: center;
-  flex: 1 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .topo-cluster,
@@ -2639,6 +2645,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-cluster {
   display: grid;
   justify-items: center;
+  align-content: center;
   gap: 2px;
   padding: 10px 14px;
   font-size: 0.82rem;
@@ -2646,7 +2653,12 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 .topo-cluster .topo-icon { color: var(--running); width: 22px; height: 22px; }
 
-.topo-server { padding: 8px 10px 10px; }
+.topo-server {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 8px 12px 10px;
+}
 .topo-server.is-unregistered { border-style: dashed; background: transparent; }
 
 .topo-server-name {
@@ -2662,16 +2674,28 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-icon { width: 16px; height: 16px; flex: none; }
 
 .topo-stores {
+  flex: 1;
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-evenly;
+  gap: 10px 20px;
 }
 
+/* Ring left, text right: as low as possible. */
 .topo-store {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.topo-store-text {
   display: grid;
-  justify-items: center;
-  gap: 3px;
-  width: 128px;
-  text-align: center;
+  justify-items: start;
+  gap: 2px;
+  min-width: 0;
 }
 
 .topo-ring {
@@ -2705,7 +2729,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.76rem;
+  font-size: 0.82rem;
   font-weight: 600;
 }
 
@@ -2714,14 +2738,18 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-full.status-text-critical { color: var(--critical); }
 
 .topo-sync {
-  display: grid;
-  justify-items: center;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
   max-width: 100%;
-  font-size: 0.68rem;
-  line-height: 1.3;
+  font-size: 0.72rem;
+  line-height: 1.35;
   color: var(--muted);
+  white-space: nowrap;
 }
 
+.topo-sync-from { flex: 0 1 auto; min-width: 0; }
 .topo-sync-from,
 .topo-tag {
   max-width: 100%;
@@ -2752,7 +2780,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
     gap: 28px;
   }
   .topo-stores { flex-wrap: wrap; }
-  .topology-col { display: flex; flex-wrap: wrap; justify-content: center; padding-left: 14px; }
+  .topology-col { flex-direction: row; flex-wrap: wrap; padding-left: 14px; }
   .topo-cluster { min-width: 160px; }
 }
 

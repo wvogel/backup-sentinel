@@ -3,7 +3,9 @@
     every replica still names its source in the sync line below its ring. -#}
 {% import "_sync_dots.html" as dots with context %}
 {%- set state_icons = {"ok": "✓", "warning": "!", "failed": "✗", "never": "–"} %}
-<div class="topology" data-topology aria-label="{{ t('topology.label') }}">
+{%- set top_lane = topology.lines | selectattr("span", "gt", 1) | rejectattr("back") | list %}
+{%- set bottom_lane = topology.lines | selectattr("back") | list %}
+<div class="topology{% if top_lane %} has-top-lane{% endif %}{% if bottom_lane %} has-bottom-lane{% endif %}" data-topology aria-label="{{ t('topology.label') }}">
   <svg class="topology-lines" aria-hidden="true"></svg>
   <div class="topology-col">
     <div class="topo-cluster" data-node="cluster">
@@ -31,6 +33,7 @@
                aria-label="{{ ds.store }}: {{ ds.pct ~ ' %' if ds.pct is not none else '?' }}">
             <span>{{ ds.pct ~ '%' if ds.pct is not none else '?' }}</span>
           </div>
+          <div class="topo-store-text">
           <div class="topo-store-name">{{ ds.store }}</div>
           {%- if ds.estimated_full_at and ds.status != 'ok' %}
           <div class="topo-full status-text-{{ ds.status }}">{{ t('cluster.datastore_full_short', date=ds.estimated_full_at|datetime_local('%m/%y')) }}</div>
@@ -41,10 +44,12 @@
           {%- for e in ds.incoming %}
           <div class="topo-sync topo-state-{{ e.state }}"
                data-tooltip="{{ t('topology.sync_tooltip', job=e.job_id, source=e.source_label ~ ('/' ~ e.from_ns if e.from_ns else ''), target=ds.store ~ ('/' ~ e.to_ns if e.to_ns else '')) }}&#10;{{ t('topology.schedule', schedule=e.schedule or '–') }}&#10;{{ t('topology.last_run', when=e.last_run_at|datetime_local if e.last_run_at else t('common.never'), state=e.last_run_state or '–') }}{% if e.next_run_at %}&#10;{{ t('topology.next_run', when=e.next_run_at|datetime_local) }}{% endif %}">
-            <span class="topo-sync-when"><span class="topo-sync-icon" aria-hidden="true">{{ state_icons[e.state] }}</span> {{ e.last_run_at|datetime_local('%d.%m. %H:%M') if e.last_run_at else t('common.never') }}</span>
-            <span class="topo-sync-from">← {{ e.source_label }}</span>
+            <span class="topo-sync-icon" aria-hidden="true">{{ state_icons[e.state] }}</span>
+            <span class="topo-sync-when">{{ e.last_run_at|datetime_local('%d.%m. %H:%M') if e.last_run_at else t('common.never') }}</span>
+            <span class="topo-sync-from">← {{ e.source_store if e.source_server == group.server else e.source_label }}</span>
           </div>
           {%- endfor %}
+          </div>
         </div>
         {%- endfor %}
       </div>
