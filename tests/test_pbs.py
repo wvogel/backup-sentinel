@@ -1,8 +1,14 @@
 import unittest
 from datetime import UTC, datetime, timedelta
 from unittest import mock
+from urllib.parse import quote as _quote
 
 from app.services import pbs
+
+
+def parse_quote(value: str) -> str:
+    return _quote(value, safe="")
+
 
 CONN = {"api_url": "https://pbs", "api_token_id": "id", "api_token_secret": "secret"}
 
@@ -199,6 +205,28 @@ class SyncJobTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(calls[1], ("/api2/json/admin/sync", None))
 
+    def test_running_job_has_no_end_but_a_start_from_its_upid(self) -> None:
+        # PBS reports only the UPID while a job runs; start time is hex field 5.
+        upid = "UPID:pbs-fh-muc:0000ABCD:0012F00D:00000002:68F15A40:syncjob:s-pano:sync@pbs:"
+        result, _ = self.fetch(
+            [{"id": "s", "store": "a", "remote": "pano", "remote-store": "b", "last-run-upid": upid}]
+        )
+        self.assertEqual(result[0]["running_since"], datetime.fromtimestamp(0x68F15A40, UTC))
+        self.assertIsNone(result[0]["last_run_at"])
+
+    def test_finished_job_is_not_running(self) -> None:
+        upid = "UPID:pbs:0000ABCD:0012F00D:00000002:68F15A40:syncjob:s:sync@pbs:"
+        job = {
+            "id": "s",
+            "store": "a",
+            "remote-store": "b",
+            "last-run-upid": upid,
+            "last-run-endtime": 1_760_000_000,
+            "last-run-state": "OK",
+        }
+        result, _ = self.fetch([job])
+        self.assertIsNone(result[0]["running_since"])
+
     def test_unknown_remote_keeps_name(self) -> None:
         result, _ = self.fetch([{"id": "x", "store": "a", "remote": "gone", "remote-store": "b"}], remotes=[])
         self.assertEqual((result[0]["remote_name"], result[0]["remote_host"]), ("gone", ""))
@@ -213,3 +241,35 @@ class CertFingerprintTests(unittest.TestCase):
         with mock.patch.object(pbs, "_pbs_get_json", return_value=rows) as get:
             self.assertEqual(pbs.fetch_pbs_cert_fingerprints(CONN), ["ab:cd:ef"])
         self.assertEqual(get.call_args.args[1], "/api2/json/nodes/localhost/certificates/info")
+
+
+class SyncProgressTests(unittest.TestCase):
+    UPID = "UPID:pbs-fh-muc:0000ABCD:0012F00D:00000002:68F15A40:syncjob:s-pano:sync@pbs:"
+
+    def test_latest_percentage_from_the_task_log(self) -> None:
+        log = [
+            {"n": 1, "t": "Starting datastore sync job 'pano:nas-pbs-pano:nas-offsite-fh-muc'"},
+            {"n": 2, "t": "percentage done: 5.00% (1/20 groups)"},
+            {"n": 3, "t": "percentage done: 45.31% (9/20 groups, 3/10 snapshots in group #10)"},
+            {"n": 4, "t": "sync snapshot vm/121/2026-10-16T20:00:01Z"},
+        ]
+        with mock.patch.object(pbs, "_pbs_get_json", return_value=log) as get:
+            self.assertEqual(pbs.fetch_sync_progress(CONN, self.UPID), 45.31)
+        self.assertIn("/tasks/", get.call_args.args[1])
+        self.assertIn(parse_quote(self.UPID), get.call_args.args[1])
+
+    def test_no_percentage_yet(self) -> None:
+        with mock.patch.object(pbs, "_pbs_get_json", return_value=[{"n": 1, "t": "Starting"}]):
+            self.assertIsNone(pbs.fetch_sync_progress(CONN, self.UPID))
+
+    def test_running_job_carries_upid_and_progress(self) -> None:
+        def fake_get(base_url, path, token_id, token_secret, **kwargs):
+            if path.endswith("/config/remote"):
+                return []
+            if "/tasks/" in path:
+                return [{"n": 1, "t": "percentage done: 12.50% (1/8 groups)"}]
+            return [{"id": "s", "store": "a", "remote-store": "b", "last-run-upid": self.UPID}]
+
+        with mock.patch.object(pbs, "_pbs_get_json", side_effect=fake_get):
+            job = pbs.fetch_pbs_sync_jobs(CONN)[0]
+        self.assertEqual((job["running_upid"], job["running_percent"]), (self.UPID, 12.5))

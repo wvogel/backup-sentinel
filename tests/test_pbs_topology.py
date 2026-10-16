@@ -38,6 +38,7 @@ def job(pbs_id, job_id, store, remote="", remote_store="", ns="", remote_ns="", 
         "last_run_at": NOW if state else None,
         "next_run_at": None,
         "remote_pbs_id": kw.get("remote_pbs_id"),
+        "running_since": kw.get("running_since"),
     }
 
 
@@ -166,6 +167,12 @@ class TopologyTests(unittest.TestCase):
         )
         self.assertEqual(names(topo), [[("pbs-aboe-muc", ["nas-b1"])]])
         self.assertEqual(len(topo["edges"]), 1)
+
+    def test_running_job_is_running_not_never(self) -> None:
+        jobs = [job(1, "local", "nas-off", remote_store="nas-b1", state="", running_since=NOW)]
+        topo = self.build(10, [target("pbs-aboe-muc", "nas-b1")], [ABOE], jobs)
+        sync = next(e for e in topo["edges"] if e["kind"] == "sync")
+        self.assertEqual((sync["state"], sync["running_since"]), ("running", NOW))
 
     def test_minor_primary_target_that_is_also_a_copy_stands_behind_its_source(self) -> None:
         # pve-fh-muc backs up to pbs-fh-muc; pbs-aboe-muc pulls that into

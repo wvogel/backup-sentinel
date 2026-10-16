@@ -379,6 +379,7 @@ class TopologyDbTests(DbTestCase):
         db.sync_backup_events_for_source(self.cid, "pve", events)
         db.update_backup_event_storages(self.cid, events)
         self.assertEqual(db.vm_count_by_storage(self.cid), {"pbs-main": 2, "pbs-side": 1})
+        self.assertEqual(db.recent_storages_by_vmid(self.cid), {100: ["pbs-main", "pbs-side"], 101: ["pbs-main"]})
 
     def test_guest_type_is_stored(self) -> None:
         vm = {
@@ -569,3 +570,42 @@ class ClusterPageTests(DbTestCase):
         self.assertIn("data-topology", html)
         self.assertNotIn('class="sync-dots"', html)
         self.assertEqual(html.count('class="sync-dot '), 2)  # PVE + pbs-fh-muc
+
+    def test_live_sync_progress(self) -> None:
+        db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
+        pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
+        db.replace_datastore_usage(
+            pbs_id,
+            [{"store": "nas", "total_bytes": 100, "used_bytes": 40, "avail_bytes": 60, "estimated_full_at": None}],
+        )
+        target = {"storage_id": "pbs", "server": "pbs-fh-muc", "fingerprint": "", "datastore": "nas", "namespace": ""}
+        db.replace_pve_pbs_targets(self.cid, [target])
+        upid = "UPID:pbs-fh-muc:0000ABCD:0012F00D:00000002:68F15A40:syncjob:s:sync@pbs:"
+        db.replace_pbs_sync_jobs(
+            pbs_id,
+            [
+                {
+                    "job_id": "s",
+                    "direction": "pull",
+                    "store": "copy",
+                    "ns": "",
+                    "remote_name": "",
+                    "remote_host": "",
+                    "remote_fingerprint": "",
+                    "remote_store": "nas",
+                    "remote_ns": "",
+                    "schedule": "daily",
+                    "last_run_state": "",
+                    "last_run_at": None,
+                    "next_run_at": None,
+                    "running_since": datetime.now(UTC),
+                    "running_upid": upid,
+                    "running_percent": 10.0,
+                }
+            ],
+        )
+        topology_store.refresh_all()
+        with mock.patch("app.web.routes_clusters.sync_task_state", return_value=(45.31, False)) as state:
+            response = self.client.get("/api/clusters/test/sync-progress")
+        self.assertEqual(response.json(), {f"{pbs_id}:s": {"percent": 45.31, "finished": False}})
+        self.assertEqual(state.call_args.args[1], upid)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from typing import Any
 from urllib import parse
@@ -273,6 +274,43 @@ def _timestamp(value: Any) -> datetime | None:
         return None
 
 
+def _upid_start(upid: Any) -> datetime | None:
+    """Start time of a PBS task from its UPID
+    (UPID:node:pid:pstart:task_id:starttime:type:id:user:, hex fields)."""
+    parts = str(upid or "").split(":")
+    try:
+        return datetime.fromtimestamp(int(parts[5], 16), UTC) if len(parts) > 5 and parts[0] == "UPID" else None
+    except (ValueError, OSError):
+        return None
+
+
+_SYNC_PERCENT_RE = re.compile(r"percentage done:\s*([\d.]+)\s*%")
+
+
+def fetch_sync_progress(conn: dict[str, Any], upid: str) -> float | None:
+    """Progress of a running sync job from its task log ("percentage done:
+    45.31% (9/20 groups, …)"), or None before the first such line."""
+    return sync_task_state(conn, upid)[0]
+
+
+def sync_task_state(conn: dict[str, Any], upid: str) -> tuple[float | None, bool]:
+    """(percent done, finished) of a sync task; a finished task's log ends
+    with a "TASK OK" / "TASK ERROR: …" line."""
+    rows = _pbs_get_json(
+        conn["api_url"].rstrip("/"),
+        f"/api2/json/nodes/localhost/tasks/{parse.quote(upid, safe='')}/log",
+        conn["api_token_id"],
+        conn["api_token_secret"],
+        query={"start": "0", "limit": "100000"},
+    )
+    finished = bool(rows) and str(rows[-1].get("t") or "").startswith("TASK ")
+    for row in reversed(rows):
+        match = _SYNC_PERCENT_RE.search(str(row.get("t") or ""))
+        if match:
+            return round(float(match.group(1)), 2), finished
+    return None, finished
+
+
 def fetch_pbs_sync_jobs(conn: dict[str, Any]) -> list[dict[str, Any]]:
     """Sync jobs on this PBS (pull, push and local), with the remote resolved
     to its host and fingerprint so it can be matched to a registered PBS."""
@@ -310,9 +348,20 @@ def fetch_pbs_sync_jobs(conn: dict[str, Any]) -> list[dict[str, Any]]:
                 "schedule": str(job.get("schedule") or ""),
                 "last_run_state": str(job.get("last-run-state") or ""),
                 "last_run_at": _timestamp(job.get("last-run-endtime")),
+                # While a job runs PBS reports only its task UPID, no end or state.
+                "running_since": None if job.get("last-run-endtime") else _upid_start(job.get("last-run-upid")),
+                "running_upid": None,
+                "running_percent": None,
                 "next_run_at": _timestamp(job.get("next-run")),
             }
         )
+    for job, raw in zip(result, [j for j in jobs if j.get("id") and j.get("store")], strict=True):
+        if job["running_since"]:
+            job["running_upid"] = str(raw.get("last-run-upid"))
+            try:
+                job["running_percent"] = fetch_sync_progress(conn, job["running_upid"])
+            except PBSSyncError as exc:  # progress is a nicety
+                logger.warning("Sync progress of %s unavailable: %s", job["job_id"], exc)
     return result
 
 

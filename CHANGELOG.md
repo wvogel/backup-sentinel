@@ -5,6 +5,18 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.26.0] — 2026-10-16
+
+### Added
+
+- **Running syncs are recognised** — while a sync job runs, PBS reports only its task UPID, so the diagram showed "nie" and a still line. Now it shows "⟳ 45 % · läuft seit 22:47": the start comes from the UPID, the progress from the task log ("percentage done"), refreshed live every 30 s on the cluster page; when the task ends, the line calms down ("gerade fertig").
+- **Data moving right now stands out**: a running sync's line and the PVE line a running backup writes to (the guest's recent backup storage) turn thick, blue and pulsing, with more and faster arrows. Updated live with the backup progress.
+
+### Fixed
+
+- **Running-backup rings did not visibly pulse** and were green instead of blue: the generic ring rule overrode them and drew a static ring under the pulsing one.
+- Ring in the diagram could be squeezed into an oval; server and cluster names could wrap at a hyphen. The PVE tag sits in the datastore's name row and "voll ca." is left out when the warning triangle already shows it, so boxes stay low.
+
 ## [v2.25.3] — 2026-10-16
 
 ### Changed
