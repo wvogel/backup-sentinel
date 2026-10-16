@@ -103,6 +103,21 @@ class StorageAndDetailTests(DbTestCase):
         self.assertEqual((latest["duration_seconds"], latest["reused_pct"]), (305, 90))
         self.assertIsNone(older["duration_seconds"])
 
+    def test_failed_run_ends_its_in_progress_placeholder(self) -> None:
+        # The sync saw the backup running (placeholder); the task log says it failed.
+        started = NOW - timedelta(hours=1)
+        db.sync_backup_events_for_source(self.cid, "pbs", [_event(100, started, size=1)])
+        rows = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}
+        self.assertIsNotNone(rows[100]["in_progress_since"])
+        db.update_backup_event_details(self.cid, [VmBackupRun(vmid=100, started_at=started, failed=True)])
+        rows = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}
+        self.assertIsNone(rows[100]["in_progress_since"])
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT status, finished_at FROM backup_events")
+            row = cur.fetchone()
+        self.assertEqual(row["status"], "failed")
+        self.assertIsNotNone(row["finished_at"])
+
     def test_processed_tasks_are_remembered(self) -> None:
         db.mark_backup_tasks_processed(self.cid, ["UPID:a", "UPID:b"])
         db.mark_backup_tasks_processed(self.cid, ["UPID:b"])
@@ -626,3 +641,13 @@ class ClusterPageTests(DbTestCase):
         ring = self.ring(self.page())
         self.assertIn("is-indeterminate", ring)
         self.assertNotIn("10%", ring)
+
+    def test_placeholder_is_not_running_when_live_data_says_otherwise(self) -> None:
+        db.sync_backup_events_for_source(self.cid, "pbs", [_event(100, NOW - timedelta(minutes=30), size=1)])
+        with mock.patch("app.web.routes_clusters.running_backup_progress_peek", return_value=({}, True)):
+            html = self.client.get("/clusters/test").text
+        self.assertNotIn("is-running", html)
+        # PVE unreachable: the placeholder is all there is to go on.
+        with mock.patch("app.web.routes_clusters.running_backup_progress_peek", return_value=(None, False)):
+            html = self.client.get("/clusters/test").text
+        self.assertIn("is-running", html)

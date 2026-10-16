@@ -341,7 +341,27 @@ def update_backup_event_details(cluster_id: int, runs: list[Any]) -> int:
         vmid_to_id = {row["vmid"]: row["id"] for row in cur.fetchall()}
         for run in runs:
             vm_id = vmid_to_id.get(run.vmid)
-            if run.failed or run.started_at is None or vm_id is None:
+            if run.started_at is None or vm_id is None:
+                continue
+            if run.failed:
+                # The sync may have seen this backup running and left an
+                # in-progress placeholder: it is over, and it failed.
+                cur.execute(
+                    """
+                    UPDATE backup_events SET status = 'failed', finished_at = NOW()
+                    WHERE id = (
+                        SELECT id FROM backup_events
+                        WHERE vm_id = %s
+                          AND finished_at IS NULL
+                          AND status != 'failed'
+                          AND COALESCE(size_bytes, 0) <= 1
+                          AND started_at BETWEEN %s - INTERVAL '10 minutes' AND %s + INTERVAL '10 minutes'
+                        ORDER BY ABS(EXTRACT(EPOCH FROM started_at - %s))
+                        LIMIT 1
+                    )
+                    """,
+                    (vm_id, run.started_at, run.started_at, run.started_at),
+                )
                 continue
             cur.execute(
                 """

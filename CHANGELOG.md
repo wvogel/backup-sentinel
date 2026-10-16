@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.27.4] — 2026-10-17
+
+### Fixed
+
+- **A failed backup was still shown as running** ("Backup läuft" without percentage). While a backup runs, the sync stores an in-progress placeholder; a successful backup replaces it, but a failed one left it standing until a cleanup marked it failed after 6 hours.
+  - Complete live data from PVE now decides what is running, on page load and in the 30-second refresh; placeholders only count when PVE could not be asked.
+  - A failed run in the vzdump task log ("ERROR: Backup of VM 129 failed") marks its placeholder as failed right away, instead of being ignored.
+
 ## [v2.27.3] — 2026-10-16
 
 ### Changed
