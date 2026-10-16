@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.25.2] — 2026-10-16
+
+### Added
+
+- **Warning triangle for datastores filling up.** In the replication diagram, a datastore the PBS expects to be full within 30 days gets a warning triangle next to its name — yellow, red from 14 days on — with days and date in the tooltip. The days are computed against the current date on every page view, not when the diagram was built.
+
 ## [v2.25.1] — 2026-10-16
 
 ### Changed

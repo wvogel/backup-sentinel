@@ -416,6 +416,7 @@
   "topology.schedule": "Zeitplan: {schedule}",
   "topology.last_run": "Letzter Lauf: {when} ({state})",
   "topology.next_run": "Nächster Lauf: {when}",
+  "topology.full_soon": "Läuft in ~{days} Tagen voll",
   "topology.primary_tooltip": "PVE sichert direkt hierher (Storage {storage}, Namespace {ns})",
   "topology.vms_one": "{count} VM",
   "topology.vms_other": "{count} VMs",

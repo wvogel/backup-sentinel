@@ -34,7 +34,14 @@
             <span>{{ ds.pct ~ '%' if ds.pct is not none else '?' }}</span>
           </div>
           <div class="topo-store-text">
-          <div class="topo-store-name">{{ ds.store }}</div>
+          <div class="topo-store-name">{{ ds.store }}
+            {%- if ds.full_soon %}
+            <span class="topo-full-soon status-text-{{ ds.full_soon }}" role="img"
+                  aria-label="{{ t('topology.full_soon', days=ds.full_in_days) }}"
+                  data-tooltip="{{ t('topology.full_soon', days=ds.full_in_days) }}&#10;{{ t('cluster.datastore_full_at', date=ds.estimated_full_at|datetime_local('%d.%m.%Y')) }}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 22 20.5H2z" fill="currentColor"/><path d="M12 9.5v5" stroke="var(--panel-alt)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.25" fill="var(--panel-alt)"/></svg>
+            </span>
+            {%- endif %}</div>
           {%- if ds.estimated_full_at and ds.status != 'ok' %}
           <div class="topo-full status-text-{{ ds.status }}">{{ t('cluster.datastore_full_short', date=ds.estimated_full_at|datetime_local('%m/%y')) }}</div>
           {%- endif %}

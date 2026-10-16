@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from app import db
@@ -59,11 +59,34 @@ def refresh_all() -> None:
             logger.exception("Building the topology of cluster %s failed", cluster.get("name"))
 
 
+# A datastore filling up within these days gets a warning sign (red from
+# the critical threshold of assess_datastore_usage on).
+FULL_SOON_DAYS = 30
+FULL_CRITICAL_DAYS = 14
+
+
+def mark_full_soon(topology: dict[str, Any], now: datetime) -> None:
+    """Flag datastores the PBS expects to be full soon, against today's date
+    (the stored diagram may be up to one sync old)."""
+    for column in topology["columns"]:
+        for group in column:
+            for store in group["stores"]:
+                full_at = store.get("estimated_full_at")
+                days = (full_at - now).total_seconds() / 86400 if full_at else None
+                soon = days is not None and 0 < days <= FULL_SOON_DAYS
+                store["full_in_days"] = max(1, round(days)) if soon and days is not None else None
+                store["full_soon"] = (
+                    ("critical" if days <= FULL_CRITICAL_DAYS else "warning") if soon and days is not None else None
+                )
+
+
 def load(cluster_id: int) -> dict[str, Any]:
     """The stored diagram; built once on the spot if there is none yet."""
     stored = db.get_cluster_topology(cluster_id)
     if stored is not None:
-        return _decode(stored)
-    topology = build(cluster_id)
-    db.save_cluster_topology(cluster_id, _encode(topology))
+        topology = _decode(stored)
+    else:
+        topology = build(cluster_id)
+        db.save_cluster_topology(cluster_id, _encode(topology))
+    mark_full_soon(topology, datetime.now(UTC))
     return topology
