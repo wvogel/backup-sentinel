@@ -2613,7 +2613,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   position: relative;
   display: flex;
   align-items: center;
-  gap: clamp(32px, 3.2vw, 56px);
+  gap: clamp(56px, 5vw, 96px);
   /* No frame of its own: the boxes sit on the card like the key-figure tiles. */
   padding: 0;
   overflow-x: auto;
@@ -2634,42 +2634,46 @@ html[data-theme="dark"] .node-filter-button.is-active {
   overflow: visible;
 }
 
-.topo-line { fill: none; stroke-width: 2.5; }
-.topo-line-primary { stroke: var(--muted); opacity: 0.7; }
-.topo-line.topo-minor { stroke-width: 1.5; opacity: 0.45; }
-.topo-line-sync { stroke-dasharray: 7 5; }
+/* Lines of the topology (static/js/topology.js). One colour per kind and
+   state; line, filled arrowhead and moving arrows all take it. Nothing
+   moves unless data is moving right now (running backup or sync). */
+.topo-line,
+.topo-head,
+.topo-flow { color: var(--muted); }
+.topo-line-sync.topo-state-ok,
+.topo-line-sync.topo-state-running { color: var(--running); }
+.topo-line-sync.topo-state-warning { color: var(--warn); }
+.topo-line-sync.topo-state-failed { color: var(--critical); }
+.topo-line-sync.topo-state-never { color: var(--unknown); }
+.topo-active { color: var(--running); }
 
-/* Arrows travelling along the lines (static/js/topology.js): data flows. */
-.topo-arrow {
+.topo-line {
   fill: none;
-  stroke-width: 2.5;
-  stroke-linecap: round;
+  stroke: currentColor;
+  stroke-width: 8;
+  stroke-linecap: butt;
   stroke-linejoin: round;
 }
-.topo-arrow.topo-line-primary { stroke: var(--ink); opacity: 0.85; }
-.topo-arrow.topo-minor { stroke-width: 1.8; opacity: 0.5; }
-.topo-arrow.topo-line-sync.topo-state-ok,
-.topo-arrow.topo-line-sync.topo-state-running { stroke: var(--running); }
-.topo-arrow.topo-line-sync.topo-state-warning { stroke: var(--warn); }
+.topo-line.topo-line-sync { stroke-dasharray: 14 9; }
+/* The long way around (skipping a column, or back): clearly thinner. */
+.topo-line.topo-lane { stroke-width: 5; }
+.topo-line.topo-lane.topo-line-sync { stroke-dasharray: 10 7; }
+.topo-line.topo-minor { stroke-width: 3; opacity: 0.6; }
+.topo-line.topo-minor.topo-line-sync { stroke-dasharray: 7 5; }
+.topo-line.topo-state-never { opacity: 0.55; }
 
-/* Data moving right now (running backup or sync): thick, blue, breathing. */
-.topo-line.topo-active {
-  stroke: var(--running);
-  stroke-width: 4;
-  opacity: 1;
-  animation: topo-active-pulse 1.8s ease-in-out infinite alternate;
-}
-.topo-arrow.topo-active { stroke: var(--running); stroke-width: 3; opacity: 1; }
-@keyframes topo-active-pulse { from { opacity: 1; } to { opacity: 0.55; } }
-@keyframes topo-dash { to { stroke-dashoffset: -12; } }
+.topo-head { fill: currentColor; }
+.topo-head.topo-minor { opacity: 0.6; }
+.topo-head.topo-state-never { opacity: 0.55; }
+
+/* Data moving right now: the line breathes, filled arrows run along it. */
+.topo-line.topo-active { animation: topo-active-pulse 1.8s ease-in-out infinite alternate; }
+.topo-flow { fill: var(--ink); opacity: 0.9; }
+@keyframes topo-active-pulse { from { opacity: 1; } to { opacity: 0.6; } }
+@keyframes topo-dash { to { stroke-dashoffset: var(--dash-shift, -23); } }
 @media (prefers-reduced-motion: reduce) {
-  .topo-line.topo-active { animation: none; }
+  .topo-line.topo-active { animation: none !important; }
 }
-.topo-line-sync.topo-state-ok,
-.topo-line-sync.topo-state-running { stroke: var(--running); }
-.topo-line-sync.topo-state-warning { stroke: var(--warn); }
-.topo-line-sync.topo-state-failed { stroke: var(--critical); }
-.topo-line-sync.topo-state-never { stroke: var(--unknown); opacity: 0.6; }
 
 /* Columns share the full width; boxes fill their column's width and get
    one common height (static/js/topology.js), columns centred vertically. */
@@ -2852,7 +2856,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
     gap: 28px;
   }
   .topo-stores { flex-wrap: wrap; }
-  .topology-col { flex-direction: row; flex-wrap: wrap; padding-left: 14px; }
+  .topology-col { flex-direction: row; flex-wrap: wrap; padding-left: 14px; min-width: 0; }
+  .topo-store-text { min-width: 0; }
+  .topo-store-name { flex-wrap: wrap; }
   .topo-cluster { min-width: 160px; }
 }
 
