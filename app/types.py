@@ -54,6 +54,7 @@ class PBSConnectionRow(TypedDict):
     api_token_secret: str
     fingerprint: str
     cert_fingerprints: list[str]
+    aliases: list[str]
     namespace: str
     last_sync_at: datetime | None
     last_sync_ok: bool | None

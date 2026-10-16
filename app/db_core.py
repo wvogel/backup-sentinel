@@ -218,6 +218,9 @@ def init_db() -> None:
             cur.execute(
                 "ALTER TABLE pbs_connections ADD COLUMN IF NOT EXISTS cert_fingerprints TEXT[] NOT NULL DEFAULT '{}'"
             )
+            # Other names/IPs PVE or a sync remote uses for this PBS, for when
+            # it cannot be recognised automatically (e.g. unreachable network).
+            cur.execute("ALTER TABLE pbs_connections ADD COLUMN IF NOT EXISTS aliases TEXT[] NOT NULL DEFAULT '{}'")
             # Registered PBS behind a PVE storage, resolved at sync time
             # (fingerprint, name, DNS or the certificate the server serves).
             cur.execute("ALTER TABLE pve_pbs_targets ADD COLUMN IF NOT EXISTS pbs_id BIGINT")

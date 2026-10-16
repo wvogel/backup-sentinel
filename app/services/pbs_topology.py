@@ -79,7 +79,8 @@ class _Servers:
             fps = {normalize_fingerprint(f) for f in [conn.get("fingerprint"), *(conn.get("cert_fingerprints") or [])]}
             host = urlsplit(str(conn.get("api_url") or "")).hostname or ""
             idents = [f"fp:{fp}" for fp in sorted(fps) if fp]
-            for ident in (*idents, f"name:{str(conn.get('name') or '').lower()}", f"host:{host}"):
+            aliases = [f"host:{str(a).lower()}" for a in conn.get("aliases") or []]
+            for ident in (*idents, f"name:{str(conn.get('name') or '').lower()}", f"host:{host}", *aliases):
                 if not ident or ident.endswith(":"):
                     continue
                 if ident in owner:

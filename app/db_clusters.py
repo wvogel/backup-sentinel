@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -343,11 +344,16 @@ def normalize_namespace(namespace: str) -> str:
     return "/".join(part for part in namespace.strip().split("/") if part)
 
 
-def update_pbs_namespace(cluster_id: int, conn_id: int, namespace: str) -> bool:
+def normalize_aliases(aliases: str) -> list[str]:
+    """Host names/IPs separated by commas, spaces or lines; lower case, unique."""
+    return list(dict.fromkeys(a.lower() for a in re.split(r"[\s,;]+", aliases) if a))
+
+
+def update_pbs_settings(cluster_id: int, conn_id: int, namespace: str, aliases: str) -> bool:
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
-            "UPDATE pbs_connections SET namespace = %s WHERE id = %s AND cluster_id = %s",
-            (normalize_namespace(namespace), conn_id, cluster_id),
+            "UPDATE pbs_connections SET namespace = %s, aliases = %s WHERE id = %s AND cluster_id = %s",
+            (normalize_namespace(namespace), normalize_aliases(aliases), conn_id, cluster_id),
         )
         updated = cur.rowcount > 0
         conn.commit()

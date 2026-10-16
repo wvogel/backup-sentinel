@@ -303,21 +303,22 @@ def update_backup_policy(
     return RedirectResponse(url=f"/clusters/{cluster_slug}", status_code=status.HTTP_303_SEE_OTHER)
 
 
-@router.post("/clusters/{cluster_slug}/pbs/{pbs_id}/namespace")
-def update_pbs_namespace(
-    request: Request, cluster_slug: str, pbs_id: int, namespace: str = Form("")
+@router.post("/clusters/{cluster_slug}/pbs/{pbs_id}/settings")
+def update_pbs_settings(
+    request: Request, cluster_slug: str, pbs_id: int, namespace: str = Form(""), aliases: str = Form("")
 ) -> RedirectResponse:
     cluster = db.get_cluster_by_slug(cluster_slug)
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
-    if not db.update_pbs_namespace(cluster["id"], pbs_id, namespace):
+    if not db.update_pbs_settings(cluster["id"], pbs_id, namespace, aliases):
         raise HTTPException(status_code=404, detail="PBS not found")
     try:
         db.append_audit_event(
             settings_actor(request),
-            "pbs.namespace",
+            "pbs.settings",
             cluster_slug,
-            f"pbs_id={pbs_id}, namespace={db.normalize_namespace(namespace)}",
+            f"pbs_id={pbs_id}, namespace={db.normalize_namespace(namespace)},"
+            f" aliases={','.join(db.normalize_aliases(aliases))}",
         )
     except Exception:
         pass

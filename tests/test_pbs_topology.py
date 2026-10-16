@@ -230,3 +230,9 @@ class TopologyTests(unittest.TestCase):
         b = conn(11, 61, "pbs-dresden", fingerprint="ab:cd")
         topo = self.build(60, [target("x", "nas", fingerprint="AB:CD")], [a, b], [], [usage(11, "nas", 5)])
         self.assertEqual(names(topo), [[("mgm-pbs-dresden", ["nas"])]])
+
+    def test_alias_joins_pve_target_and_registered_pbs(self) -> None:
+        mgm = {**conn(12, 70, "mgm-pbs-dresden"), "aliases": ["pbs-dresden"]}
+        topo = self.build(70, [target("pbs-dresden", "nas-b0-volume1")], [mgm], [], [usage(12, "nas-b0-volume1", 35)])
+        self.assertEqual(names(topo), [[("mgm-pbs-dresden", ["nas-b0-volume1"])]])
+        self.assertEqual(topo["columns"][0][0]["stores"][0]["pct"], 35)

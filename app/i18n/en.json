@@ -157,6 +157,8 @@
   "settings.pbs_namespace": "Namespace",
   "settings.pbs_namespace_root": "root",
   "settings.pbs_namespace_hint": "Empty = root namespace only. Set = only this namespace and its children, e.g. the target of a pull sync holding this cluster's copies.",
+  "settings.pbs_aliases": "Aliases",
+  "settings.pbs_aliases_hint": "Other host names or IPs PVE or a sync remote uses for this PBS (comma separated). Needed when Backup Sentinel cannot recognise it itself, e.g. because the backup network is unreachable.",
   "settings.no_connections": "No registered connections yet.",
   "settings.rename_title": "Rename cluster",
   "settings.rename_note": "The slug will be adjusted automatically. Existing bookmarks to the cluster page will change.",

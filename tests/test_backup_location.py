@@ -128,3 +128,20 @@ class CertificateMatchTests(unittest.TestCase):
 
     def test_unreachable_probe_matches_nothing(self):
         self.assertIsNone(resolve_pbs_connection("", "pbs-dresden", [MGM], no_dns, lambda h, p: ""))
+
+
+ALIASED = {**MGM, "cert_fingerprints": [], "aliases": ["pbs-dresden", "10.20.0.2"]}
+
+
+class AliasTests(unittest.TestCase):
+    def test_alias_name_matches(self):
+        self.assertIs(match_pbs_connection("", "PBS-DRESDEN.int.example.de", [ALIASED], no_dns), ALIASED)
+
+    def test_alias_ip_matches(self):
+        self.assertIs(match_pbs_connection("", "10.20.0.2", [ALIASED], no_dns), ALIASED)
+
+    def test_no_probe_needed_for_an_alias(self):
+        def probe(host, port):
+            raise AssertionError("alias must match without probing")
+
+        self.assertIs(resolve_pbs_connection("", "pbs-dresden", [ALIASED], no_dns, probe), ALIASED)
