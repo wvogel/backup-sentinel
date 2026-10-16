@@ -167,10 +167,26 @@
     });
 
     // Lines skipping a column run above the boxes, or below them when their
-    // target sits in the lower half (then they cross nothing on the way up).
-    var middle = height / 2;
+    // target is a lower box of its column (then they cross nothing on the way
+    // up). Decided by the boxes alone, so reserving lane space cannot flip it.
+    function colMiddle(i) {
+      var tops = [], bottoms = [];
+      cols[i].el.querySelectorAll(".topo-server, .topo-cluster").forEach(function (el) {
+        var r = el.getBoundingClientRect();
+        tops.push(r.top - oy);
+        bottoms.push(r.bottom - oy);
+      });
+      return (Math.min.apply(null, tops) + Math.max.apply(null, bottoms)) / 2;
+    }
     groups.forEach(function (edge) {
-      edge.low = edge.back || (edge.span > 1 && edge.b.cy > middle);
+      edge.low = edge.back || (edge.span > 1 && edge.b.cy > colMiddle(edge.b.col) + 2);
+    });
+    // Lanes sit just outside all boxes, never behind one.
+    var boxTop = Infinity, boxBottom = -Infinity;
+    boxEls.forEach(function (el) {
+      var r = el.getBoundingClientRect();
+      boxTop = Math.min(boxTop, r.top - oy);
+      boxBottom = Math.max(boxBottom, r.bottom - oy);
     });
     var wantTop = groups.some(function (e) { return !stacked && e.span > 1 && !e.low; });
     var wantBottom = groups.some(function (e) { return !stacked && e.low; });
@@ -197,9 +213,12 @@
         // Out into the gap after the source column, along a lane above (or,
         // back to an earlier column, below) all boxes, down the gap before
         // the target column.
-        var lane = edge.low ? height - 10 - 4 * bottomLane++ : 10 + 4 * topLane++;
+        var lane = edge.low ? boxBottom + 11 + 4 * bottomLane++ : boxTop - 11 - 4 * topLane++;
         var xa = gapAfter(a.col), xb = gapBefore(b.col);
-        d = rounded([[a.right, a.cy], [xa, a.cy], [xa, lane], [xb, lane], [xb, b.cy], [b.left, b.cy]]);
+        // Leave and enter off-centre, towards the lane: never on top of the
+        // straight line between neighbours.
+        var shift = edge.low ? 16 : -16;
+        d = rounded([[a.right, a.cy + shift], [xa, a.cy + shift], [xa, lane], [xb, lane], [xb, b.cy + shift], [b.left, b.cy + shift]]);
       } else {
         // Straight across through the height both boxes share.
         var top = Math.max(a.top, b.top), bottom = Math.min(a.bottom, b.bottom);
