@@ -249,7 +249,8 @@ def init_db() -> None:
             cur.execute("ALTER TABLE pbs_sync_jobs ADD COLUMN IF NOT EXISTS remote_pbs_id BIGINT")
             cur.execute("ALTER TABLE pbs_sync_jobs ADD COLUMN IF NOT EXISTS running_since TIMESTAMPTZ")
             cur.execute("ALTER TABLE pbs_sync_jobs ADD COLUMN IF NOT EXISTS running_upid TEXT")
-            cur.execute("ALTER TABLE pbs_sync_jobs ADD COLUMN IF NOT EXISTS running_percent REAL")
+            # Progress is asked live and never stored (column of v2.26–v2.29).
+            cur.execute("ALTER TABLE pbs_sync_jobs DROP COLUMN IF EXISTS running_percent")
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS cluster_topology (

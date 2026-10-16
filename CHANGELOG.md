@@ -5,6 +5,19 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.29.2] — 2026-10-17
+
+### Changed
+
+- **Live sync progress reads only the end of the task log** (last 200 lines) instead of up to 100 000 lines on every 30-second poll; whether the task still runs comes from PBS's own test-status ("active"), with the "TASK OK/ERROR" end marker as fallback for older PBS. Behaviour checked against the PBS source (`read_task_log`).
+- **Internal cleanup, no visible change:**
+  - Live sync progress lives in its own service (`app/services/sync_progress.py`); the overview no longer imports from the cluster page's routes.
+  - Sync progress is no longer fetched during the background sync or stored (column `pbs_sync_jobs.running_percent` dropped) — the pages only ever show live values.
+  - One query for the guests' recent backup storages; the per-storage guest count is derived from it.
+  - `running_backups_for_clusters` renamed `cached_running_backups` (it only reads the cache).
+  - `static/js/topology.js` split into clear steps (fit layout, measure, bundle per box pair, choose lanes, route, render); no recursion on lane changes.
+  - Dead CSS of the removed sync text rows and status dots deleted.
+
 ## [v2.29.1] — 2026-10-17
 
 ### Fixed

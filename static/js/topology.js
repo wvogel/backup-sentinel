@@ -1,8 +1,9 @@
 // Draws the lines of the cluster topology (templates/_topology.html):
-// PVE → datastore (solid) and replication (dashed, coloured by last run).
-// Lines only run through the gaps between columns: neighbours are joined
-// directly, lines skipping a column use a lane above the boxes, lines back
-// to an earlier column (mutual backup) a lane below them.
+// PVE → datastore (solid pipes) and replication (pipes of blocks). One line
+// per pair of boxes. Neighbours are joined straight across; lines skipping a
+// column (or going back, mutual backup) take a lane above or below all boxes.
+// Steps per draw: fit the layout, measure, bundle edges per box pair, choose
+// lanes, route, render. Only data moving right now is animated.
 (function () {
   "use strict";
   var SVG_NS = "http://www.w3.org/2000/svg";
@@ -36,8 +37,6 @@
 
   var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Chevrons moving along a line: backups fast, replication slower but still
-  // visible. A failed or never-run sync moves nothing.
   // Direct lines are broad pipes; the long way around stays thin.
   function widthOf(edge) {
     if (edge.minor) return edge.lane ? 3 : 10;
@@ -114,74 +113,65 @@
     }
   }
 
-  function draw(root, again) {
-    var svg = root.querySelector(".topology-lines");
-    var data = root.querySelector(".topology-edges");
-    if (!svg || !data) return;
-    var edges = JSON.parse(data.textContent || "[]");
-    var active = activeStorages(root);
-    edges.forEach(function (edge) {
-      edge.active = edge.state === "running" || (edge.kind === "primary" && active.has(edge.storage_id));
-    });
+  // Box geometry relative to the SVG overlay.
+  function measure(root) {
     var outer = root.getBoundingClientRect();
     var ox = outer.left + root.clientLeft - root.scrollLeft;
     var oy = outer.top + root.clientTop;
-    var height = root.scrollHeight;
-    var stacked = getComputedStyle(root).flexDirection === "column";
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
-    fitGaps(root, stacked);
-    equalizeHeights(root, stacked);
-
-    // Horizontal extent of the boxes in each column, for the gaps between.
-    var cols = Array.prototype.map.call(root.querySelectorAll(".topology-col"), function (col) {
-      var left = Infinity, right = -Infinity;
-      col.querySelectorAll(".topo-server, .topo-cluster").forEach(function (el) {
-        var r = el.getBoundingClientRect();
-        left = Math.min(left, r.left - ox);
-        right = Math.max(right, r.right - ox);
-      });
-      return { el: col, left: left, right: right };
-    });
-    function gapAfter(i) {
-      return i + 1 < cols.length ? (cols[i].right + cols[i + 1].left) / 2 : cols[i].right + GAP;
-    }
-    function gapBefore(i) {
-      return i > 0 ? (cols[i - 1].right + cols[i].left) / 2 : cols[i].left - GAP;
-    }
-
-    function anchor(id) {
-      var el = root.querySelector('[data-node="' + id + '"]');
-      if (!el) return null;
-      var boxEl = el.closest(".topo-server") || el;
-      var box = boxEl.getBoundingClientRect();
-      var col = el.closest(".topology-col");
-      return {
-        box: boxEl,
-        left: box.left - ox, right: box.right - ox, top: box.top - oy, bottom: box.bottom - oy,
-        cx: box.left + box.width / 2 - ox, cy: box.top + box.height / 2 - oy,
-        col: cols.findIndex(function (c) { return c.el === col; }),
-      };
-    }
-
-    var boxes = Array.prototype.map.call(root.querySelectorAll(".topo-server, .topo-cluster"), function (el) {
+    function rect(el) {
       var r = el.getBoundingClientRect();
-      return { top: r.top - oy, bottom: r.bottom - oy };
-    });
-    // Stacked: is another box between the two, so a direct line would cross it?
-    function blocked(a, b) {
-      return boxes.some(function (box) { return box.top > a.bottom + 1 && box.bottom < b.top - 1; });
+      return { left: r.left - ox, right: r.right - ox, top: r.top - oy, bottom: r.bottom - oy };
     }
-
-    // One connection per pair of boxes, however many datastores and jobs
-    // lie between them; it takes the most telling state of its edges.
-    var RANK = { running: 4, failed: 3, warning: 2, ok: 1, never: 0 };
-    var groups = [];
-    var byKey = {};
+    var cols = Array.prototype.map.call(root.querySelectorAll(".topology-col"), function (col) {
+      var boxes = Array.prototype.map.call(col.querySelectorAll(".topo-server, .topo-cluster"), rect);
+      return {
+        el: col,
+        left: Math.min.apply(null, boxes.map(function (b) { return b.left; })),
+        right: Math.max.apply(null, boxes.map(function (b) { return b.right; })),
+        middle: (Math.min.apply(null, boxes.map(function (b) { return b.top; })) +
+          Math.max.apply(null, boxes.map(function (b) { return b.bottom; }))) / 2,
+      };
+    });
     var boxEls = Array.prototype.slice.call(root.querySelectorAll(".topo-server, .topo-cluster"));
+    var boxes = boxEls.map(rect);
+    return {
+      cols: cols,
+      boxEls: boxEls,
+      boxes: boxes,
+      top: Math.min.apply(null, boxes.map(function (b) { return b.top; })),
+      bottom: Math.max.apply(null, boxes.map(function (b) { return b.bottom; })),
+      // Middle of the gap after / before a column.
+      gapAfter: function (i) {
+        return i + 1 < cols.length ? (cols[i].right + cols[i + 1].left) / 2 : cols[i].right + GAP;
+      },
+      gapBefore: function (i) {
+        return i > 0 ? (cols[i - 1].right + cols[i].left) / 2 : cols[i].left - GAP;
+      },
+      anchor: function (id) {
+        var el = root.querySelector('[data-node="' + id + '"]');
+        if (!el) return null;
+        var boxEl = el.closest(".topo-server") || el;
+        var b = rect(boxEl);
+        var col = el.closest(".topology-col");
+        b.box = boxEl;
+        b.cx = (b.left + b.right) / 2;
+        b.cy = (b.top + b.bottom) / 2;
+        b.col = cols.findIndex(function (c) { return c.el === col; });
+        return b;
+      },
+    };
+  }
+
+  // One connection per pair of boxes, however many datastores and jobs lie
+  // between them; it takes the most telling state of its edges.
+  var RANK = { running: 4, failed: 3, warning: 2, ok: 1, never: 0 };
+  function bundle(edges, geo, active) {
+    var groups = [], byKey = {};
     edges.forEach(function (edge) {
-      var a = anchor(edge.from), b = anchor(edge.to);
+      var a = geo.anchor(edge.from), b = geo.anchor(edge.to);
       if (!a || !b) return;
-      var key = [boxEls.indexOf(a.box), boxEls.indexOf(b.box), edge.kind, edge.back].join("|");
+      var isActive = edge.state === "running" || (edge.kind === "primary" && active.has(edge.storage_id));
+      var key = [geo.boxEls.indexOf(a.box), geo.boxEls.indexOf(b.box), edge.kind, edge.back].join("|");
       var g = byKey[key];
       if (!g) {
         g = byKey[key] = { a: a, b: b, kind: edge.kind, back: edge.back, span: edge.span, state: edge.state, minor: true, active: false };
@@ -189,103 +179,120 @@
       }
       if ((RANK[edge.state] || 0) > (RANK[g.state] || 0)) g.state = edge.state;
       g.minor = g.minor && !!edge.minor;
-      g.active = g.active || !!edge.active;
+      g.active = g.active || isActive;
       g.span = Math.max(g.span, edge.span);
     });
+    return groups;
+  }
 
-    // Lines skipping a column run above the boxes, or below them when their
-    // target is a lower box of its column (then they cross nothing on the way
-    // up). Decided by the boxes alone, so reserving lane space cannot flip it.
-    function colMiddle(i) {
-      var tops = [], bottoms = [];
-      cols[i].el.querySelectorAll(".topo-server, .topo-cluster").forEach(function (el) {
-        var r = el.getBoundingClientRect();
-        tops.push(r.top - oy);
-        bottoms.push(r.bottom - oy);
+  // Lines skipping a column run above the boxes, or below them when their
+  // target is a lower box of its column (then they cross nothing on the way
+  // up). Decided by the boxes alone, so reserving lane space cannot flip it.
+  function chooseLanes(groups, geo, stacked) {
+    groups.forEach(function (g) {
+      g.lane = !stacked && (g.back || g.span > 1);
+      g.low = g.back || (g.span > 1 && g.b.cy > geo.cols[g.b.col].middle + 2);
+    });
+  }
+
+  // Reserve room above / below the boxes for lanes; true if that changed.
+  function reserveLanes(root, groups) {
+    var top = groups.some(function (g) { return g.lane && !g.low; });
+    var bottom = groups.some(function (g) { return g.lane && g.low; });
+    var changed = root.classList.contains("has-top-lane") !== top || root.classList.contains("has-bottom-lane") !== bottom;
+    root.classList.toggle("has-top-lane", top);
+    root.classList.toggle("has-bottom-lane", bottom);
+    return changed;
+  }
+
+  // Path of one connection, ending where its arrowhead begins.
+  function route(g, geo, stacked, lanes) {
+    var a = g.a, b = g.b, width = widthOf(g);
+    var tip = headLength(width) - 1;
+    if (stacked) {
+      var direct = !g.back && b.top > a.bottom && !geo.boxes.some(function (box) {
+        return box.top > a.bottom + 1 && box.bottom < b.top - 1; // a box in between
       });
-      return (Math.min.apply(null, tops) + Math.max.apply(null, bottoms)) / 2;
+      if (direct) {
+        var my = (a.bottom + b.top) / 2;
+        return {
+          d: "M" + a.cx + "," + a.bottom + " C" + a.cx + "," + my + " " + b.cx + "," + my + " " + b.cx + "," + (b.top - tip),
+          end: [b.cx, b.top], dir: [0, 1], width: width,
+        };
+      }
+      var lx = 6 + 4 * lanes.side++;
+      return {
+        d: rounded([[a.left, a.cy], [lx, a.cy], [lx, b.cy], [b.left - tip, b.cy]]),
+        end: [b.left, b.cy], dir: [1, 0], width: width,
+      };
     }
-    groups.forEach(function (edge) {
-      edge.low = edge.back || (edge.span > 1 && edge.b.cy > colMiddle(edge.b.col) + 2);
-    });
-    // Lanes sit just outside all boxes, never behind one.
-    var boxTop = Infinity, boxBottom = -Infinity;
-    boxEls.forEach(function (el) {
-      var r = el.getBoundingClientRect();
-      boxTop = Math.min(boxTop, r.top - oy);
-      boxBottom = Math.max(boxBottom, r.bottom - oy);
-    });
-    var wantTop = groups.some(function (e) { return !stacked && e.span > 1 && !e.low; });
-    var wantBottom = groups.some(function (e) { return !stacked && e.low; });
-    if (!again && (root.classList.contains("has-top-lane") !== wantTop || root.classList.contains("has-bottom-lane") !== wantBottom)) {
-      root.classList.toggle("has-top-lane", wantTop);
-      root.classList.toggle("has-bottom-lane", wantBottom);
-      draw(root, true); // padding changed: measure once more
-      return;
+    if (g.lane) {
+      // Into the gap after the source column, along a lane just outside all
+      // boxes, down the gap before the target; leaving and entering clear of
+      // the broad pipe and its arrowhead between neighbours.
+      var lane = g.low ? geo.bottom + 11 + 4 * lanes.bottom++ : geo.top - 11 - 4 * lanes.top++;
+      var xa = geo.gapAfter(a.col), xb = geo.gapBefore(b.col);
+      var clear = 24 * 0.8 + 5 + width / 2 + 8;
+      var shift = g.low ? clear : -clear;
+      return {
+        d: rounded([[a.right, a.cy + shift], [xa, a.cy + shift], [xa, lane], [xb, lane], [xb, b.cy + shift], [b.left - tip, b.cy + shift]]),
+        end: [b.left, b.cy + shift], dir: [1, 0], width: width,
+      };
     }
+    // Straight across through the height both boxes share.
+    var top = Math.max(a.top, b.top), bottom = Math.min(a.bottom, b.bottom);
+    if (bottom - top >= 16) {
+      var y = (top + bottom) / 2;
+      return { d: "M" + a.right + "," + y + " L" + (b.left - tip) + "," + y, end: [b.left, y], dir: [1, 0], width: width };
+    }
+    var mx = (a.right + b.left) / 2;
+    return {
+      d: "M" + a.right + "," + a.cy + " C" + mx + "," + a.cy + " " + mx + "," + b.cy + " " + (b.left - tip) + "," + b.cy,
+      end: [b.left, b.cy], dir: [1, 0], width: width,
+    };
+  }
 
-    var topLane = 0, bottomLane = 0, sideLane = 0;
-    groups.forEach(function (edge) {
-      var a = edge.a, b = edge.b;
-      edge.lane = !stacked && (edge.back || edge.span > 1);
-      var width = widthOf(edge);
-      var tip = headLength(width) - 1; // the line stops where the arrowhead begins
-      var d, end, dir;
-      if (stacked) {
-        if (!edge.back && b.top > a.bottom && !blocked(a, b)) {
-          var my = (a.bottom + b.top) / 2;
-          d = "M" + a.cx + "," + a.bottom + " C" + a.cx + "," + my + " " + b.cx + "," + my + " " + b.cx + "," + (b.top - tip);
-          end = [b.cx, b.top]; dir = [0, 1];
-        } else {
-          var lx = 6 + 4 * sideLane++;
-          d = rounded([[a.left, a.cy], [lx, a.cy], [lx, b.cy], [b.left - tip, b.cy]]);
-          end = [b.left, b.cy]; dir = [1, 0];
-        }
-      } else if (edge.lane) {
-        // Out into the gap after the source column, along a lane above (or,
-        // below) all boxes, down the gap before the target column; off-centre
-        // so it never lies on the straight line between neighbours.
-        var lane = edge.low ? boxBottom + 11 + 4 * bottomLane++ : boxTop - 11 - 4 * topLane++;
-        var xa = gapAfter(a.col), xb = gapBefore(b.col);
-        // Clear of the broad pipe and its arrowhead between neighbours.
-        var clear = 24 * 0.8 + 5 + widthOf(edge) / 2 + 8;
-        var shift = edge.low ? clear : -clear;
-        d = rounded([[a.right, a.cy + shift], [xa, a.cy + shift], [xa, lane], [xb, lane], [xb, b.cy + shift], [b.left - tip, b.cy + shift]]);
-        end = [b.left, b.cy + shift]; dir = [1, 0];
-      } else {
-        // Straight across through the height both boxes share.
-        var top = Math.max(a.top, b.top), bottom = Math.min(a.bottom, b.bottom);
-        if (bottom - top >= 16) {
-          var y = (top + bottom) / 2;
-          d = "M" + a.right + "," + y + " L" + (b.left - tip) + "," + y;
-          end = [b.left, y];
-        } else {
-          var mx = (a.right + b.left) / 2;
-          d = "M" + a.right + "," + a.cy + " C" + mx + "," + a.cy + " " + mx + "," + b.cy + " " + (b.left - tip) + "," + b.cy;
-          end = [b.left, b.cy];
-        }
-        dir = [1, 0];
-      }
-      var cls = "topo-line-" + edge.kind + " topo-state-" + edge.state + (edge.minor ? " topo-minor" : "") +
-        (edge.lane ? " topo-lane" : "") + (edge.active ? " topo-active" : "");
-      var group = document.createElementNS(SVG_NS, "g");
-      group.setAttribute("class", "topo-edge " + cls);
-      svg.appendChild(group);
-      var path = document.createElementNS(SVG_NS, "path");
-      path.setAttribute("d", d);
-      path.setAttribute("class", "topo-line " + cls);
-      path.setAttribute("stroke-width", width);
-      if (edge.kind === "sync") {
-        // Replication: a pipe of blocks (dashed), thin lanes finer.
-        path.setAttribute("stroke-dasharray", edge.lane ? width * 2 + " " + width * 1.4 : width * 1.4 + " " + width * 0.6);
-      }
-      group.appendChild(path);
-      var arrowhead = document.createElementNS(SVG_NS, "path");
-      arrowhead.setAttribute("d", head(end[0], end[1], dir[0], dir[1], width));
-      arrowhead.setAttribute("class", "topo-head " + cls);
-      group.appendChild(arrowhead);
-      animate(group, path, d, edge, cls, width);
-    });
+  // One group per connection (line, arrowhead, moving parts), so colour and
+  // dimming apply to it as a whole.
+  function render(svg, g, r) {
+    var cls = "topo-line-" + g.kind + " topo-state-" + g.state + (g.minor ? " topo-minor" : "") +
+      (g.lane ? " topo-lane" : "") + (g.active ? " topo-active" : "");
+    var group = document.createElementNS(SVG_NS, "g");
+    group.setAttribute("class", "topo-edge " + cls);
+    svg.appendChild(group);
+    var path = overlay(group, r.d, "topo-line " + cls, r.width);
+    if (g.kind === "sync") {
+      // Replication: a pipe of blocks, thin lanes finer.
+      path.setAttribute("stroke-dasharray", g.lane ? r.width * 2 + " " + r.width * 1.4 : r.width * 1.4 + " " + r.width * 0.6);
+    }
+    var arrowhead = document.createElementNS(SVG_NS, "path");
+    arrowhead.setAttribute("d", head(r.end[0], r.end[1], r.dir[0], r.dir[1], r.width));
+    arrowhead.setAttribute("class", "topo-head " + cls);
+    group.appendChild(arrowhead);
+    animate(group, path, r.d, g, cls, r.width);
+  }
+
+  function draw(root) {
+    var svg = root.querySelector(".topology-lines");
+    var data = root.querySelector(".topology-edges");
+    if (!svg || !data) return;
+    var edges = JSON.parse(data.textContent || "[]");
+    var stacked = getComputedStyle(root).flexDirection === "column";
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    fitGaps(root, stacked);
+    equalizeHeights(root, stacked);
+    var active = activeStorages(root);
+    var geo = measure(root);
+    var groups = bundle(edges, geo, active);
+    chooseLanes(groups, geo, stacked);
+    if (reserveLanes(root, groups)) {
+      // Lane room moved the boxes: measure once more (lane choice is stable).
+      geo = measure(root);
+      groups = bundle(edges, geo, active);
+      chooseLanes(groups, geo, stacked);
+    }
+    var lanes = { top: 0, bottom: 0, side: 0 };
+    groups.forEach(function (g) { render(svg, g, route(g, geo, stacked, lanes)); });
   }
 
   function drawAll() {

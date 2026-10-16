@@ -11,10 +11,9 @@ from starlette import status
 from app import db
 from app.i18n import t
 from app.models import RestoreTestCreate
-from app.services import topology_store
+from app.services import sync_progress, topology_store
 from app.services.backup_status import RESTORE_CLASSES, assess_slow_backup, format_duration
 from app.services.bootstrap import slugify_cluster
-from app.services.pbs import sync_task_state
 from app.services.proxmox_progress import running_backup_progress_cached, running_backup_progress_peek
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, datetime_local, settings_actor, templates
@@ -118,55 +117,13 @@ def running_count_label(count: int) -> str:
     return t("cluster.running_one" if count == 1 else "cluster.running_other", count=count)
 
 
-_sync_progress_cache: dict[str, tuple[float, tuple[float | None, bool]]] = {}
-_SYNC_PROGRESS_TTL = 30.0
-# How old a live value may be to still be shown when the page loads.
-_SYNC_PROGRESS_SHOW_AGE = 120.0
-
-
-def sync_finished(upid: str | None) -> bool:
-    """A live poll already saw this sync task end (before the next sync)."""
-    hit = _sync_progress_cache.get(upid or "")
-    return bool(hit and hit[1][1])
-
-
-def with_live_sync_progress(topology: dict) -> dict:
-    """Running syncs show only live progress, never the value stored with the
-    diagram at the last sync (up to an hour old): a fresh cached value, or
-    none (the ring turns until the page's first poll answers)."""
-    incoming = [e for column in topology["columns"] for g in column for s in g["stores"] for e in s["incoming"]]
-    for edge in [*topology["edges"], *incoming]:
-        if edge.get("state") != "running":
-            continue
-        hit = _sync_progress_cache.get(edge.get("running_upid") or "")
-        fresh = hit is not None and _time.monotonic() - hit[0] < _SYNC_PROGRESS_SHOW_AGE
-        edge["running_percent"] = hit[1][0] if fresh else None
-    return topology
-
-
 @router.get("/api/clusters/{cluster_slug}/sync-progress")
 def get_sync_progress(cluster_slug: str) -> JSONResponse:
-    """Live progress of the replication syncs running in this cluster's
-    diagram, keyed "pbs_id:job_id" (cached 30 s per task)."""
+    """Live progress of the replication syncs running in this cluster's diagram."""
     cluster = db.get_cluster_by_slug(cluster_slug)
     if not cluster:
         raise HTTPException(status_code=404)
-    conns = {c["id"]: c for c in db.list_pbs_connections()}
-    result: dict[str, dict] = {}
-    for edge in topology_store.load(cluster["id"])["edges"]:
-        upid, conn = edge.get("running_upid"), conns.get(edge.get("pbs_id"))
-        if edge.get("state") != "running" or not upid or not conn:
-            continue
-        hit = _sync_progress_cache.get(upid)
-        if hit is None or _time.monotonic() - hit[0] >= _SYNC_PROGRESS_TTL:
-            try:
-                hit = (_time.monotonic(), sync_task_state(dict(conn), upid))
-            except Exception:  # PBS unreachable: keep what the page shows
-                continue
-            _sync_progress_cache[upid] = hit
-        percent, finished = hit[1]
-        result[f"{edge['pbs_id']}:{edge['job_id']}"] = {"percent": percent, "finished": finished}
-    return JSONResponse(result)
+    return JSONResponse(sync_progress.live_progress(cluster["id"]))
 
 
 @router.get("/api/clusters/{cluster_slug}/sync-status")
@@ -263,7 +220,7 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
         "restore_tests": restore_tests,
         "compliance_summary": build_compliance_summary(vm_rows, restore_tests),
         "pbs_connections": db.list_pbs_connections(cluster["id"]),
-        "topology": with_live_sync_progress(topology_store.load(cluster["id"])),
+        "topology": sync_progress.with_live_progress(topology_store.load(cluster["id"])),
         "storages_by_vmid": db.recent_storages_by_vmid(cluster["id"]),
         "sparklines": db.vm_backup_sparkline_data(cluster["id"], days=31),
         "encryption": encryption,

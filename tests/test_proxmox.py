@@ -161,14 +161,14 @@ class RunningBackupsForClustersTests(unittest.TestCase):
         clusters = [({"id": i}, ["n1"]) for i in (1, 2, 3)]
         with mock.patch.object(proxmox_progress, "_fetch_running_backup_progress", side_effect=fake_fetch):
             # Nothing cached: answers at once, refreshes behind the scenes.
-            self.assertEqual(proxmox_progress.running_backups_for_clusters(clusters), {1: None, 2: None, 3: None})
+            self.assertEqual(proxmox_progress.cached_running_backups(clusters), {1: None, 2: None, 3: None})
             release.set()
             proxmox_progress._executor.submit(lambda: None).result()
             for _ in range(50):
                 if not proxmox_progress._refreshing:
                     break
                 threading.Event().wait(0.02)
-            result = proxmox_progress.running_backups_for_clusters(clusters)
+            result = proxmox_progress.cached_running_backups(clusters)
         self.assertEqual(result, {1: {103: {"percent": 48}}, 2: None, 3: None})
 
     def test_cache_avoids_a_second_pve_call(self) -> None:

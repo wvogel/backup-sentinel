@@ -306,7 +306,7 @@ def _refresh(key: tuple[int, str], cluster: dict[str, Any], nodes: list[str]) ->
             _refreshing.discard(key)
 
 
-def running_backups_for_clusters(
+def cached_running_backups(
     clusters: list[tuple[dict[str, Any], list[str]]],
 ) -> dict[int, dict[int, dict[str, Any]] | None]:
     """Running backups of several clusters from the cache, without waiting;

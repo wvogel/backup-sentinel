@@ -1533,24 +1533,7 @@ html[data-theme="dark"] .brand-logo-dark {
   text-align: center;
 }
 
-/* ── Sync status dots (cluster page) ─────────────────────────────────── */
-.sync-status-block {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.sync-status-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.pbs-sync-row {
-  margin-left: 6px;
-}
-
+/* ── Sync status dots (diagram boxes, settings) ─────────────────────── */
 button.sync-dot {
   flex-shrink: 0;
   display: inline-block;
@@ -1592,10 +1575,6 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
   font-size: 0.78rem;
   margin-right: 2px;
   user-select: none;
-}
-
-.pbs-sync-label {
-  font-size: 0.74rem;
 }
 
 .sync-log-pre {
@@ -2922,21 +2901,6 @@ html[data-theme="dark"] .node-filter-button.is-active {
 #vm-table tr.is-expanded > td { background-color: var(--row-hover); }
 #vm-table .col-status,
 #vm-table .status-cell { width: 1%; padding-right: 4px; }
-
-.status-dot {
-  display: block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--ok);
-}
-.status-dot.status-warning { background: var(--warn); }
-.status-dot.status-info { background: var(--running); }
-.status-dot.status-critical {
-  background: var(--critical);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 25%, transparent);
-}
-.status-dot.status-gone { background: transparent; box-shadow: inset 0 0 0 2px var(--unknown); }
 
 /* Guest type icon in the VM table: shape = VM/container, colour = status. */
 .guest-icon {

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import Counter
 from datetime import UTC, datetime
 from typing import Any
 
@@ -19,6 +20,11 @@ logger = logging.getLogger(__name__)
 _DATE_KEYS = {"estimated_full_at", "last_run_at", "next_run_at", "running_since"}
 
 
+def vm_count_by_storage(storages_by_vmid: dict[int, list[str]]) -> dict[str, int]:
+    """Guests that recently backed up to each PVE storage."""
+    return dict(Counter(storage for storages in storages_by_vmid.values() for storage in storages))
+
+
 def build(cluster_id: int) -> dict[str, Any]:
     return build_topology(
         cluster_id,
@@ -26,7 +32,7 @@ def build(cluster_id: int) -> dict[str, Any]:
         db.list_pbs_connections(),
         db.list_pbs_sync_jobs(),
         db.list_datastore_usage(),
-        vms_by_storage=db.vm_count_by_storage(cluster_id),
+        vms_by_storage=vm_count_by_storage(db.recent_storages_by_vmid(cluster_id)),
     )
 
 

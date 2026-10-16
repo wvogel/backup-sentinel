@@ -48,8 +48,22 @@ def api_get(
     query: dict[str, str] | None = None,
     label: str = "API",
 ) -> Any:
-    """Perform an authenticated GET and return the parsed JSON 'data' field.
-    Retries transient network errors and 5xx/429 responses with exponential backoff."""
+    """Perform an authenticated GET and return the parsed JSON 'data' field."""
+    return api_get_payload(base_url, path, auth_header, timeout=timeout, query=query, label=label).get("data")
+
+
+def api_get_payload(
+    base_url: str,
+    path: str,
+    auth_header: str,
+    *,
+    timeout: float = API_TIMEOUT,
+    query: dict[str, str] | None = None,
+    label: str = "API",
+) -> dict[str, Any]:
+    """Perform an authenticated GET and return the whole JSON body ('data' plus
+    fields such as 'total'). Retries transient network errors and 5xx/429
+    responses with exponential backoff."""
     query_string = f"?{parse.urlencode(query)}" if query else ""
     url = f"{base_url}{path}{query_string}"
     req = request.Request(
@@ -70,9 +84,11 @@ def api_get(
             with request.urlopen(req, timeout=timeout, context=context) as response:
                 payload = json.load(response)
             elapsed = time.monotonic() - t0
+            if not isinstance(payload, dict):
+                raise APIError(f"Unexpected {label} response for {path}")
             data = payload.get("data")
             logger.info("← %s %s%s → %s (%.1fs)", label, short_path, qs_short, type(data).__name__, elapsed)
-            return data
+            return payload
         except error.HTTPError as exc:
             elapsed = time.monotonic() - t0
             if attempt < _MAX_RETRIES and _is_retryable_http(exc.code):
