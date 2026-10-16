@@ -5,6 +5,15 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.27.0] — 2026-10-16
+
+### Changed
+
+- **One straight line per pair of boxes.** However many datastores or jobs lie between two boxes, they are joined by exactly one horizontal connection through the height both boxes share; it carries the most telling state of its jobs (running › failed › warning › OK). Lines skipping a column run above the boxes, or below them when the target sits in the lower half, so they cross no other line.
+- **Dashed lines move with their arrows** — the dashes travel along the line at the arrows' speed instead of arrows sliding over a still line.
+- **Running sync progress as a ring.** A sync writing into a datastore right now shows the same turning blue ring as a running backup, with its percentage (live every 30 s); the line next to it just says "läuft seit 22:15".
+- Columns never get narrower than names that must not wrap; a long sync source wraps after "server/" instead of being cut off.
+
 ## [v2.26.1] — 2026-10-16
 
 ### Changed
