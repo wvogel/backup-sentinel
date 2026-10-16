@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.22.3] — 2026-10-16
+
+### Fixed
+
+- **A PBS known under two names appeared twice** (e.g. registered as `mgm-pbs-mar-lej`, configured in PVE as `pbs-mar-lej`). Backup Sentinel now recognises a PBS by its certificate:
+  - On every sync it asks each registered PBS for the fingerprints of the certificates it serves (`/nodes/localhost/certificates/info`), so a PBS registered without fingerprint is still known by it.
+  - A PVE storage or sync remote that names no fingerprint (e.g. ACME certificate) is asked for its certificate over TLS (port 8007, 3 s timeout, once per host and sync).
+  - The registered PBS behind each PVE storage and sync remote is resolved at sync time (fingerprint, name, DNS, certificate) and stored, instead of being guessed without DNS on every page view.
+  - This also merges such aliases when counting backup copies (×2).
+
 ## [v2.22.2] — 2026-10-16
 
 ### Changed

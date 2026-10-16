@@ -316,6 +316,18 @@ def fetch_pbs_sync_jobs(conn: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
+def fetch_pbs_cert_fingerprints(conn: dict[str, Any]) -> list[str]:
+    """Fingerprints of the certificates this PBS serves, to recognise it when
+    PVE or another PBS knows it under a different name or address."""
+    rows = _pbs_get_json(
+        conn["api_url"].rstrip("/"),
+        "/api2/json/nodes/localhost/certificates/info",
+        conn["api_token_id"],
+        conn["api_token_secret"],
+    )
+    return [str(row["fingerprint"]) for row in rows if row.get("fingerprint")]
+
+
 def fetch_datastore_usage(conn: dict[str, Any]) -> list[dict[str, Any]]:
     """Capacity of every datastore on this PBS, incl. PBS's own full-date estimate.
 

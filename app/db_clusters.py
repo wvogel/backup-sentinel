@@ -427,11 +427,19 @@ def replace_pve_pbs_targets(cluster_id: int, targets: list[dict[str, str]]) -> N
         cur.execute("DELETE FROM pve_pbs_targets WHERE cluster_id = %s", (cluster_id,))
         cur.executemany(
             """
-            INSERT INTO pve_pbs_targets (cluster_id, storage_id, server, fingerprint, datastore, namespace)
-            VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING
+            INSERT INTO pve_pbs_targets (cluster_id, storage_id, server, fingerprint, datastore, namespace, pbs_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING
             """,
             [
-                (cluster_id, t["storage_id"], t["server"], t["fingerprint"], t["datastore"], t["namespace"])
+                (
+                    cluster_id,
+                    t["storage_id"],
+                    t["server"],
+                    t["fingerprint"],
+                    t["datastore"],
+                    t["namespace"],
+                    t.get("pbs_id"),
+                )
                 for t in targets
             ],
         )
@@ -458,6 +466,7 @@ _SYNC_JOB_COLUMNS = (
     "last_run_state",
     "last_run_at",
     "next_run_at",
+    "remote_pbs_id",
 )
 
 
@@ -468,7 +477,7 @@ def replace_pbs_sync_jobs(pbs_id: int, jobs: list[dict[str, Any]]) -> None:
         cur.execute("DELETE FROM pbs_sync_jobs WHERE pbs_id = %s", (pbs_id,))
         cur.executemany(
             f"INSERT INTO pbs_sync_jobs (pbs_id, {columns}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
-            [(pbs_id, *(job[c] for c in _SYNC_JOB_COLUMNS)) for job in jobs],
+            [(pbs_id, *(job.get(c) for c in _SYNC_JOB_COLUMNS)) for job in jobs],
         )
         conn.commit()
 
@@ -497,3 +506,9 @@ def vm_count_by_storage(cluster_id: int, days: int = 7) -> dict[str, int]:
             (cluster_id, days),
         )
         return {row["storage"]: row["vms"] for row in cur.fetchall()}
+
+
+def update_pbs_cert_fingerprints(pbs_id: int, fingerprints: list[str]) -> None:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE pbs_connections SET cert_fingerprints = %s WHERE id = %s", (fingerprints, pbs_id))
+        conn.commit()

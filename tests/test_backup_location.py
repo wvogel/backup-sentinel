@@ -3,8 +3,10 @@ import unittest
 from app.services.backup_location import (
     assign_pbs_servers,
     connection_location,
+    match_pbs_connection,
     pbs_location,
     pve_location,
+    resolve_pbs_connection,
     server_name,
     server_of,
 )
@@ -92,3 +94,37 @@ class AssignPbsServersTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+MGM = {
+    "id": 9,
+    "name": "mgm-pbs-mar-lej",
+    "api_url": "https://10.9.0.2:8007",
+    "fingerprint": "",
+    "cert_fingerprints": ["AB:CD:EF"],
+}
+
+
+class CertificateMatchTests(unittest.TestCase):
+    def test_certificate_fingerprint_reported_by_the_pbs_matches(self):
+        self.assertIs(match_pbs_connection("ab:cd:ef", "pbs-mar-lej", [MGM], no_dns), MGM)
+
+    def test_probe_reads_the_certificate_when_pve_has_no_fingerprint(self):
+        probed = []
+
+        def probe(host, port):
+            probed.append((host, port))
+            return "AB:CD:EF"
+
+        conn = resolve_pbs_connection("", "pbs-mar-lej", [MGM], no_dns, probe)
+        self.assertIs(conn, MGM)
+        self.assertEqual(probed, [("pbs-mar-lej", 8007)])
+
+    def test_probe_is_skipped_when_names_already_match(self):
+        def probe(host, port):
+            raise AssertionError("no probe needed")
+
+        self.assertIs(resolve_pbs_connection("", "mgm-pbs-mar-lej", [MGM], no_dns, probe), MGM)
+
+    def test_unreachable_probe_matches_nothing(self):
+        self.assertIsNone(resolve_pbs_connection("", "pbs-mar-lej", [MGM], no_dns, lambda h, p: ""))
