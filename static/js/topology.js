@@ -38,32 +38,40 @@
 
   // Chevrons moving along a line: backups fast, replication slower but still
   // visible. A failed or never-run sync moves nothing.
-  // Data moving right now: faster and denser than a line that only carried
-  // data before. Pixels per second.
-  function speedOf(edge) {
-    if (edge.active) return edge.kind === "primary" ? 70 : 45;
-    return edge.kind === "primary" ? 40 : 16;
+  // Line widths (match static/style.css) and the arrowhead size they get.
+  function widthOf(edge) {
+    if (edge.minor) return 3;
+    return edge.lane ? 5 : 8;
   }
 
-  // Dashed lines move with their arrows: the dash pattern (7 + 5 px) shifts
-  // along the path at the arrows' speed.
-  function moveDashes(path, edge) {
-    if (calm || edge.kind !== "sync" || edge.state === "failed" || edge.state === "never") return;
-    var anims = ["topo-dash " + (12 / speedOf(edge)).toFixed(3) + "s linear infinite"];
-    if (edge.active) anims.push("topo-active-pulse 1.8s ease-in-out infinite alternate");
-    path.style.animation = anims.join(", ");
+  // Filled arrowhead with its tip at (x, y), pointing along (dx, dy).
+  function head(x, y, dx, dy, width) {
+    var len = width * 1.9, half = width * 1.25;
+    var bx = x - dx * len, by = y - dy * len;
+    return "M" + x + "," + y + " L" + (bx - dy * half) + "," + (by + dx * half) +
+      " L" + (bx + dy * half) + "," + (by - dx * half) + " Z";
   }
 
-  function addArrows(svg, path, d, edge, cls) {
-    if (calm || edge.state === "failed" || edge.state === "never") return;
+  // Data moving right now (running backup or sync) — and only then: dashes
+  // flow and filled arrows run along the line, faster for backups.
+  function animate(svg, path, d, edge, cls, width) {
+    if (calm || !edge.active) return;
+    var speed = edge.kind === "primary" ? 70 : 45; // px per second
+    if (edge.kind === "sync") {
+      var dashes = getComputedStyle(path).strokeDasharray.split(/[ ,]+/).map(parseFloat);
+      var period = (dashes[0] || 14) + (dashes[1] || 9);
+      path.style.setProperty("--dash-shift", -period + "px");
+      path.style.animation = "topo-dash " + (period / speed).toFixed(3) + "s linear infinite, " +
+        "topo-active-pulse 1.8s ease-in-out infinite alternate";
+    }
     var length = path.getTotalLength();
-    var speed = speedOf(edge);
-    var count = Math.max(1, Math.floor(length / (edge.active ? 38 : 70)));
+    var count = Math.max(1, Math.floor(length / 60));
     var dur = length / speed;
+    var size = width * 0.75;
     for (var i = 0; i < count; i++) {
       var arrow = document.createElementNS(SVG_NS, "path");
-      arrow.setAttribute("d", edge.active ? "M-5,-6 L3,0 L-5,6" : "M-4,-5 L2,0 L-4,5");
-      arrow.setAttribute("class", "topo-arrow " + cls);
+      arrow.setAttribute("d", "M" + size + ",0 L" + -size + "," + -size + " L" + -size * 0.4 + ",0 L" + -size + "," + size + " Z");
+      arrow.setAttribute("class", "topo-flow " + cls);
       var motion = document.createElementNS(SVG_NS, "animateMotion");
       motion.setAttribute("path", d);
       motion.setAttribute("dur", dur.toFixed(2) + "s");
@@ -200,43 +208,54 @@
     var topLane = 0, bottomLane = 0, sideLane = 0;
     groups.forEach(function (edge) {
       var a = edge.a, b = edge.b;
-      var d;
+      edge.lane = !stacked && (edge.back || edge.span > 1);
+      var width = widthOf(edge);
+      var tip = width * 1.9; // the line stops where the arrowhead begins
+      var d, end, dir;
       if (stacked) {
         if (!edge.back && b.top > a.bottom && !blocked(a, b)) {
           var my = (a.bottom + b.top) / 2;
-          d = "M" + a.cx + "," + a.bottom + " C" + a.cx + "," + my + " " + b.cx + "," + my + " " + b.cx + "," + b.top;
+          d = "M" + a.cx + "," + a.bottom + " C" + a.cx + "," + my + " " + b.cx + "," + my + " " + b.cx + "," + (b.top - tip);
+          end = [b.cx, b.top]; dir = [0, 1];
         } else {
           var lx = 6 + 4 * sideLane++;
-          d = rounded([[a.left, a.cy], [lx, a.cy], [lx, b.cy], [b.left, b.cy]]);
+          d = rounded([[a.left, a.cy], [lx, a.cy], [lx, b.cy], [b.left - tip, b.cy]]);
+          end = [b.left, b.cy]; dir = [1, 0];
         }
-      } else if (edge.back || edge.span > 1) {
+      } else if (edge.lane) {
         // Out into the gap after the source column, along a lane above (or,
-        // back to an earlier column, below) all boxes, down the gap before
-        // the target column.
+        // below) all boxes, down the gap before the target column; off-centre
+        // so it never lies on the straight line between neighbours.
         var lane = edge.low ? boxBottom + 11 + 4 * bottomLane++ : boxTop - 11 - 4 * topLane++;
         var xa = gapAfter(a.col), xb = gapBefore(b.col);
-        // Leave and enter off-centre, towards the lane: never on top of the
-        // straight line between neighbours.
         var shift = edge.low ? 16 : -16;
-        d = rounded([[a.right, a.cy + shift], [xa, a.cy + shift], [xa, lane], [xb, lane], [xb, b.cy + shift], [b.left, b.cy + shift]]);
+        d = rounded([[a.right, a.cy + shift], [xa, a.cy + shift], [xa, lane], [xb, lane], [xb, b.cy + shift], [b.left - tip, b.cy + shift]]);
+        end = [b.left, b.cy + shift]; dir = [1, 0];
       } else {
         // Straight across through the height both boxes share.
         var top = Math.max(a.top, b.top), bottom = Math.min(a.bottom, b.bottom);
         if (bottom - top >= 16) {
           var y = (top + bottom) / 2;
-          d = "M" + a.right + "," + y + " L" + b.left + "," + y;
+          d = "M" + a.right + "," + y + " L" + (b.left - tip) + "," + y;
+          end = [b.left, y];
         } else {
           var mx = (a.right + b.left) / 2;
-          d = "M" + a.right + "," + a.cy + " C" + mx + "," + a.cy + " " + mx + "," + b.cy + " " + b.left + "," + b.cy;
+          d = "M" + a.right + "," + a.cy + " C" + mx + "," + a.cy + " " + mx + "," + b.cy + " " + (b.left - tip) + "," + b.cy;
+          end = [b.left, b.cy];
         }
+        dir = [1, 0];
       }
-      var cls = "topo-line-" + edge.kind + " topo-state-" + edge.state + (edge.minor ? " topo-minor" : "") + (edge.active ? " topo-active" : "");
+      var cls = "topo-line-" + edge.kind + " topo-state-" + edge.state + (edge.minor ? " topo-minor" : "") +
+        (edge.lane ? " topo-lane" : "") + (edge.active ? " topo-active" : "");
       var path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
       path.setAttribute("class", "topo-line " + cls);
       svg.appendChild(path);
-      moveDashes(path, edge);
-      addArrows(svg, path, d, edge, cls);
+      var arrowhead = document.createElementNS(SVG_NS, "path");
+      arrowhead.setAttribute("d", head(end[0], end[1], dir[0], dir[1], width));
+      arrowhead.setAttribute("class", "topo-head " + cls);
+      svg.appendChild(arrowhead);
+      animate(svg, path, d, edge, cls, width);
     });
   }
 

@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.28.0] — 2026-10-17
+
+### Changed
+
+- **Bolder, calmer replication lines.** Lines are much thicker (8 px) and end in a filled arrowhead; lines running the long way around stay clearly thinner (5 px, 3 px for side targets of very few guests). Column gaps grew (56–96 px) so the lines have room.
+- **Movement only while data moves.** Lines are still unless a backup or sync runs right now; then the line pulses blue, filled arrows run along it and dashed lines flow. The always-on chevrons are gone.
+- On phones, boxes and datastore name rows may wrap so the diagram never gets wider than the screen.
+
 ## [v2.27.4] — 2026-10-17
 
 ### Fixed
