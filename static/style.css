@@ -2783,6 +2783,13 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 
 .topo-full { font-size: 0.7rem; font-weight: 600; }
+
+/* Warning sign: the PBS expects the datastore to be full within 30 days. */
+.topo-store-name { display: flex; align-items: center; gap: 6px; }
+.topo-full-soon { display: inline-flex; flex: none; cursor: default; }
+.topo-full-soon svg { width: 17px; height: 17px; }
+.topo-full-soon.status-text-warning { color: var(--warn); }
+.topo-full-soon.status-text-critical { color: var(--critical); }
 .topo-full.status-text-warning { color: var(--warn); }
 .topo-full.status-text-critical { color: var(--critical); }
 

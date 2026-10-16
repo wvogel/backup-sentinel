@@ -255,3 +255,18 @@ class TopologyStoreTests(unittest.TestCase):
         restored = topology_store._decode(json.loads(topology_store._encode(topo)))
         self.assertEqual(restored, topo)
         self.assertEqual(restored["columns"][1][0]["stores"][0]["incoming"][0]["last_run_at"], NOW)
+
+    def test_full_soon_marks_stores_filling_up_within_30_days(self) -> None:
+        from datetime import timedelta
+
+        from app.services import topology_store
+
+        def store(days):
+            full = NOW + timedelta(days=days) if days is not None else None
+            return {"store": "x", "estimated_full_at": full}
+
+        stores = [store(10), store(25), store(45), store(None)]
+        topo = {"columns": [[{"stores": stores}]]}
+        topology_store.mark_full_soon(topo, NOW)
+        self.assertEqual([s["full_soon"] for s in stores], ["critical", "warning", None, None])
+        self.assertEqual([s["full_in_days"] for s in stores], [10, 25, None, None])
