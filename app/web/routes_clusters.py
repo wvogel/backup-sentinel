@@ -11,10 +11,10 @@ from starlette import status
 from app import db
 from app.i18n import t
 from app.models import RestoreTestCreate
+from app.services import topology_store
 from app.services.backup_status import RESTORE_CLASSES, assess_slow_backup, format_duration
 from app.services.bootstrap import slugify_cluster
-from app.services.pbs_topology import build_topology
-from app.services.proxmox_progress import running_backup_progress_cached
+from app.services.proxmox_progress import running_backup_progress_cached, running_backup_progress_peek
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, datetime_local, settings_actor, templates
 from app.web.sync import background_sync, sync_executor, sync_logs, syncing_clusters
@@ -85,36 +85,32 @@ def sync_cluster(cluster_slug: str, next: str = Form(default="")) -> RedirectRes
 
 
 def running_backup_info(progress: dict | None, typical_seconds: int | None = None) -> dict:
-    """Labels for a running backup: status-bar line, slow warning and row tooltip."""
+    """Labels for a running backup: banner tile lines, slow warning and row tooltip."""
     progress = progress or {}
     slow = assess_slow_backup(progress, typical_seconds)
     percent = progress.get("percent")
-    parts: list[str] = [t("cluster.running_percent", pct=percent)] if percent is not None else []
+    details: list[str] = []
     if progress.get("written_label") and progress.get("target_label"):
-        parts.append(t("progress.written_of", written=progress["written_label"], total=progress["target_label"]))
+        details.append(t("progress.written_of", written=progress["written_label"], total=progress["target_label"]))
     if progress.get("eta_short"):
-        parts.append(t("cluster.running_until", time=progress["eta_short"]))
+        details.append(t("cluster.running_until", time=progress["eta_short"]))
+    rates: list[str] = []
     if progress.get("read_label") and progress.get("write_label"):
-        parts.append(t("cluster.running_read", rate=progress["read_label"]))
-        parts.append(t("cluster.running_write", rate=progress["write_label"]))
+        if progress["read_label"] == progress["write_label"]:
+            rates.append(t("cluster.running_rw", rate=progress["read_label"]))
+        else:
+            rates.append(t("cluster.running_read", rate=progress["read_label"]))
+            rates.append(t("cluster.running_write", rate=progress["write_label"]))
+        details.append(" · ".join(rates))
+    parts = ([t("cluster.running_percent", pct=percent)] if percent is not None else []) + details
     return {
         "percent": percent,
+        # Tile lines in the running banner (size, end, throughput).
+        "details": details or [t("cluster.backup_running")],
         "line": " · ".join(parts) or t("cluster.backup_running"),
         "warning": t("cluster.running_slow", typical=format_duration(slow[0])) if slow else "",
         "title": progress.get("title", ""),
     }
-
-
-def cluster_topology(cluster_id: int) -> dict:
-    """Where this cluster's backups go, for the topology view in the header."""
-    return build_topology(
-        cluster_id,
-        db.list_pve_pbs_targets(cluster_id),
-        db.list_pbs_connections(),
-        db.list_pbs_sync_jobs(),
-        db.list_datastore_usage(),
-        vms_by_storage=db.vm_count_by_storage(cluster_id),
-    )
 
 
 def running_count_label(count: int) -> str:
@@ -181,9 +177,13 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
     vm_rows = db.vm_governance_rows(cluster["id"])
-    live_backup_progress, _ = running_backup_progress_cached(
+    # Never wait for PVE here: the page's poll fills in progress right away
+    # when nothing recent is cached.
+    live_backup_progress, _ = running_backup_progress_peek(
         cluster, [node["name"] for node in db.list_nodes(cluster["id"])]
     )
+    progress_pending = live_backup_progress is None
+    live_backup_progress = live_backup_progress or {}
     running_backups = []
     typical = db.typical_backup_durations(cluster["id"]) if live_backup_progress else {}
     for row in vm_rows:
@@ -200,10 +200,11 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
         "vm_rows": vm_rows,
         "running_backups": running_backups,
         "running_count_label": running_count_label(len(running_backups)),
+        "progress_pending": progress_pending,
         "restore_tests": restore_tests,
         "compliance_summary": build_compliance_summary(vm_rows, restore_tests),
         "pbs_connections": db.list_pbs_connections(cluster["id"]),
-        "topology": cluster_topology(cluster["id"]),
+        "topology": topology_store.load(cluster["id"]),
         "sparklines": db.vm_backup_sparkline_data(cluster["id"], days=31),
         "encryption": encryption,
         "unencrypted_vms": db.unencrypted_vms(cluster["id"]) if encryption["pct_encrypted"] < 100 else [],
@@ -312,6 +313,7 @@ def update_pbs_settings(
         raise HTTPException(status_code=404, detail="Cluster not found")
     if not db.update_pbs_settings(cluster["id"], pbs_id, namespace, aliases):
         raise HTTPException(status_code=404, detail="PBS not found")
+    topology_store.refresh_all()
     try:
         db.append_audit_event(
             settings_actor(request),
@@ -338,6 +340,7 @@ def delete_pbs_connection(request: Request, cluster_slug: str, pbs_id: int) -> R
     except Exception:
         pass
     db.delete_pbs_connection(pbs_id)
+    topology_store.refresh_all()
     try:
         db.append_audit_event(
             settings_actor(request),

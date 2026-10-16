@@ -249,6 +249,15 @@ def init_db() -> None:
             cur.execute("ALTER TABLE pbs_sync_jobs ADD COLUMN IF NOT EXISTS remote_pbs_id BIGINT")
             cur.execute(
                 """
+                CREATE TABLE IF NOT EXISTS cluster_topology (
+                    cluster_id BIGINT PRIMARY KEY REFERENCES clusters(id) ON DELETE CASCADE,
+                    data JSONB NOT NULL,
+                    built_at TIMESTAMPTZ NOT NULL
+                );
+                """
+            )
+            cur.execute(
+                """
                 CREATE TABLE IF NOT EXISTS pbs_datastore_usage (
                     pbs_id BIGINT NOT NULL REFERENCES pbs_connections(id) ON DELETE CASCADE,
                     store TEXT NOT NULL,

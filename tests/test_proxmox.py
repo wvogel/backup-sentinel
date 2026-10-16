@@ -145,23 +145,31 @@ class RunningBackupsForClustersTests(unittest.TestCase):
     def setUp(self) -> None:
         proxmox_progress._cache.clear()
 
-    def test_live_result_per_cluster_with_fallback_markers(self) -> None:
-        import time as _time
+    def test_page_loads_never_wait_and_refresh_in_the_background(self) -> None:
+        import threading
+
+        release = threading.Event()
 
         def fake_fetch(cluster, nodes, timeout=5.0):
+            release.wait(2)
             if cluster["id"] == 1:
                 return {103: {"percent": 48}}, True
             if cluster["id"] == 2:
                 return {}, False  # a node's task list failed
-            if cluster["id"] == 3:
-                raise RuntimeError("boom")
-            _time.sleep(0.5)  # slower than the deadline
-            return {}, True
+            raise RuntimeError("boom")
 
-        clusters = [({"id": i}, ["n1"]) for i in (1, 2, 3, 4)]
+        clusters = [({"id": i}, ["n1"]) for i in (1, 2, 3)]
         with mock.patch.object(proxmox_progress, "_fetch_running_backup_progress", side_effect=fake_fetch):
-            result = proxmox_progress.running_backups_for_clusters(clusters, deadline=0.2)
-        self.assertEqual(result, {1: {103: {"percent": 48}}, 2: None, 3: None, 4: None})
+            # Nothing cached: answers at once, refreshes behind the scenes.
+            self.assertEqual(proxmox_progress.running_backups_for_clusters(clusters), {1: None, 2: None, 3: None})
+            release.set()
+            proxmox_progress._executor.submit(lambda: None).result()
+            for _ in range(50):
+                if not proxmox_progress._refreshing:
+                    break
+                threading.Event().wait(0.02)
+            result = proxmox_progress.running_backups_for_clusters(clusters)
+        self.assertEqual(result, {1: {103: {"percent": 48}}, 2: None, 3: None})
 
     def test_cache_avoids_a_second_pve_call(self) -> None:
         fetch = mock.Mock(return_value=({101: {}}, True))
@@ -180,7 +188,7 @@ class ProgressThroughputTests(unittest.TestCase):
         ]
         progress = _parse_running_backup_progress({}, lines)
         self.assertEqual(progress["read_label"], "1.6 GiB/s")
-        self.assertEqual(progress["write_label"], "154.5 MiB/s")
+        self.assertEqual(progress["write_label"], "155 MiB/s")
 
     def test_missing_rates_are_left_out(self) -> None:
         progress = _parse_running_backup_progress({}, ["INFO: 47% (17.6 TiB of 37.3 TiB) in 1d 9m 56s, done"])
@@ -309,3 +317,10 @@ class PbsStorageTargetTests(unittest.TestCase):
                 }
             ],
         )
+
+
+class RateLabelTests(unittest.TestCase):
+    def test_rates_are_rounded(self) -> None:
+        self.assertEqual(proxmox_progress._round_rate("187.7 MiB/s"), "188 MiB/s")
+        self.assertEqual(proxmox_progress._round_rate("1.6 GiB/s"), "1.6 GiB/s")
+        self.assertEqual(proxmox_progress._round_rate("9.0 MiB/s"), "9 MiB/s")

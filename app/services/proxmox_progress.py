@@ -9,7 +9,6 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import wait as wait_futures
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib import parse
@@ -67,6 +66,17 @@ def _parse_size_to_bytes(value: str | None) -> int | None:
         "EB": 1000**6,
     }
     return int(number * factors[unit]) if unit in factors else None
+
+
+def _round_rate(label: str) -> str:
+    """Throughput without noise: "187.7 MiB/s" → "188 MiB/s" (one decimal
+    stays below 10, e.g. "1.6 GiB/s")."""
+    match = re.match(r"\s*([\d.]+)\s*(\S+)", label)
+    if not match:
+        return label
+    value = float(match.group(1))
+    number = f"{value:.1f}".rstrip("0").rstrip(".") if value < 10 else str(int(value + 0.5))
+    return f"{number} {match.group(2)}"
 
 
 def _parse_elapsed_to_seconds(value: str | None) -> int | None:
@@ -204,8 +214,8 @@ def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -
             # Average since the previous progress line, not an instant value.
             rate_match = _RATE_RE.search(line)
             if rate_match:
-                progress["read_label"] = rate_match.group("read")
-                progress["write_label"] = rate_match.group("write")
+                progress["read_label"] = _round_rate(rate_match.group("read"))
+                progress["write_label"] = _round_rate(rate_match.group("write"))
             progress["written_bytes"] = _parse_size_to_bytes(written_label)
             progress["target_bytes"] = _parse_size_to_bytes(target_label)
             progress["written_label"] = written_label
@@ -258,26 +268,53 @@ def running_backup_progress_cached(cluster: dict[str, Any], nodes: list[str]) ->
     return progress, complete
 
 
-def running_backups_for_clusters(
-    clusters: list[tuple[dict[str, Any], list[str]]], deadline: float = 6.0
-) -> dict[int, dict[int, dict[str, Any]] | None]:
-    """Fetch running backups of several clusters in parallel.
+_refreshing: set[tuple[int, str]] = set()
+# How old a cached result may be and still be shown while a refresh runs.
+_PEEK_MAX_AGE = 300.0
 
-    Returns progress by VMID per cluster id, or None for a cluster that was
-    unreachable or slower than `deadline` (its fetch keeps filling the cache).
+
+def running_backup_progress_peek(
+    cluster: dict[str, Any], nodes: list[str]
+) -> tuple[dict[int, dict[str, Any]] | None, bool]:
+    """Cached running backups without waiting for PVE (for page loads).
+
+    Returns (progress, complete) from the cache, or (None, False) when nothing
+    recent is cached. A stale or missing entry is refreshed in the background,
+    so the next look (or the page's poll) gets live data.
     """
-    futures = {
-        cluster["id"]: _executor.submit(contextvars.copy_context().run, running_backup_progress_cached, cluster, nodes)
-        for cluster, nodes in clusters
-    }
-    wait_futures(futures.values(), timeout=deadline)
+    key = (cluster["id"], get_language())
+    with _cache_lock:
+        hit = _cache.get(key)
+        age = time.monotonic() - hit[0] if hit else None
+        if (age is None or age >= _CACHE_MAX_AGE) and key not in _refreshing:
+            _refreshing.add(key)
+            _executor.submit(contextvars.copy_context().run, _refresh, key, cluster, nodes)
+    if hit and age is not None and age < _PEEK_MAX_AGE:
+        return hit[1], hit[2]
+    return None, False
+
+
+def _refresh(key: tuple[int, str], cluster: dict[str, Any], nodes: list[str]) -> None:
+    try:
+        progress, complete = _fetch_running_backup_progress(cluster, nodes)
+        with _cache_lock:
+            _cache[key] = (time.monotonic(), progress, complete)
+    except Exception:  # best effort; the next look retries
+        logger.exception("Refreshing running backups of cluster %s failed", cluster.get("name"))
+    finally:
+        with _cache_lock:
+            _refreshing.discard(key)
+
+
+def running_backups_for_clusters(
+    clusters: list[tuple[dict[str, Any], list[str]]],
+) -> dict[int, dict[int, dict[str, Any]] | None]:
+    """Running backups of several clusters from the cache, without waiting;
+    None for a cluster with no recent or no complete data."""
     result: dict[int, dict[int, dict[str, Any]] | None] = {}
-    for cluster_id, future in futures.items():
-        if not future.done() or future.exception() is not None:
-            result[cluster_id] = None
-            continue
-        progress, complete = future.result()
-        result[cluster_id] = progress if complete else None
+    for cluster, nodes in clusters:
+        progress, complete = running_backup_progress_peek(cluster, nodes)
+        result[cluster["id"]] = progress if progress is not None and complete else None
     return result
 
 

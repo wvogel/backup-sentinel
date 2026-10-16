@@ -2459,45 +2459,55 @@ details[open] > .encryption-alert-summary::before {
   font-size: 1rem;
 }
 .running-banner-head .running-spinner { width: 18px; height: 18px; }
+/* One tile per running backup, in the style of the topology boxes. */
 .running-list {
   display: grid;
-  gap: 8px;
-  margin: 10px 0 0;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  margin: 12px 0 0;
   padding: 0;
   list-style: none;
 }
 .running-item {
-  display: grid;
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-  align-items: baseline;
-  gap: 4px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
-  padding: 8px 10px;
-  border: 0;
+  height: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: transparent;
+  background: var(--panel);
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.running-item:hover { background: var(--running-fill); }
-.running-item-name { font-weight: 700; }
-.running-item-meta { color: var(--muted); font-size: 0.88rem; }
-.running-slow { color: var(--warn); font-weight: 700; }
-.running-bar {
-  grid-column: 1 / -1;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--running-fill);
+.running-item:hover { border-color: var(--running); }
+.running-ring { --ring: var(--running); flex: none; }
+.running-ring.is-indeterminate {
+  background: conic-gradient(var(--ring) 0 25%, var(--line) 0);
+  animation: running-spin 1.2s linear infinite;
+}
+.running-ring.is-indeterminate > span { animation: running-spin 1.2s linear infinite reverse; }
+@keyframes running-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .running-ring.is-indeterminate,
+  .running-ring.is-indeterminate > span { animation: none; }
+}
+.running-item-body {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.running-item-name {
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
 }
-.running-bar > span {
-  display: block;
-  height: 100%;
-  background: var(--running);
-  transition: width 0.6s ease;
-}
+.running-item-meta { color: var(--muted); font-size: 0.8rem; }
+.running-slow { color: var(--warn); font-weight: 700; font-size: 0.8rem; }
 
 /* Dashboard cluster card. */
 .badge.running-badge {
@@ -2555,7 +2565,23 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 /* PBS datastore capacity next to the PBS sync line. */
 /* ── Topology: PVE → PBS datastores → replicas (templates/_topology.html) ── */
-.cluster-hero { flex-wrap: wrap; }
+.cluster-hero { flex-wrap: wrap; align-items: center; }
+
+.sync-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.sync-dot-item,
+.topo-sync-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .cluster-hero > .topology { flex: 1 1 100%; align-self: stretch; width: 100%; }
 .cluster-hero-side { min-width: 0; }
 
@@ -2591,12 +2617,14 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-line-sync.topo-state-failed { stroke: var(--critical); }
 .topo-line-sync.topo-state-never { stroke: var(--unknown); opacity: 0.6; }
 
+/* Columns share the full width, content centred in each. */
 .topology-col {
   position: relative;
   display: grid;
   gap: 10px;
   align-content: start;
-  flex: none;
+  justify-items: center;
+  flex: 1 0 auto;
 }
 
 .topo-cluster,
