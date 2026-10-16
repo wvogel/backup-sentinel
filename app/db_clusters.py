@@ -86,16 +86,25 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
         for vm in vms:
             cur.execute(
                 """
-                INSERT INTO vms (cluster_id, node_name, vmid, name, backup_kind, last_backup_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO vms (cluster_id, node_name, vmid, name, guest_type, backup_kind, last_backup_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (cluster_id, vmid) DO UPDATE SET
                     node_name = EXCLUDED.node_name,
                     name = EXCLUDED.name,
+                    guest_type = EXCLUDED.guest_type,
                     backup_kind = EXCLUDED.backup_kind,
                     last_backup_at = COALESCE(EXCLUDED.last_backup_at, vms.last_backup_at),
                     missing_since = NULL
                 """,
-                (cluster_id, vm["node_name"], vm["vmid"], vm["name"], vm["backup_kind"], vm["last_backup_at"]),
+                (
+                    cluster_id,
+                    vm["node_name"],
+                    vm["vmid"],
+                    vm["name"],
+                    vm.get("guest_type", "qemu"),
+                    vm["backup_kind"],
+                    vm["last_backup_at"],
+                ),
             )
         # VMs we still know but PVE no longer reports have been deleted (or
         # moved to another cluster). Keep the rows so their remaining backups
@@ -410,4 +419,62 @@ def list_datastore_usage(cluster_id: int | None = None) -> list[dict[str, Any]]:
     query += " ORDER BY p.name, u.store"
     with connect() as conn, conn.cursor() as cur:
         cur.execute(query, params)
+        return list(cur.fetchall())
+
+
+def replace_pve_pbs_targets(cluster_id: int, targets: list[dict[str, str]]) -> None:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM pve_pbs_targets WHERE cluster_id = %s", (cluster_id,))
+        cur.executemany(
+            """
+            INSERT INTO pve_pbs_targets (cluster_id, storage_id, server, fingerprint, datastore, namespace)
+            VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING
+            """,
+            [
+                (cluster_id, t["storage_id"], t["server"], t["fingerprint"], t["datastore"], t["namespace"])
+                for t in targets
+            ],
+        )
+        conn.commit()
+
+
+def list_pve_pbs_targets(cluster_id: int) -> list[dict[str, Any]]:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT * FROM pve_pbs_targets WHERE cluster_id = %s ORDER BY storage_id", (cluster_id,))
+        return list(cur.fetchall())
+
+
+_SYNC_JOB_COLUMNS = (
+    "job_id",
+    "direction",
+    "store",
+    "ns",
+    "remote_name",
+    "remote_host",
+    "remote_fingerprint",
+    "remote_store",
+    "remote_ns",
+    "schedule",
+    "last_run_state",
+    "last_run_at",
+    "next_run_at",
+)
+
+
+def replace_pbs_sync_jobs(pbs_id: int, jobs: list[dict[str, Any]]) -> None:
+    columns = ", ".join(_SYNC_JOB_COLUMNS)
+    placeholders = ", ".join(["%s"] * (len(_SYNC_JOB_COLUMNS) + 1))
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM pbs_sync_jobs WHERE pbs_id = %s", (pbs_id,))
+        cur.executemany(
+            f"INSERT INTO pbs_sync_jobs (pbs_id, {columns}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
+            [(pbs_id, *(job[c] for c in _SYNC_JOB_COLUMNS)) for job in jobs],
+        )
+        conn.commit()
+
+
+def list_pbs_sync_jobs() -> list[dict[str, Any]]:
+    """Sync jobs of all registered PBS — replication crosses cluster boundaries."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT * FROM pbs_sync_jobs ORDER BY pbs_id, job_id")
         return list(cur.fetchall())

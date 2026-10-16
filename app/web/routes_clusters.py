@@ -13,7 +13,7 @@ from app.i18n import t
 from app.models import RestoreTestCreate
 from app.services.backup_status import RESTORE_CLASSES, assess_slow_backup, format_duration
 from app.services.bootstrap import slugify_cluster
-from app.services.pbs import assess_datastore_usage
+from app.services.pbs_topology import build_topology
 from app.services.proxmox_progress import running_backup_progress_cached
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, datetime_local, settings_actor, templates
@@ -105,15 +105,15 @@ def running_backup_info(progress: dict | None, typical_seconds: int | None = Non
     }
 
 
-def datastore_usage_by_pbs(cluster_id: int) -> dict[int, list[dict]]:
-    """Datastore capacity per PBS connection, with status and labels for the header."""
-    result: dict[int, list[dict]] = {}
-    for row in db.list_datastore_usage(cluster_id):
-        total = row["total_bytes"]
-        row["pct"] = round(row["used_bytes"] / total * 100) if total else 0
-        row["status"] = assess_datastore_usage(row["used_bytes"], total, row["estimated_full_at"])
-        result.setdefault(row["pbs_id"], []).append(row)
-    return result
+def cluster_topology(cluster_id: int) -> dict:
+    """Where this cluster's backups go, for the topology view in the header."""
+    return build_topology(
+        cluster_id,
+        db.list_pve_pbs_targets(cluster_id),
+        db.list_pbs_connections(),
+        db.list_pbs_sync_jobs(),
+        db.list_datastore_usage(),
+    )
 
 
 def running_count_label(count: int) -> str:
@@ -202,7 +202,7 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
         "restore_tests": restore_tests,
         "compliance_summary": build_compliance_summary(vm_rows, restore_tests),
         "pbs_connections": db.list_pbs_connections(cluster["id"]),
-        "datastore_usage": datastore_usage_by_pbs(cluster["id"]),
+        "topology": cluster_topology(cluster["id"]),
         "sparklines": db.vm_backup_sparkline_data(cluster["id"], days=31),
         "encryption": encryption,
         "unencrypted_vms": db.unencrypted_vms(cluster["id"]) if encryption["pct_encrypted"] < 100 else [],

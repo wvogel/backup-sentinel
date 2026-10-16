@@ -134,3 +134,71 @@ class DatastoreAssessmentTests(unittest.TestCase):
 
     def test_unknown_total_is_ok(self) -> None:
         self.assertEqual(pbs.assess_datastore_usage(0, 0, None, self.NOW), "ok")
+
+
+REMOTES = [{"name": "kiel", "host": "pbs-kiel.int.example.de", "fingerprint": "AA:BB", "auth-id": "sync@pbs"}]
+
+
+class SyncJobTests(unittest.TestCase):
+    def fetch(self, jobs, remotes=None, direction_error=False):
+        calls = []
+
+        def fake_get(base_url, path, token_id, token_secret, **kwargs):
+            calls.append((path, kwargs.get("query")))
+            if path.endswith("/config/remote"):
+                return REMOTES if remotes is None else remotes
+            if direction_error and kwargs.get("query"):
+                raise pbs.PBSSyncError("PBS API returned HTTP 400 for /admin/sync: schema does not allow")
+            return jobs
+
+        with mock.patch.object(pbs, "_pbs_get_json", side_effect=fake_get):
+            return pbs.fetch_pbs_sync_jobs(CONN), calls
+
+    def test_pull_job_with_remote(self) -> None:
+        jobs = [
+            {
+                "id": "s-kiel",
+                "store": "nas-pve-hamburg",
+                "ns": "kiel",
+                "remote": "kiel",
+                "remote-store": "nas-pbs-kiel",
+                "schedule": "daily",
+                "last-run-state": "OK",
+                "last-run-endtime": 1_760_000_000,
+                "next-run": 1_760_086_400,
+            }
+        ]
+        result, calls = self.fetch(jobs)
+        self.assertEqual(calls[0], ("/api2/json/admin/sync", {"sync-direction": "all"}))
+        job = result[0]
+        self.assertEqual(job["direction"], "pull")
+        self.assertEqual((job["store"], job["ns"]), ("nas-pve-hamburg", "kiel"))
+        self.assertEqual(
+            (job["remote_name"], job["remote_host"], job["remote_fingerprint"]),
+            ("kiel", "pbs-kiel.int.example.de", "AA:BB"),
+        )
+        self.assertEqual((job["remote_store"], job["remote_ns"]), ("nas-pbs-kiel", ""))
+        self.assertEqual(job["last_run_state"], "OK")
+        self.assertEqual(job["last_run_at"], datetime.fromtimestamp(1_760_000_000, UTC))
+        self.assertEqual(job["next_run_at"], datetime.fromtimestamp(1_760_086_400, UTC))
+
+    def test_push_and_local_jobs(self) -> None:
+        jobs = [
+            {"id": "p", "store": "a", "remote": "kiel", "remote-store": "b", "sync-direction": "push"},
+            {"id": "l", "store": "copy", "remote-store": "main"},
+        ]
+        result, _ = self.fetch(jobs)
+        self.assertEqual([j["direction"] for j in result], ["push", "pull"])
+        self.assertEqual((result[1]["remote_name"], result[1]["remote_host"]), ("", ""))
+        self.assertIsNone(result[1]["last_run_at"])
+
+    def test_old_pbs_without_direction_parameter(self) -> None:
+        result, calls = self.fetch(
+            [{"id": "x", "store": "a", "remote": "kiel", "remote-store": "b"}], direction_error=True
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(calls[1], ("/api2/json/admin/sync", None))
+
+    def test_unknown_remote_keeps_name(self) -> None:
+        result, _ = self.fetch([{"id": "x", "store": "a", "remote": "gone", "remote-store": "b"}], remotes=[])
+        self.assertEqual((result[0]["remote_name"], result[0]["remote_host"]), ("gone", ""))

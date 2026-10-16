@@ -79,7 +79,7 @@ The main table lists every VM in the cluster with sortable columns:
 
 | Column         | Description                                                |
 |----------------|------------------------------------------------------------|
-| ●              | Status dot: green = all fine and at least 2 backup locations, blue = fine but a single backup location (information, not a problem), yellow = warning, red = critical (worst of backup age and verify); hollow circle = VM deleted. The tooltip lists the reasons |
+| 🖥 / 📦         | Guest icon: monitor = VM, box = container. The colour is the status: green = all fine and at least 2 backup locations, blue = fine but a single backup location (information, not a problem), yellow = warning, red = critical (worst of backup age and verify); greyed out = VM deleted. The tooltip lists the reasons |
 | VM             | Guest name; a small **w** or **–** marks weekly backups or "no backup expected" |
 | Node           | The Proxmox node the VM runs on                           |
 | VMID           | Proxmox VM ID                                             |
@@ -102,7 +102,9 @@ Rows are striped. **Clicking a row** (marked by the ▶ before the VM name) open
 
 **Second copy and verify** -- The pill in the Protection column shows on how many servers the backups of the last 7 days are stored (e.g. **×2**) and the PBS verify state: **✓** verified, **?** not verified for over 30 days, **✗** verify failed. Green = at least 2 servers and verified; blue = a single server and verified (fine, just no second copy); yellow = not verified; red = verify failed (also sent as a notification). A PBS counts as one server even if PVE knows it under another storage name, by IP or without a fingerprint (e.g. with an ACME certificate): Backup Sentinel matches the PVE storage to the registered PBS connection (fingerprint, host name, short name or resolved IP) and lists server names in the tooltip.
 
-**PBS storage** -- Under each PBS line in the cluster header, every datastore shows its usage and the PBS's estimate of when it will be full. Yellow from 80 % or full within 60 days, red from 90 % or full within 14 days (also sent as a notification).
+**Backup targets and replication** -- On the right of the cluster header a diagram shows where the backups go: from the cluster (PVE) to the datastores PVE backs up to directly (per the PBS storages in the PVE config), and from there through the PBS sync jobs on to their copies (pull, push and local syncs; dashed line, blue = last run OK, yellow = with warnings, red = failed, grey = never run). A PBS can be the primary target for one datastore and hold a copy in another; two PBS backing up each other get arrows both ways. Copies are followed per namespace, so a datastore holding several clusters' copies shows only this cluster's. Each copy shows its source and last run, the tooltip adds schedule, namespaces and next run. PBS not registered in Backup Sentinel are drawn dashed with their name from the remote config and without usage.
+
+**PBS storage** -- Every datastore in the diagram is a ring with its usage and, if it is filling up, the PBS's estimate ("full ~04/27"). Yellow from 80 % or full within 60 days, red from 90 % or full within 14 days (also sent as a notification). An estimate in the past (shrinking usage) is ignored.
 
 **Running backups** -- A status bar above the table lists all backups currently running: progress, data written and expected finish. Clicking an entry jumps to the VM. In the table the row is filled up to the current percentage and marked blue on the left; its tooltip shows start, ETA and data volume. The display refreshes every 30 seconds without reloading the page. On the overview, each cluster card shows how many backups are running (as of the last sync).
 

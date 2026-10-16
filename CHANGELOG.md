@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.22.0] — 2026-10-16
+
+### Added
+
+- **Backup targets and replication diagram** on the cluster page, right below the key-figure tiles. It shows where the backups go: from the cluster (PVE) to the datastores PVE backs up to directly, and on through the PBS **sync jobs** (pull, push and local) to their copies. Every datastore is a ring with its usage and, when filling up, "voll ca. MM/JJ". Replication lines are dashed and coloured by the last run (OK, warnings, failed, never run); each copy names its source and last run, the tooltip adds schedule, namespaces and next run. The role belongs to the edge, not the server: one PBS can be primary target for one datastore and hold a copy in another, and two PBS backing up each other get arrows both ways. Copies are followed per namespace, so a datastore holding several clusters' copies only shows this cluster's. Unregistered PBS (remote config only) are drawn dashed without usage. Replaces the datastore chips under the PBS sync lines.
+- New sync data: the PBS storages of the PVE config (`pve_pbs_targets`) and the sync jobs and remotes of every PBS (`pbs_sync_jobs`, from `/admin/sync` and `/config/remote`). Missing rights for these only add a line to the PBS sync log; the sync stays green.
+- **Guest type icons** in the VM table: a monitor for VMs and a box for containers replace the status dot, in the status colour (new column `vms.guest_type`).
+
 ## [v2.21.1] — 2026-10-13
 
 ### Fixed

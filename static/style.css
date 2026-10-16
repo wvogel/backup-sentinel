@@ -2554,8 +2554,164 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .critical-text { color: var(--critical); font-weight: 600; margin: 4px 0; }
 
 /* PBS datastore capacity next to the PBS sync line. */
-.datastore-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 0 34px; }
-.datastore-badge { min-height: 22px; padding: 2px 9px; font-size: 0.75rem; }
+/* ── Topology: PVE → PBS datastores → replicas (templates/_topology.html) ── */
+.cluster-hero-side {
+  display: grid;
+  gap: 12px;
+  justify-items: stretch;
+  min-width: 0;
+}
+
+.topology {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 44px;
+  padding: 12px 14px 22px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-alt);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.topology-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.topo-line { fill: none; stroke-width: 1.6; }
+.topo-line-primary { stroke: var(--muted); opacity: 0.7; }
+.topo-line-sync { stroke-dasharray: 5 4; }
+.topo-line-sync.topo-state-ok { stroke: var(--running); }
+.topo-line-sync.topo-state-warning { stroke: var(--warn); }
+.topo-line-sync.topo-state-failed { stroke: var(--critical); }
+.topo-line-sync.topo-state-never { stroke: var(--unknown); opacity: 0.6; }
+
+.topology-col {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  flex: none;
+}
+
+.topo-cluster,
+.topo-server {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.topo-cluster {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+}
+
+.topo-cluster .topo-icon { color: var(--running); width: 22px; height: 22px; }
+
+.topo-server { padding: 8px 10px 10px; }
+.topo-server.is-unregistered { border-style: dashed; background: transparent; }
+
+.topo-server-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.topo-unregistered { font-weight: 400; font-size: 0.72rem; }
+.topo-icon { width: 16px; height: 16px; flex: none; }
+
+.topo-stores {
+  display: flex;
+  gap: 12px;
+}
+
+.topo-store {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 72px;
+  max-width: 132px;
+  text-align: center;
+}
+
+.topo-ring {
+  --p: 0;
+  --ring: var(--ok);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ring) calc(var(--p) * 1%), var(--line) 0);
+  display: grid;
+  place-items: center;
+}
+
+.topo-ring span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--panel);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.topo-ring.ring-warning { --ring: var(--warn); }
+.topo-ring.ring-critical { --ring: var(--critical); }
+.topo-ring.ring-unknown { --ring: var(--unknown); }
+
+.topo-store-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.topo-full { font-size: 0.7rem; font-weight: 600; }
+.topo-full.status-text-warning { color: var(--warn); }
+.topo-full.status-text-critical { color: var(--critical); }
+
+.topo-sync {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 4px;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.topo-sync-icon { font-weight: 700; }
+.topo-sync.topo-state-ok .topo-sync-icon { color: var(--ok); }
+.topo-sync.topo-state-warning .topo-sync-icon { color: var(--warn); }
+.topo-sync.topo-state-failed,
+.topo-sync.topo-state-failed .topo-sync-icon { color: var(--critical); }
+
+@media (max-width: 900px) {
+  .topology {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 28px;
+  }
+  .topo-stores { flex-wrap: wrap; }
+}
 
 
 /* "Only problems" filter sits at the end of the node filter bar. */
@@ -2623,6 +2779,19 @@ html[data-theme="dark"] .node-filter-button.is-active {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 25%, transparent);
 }
 .status-dot.status-gone { background: transparent; box-shadow: inset 0 0 0 2px var(--unknown); }
+
+/* Guest type icon in the VM table: shape = VM/container, colour = status. */
+.guest-icon {
+  display: block;
+  width: 17px;
+  height: 17px;
+  color: var(--ok);
+}
+.guest-icon svg { display: block; width: 100%; height: 100%; }
+.guest-icon.status-warning { color: var(--warn); }
+.guest-icon.status-info { color: var(--running); }
+.guest-icon.status-critical { color: var(--critical); }
+.guest-icon.status-gone { color: var(--unknown); opacity: 0.55; }
 
 .vm-name-cell { font-weight: 600; }
 .kind-tag {

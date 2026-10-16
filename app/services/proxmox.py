@@ -28,6 +28,9 @@ class ProxmoxInventory:
     backup_events: list[dict[str, Any]]
     # Storages/nodes that could not be queried — backup data is incomplete.
     fetch_errors: list[str] = field(default_factory=list)
+    # PBS storages of the cluster (where PVE backs up to); None when the
+    # storage config could not be read.
+    pbs_targets: list[dict[str, str]] | None = None
 
 
 def build_token_header(api_user: str, token_id: str, token_secret: str) -> str:
@@ -111,6 +114,7 @@ def fetch_cluster_inventory(
                     "node_name": str(node_name),
                     "vmid": int(vmid),
                     "name": str(row.get("name") or f"{row_type}-{vmid}"),
+                    "guest_type": str(row_type),
                     "backup_kind": "daily",
                     "last_backup_at": None,
                 }
@@ -121,8 +125,15 @@ def fetch_cluster_inventory(
     backup_kind_by_vmid = infer_backup_kind_by_vmid(vms, backup_jobs)
     logger.info("Backup kind by VMID: %s", backup_kind_by_vmid)
 
+    storage_config = fetch_storage_config(base_url, auth_header, timeout=timeout)
     latest_backup_by_vmid, backup_events, fetch_errors = fetch_backup_details(
-        base_url, auth_header, nodes, vms, timeout=timeout, extra_vmids=known_vmids
+        base_url,
+        auth_header,
+        nodes,
+        vms,
+        timeout=timeout,
+        extra_vmids=known_vmids,
+        storage_config=storage_config if storage_config is not None else [],
     )
     logger.info("Latest backups found for VMIDs: %s", sorted(latest_backup_by_vmid.keys()))
 
@@ -142,7 +153,32 @@ def fetch_cluster_inventory(
         vms=sorted(vms, key=lambda item: (item["node_name"], item["vmid"])),
         backup_events=backup_events,
         fetch_errors=fetch_errors,
+        pbs_targets=pbs_storage_targets(storage_config) if storage_config is not None else None,
     )
+
+
+def fetch_storage_config(base_url: str, auth_header: str, timeout: float = 10.0) -> list[dict[str, Any]] | None:
+    """Cluster storage config (/storage), or None when it cannot be read."""
+    try:
+        return _pve_get_json(base_url, "/api2/json/storage", auth_header, timeout=timeout)
+    except ProxmoxSyncError as exc:
+        logger.warning("Cannot read storage config: %s", exc)
+        return None
+
+
+def pbs_storage_targets(storage_config: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Enabled PBS storages: the datastores PVE backs up to directly."""
+    return [
+        {
+            "storage_id": str(s.get("storage") or ""),
+            "server": str(s.get("server") or ""),
+            "fingerprint": str(s.get("fingerprint") or ""),
+            "datastore": str(s.get("datastore") or ""),
+            "namespace": str(s.get("namespace") or ""),
+        }
+        for s in storage_config
+        if s.get("type") == "pbs" and s.get("storage") and s.get("datastore") and not s.get("disable")
+    ]
 
 
 def test_proxmox_connection(cluster: dict[str, Any], timeout: float = 5.0) -> None:
@@ -294,6 +330,7 @@ def fetch_backup_details(
     vms: list[dict[str, Any]],
     timeout: float = 10.0,
     extra_vmids: set[int] | None = None,
+    storage_config: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[int, datetime], list[dict[str, Any]], list[str]]:
     """Fetch backup inventory using BULK queries per storage (not per VM).
 
@@ -311,17 +348,12 @@ def fetch_backup_details(
 
     # Cluster storage config: identifies the PBS behind a "pbs" storage
     # (server + fingerprint) so a second copy can be told from an alias.
-    try:
-        storage_config = {
-            str(s.get("storage")): s
-            for s in _pve_get_json(base_url, "/api2/json/storage", auth_header, timeout=timeout)
-        }
-    except ProxmoxSyncError as exc:
-        logger.warning("Cannot read storage config: %s", exc)
-        storage_config = {}
+    if storage_config is None:
+        storage_config = fetch_storage_config(base_url, auth_header, timeout=timeout) or []
+    storage_by_id = {str(s.get("storage")): s for s in storage_config}
 
     def _location(storage_id: str) -> str | None:
-        cfg = storage_config.get(storage_id)
+        cfg = storage_by_id.get(storage_id)
         if storage_types.get(storage_id) == "pbs" or (cfg and cfg.get("type") == "pbs"):
             if not cfg:
                 return None  # unknown PBS — never count it as an extra copy
@@ -466,7 +498,7 @@ def fetch_backup_details(
             parsed["storage"] = item.get("_storage_id", "")
             parsed["storage_type"] = storage_types.get(parsed["storage"], "")
             parsed["location"] = _location(parsed["storage"])
-            cfg = storage_config.get(parsed["storage"])
+            cfg = storage_by_id.get(parsed["storage"])
             if parsed["location"] and parsed["location"].startswith("pbs:") and cfg:
                 parsed["pbs_target"] = {
                     "fingerprint": str(cfg.get("fingerprint") or ""),

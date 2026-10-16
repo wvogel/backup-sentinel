@@ -1,0 +1,51 @@
+{#- Where the cluster's backups go: PVE → PBS datastores → replicas.
+    Lines between the nodes are drawn by static/js/topology.js; without JS
+    every replica still names its source in the sync line below its ring. -#}
+{%- set state_icons = {"ok": "✓", "warning": "!", "failed": "✗", "never": "–"} %}
+<div class="topology" data-topology aria-label="{{ t('topology.label') }}">
+  <svg class="topology-lines" aria-hidden="true"></svg>
+  <div class="topology-col">
+    <div class="topo-cluster" data-node="cluster">
+      <svg class="topo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+      <strong>{{ cluster.name }}</strong>
+      <span class="muted">PVE</span>
+    </div>
+  </div>
+  {%- for column in topology.columns %}
+  <div class="topology-col">
+    {%- for group in column %}
+    <div class="topo-server{% if not group.registered %} is-unregistered{% endif %}">
+      <div class="topo-server-name">
+        <svg class="topo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+        <span>{{ group.server }}</span>
+        {%- if not group.registered %}<span class="muted topo-unregistered">{{ t('topology.unregistered') }}</span>{% endif %}
+      </div>
+      <div class="topo-stores">
+        {%- for ds in group.stores %}
+        <div class="topo-store" data-node="{{ ds.id }}"
+             data-tooltip="{% if ds.pct is not none %}{{ t('cluster.datastore_tooltip', store=ds.store, used=ds.used_bytes|format_bytes, total=ds.total_bytes|format_bytes, pct=ds.pct) }}{% else %}{{ t('topology.no_usage', store=ds.store) }}{% endif %}{% if ds.estimated_full_at %}&#10;{{ t('cluster.datastore_full_at', date=ds.estimated_full_at|datetime_local('%d.%m.%Y')) }}{% endif %}">
+          <div class="topo-ring ring-{{ ds.status }}" style="--p:{{ ds.pct or 0 }}" role="img"
+               aria-label="{{ ds.store }}: {{ ds.pct ~ ' %' if ds.pct is not none else '?' }}">
+            <span>{{ ds.pct ~ '%' if ds.pct is not none else '?' }}</span>
+          </div>
+          <div class="topo-store-name">{{ ds.store }}</div>
+          {%- if ds.estimated_full_at and ds.status != 'ok' %}
+          <div class="topo-full status-text-{{ ds.status }}">{{ t('cluster.datastore_full_short', date=ds.estimated_full_at|datetime_local('%m/%y')) }}</div>
+          {%- endif %}
+          {%- for e in ds.incoming %}
+          <div class="topo-sync topo-state-{{ e.state }}"
+               data-tooltip="{{ t('topology.sync_tooltip', job=e.job_id, source=e.source_label ~ ('/' ~ e.from_ns if e.from_ns else ''), target=ds.store ~ ('/' ~ e.to_ns if e.to_ns else '')) }}&#10;{{ t('topology.schedule', schedule=e.schedule or '–') }}&#10;{{ t('topology.last_run', when=e.last_run_at|datetime_local if e.last_run_at else t('common.never'), state=e.last_run_state or '–') }}{% if e.next_run_at %}&#10;{{ t('topology.next_run', when=e.next_run_at|datetime_local) }}{% endif %}">
+            <span class="topo-sync-icon" aria-hidden="true">{{ state_icons[e.state] }}</span>
+            <span>{{ e.source_label }}</span>
+            {%- if e.last_run_at %}<span class="muted">· {{ e.last_run_at|datetime_local('%d.%m. %H:%M') }}</span>{% endif %}
+          </div>
+          {%- endfor %}
+        </div>
+        {%- endfor %}
+      </div>
+    </div>
+    {%- endfor %}
+  </div>
+  {%- endfor %}
+  <script type="application/json" class="topology-edges">{{ topology.lines|tojson }}</script>
+</div>
