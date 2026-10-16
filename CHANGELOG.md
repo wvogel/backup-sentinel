@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.29.1] — 2026-10-17
+
+### Fixed
+
+- **Seam between pipe and arrowhead.** Line and head were dimmed separately, so where they meet the transparency added up to a visible edge; dimming and colour now apply to each connection as a whole.
+- **Over-long arrows.** Gaps stay compact (88–130 px) and spare room goes to the boxes again; with many columns the gaps narrow step by step until the diagram fits, instead of overflowing.
+- **The line around the boxes overlapped the broad pipe.** It now leaves and enters well clear of the pipe and its arrowhead.
+
 ## [v2.29.0] — 2026-10-17
 
 ### Changed

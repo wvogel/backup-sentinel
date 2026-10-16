@@ -103,6 +103,17 @@
     return result;
   }
 
+  // Many columns: narrow the gaps step by step until the diagram fits.
+  function fitGaps(root, stacked) {
+    root.style.columnGap = "";
+    if (stacked) return;
+    var gap = parseFloat(getComputedStyle(root).columnGap) || 0;
+    while (root.scrollWidth > root.clientWidth + 1 && gap > 48) {
+      gap -= 8;
+      root.style.columnGap = gap + "px";
+    }
+  }
+
   function draw(root, again) {
     var svg = root.querySelector(".topology-lines");
     var data = root.querySelector(".topology-edges");
@@ -118,6 +129,7 @@
     var height = root.scrollHeight;
     var stacked = getComputedStyle(root).flexDirection === "column";
     while (svg.firstChild) svg.removeChild(svg.firstChild);
+    fitGaps(root, stacked);
     equalizeHeights(root, stacked);
 
     // Horizontal extent of the boxes in each column, for the gaps between.
@@ -235,7 +247,9 @@
         // so it never lies on the straight line between neighbours.
         var lane = edge.low ? boxBottom + 11 + 4 * bottomLane++ : boxTop - 11 - 4 * topLane++;
         var xa = gapAfter(a.col), xb = gapBefore(b.col);
-        var shift = edge.low ? 16 : -16;
+        // Clear of the broad pipe and its arrowhead between neighbours.
+        var clear = 24 * 0.8 + 5 + widthOf(edge) / 2 + 8;
+        var shift = edge.low ? clear : -clear;
         d = rounded([[a.right, a.cy + shift], [xa, a.cy + shift], [xa, lane], [xb, lane], [xb, b.cy + shift], [b.left - tip, b.cy + shift]]);
         end = [b.left, b.cy + shift]; dir = [1, 0];
       } else {
@@ -254,6 +268,9 @@
       }
       var cls = "topo-line-" + edge.kind + " topo-state-" + edge.state + (edge.minor ? " topo-minor" : "") +
         (edge.lane ? " topo-lane" : "") + (edge.active ? " topo-active" : "");
+      var group = document.createElementNS(SVG_NS, "g");
+      group.setAttribute("class", "topo-edge " + cls);
+      svg.appendChild(group);
       var path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
       path.setAttribute("class", "topo-line " + cls);
@@ -262,12 +279,12 @@
         // Replication: a pipe of blocks (dashed), thin lanes finer.
         path.setAttribute("stroke-dasharray", edge.lane ? width * 2 + " " + width * 1.4 : width * 1.4 + " " + width * 0.6);
       }
-      svg.appendChild(path);
+      group.appendChild(path);
       var arrowhead = document.createElementNS(SVG_NS, "path");
       arrowhead.setAttribute("d", head(end[0], end[1], dir[0], dir[1], width));
       arrowhead.setAttribute("class", "topo-head " + cls);
-      svg.appendChild(arrowhead);
-      animate(svg, path, d, edge, cls, width);
+      group.appendChild(arrowhead);
+      animate(group, path, d, edge, cls, width);
     });
   }
 

@@ -2613,10 +2613,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
   position: relative;
   display: flex;
   align-items: center;
-  /* Boxes keep their natural width; all spare room goes into the gaps, so
-     the pipes get as long as the card allows and nothing overflows. */
-  gap: 88px;
-  justify-content: space-between;
+  /* Compact arrows: the gaps stay short, spare room goes to the boxes. */
+  gap: clamp(88px, 7vw, 130px);
   /* No frame of its own: the boxes sit on the card like the key-figure tiles. */
   padding: 0;
   overflow-x: auto;
@@ -2642,31 +2640,25 @@ html[data-theme="dark"] .node-filter-button.is-active {
    line and arrowhead. At rest a pipe is dimmed and still; while data moves
    (running backup or sync) it lights up, packets flow through it and a
    light sweep runs along. */
-.topo-line,
-.topo-head,
-.topo-packets,
-.topo-sweep { color: var(--muted); }
-.topo-line-sync.topo-state-ok,
-.topo-line-sync.topo-state-running { color: var(--running); }
-.topo-line-sync.topo-state-warning { color: var(--warn); }
-.topo-line-sync.topo-state-failed { color: var(--critical); }
-.topo-line-sync.topo-state-never { color: var(--unknown); }
-.topo-active { color: var(--running); }
+/* Each connection is one group (line, arrowhead, moving parts): colour and
+   dimming apply to the group, so line and head never show a seam where
+   they meet. */
+.topo-edge { color: var(--muted); opacity: 0.45; }
+.topo-edge.topo-line-sync.topo-state-ok,
+.topo-edge.topo-line-sync.topo-state-running { color: var(--running); }
+.topo-edge.topo-line-sync.topo-state-warning { color: var(--warn); }
+.topo-edge.topo-line-sync.topo-state-failed { color: var(--critical); }
+.topo-edge.topo-line-sync.topo-state-never { color: var(--unknown); opacity: 0.3; }
+.topo-edge.topo-lane { opacity: 0.7; }
+.topo-edge.topo-active { color: var(--running); opacity: 1; }
 
 .topo-line {
   fill: none;
   stroke: currentColor;
   stroke-linecap: butt;
   stroke-linejoin: round;
-  opacity: 0.45;
 }
-.topo-head { fill: currentColor; opacity: 0.45; }
-.topo-line.topo-active,
-.topo-head.topo-active { opacity: 1; }
-.topo-line.topo-lane,
-.topo-head.topo-lane { opacity: 0.7; }
-.topo-line.topo-state-never,
-.topo-head.topo-state-never { opacity: 0.3; }
+.topo-head { fill: currentColor; }
 
 /* Moving parts, only drawn while data moves (sized by the script). */
 .topo-packets {
@@ -2683,12 +2675,12 @@ html[data-theme="dark"] .node-filter-button.is-active {
   opacity: 0.35;
   animation: topo-flow var(--sweep-time, 2.4s) ease-in-out infinite;
 }
-.topo-line.topo-active.topo-line-sync { animation: topo-flow var(--flow-time, 1s) linear infinite; }
+.topo-active .topo-line.topo-line-sync { animation: topo-flow var(--flow-time, 1s) linear infinite; }
 @keyframes topo-flow { to { stroke-dashoffset: var(--flow-shift, -24px); } }
 @media (prefers-reduced-motion: reduce) {
   .topo-packets,
   .topo-sweep,
-  .topo-line.topo-active.topo-line-sync { animation: none; }
+  .topo-active .topo-line.topo-line-sync { animation: none; }
 }
 
 /* Columns share the full width; boxes fill their column's width and get
@@ -2699,7 +2691,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   flex-direction: column;
   justify-content: center;
   gap: 10px;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   /* Never narrower than names that must not wrap. */
   min-width: min-content;
 }
