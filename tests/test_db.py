@@ -651,3 +651,17 @@ class ClusterPageTests(DbTestCase):
         with mock.patch("app.web.routes_clusters.running_backup_progress_peek", return_value=(None, False)):
             html = self.client.get("/clusters/test").text
         self.assertIn("is-running", html)
+
+    def test_overview_shows_running_replication(self) -> None:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_dashboard
+
+        self.running_sync()
+        app = FastAPI()
+        app.include_router(routes_dashboard.router)
+        with mock.patch("app.web.routes_dashboard.running_backups_for_clusters", return_value={}):
+            html = TestClient(app).get("/").text
+        self.assertIn("Replikation läuft", html)
+        self.assertIn("pbs-fh-muc/nas → copy", html)

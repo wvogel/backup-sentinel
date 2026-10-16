@@ -124,6 +124,12 @@ _SYNC_PROGRESS_TTL = 30.0
 _SYNC_PROGRESS_SHOW_AGE = 120.0
 
 
+def sync_finished(upid: str | None) -> bool:
+    """A live poll already saw this sync task end (before the next sync)."""
+    hit = _sync_progress_cache.get(upid or "")
+    return bool(hit and hit[1][1])
+
+
 def with_live_sync_progress(topology: dict) -> dict:
     """Running syncs show only live progress, never the value stored with the
     diagram at the last sync (up to an hour old): a fresh cached value, or

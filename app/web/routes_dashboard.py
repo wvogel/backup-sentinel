@@ -6,11 +6,26 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from app import db
+from app.services import topology_store
 from app.services.proxmox_progress import running_backups_for_clusters
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, templates
 
 router = APIRouter()
+
+
+def running_syncs(cluster_id: int) -> list[str]:
+    """ "pbs-pano/nas-pbs-pano → nas-offsite-fh-muc" for each running sync job;
+    finished ones the cluster page saw since are left out."""
+    from app.web.routes_clusters import sync_finished
+
+    result = []
+    topology = topology_store.load(cluster_id)
+    stores = {s["id"]: s["store"] for column in topology["columns"] for g in column for s in g["stores"]}
+    for edge in topology["edges"]:
+        if edge["kind"] == "sync" and edge["state"] == "running" and not sync_finished(edge.get("running_upid")):
+            result.append(f"{edge['source_label']} → {stores.get(edge['to'], '')}")
+    return result
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -73,9 +88,14 @@ def dashboard(request: Request) -> HTMLResponse:
         for cid, progress in live.items()
         if progress is not None
     }
+    id_by_slug = {c["slug"]: c["id"] for c in all_clusters}
     for summary in clusters:
         if summary["cluster_slug"] in running_by_slug:
             summary["running_vms"] = running_by_slug[summary["cluster_slug"]]
+        # Replication (PBS sync jobs) running into this cluster's datastores,
+        # from the precomputed diagram: one stored row per cluster, no PBS call.
+        cid = id_by_slug.get(summary["cluster_slug"])
+        summary["running_syncs"] = running_syncs(cid) if cid is not None else []
 
     context = {
         "clusters": clusters,
