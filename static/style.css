@@ -2442,23 +2442,22 @@ details[open] > .encryption-alert-summary::before {
 
 .last-backup-date { white-space: nowrap; }
 
-/* Status bar above the VM table. */
-.running-banner {
-  margin-bottom: 16px;
-  padding: 14px 18px;
-  border: 1px solid var(--running);
-  border-radius: 16px;
-  background: var(--running-soft);
-  color: var(--running);
-}
+/* Running backups above the VM table: tiles only, no frame of their own. */
+.running-banner { margin-bottom: 16px; }
 .running-banner.hidden { display: none; }
-.running-banner-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 1rem;
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
-.running-banner-head .running-spinner { width: 18px; height: 18px; }
+
 /* One tile per running backup, in the style of the topology boxes. */
 .running-list {
   display: grid;
@@ -2484,16 +2483,43 @@ details[open] > .encryption-alert-summary::before {
   cursor: pointer;
 }
 .running-item:hover { border-color: var(--running); }
-.running-ring { --ring: var(--running); flex: none; }
+/* Data is moving: stripes travel calmly along the filled arc. The arc is a
+   mask on .running-flow; only its striped child turns (plain transform). */
+.running-ring {
+  --ring: var(--running);
+  position: relative;
+  flex: none;
+}
+.topo-ring .running-flow {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  background: none;
+  border-radius: 50%;
+  -webkit-mask: conic-gradient(#000 calc(var(--p) * 1%), transparent 0);
+  mask: conic-gradient(#000 calc(var(--p) * 1%), transparent 0);
+}
+.running-flow > i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.5) 0 4deg, transparent 4deg 14deg);
+  animation: running-spin 9s linear infinite;
+}
+.running-ring-label { position: relative; z-index: 1; }
+/* Without a percentage: one arc turning slowly. */
 .running-ring.is-indeterminate {
   background: conic-gradient(var(--ring) 0 25%, var(--line) 0);
-  animation: running-spin 1.2s linear infinite;
+  animation: running-spin 6s linear infinite;
 }
-.running-ring.is-indeterminate > span { animation: running-spin 1.2s linear infinite reverse; }
-@keyframes running-spin { to { transform: rotate(360deg); } }
+.running-ring.is-indeterminate .running-flow { display: none; }
+.running-ring.is-indeterminate .running-ring-label { animation: running-spin 6s linear infinite reverse; }
 @media (prefers-reduced-motion: reduce) {
+  .running-flow > i,
   .running-ring.is-indeterminate,
-  .running-ring.is-indeterminate > span { animation: none; }
+  .running-ring.is-indeterminate .running-ring-label { animation: none; }
 }
 .running-item-body {
   display: grid;
@@ -2507,7 +2533,7 @@ details[open] > .encryption-alert-summary::before {
   font-weight: 700;
 }
 .running-item-meta { color: var(--muted); font-size: 0.8rem; }
-.running-slow { color: var(--warn); font-weight: 700; font-size: 0.8rem; }
+.running-slow { color: var(--warn); font-weight: 700; font-size: 0.8rem; white-space: nowrap; }
 
 /* Dashboard cluster card. */
 .badge.running-badge {
@@ -2589,7 +2615,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: clamp(32px, 3.2vw, 56px);
   /* No frame of its own: the boxes sit on the card like the key-figure tiles. */
   padding: 0;
   overflow-x: auto;
@@ -2610,10 +2636,22 @@ html[data-theme="dark"] .node-filter-button.is-active {
   overflow: visible;
 }
 
-.topo-line { fill: none; stroke-width: 1.6; }
+.topo-line { fill: none; stroke-width: 2.5; }
 .topo-line-primary { stroke: var(--muted); opacity: 0.7; }
-.topo-line.topo-minor { stroke-width: 1; opacity: 0.45; }
-.topo-line-sync { stroke-dasharray: 5 4; }
+.topo-line.topo-minor { stroke-width: 1.5; opacity: 0.45; }
+.topo-line-sync { stroke-dasharray: 7 5; }
+
+/* Arrows travelling along the lines (static/js/topology.js): data flows. */
+.topo-arrow {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.topo-arrow.topo-line-primary { stroke: var(--ink); opacity: 0.85; }
+.topo-arrow.topo-minor { stroke-width: 1.8; opacity: 0.5; }
+.topo-arrow.topo-line-sync.topo-state-ok { stroke: var(--running); }
+.topo-arrow.topo-line-sync.topo-state-warning { stroke: var(--warn); }
 .topo-line-sync.topo-state-ok { stroke: var(--running); }
 .topo-line-sync.topo-state-warning { stroke: var(--warn); }
 .topo-line-sync.topo-state-failed { stroke: var(--critical); }
@@ -2680,7 +2718,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-evenly;
-  gap: 10px 20px;
+  gap: 10px 16px;
 }
 
 /* Ring left, text right: as low as possible. */
@@ -2692,12 +2730,15 @@ html[data-theme="dark"] .node-filter-button.is-active {
   max-width: 100%;
 }
 
+/* Name and PVE tag never shrink; only sync lines may wrap. */
 .topo-store-text {
   display: grid;
   justify-items: start;
   gap: 2px;
-  min-width: 0;
+  min-width: min-content;
 }
+.topo-store-text .topo-store-name,
+.topo-store-text .topo-tag { overflow: visible; }
 
 .topo-ring {
   --p: 0;
@@ -2740,8 +2781,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 .topo-sync {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 5px;
+  gap: 0 5px;
   min-width: 0;
   max-width: 100%;
   font-size: 0.72rem;

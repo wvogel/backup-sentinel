@@ -46,9 +46,14 @@
       const ring = document.createElement("span");
       ring.className = "topo-ring running-ring" + (pct === "" ? " is-indeterminate" : "");
       ring.style.setProperty("--p", pct || 0);
+      const flow = document.createElement("span");
+      flow.className = "running-flow";
+      flow.setAttribute("aria-hidden", "true");
+      flow.append(document.createElement("i"));
       const label = document.createElement("span");
+      label.className = "running-ring-label";
       label.textContent = pct === "" ? "" : Math.round(Number(pct)) + "%";
-      ring.append(label);
+      ring.append(flow, label);
 
       const body = document.createElement("span");
       body.className = "running-item-body";
