@@ -38,13 +38,26 @@
 
   // Chevrons moving along a line: backups fast, replication slower but still
   // visible. A failed or never-run sync moves nothing.
+  // Data moving right now: faster and denser than a line that only carried
+  // data before. Pixels per second.
+  function speedOf(edge) {
+    if (edge.active) return edge.kind === "primary" ? 70 : 45;
+    return edge.kind === "primary" ? 40 : 16;
+  }
+
+  // Dashed lines move with their arrows: the dash pattern (7 + 5 px) shifts
+  // along the path at the arrows' speed.
+  function moveDashes(path, edge) {
+    if (calm || edge.kind !== "sync" || edge.state === "failed" || edge.state === "never") return;
+    var anims = ["topo-dash " + (12 / speedOf(edge)).toFixed(3) + "s linear infinite"];
+    if (edge.active) anims.push("topo-active-pulse 1.8s ease-in-out infinite alternate");
+    path.style.animation = anims.join(", ");
+  }
+
   function addArrows(svg, path, d, edge, cls) {
     if (calm || edge.state === "failed" || edge.state === "never") return;
     var length = path.getTotalLength();
-    // Data moving right now: faster and denser than a line that only carried
-    // data before.
-    var speed = edge.kind === "primary" ? 40 : 16; // px per second
-    if (edge.active) speed = edge.kind === "primary" ? 70 : 45;
+    var speed = speedOf(edge);
     var count = Math.max(1, Math.floor(length / (edge.active ? 38 : 70)));
     var dur = length / speed;
     for (var i = 0; i < count; i++) {
@@ -75,7 +88,7 @@
     return result;
   }
 
-  function draw(root) {
+  function draw(root, again) {
     var svg = root.querySelector(".topology-lines");
     var data = root.querySelector(".topology-edges");
     if (!svg || !data) return;
@@ -112,13 +125,13 @@
     function anchor(id) {
       var el = root.querySelector('[data-node="' + id + '"]');
       if (!el) return null;
-      var box = (el.closest(".topo-server") || el).getBoundingClientRect();
-      var ring = el.querySelector(".topo-ring") || el;
-      var r = ring.getBoundingClientRect();
+      var boxEl = el.closest(".topo-server") || el;
+      var box = boxEl.getBoundingClientRect();
       var col = el.closest(".topology-col");
       return {
+        box: boxEl,
         left: box.left - ox, right: box.right - ox, top: box.top - oy, bottom: box.bottom - oy,
-        cx: box.left + box.width / 2 - ox, y: r.top + r.height / 2 - oy,
+        cx: box.left + box.width / 2 - ox, cy: box.top + box.height / 2 - oy,
         col: cols.findIndex(function (c) { return c.el === col; }),
       };
     }
@@ -132,10 +145,45 @@
       return boxes.some(function (box) { return box.top > a.bottom + 1 && box.bottom < b.top - 1; });
     }
 
-    var topLane = 0, bottomLane = 0, sideLane = 0;
+    // One connection per pair of boxes, however many datastores and jobs
+    // lie between them; it takes the most telling state of its edges.
+    var RANK = { running: 4, failed: 3, warning: 2, ok: 1, never: 0 };
+    var groups = [];
+    var byKey = {};
+    var boxEls = Array.prototype.slice.call(root.querySelectorAll(".topo-server, .topo-cluster"));
     edges.forEach(function (edge) {
       var a = anchor(edge.from), b = anchor(edge.to);
       if (!a || !b) return;
+      var key = [boxEls.indexOf(a.box), boxEls.indexOf(b.box), edge.kind, edge.back].join("|");
+      var g = byKey[key];
+      if (!g) {
+        g = byKey[key] = { a: a, b: b, kind: edge.kind, back: edge.back, span: edge.span, state: edge.state, minor: true, active: false };
+        groups.push(g);
+      }
+      if ((RANK[edge.state] || 0) > (RANK[g.state] || 0)) g.state = edge.state;
+      g.minor = g.minor && !!edge.minor;
+      g.active = g.active || !!edge.active;
+      g.span = Math.max(g.span, edge.span);
+    });
+
+    // Lines skipping a column run above the boxes, or below them when their
+    // target sits in the lower half (then they cross nothing on the way up).
+    var middle = height / 2;
+    groups.forEach(function (edge) {
+      edge.low = edge.back || (edge.span > 1 && edge.b.cy > middle);
+    });
+    var wantTop = groups.some(function (e) { return !stacked && e.span > 1 && !e.low; });
+    var wantBottom = groups.some(function (e) { return !stacked && e.low; });
+    if (!again && (root.classList.contains("has-top-lane") !== wantTop || root.classList.contains("has-bottom-lane") !== wantBottom)) {
+      root.classList.toggle("has-top-lane", wantTop);
+      root.classList.toggle("has-bottom-lane", wantBottom);
+      draw(root, true); // padding changed: measure once more
+      return;
+    }
+
+    var topLane = 0, bottomLane = 0, sideLane = 0;
+    groups.forEach(function (edge) {
+      var a = edge.a, b = edge.b;
       var d;
       if (stacked) {
         if (!edge.back && b.top > a.bottom && !blocked(a, b)) {
@@ -143,24 +191,32 @@
           d = "M" + a.cx + "," + a.bottom + " C" + a.cx + "," + my + " " + b.cx + "," + my + " " + b.cx + "," + b.top;
         } else {
           var lx = 6 + 4 * sideLane++;
-          d = rounded([[a.left, a.y], [lx, a.y], [lx, b.y], [b.left, b.y]]);
+          d = rounded([[a.left, a.cy], [lx, a.cy], [lx, b.cy], [b.left, b.cy]]);
         }
       } else if (edge.back || edge.span > 1) {
         // Out into the gap after the source column, along a lane above (or,
         // back to an earlier column, below) all boxes, down the gap before
         // the target column.
-        var lane = edge.back ? height - 10 - 4 * bottomLane++ : 10 + 4 * topLane++;
+        var lane = edge.low ? height - 10 - 4 * bottomLane++ : 10 + 4 * topLane++;
         var xa = gapAfter(a.col), xb = gapBefore(b.col);
-        d = rounded([[a.right, a.y], [xa, a.y], [xa, lane], [xb, lane], [xb, b.y], [b.left, b.y]]);
+        d = rounded([[a.right, a.cy], [xa, a.cy], [xa, lane], [xb, lane], [xb, b.cy], [b.left, b.cy]]);
       } else {
-        var mx = (a.right + b.left) / 2;
-        d = "M" + a.right + "," + a.y + " C" + mx + "," + a.y + " " + mx + "," + b.y + " " + b.left + "," + b.y;
+        // Straight across through the height both boxes share.
+        var top = Math.max(a.top, b.top), bottom = Math.min(a.bottom, b.bottom);
+        if (bottom - top >= 16) {
+          var y = (top + bottom) / 2;
+          d = "M" + a.right + "," + y + " L" + b.left + "," + y;
+        } else {
+          var mx = (a.right + b.left) / 2;
+          d = "M" + a.right + "," + a.cy + " C" + mx + "," + a.cy + " " + mx + "," + b.cy + " " + b.left + "," + b.cy;
+        }
       }
       var cls = "topo-line-" + edge.kind + " topo-state-" + edge.state + (edge.minor ? " topo-minor" : "") + (edge.active ? " topo-active" : "");
       var path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
       path.setAttribute("class", "topo-line " + cls);
       svg.appendChild(path);
+      moveDashes(path, edge);
       addArrows(svg, path, d, edge, cls);
     });
   }
@@ -180,15 +236,19 @@
         root.querySelectorAll("[data-sync-key]").forEach(function (el) {
           var info = progress[el.dataset.syncKey];
           if (!info) return;
-          var pct = el.querySelector(".js-sync-pct");
+          var ring = root.querySelector('[data-sync-ring="' + el.dataset.syncKey + '"]');
           if (info.finished) {
             el.classList.remove("topo-state-running");
             el.classList.add("topo-state-ok");
             el.removeAttribute("data-sync-key");
-            if (pct) pct.textContent = T("topology.just_finished") + " · ";
+            var when = el.querySelector(".topo-sync-when");
+            if (when) when.textContent = T("topology.just_finished");
+            if (ring) ring.remove();
             finishedAny = true;
-          } else if (pct && info.percent !== null) {
-            pct.textContent = Math.round(info.percent) + " % · ";
+          } else if (ring && info.percent !== null) {
+            ring.classList.remove("is-indeterminate");
+            ring.style.setProperty("--p", info.percent);
+            ring.querySelector(".running-ring-label").textContent = Math.round(info.percent) + "%";
           }
         });
         if (finishedAny) {

@@ -2661,6 +2661,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 .topo-arrow.topo-active { stroke: var(--running); stroke-width: 3; opacity: 1; }
 @keyframes topo-active-pulse { from { opacity: 1; } to { opacity: 0.55; } }
+@keyframes topo-dash { to { stroke-dashoffset: -12; } }
 @media (prefers-reduced-motion: reduce) {
   .topo-line.topo-active { animation: none; }
 }
@@ -2679,7 +2680,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
   justify-content: center;
   gap: 10px;
   flex: 1 1 auto;
-  min-width: 0;
+  /* Never narrower than names that must not wrap. */
+  min-width: min-content;
 }
 
 /* Same look as the key-figure tiles (.cluster-stat). */
@@ -2816,8 +2818,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
   white-space: nowrap;
 }
 
-.topo-sync-from { flex: 0 1 auto; min-width: 0; }
-.topo-sync-from,
+/* May break after "server/" but is never cut off. */
+.topo-sync-from { flex: 0 1 auto; min-width: 0; white-space: normal; }
+.topo-sync-from .nowrap { white-space: nowrap; }
 .topo-tag {
   max-width: 100%;
   overflow: hidden;
