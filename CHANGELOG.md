@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.27.1] — 2026-10-16
+
+### Fixed
+
+- **A line skipping a column could disappear behind the middle box.** Whether it ran above or below the boxes depended on the middle of the whole diagram, which moves once lane space is reserved; on the second pass the line went "below" without room there. Now the choice depends only on where the target box sits in its column, and lanes are placed just outside all boxes. Such lines also leave and enter slightly off-centre, so they no longer merge with the straight line between neighbours.
+
 ## [v2.27.0] — 2026-10-16
 
 ### Changed
