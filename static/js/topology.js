@@ -23,6 +23,17 @@
     return d + " L" + last[0] + "," + last[1];
   }
 
+  // Every box as tall as the tallest one: a calm grid without stretching
+  // single boxes to the height of a column holding several.
+  function equalizeHeights(root, stacked) {
+    var boxes = root.querySelectorAll(".topo-server, .topo-cluster");
+    var tallest = 0;
+    boxes.forEach(function (el) { el.style.minHeight = ""; });
+    if (stacked) return;
+    boxes.forEach(function (el) { tallest = Math.max(tallest, el.offsetHeight); });
+    boxes.forEach(function (el) { el.style.minHeight = tallest + "px"; });
+  }
+
   function draw(root) {
     var svg = root.querySelector(".topology-lines");
     var data = root.querySelector(".topology-edges");
@@ -34,6 +45,7 @@
     var height = root.scrollHeight;
     var stacked = getComputedStyle(root).flexDirection === "column";
     while (svg.firstChild) svg.removeChild(svg.firstChild);
+    equalizeHeights(root, stacked);
 
     // Horizontal extent of the boxes in each column, for the gaps between.
     var cols = Array.prototype.map.call(root.querySelectorAll(".topology-col"), function (col) {

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.24.1] — 2026-10-16
+
+### Changed
+
+- **Compact replication diagram.** Datastores are laid out side by side — ring left, name, PVE guests and sync lines right — instead of text stacked under the ring. All boxes share one height (the tallest box), columns are centred vertically and boxes fill their column's width, so the diagram has no empty half and no stretched boxes. A source on the same PBS is named by its datastore only ("← nas-b1"); long names are shortened only when space runs out. Space for lines above or below the boxes is reserved only when such lines exist.
+
 ## [v2.24.0] — 2026-10-16
 
 ### Changed

@@ -257,6 +257,8 @@ def build_topology(
             "last_run_state": job["last_run_state"],
             "next_run_at": job["next_run_at"],
             "source_label": f"{servers.name[e['src'][0]]}/{e['src'][1]}",
+            "source_server": servers.name[e["src"][0]],
+            "source_store": e["src"][1],
             "minor": False,
             "back": id(e) in back_edges,
         }
