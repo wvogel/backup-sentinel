@@ -395,7 +395,7 @@ class TopologyDbTests(DbTestCase):
         db.update_backup_event_storages(self.cid, events)
         self.assertEqual(
             db.present_guests_by_store(self.cid),
-            {("pbs-hamburg", "nas"): {100, 101}, ("pbs-berlin", "nas-off"): {100}},
+            {("pbs-hamburg", "nas"): {100: started, 101: started}, ("pbs-berlin", "nas-off"): {100: started}},
         )
 
     def test_guest_type_is_stored(self) -> None:

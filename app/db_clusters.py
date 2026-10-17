@@ -564,24 +564,27 @@ def update_vm_ha(cluster_id: int, ha_by_vmid: dict[int, dict[str, Any]]) -> None
         conn.commit()
 
 
-def present_guests_by_store(cluster_id: int) -> dict[tuple[str, str], set[int]]:
+def present_guests_by_store(cluster_id: int) -> dict[tuple[str, str], dict[int, datetime]]:
     """(server, datastore) → guests of the cluster with backups lying there
-    now, from the locations the sync recorded ("pbs:server/store[/ns]")."""
+    now, each with its latest one there, from the locations the sync
+    recorded ("pbs:server/store[/ns]")."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT DISTINCT v.vmid, loc
+            SELECT v.vmid, loc, MAX(be.started_at) AS latest
             FROM backup_events be
             JOIN vms v ON v.id = be.vm_id
             CROSS JOIN LATERAL unnest(be.locations) AS loc
             WHERE v.cluster_id = %s AND be.removed_at IS NULL AND be.status = 'ok'
               AND COALESCE(be.size_bytes, 0) > 1 AND loc LIKE 'pbs:%%'
+            GROUP BY v.vmid, loc
             """,
             (cluster_id,),
         )
-        result: dict[tuple[str, str], set[int]] = {}
+        result: dict[tuple[str, str], dict[int, datetime]] = {}
         for row in cur.fetchall():
             parts = row["loc"][len("pbs:") :].split("/")
             if len(parts) >= 2:
-                result.setdefault((parts[0], parts[1]), set()).add(row["vmid"])
+                guests = result.setdefault((parts[0], parts[1]), {})
+                guests[row["vmid"]] = max(guests.get(row["vmid"], row["latest"]), row["latest"])
         return result

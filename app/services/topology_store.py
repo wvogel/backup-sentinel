@@ -16,7 +16,7 @@ from app.services.pbs_topology import build_topology
 
 logger = logging.getLogger(__name__)
 
-_DATE_KEYS = {"estimated_full_at", "last_run_at", "next_run_at", "running_since"}
+_DATE_KEYS = {"estimated_full_at", "last_run_at", "next_run_at", "running_since", "latest"}
 
 
 def guests_by_storage(storages_by_vmid: dict[int, list[str]]) -> dict[str, set[int]]:
@@ -37,6 +37,8 @@ def build(cluster_id: int) -> dict[str, Any]:
         db.list_datastore_usage(),
         guests_by_storage=guests_by_storage(db.job_storages_by_vmid(cluster_id)),
         present_by_store=db.present_guests_by_store(cluster_id),
+        copy_windows=db.copy_windows(),
+        default_copy_window=db.COPY_WINDOW_DAYS,
     )
 
 
