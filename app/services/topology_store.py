@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import Counter
 from datetime import UTC, datetime
 from typing import Any
 
@@ -20,9 +19,13 @@ logger = logging.getLogger(__name__)
 _DATE_KEYS = {"estimated_full_at", "last_run_at", "next_run_at", "running_since"}
 
 
-def vm_count_by_storage(storages_by_vmid: dict[int, list[str]]) -> dict[str, int]:
+def guests_by_storage(storages_by_vmid: dict[int, list[str]]) -> dict[str, set[int]]:
     """Guests each PVE storage receives direct backups from (per backup jobs)."""
-    return dict(Counter(storage for storages in storages_by_vmid.values() for storage in storages))
+    result: dict[str, set[int]] = {}
+    for vmid, storages in storages_by_vmid.items():
+        for storage in storages:
+            result.setdefault(storage, set()).add(vmid)
+    return result
 
 
 def build(cluster_id: int) -> dict[str, Any]:
@@ -32,7 +35,8 @@ def build(cluster_id: int) -> dict[str, Any]:
         db.list_pbs_connections(),
         db.list_pbs_sync_jobs(),
         db.list_datastore_usage(),
-        vms_by_storage=vm_count_by_storage(db.job_storages_by_vmid(cluster_id)),
+        guests_by_storage=guests_by_storage(db.job_storages_by_vmid(cluster_id)),
+        present_by_store=db.present_guests_by_store(cluster_id),
     )
 
 

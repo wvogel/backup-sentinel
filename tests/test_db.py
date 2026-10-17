@@ -382,7 +382,21 @@ class TopologyDbTests(DbTestCase):
         db.sync_cluster_inventory(self.cid, [{"name": "pve1", "status": "online"}], vms)
         storages = db.job_storages_by_vmid(self.cid)
         self.assertEqual(storages, {100: ["pbs-main", "pbs-side"], 101: ["pbs-main"]})
-        self.assertEqual(topology_store.vm_count_by_storage(storages), {"pbs-main": 2, "pbs-side": 1})
+        self.assertEqual(topology_store.guests_by_storage(storages), {"pbs-main": {100, 101}, "pbs-side": {100}})
+
+    def test_present_guests_by_store(self) -> None:
+        started = (datetime.now(UTC) - timedelta(hours=2)).replace(second=0, microsecond=0)
+        events = [
+            {**_event(100, started), "storage": "pbs-hamburg/nas", "location": "pbs:pbs-hamburg/nas"},
+            {**_event(100, started), "storage": "pbs-berlin/nas-off", "location": "pbs:pbs-berlin/nas-off/hamburg"},
+            {**_event(101, started), "storage": "pbs-hamburg/nas", "location": "pbs:pbs-hamburg/nas"},
+        ]
+        db.sync_backup_events_for_source(self.cid, "pbs", events)
+        db.update_backup_event_storages(self.cid, events)
+        self.assertEqual(
+            db.present_guests_by_store(self.cid),
+            {("pbs-hamburg", "nas"): {100, 101}, ("pbs-berlin", "nas-off"): {100}},
+        )
 
     def test_guest_type_is_stored(self) -> None:
         vm = {

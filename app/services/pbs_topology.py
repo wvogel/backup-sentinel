@@ -64,6 +64,32 @@ def _job_state(job: Mapping[str, Any]) -> str:
     return "failed"
 
 
+def _synced_guests(
+    servers: _Servers,
+    nodes: Mapping[Node, int],
+    primary_edges: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    guests_by_storage: Mapping[str, set[int]] | None,
+    present_by_store: Mapping[tuple[str, str], set[int]] | None,
+) -> dict[Node, set[int]] | None:
+    """Guests of this cluster whose backups lie in a datastore that receives
+    sync jobs, minus those its PVE backup jobs write there directly: what
+    actually arrived by replication, not what is configured."""
+    if present_by_store is None:
+        return None
+    present: dict[Node, set[int]] = {}
+    for (label, store), guests in present_by_store.items():
+        node = (servers.resolve("", label, label), store)
+        present.setdefault(node, set()).update(guests)
+    direct: dict[Node, set[int]] = {}
+    for p in primary_edges:
+        direct.setdefault(p["dst"], set()).update((guests_by_storage or {}).get(p["storage_id"], set()))
+    receiving = {e["dst"] for e in edges}
+    return {
+        node: (present.get(node, set()) - direct.get(node, set())) if node in receiving else set() for node in nodes
+    }
+
+
 class _Servers:
     """Physical PBS behind the registered connections; several clusters may
     register the same PBS, which still is one server here."""
@@ -123,8 +149,17 @@ def build_topology(
     usage: Iterable[Mapping[str, Any]],
     now: datetime | None = None,
     vms_by_storage: Mapping[str, int] | None = None,
+    guests_by_storage: Mapping[str, set[int]] | None = None,
+    present_by_store: Mapping[tuple[str, str], set[int]] | None = None,
 ) -> dict[str, Any]:
-    """Columns of datastore groups (by distance from the cluster) and edges."""
+    """Columns of datastore groups (by distance from the cluster) and edges.
+
+    `guests_by_storage` (PVE storage → guests its backup jobs write there)
+    gives the "PVE · n VMs" counts (`vms_by_storage`: the counts alone).
+    `present_by_store` ((server name, datastore) → guests with backups lying
+    there, as the sync found them) gives how many arrive by replication."""
+    if guests_by_storage is not None:
+        vms_by_storage = {storage: len(guests) for storage, guests in guests_by_storage.items()}
     servers = _Servers(connections)
     own_conns = [c for c in connections if c["cluster_id"] == cluster_id]
 
@@ -217,6 +252,7 @@ def build_topology(
     max_vms = max((p["vms"] or 0 for p in primary_edges), default=0)
 
     layer, back_edges = _layers(depth, primary_edges, edges, primary_vms)
+    synced = _synced_guests(servers, depth, primary_edges, edges, guests_by_storage, present_by_store)
 
     own_conn_by_server = {servers.key_of_conn[c["id"]]: c for c in own_conns}
     node_ids = {node: f"ds-{i}" for i, node in enumerate(sorted(depth, key=lambda n: (layer[n], n)))}
@@ -234,6 +270,8 @@ def build_topology(
             "used_bytes": int(row["used_bytes"]) if row else None,
             "total_bytes": total or None,
             "estimated_full_at": row["estimated_full_at"] if row else None,
+            # Guests whose backups lie here by sync job (None: unknown).
+            "synced_vms": len(synced[node]) if synced is not None else None,
             "primary": [],
             "incoming": [],
         }

@@ -298,3 +298,35 @@ class DirectTargetTests(unittest.TestCase):
         targets = [target("pbs-berlin", "nas-b1"), target("pbs-berlin", "nas-off")]
         topo = build_topology(10, targets, [BERLIN], [], [], now=NOW)
         self.assertEqual(len([e for e in topo["edges"] if e["kind"] == "primary"]), 2)
+
+
+class SyncedGuestTests(unittest.TestCase):
+    FH = conn(6, 40, "pbs-hamburg", fingerprint="FF:02")
+    BERLIN = conn(7, 40, "pbs-berlin", fingerprint="AA:01")
+
+    def build(self, present):
+        # pve-hamburg backs up to nas-pve-hamburg; pbs-berlin pulls that into
+        # nas-off, where one guest (8, the PBS VM) also backs up directly.
+        return build_topology(
+            40,
+            [target("pbs-hamburg", "nas-pve-hamburg", "FF:02"), target("pbs-berlin", "nas-off", "AA:01")],
+            [self.FH, self.BERLIN],
+            [job(7, "s-hamburg", "nas-off", remote="hamburg", remote_store="nas-pve-hamburg", remote_fingerprint="FF:02")],
+            [],
+            now=NOW,
+            guests_by_storage={"st-nas-pve-hamburg": {1, 2, 3}, "st-nas-off": {8}},
+            present_by_store=present,
+        )
+
+    def stores(self, topo):
+        return {s["store"]: s for column in topo["columns"] for g in column for s in g["stores"]}
+
+    def test_counts_what_lies_in_the_copy_not_what_is_configured(self) -> None:
+        # Only 1 and 2 have arrived in nas-off so far; 8 is a direct backup.
+        topo = self.build({("pbs-hamburg", "nas-pve-hamburg"): {1, 2, 3}, ("pbs-berlin", "nas-off"): {1, 2, 8}})
+        stores = self.stores(topo)
+        self.assertEqual(stores["nas-off"]["synced_vms"], 2)
+        self.assertEqual(stores["nas-pve-hamburg"]["synced_vms"], 0)  # receives no sync
+
+    def test_without_location_data_no_count(self) -> None:
+        self.assertIsNone(self.stores(self.build(None))["nas-off"]["synced_vms"])
