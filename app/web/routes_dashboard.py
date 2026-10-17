@@ -17,6 +17,19 @@ from app.web.sync import refresh_sync_job_states_soon
 router = APIRouter()
 
 
+def _pbs_sync_state(conn: dict, now: datetime) -> dict:
+    """A PBS's own sync, for its symbol next to the cluster name: "unknown"
+    before the first sync, "critical" when the last one failed, otherwise
+    how current it is (as for PVE)."""
+    if conn.get("last_sync_ok") is None:
+        state = "unknown"
+    elif not conn["last_sync_ok"]:
+        state = "critical"
+    else:
+        state = sync_freshness(conn.get("last_sync_at"), True, now, SYNC_INTERVAL_MINUTES)
+    return {"name": conn["name"], "state": state, "at": conn.get("last_sync_at"), "ok": conn.get("last_sync_ok")}
+
+
 def _encryption_total(summaries: list[dict]) -> dict[str, int]:
     """All clusters together, from the per-cluster counts already loaded."""
     total = sum(s["encryption"]["total_backups"] for s in summaries)
@@ -59,6 +72,10 @@ def dashboard(request: Request) -> HTMLResponse:
         if progress is not None
     }
     id_by_slug = {c["slug"]: c["id"] for c in all_clusters}
+    pbs_by_cluster: dict[int, list[dict]] = {}
+    for conn in db.list_pbs_connections():
+        pbs_by_cluster.setdefault(conn["cluster_id"], []).append(conn)
+    now = datetime.now(UTC)
     # Replications started since the last sync show from the next page load.
     refresh_sync_job_states_soon(list(id_by_slug.values()))
     for summary in clusters:
@@ -67,9 +84,10 @@ def dashboard(request: Request) -> HTMLResponse:
         # Replication (PBS sync jobs) running into this cluster's datastores,
         # from the precomputed diagram: one stored row per cluster, no PBS call.
         summary["sync_freshness"] = sync_freshness(
-            summary["last_pve_sync_success_at"], summary["last_pve_sync_ok"], datetime.now(UTC), SYNC_INTERVAL_MINUTES
+            summary["last_pve_sync_success_at"], summary["last_pve_sync_ok"], now, SYNC_INTERVAL_MINUTES
         )
         cid = id_by_slug.get(summary["cluster_slug"])
+        summary["pbs_syncs"] = [_pbs_sync_state(conn, now) for conn in pbs_by_cluster.get(cid, [])]
         summary["running_syncs"] = sync_progress.running_syncs(cid) if cid is not None else []
 
     context = {

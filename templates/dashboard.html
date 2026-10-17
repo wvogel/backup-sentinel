@@ -45,24 +45,36 @@
   <a class="hero-card cluster-row" href="/clusters/{{ cluster.cluster_slug }}">
     <div class="cluster-hero-main">
       <div class="cluster-row-title">
-        {#- How current the data is; details on hover. #}
-        <span class="sync-fresh sync-fresh-{{ cluster.sync_freshness }}" role="img"
-              aria-label="{{ t('dashboard.sync_fresh_' ~ cluster.sync_freshness) }}"
-              data-tooltip="{{ t('dashboard.sync_fresh_' ~ cluster.sync_freshness) }}&#10;{{ t('dashboard.last_sync_success') }} {{ cluster.last_pve_sync_success_at|datetime_local if cluster.last_pve_sync_success_at else t('dashboard.never_synced_short') }}{% if cluster.last_pve_sync_failure_started_at %}&#10;{{ t('dashboard.error_since') }} {{ cluster.last_pve_sync_failure_started_at|datetime_local }}{% endif %}"></span>
         <h3>{{ cluster.cluster_name }}</h3>
-        {% if cluster.critical_count %}
-        <span class="badge critical">{{ cluster.critical_count }} {{ t('common.critical') }}</span>
-        {% elif cluster.warning_count %}
-        <span class="badge warning">{{ t('common.warning_count_one' if cluster.warning_count == 1 else 'common.warning_count_other', count=cluster.warning_count) }}</span>
-        {% else %}
-        <span class="badge ok">{{ t('common.ok') }}</span>
-        {% endif %}
-        {% if cluster.running_vms %}
-        <span class="badge running-badge" aria-label="{{ t('cluster.running_one' if cluster.running_vms|length == 1 else 'cluster.running_other', count=cluster.running_vms|length) }}" title="{{ cluster.running_vms|join(', ') }}"><svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg>{{ t('dashboard.backups_one' if cluster.running_vms|length == 1 else 'dashboard.backups_other', count=cluster.running_vms|length) }}</span>
-        {% endif %}
-        {% if cluster.running_syncs %}
-        <span class="badge running-badge" aria-label="{{ t('dashboard.sync_running_one' if cluster.running_syncs|length == 1 else 'dashboard.sync_running_other', count=cluster.running_syncs|length) }}" title="{{ cluster.running_syncs|join('\n') }}"><svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg>{{ t('dashboard.replications_one' if cluster.running_syncs|length == 1 else 'dashboard.replications_other', count=cluster.running_syncs|length) }}</span>
-        {% endif %}
+        {#- One symbol for PVE and one per PBS, coloured by how current its
+            sync is; one shared tooltip for all of them. #}
+        {%- set sync_lines -%}
+          {{ t('dashboard.pve_sync', status=t('dashboard.sync_fresh_' ~ cluster.sync_freshness)) }}&#10;{{ t('dashboard.last_sync_success') }} {{ cluster.last_pve_sync_success_at|datetime_local if cluster.last_pve_sync_success_at else t('dashboard.never_synced_short') }}
+          {%- if cluster.last_pve_sync_failure_started_at %}&#10;{{ t('dashboard.error_since') }} {{ cluster.last_pve_sync_failure_started_at|datetime_local }}{% endif %}
+          {%- for pbs in cluster.pbs_syncs %}&#10;{% if pbs.ok is none %}{{ t('dashboard.pbs_sync_never', name=pbs.name) }}{% elif pbs.ok %}{{ t('dashboard.pbs_sync_ok', name=pbs.name, time=pbs.at|datetime_local) }}{% else %}{{ t('dashboard.pbs_sync_failed', name=pbs.name, time=pbs.at|datetime_local) }}{% endif %}{% endfor %}
+        {%- endset %}
+        <span class="sync-icons" role="img" aria-label="{{ sync_lines|replace('&#10;', ' · ') }}" data-tooltip="{{ sync_lines }}">
+          <svg class="sync-icon sync-fresh-{{ cluster.sync_freshness }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+          {%- for pbs in cluster.pbs_syncs %}
+          <svg class="sync-icon sync-fresh-{{ pbs.state }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+          {%- endfor %}
+        </span>
+        {#- What is going on right now. #}
+        <div class="cluster-row-badges">
+          {% if cluster.critical_count %}
+          <span class="badge critical">{{ cluster.critical_count }} {{ t('common.critical') }}</span>
+          {% elif cluster.warning_count %}
+          <span class="badge warning">{{ t('common.warning_count_one' if cluster.warning_count == 1 else 'common.warning_count_other', count=cluster.warning_count) }}</span>
+          {% else %}
+          <span class="badge ok">{{ t('common.ok') }}</span>
+          {% endif %}
+          {% if cluster.running_vms %}
+          <span class="badge running-badge" aria-label="{{ t('cluster.running_one' if cluster.running_vms|length == 1 else 'cluster.running_other', count=cluster.running_vms|length) }}" title="{{ cluster.running_vms|join(', ') }}"><svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg>{{ t('dashboard.backups_one' if cluster.running_vms|length == 1 else 'dashboard.backups_other', count=cluster.running_vms|length) }}</span>
+          {% endif %}
+          {% if cluster.running_syncs %}
+          <span class="badge running-badge" aria-label="{{ t('dashboard.sync_running_one' if cluster.running_syncs|length == 1 else 'dashboard.sync_running_other', count=cluster.running_syncs|length) }}" title="{{ cluster.running_syncs|join('\n') }}"><svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg>{{ t('dashboard.replications_one' if cluster.running_syncs|length == 1 else 'dashboard.replications_other', count=cluster.running_syncs|length) }}</span>
+          {% endif %}
+        </div>
       </div>
     </div>
     <div class="cluster-row-stats">

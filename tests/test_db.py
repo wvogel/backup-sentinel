@@ -725,13 +725,22 @@ class ClusterPageTests(DbTestCase):
         app.include_router(routes_dashboard.router)
         with mock.patch("app.web.routes_dashboard.cached_running_backups", return_value={}):
             html = TestClient(app).get("/").text
-        self.assertIn("sync-fresh sync-fresh-critical", html)  # never synced
+        self.assertIn("sync-icon sync-fresh-critical", html)  # never synced
         db.update_cluster_sync_status(self.cid, True, "ok")
         with mock.patch("app.web.routes_dashboard.cached_running_backups", return_value={}):
             html = TestClient(app).get("/").text
-        self.assertIn("sync-fresh sync-fresh-ok", html)
+        self.assertIn("sync-icon sync-fresh-ok", html)
         self.assertNotIn('class="muted cluster-sync-meta"', html)
         self.assertNotIn("health-bar", html)  # the cluster rows say it all
+        # One symbol per PBS next to PVE's, one tooltip for all of them.
+        db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
+        db.update_pbs_sync_status(db.list_pbs_connections(self.cid)[0]["id"], False, "403")
+        with mock.patch("app.web.routes_dashboard.cached_running_backups", return_value={}):
+            html = TestClient(app).get("/").text
+        self.assertIn("sync-icon sync-fresh-ok", html)
+        self.assertIn("sync-icon sync-fresh-critical", html)
+        self.assertEqual(html.count('data-tooltip="PVE:'), 1)
+        self.assertIn("PBS pbs-fh-muc: letzter Sync", html)
 
     def test_sync_target_namespaces_come_from_the_current_sync_jobs(self) -> None:
         db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
