@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Cluster page: PVE symbol and name in one line.** In the diagram the cluster's box had its symbol above the name, while the PBS boxes have it in the name's line. It now matches them: same symbol size, gap, font size and weight.
+
 ## [v2.41.7] — 2026-10-17
 
 ### Changed
