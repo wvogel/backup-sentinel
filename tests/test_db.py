@@ -676,6 +676,7 @@ class ClusterPageTests(DbTestCase):
         html = self.page()
         self.assertIn("ha-tag is-restricted", html)
         self.assertIn("Darf nur laufen auf: pve1 (2), pve2", html)
+        self.assertIn("Zustand: gestartet", html)
         # No longer HA-managed: the tag goes.
         db.update_vm_ha(self.cid, {})
         self.assertNotIn("ha-tag", self.page())
