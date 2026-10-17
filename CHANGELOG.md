@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.40.5] — 2026-10-17
+
+### Fixed
+
+- **Arrowheads cut off by the boxes after a reload.** Since v2.40.3 the diagram's boxes are as wide as their content and the spare room goes to the arrows. On a fresh load the lines were drawn before the web font had arrived; with the real font the boxes grew and moved, but the diagram kept its size, so nothing triggered a redraw and the boxes covered the tips. The diagram now also redraws when a column changes size (at most once per frame) and once the fonts have loaded.
+- **No empty room on the right of a PBS box with several datastores.** The datastores wrapped below each other but the box kept the width they would need side by side; they are now always listed one under the other, so the box fits them.
+
 ## [v2.40.4] — 2026-10-17
 
 ### Changed
