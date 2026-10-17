@@ -1028,7 +1028,6 @@ pre {
 }
 
 .cluster-row {
-  align-items: stretch; /* tiles as tall as the name, symbols and badges */
   text-decoration: none;
   color: inherit;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -1039,14 +1038,20 @@ pre {
   box-shadow: 0 4px 16px rgba(20, 20, 80, 0.1);
 }
 
-/* Name, then the sync symbols, then what is going on right now. */
+/* Name with the sync symbols under it; what is going on right now next
+   to the name, so the row stays as low as the tiles. */
 .cluster-row-title {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  align-content: start;
+  column-gap: 12px;
+  row-gap: 8px;
 }
+.cluster-row-title h3 { grid-area: 1 / 1; }
+.cluster-row-title .sync-icons { grid-area: 2 / 1; }
 .cluster-row-badges {
+  grid-area: 1 / 2;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1071,11 +1076,6 @@ pre {
   flex: none;
 }
 .cluster-row > .cluster-hero-main { flex: 1 1 0; }
-.cluster-row .cluster-stat {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
 
 .cluster-stat[data-tile-filter] {
   cursor: pointer;
