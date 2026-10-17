@@ -325,6 +325,7 @@
     }
     var lanes = { top: 0, bottom: 0, side: 0 };
     groups.forEach(function (g) { render(svg, g, route(g, geo, stacked, lanes)); });
+    if (window.syncAnimations) syncAnimations(); // a redraw runs on, not from zero
   }
 
   function drawAll() {

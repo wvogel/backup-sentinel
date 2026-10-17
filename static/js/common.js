@@ -1,5 +1,24 @@
 // ── Shared utilities ──────────────────────────────────────────────────────────
 
+// ── Animations follow the clock ───────────────────────────────────────────────
+// Every endless animation stands where the wall clock says (time since the
+// epoch modulo its period), not where its element happened to be created:
+// a redraw, a rebuilt tile or a reload continues it instead of restarting it.
+function syncAnimations() {
+  if (!document.getAnimations) return;
+  const now = Date.now();
+  for (const anim of document.getAnimations()) {
+    if (anim.playState !== "running" || !anim.effect) continue;
+    const timing = anim.effect.getComputedTiming();
+    if (timing.iterations !== Infinity || !(timing.duration > 0)) continue;
+    const period = timing.duration * (String(timing.direction).startsWith("alternate") ? 2 : 1);
+    anim.currentTime = (now % period) + timing.delay;
+  }
+}
+document.addEventListener("DOMContentLoaded", syncAnimations);
+// Anything started elsewhere (a class switched on later) falls in step too.
+document.addEventListener("animationstart", syncAnimations);
+
 // ── Success Lightbox ──────────────────────────────────────────────────────────
 function showSuccessLightbox(title, msg, durationMs = 2000) {
   const overlay = document.getElementById("success-lightbox");

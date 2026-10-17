@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.40.1] — 2026-10-17
+
+### Fixed
+
+- **Animations no longer jump back every 30 s.** The live refresh rebuilt the diagram and the running tiles, and every animation in them started over from zero. All endless animations (light streak, moving blocks, rings, row sweep) now stand where the wall clock says — time modulo their period, like the brand glow already did — so a refresh, a new running row or a page reload continues them seamlessly.
+
 ## [v2.40.0] — 2026-10-17
 
 ### Added
