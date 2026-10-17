@@ -59,15 +59,8 @@
           <svg class="sync-icon sync-fresh-{{ pbs.state }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
           {%- endfor %}
         </span>
-        {#- What is going on right now. #}
+        {#- What is going on right now (the tiles show critical and warnings). #}
         <div class="cluster-row-badges">
-          {% if cluster.critical_count %}
-          <span class="badge critical">{{ cluster.critical_count }} {{ t('common.critical') }}</span>
-          {% elif cluster.warning_count %}
-          <span class="badge warning">{{ t('common.warning_count_one' if cluster.warning_count == 1 else 'common.warning_count_other', count=cluster.warning_count) }}</span>
-          {% else %}
-          <span class="badge ok">{{ t('common.ok') }}</span>
-          {% endif %}
           {% if cluster.running_vms %}
           <span class="badge running-badge" aria-label="{{ t('cluster.running_one' if cluster.running_vms|length == 1 else 'cluster.running_other', count=cluster.running_vms|length) }}" title="{{ cluster.running_vms|join(', ') }}"><svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg>{{ t('dashboard.backups_one' if cluster.running_vms|length == 1 else 'dashboard.backups_other', count=cluster.running_vms|length) }}</span>
           {% endif %}

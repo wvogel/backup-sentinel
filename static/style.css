@@ -1039,21 +1039,24 @@ pre {
 }
 
 /* Name with the sync symbols under it; what is going on right now next
-   to the name, so the row stays as low as the tiles. */
+   to the name. Short of room, the badges wrap into the symbols' line:
+   two badge lines (64 px) still fit the tiles' height (66 px), so every
+   row stays as low as the tiles. The first line is one badge high. */
 .cluster-row-title {
   display: grid;
   grid-template-columns: auto 1fr;
-  align-items: center;
+  grid-template-rows: 28px auto;
   align-content: start;
   column-gap: 12px;
   row-gap: 8px;
 }
-.cluster-row-title h3 { grid-area: 1 / 1; }
-.cluster-row-title .sync-icons { grid-area: 2 / 1; }
+.cluster-row-title h3 { grid-area: 1 / 1; align-self: center; }
+.cluster-row-title .sync-icons { grid-area: 2 / 1; align-self: start; }
 .cluster-row-badges {
-  grid-area: 1 / 2;
+  grid-area: 1 / 2 / 3 / 3;
   display: flex;
   flex-wrap: wrap;
+  align-content: start;
   align-items: center;
   gap: 8px;
 }
