@@ -479,6 +479,7 @@
   "cluster.history_empty": "Keine Backups in den letzten 30 Tagen.",
   "settings.weekly_preview": "Wochenbericht-Vorschau",
   "settings.weekly_report": "Wochenbericht jeden Montag um 7 Uhr per E-Mail senden",
+  "settings.restore_overdue_alerts": "Warnung bei überfälligen Restore-Tests senden (einmal pro VM und Tag)",
   "weekly.html_lang": "de",
   "weekly.title": "Wochenbericht",
   "weekly.week_label": "KW {week}",
