@@ -45,7 +45,7 @@ Each cluster is displayed as a card showing:
 - Cluster name with an overall status badge (OK / Warning / Critical).
 - Last successful PVE sync timestamp.
 - Error-since timestamp if the most recent sync failed.
-- Node count, VM count, and a breakdown of backup statuses. With a quorum device (QDevice) the nodes tile reads "Nodes + QDevice" (tooltip: state and QNetd host); it turns yellow when the QDevice is not connected.
+- Node count, VM count, and a breakdown of backup statuses. With a quorum device (QDevice) the nodes tile shows a small "+Q" next to the count (tooltip: state and QNetd host); it turns yellow when the QDevice is not connected.
 - PBS connection status (if configured).
 - Recent restore test results as compact icons.
 

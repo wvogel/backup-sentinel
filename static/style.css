@@ -475,7 +475,14 @@ td .icon-button {
   text-align: right;
 }
 
-.qdevice-tag { white-space: nowrap; }
+/* "+Q" next to the node count: smaller and muted like the label. */
+.qdevice-tag {
+  margin-left: 3px;
+  color: var(--muted);
+  font-size: 0.72em;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 .cluster-stat strong {
   display: block;
