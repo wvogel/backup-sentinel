@@ -26,8 +26,8 @@
     {%- if not topology.columns or unplaced %}
     {#- Only what the diagram cannot show: no diagram yet, or PBS without a box in it. #}
     <div class="sync-dots">
-      {%- if not topology.columns %}<span class="sync-dot-item">{{ dots.pve_dot(cluster) }} PVE</span>{% endif %}
-      {%- for pbs in unplaced %}<span class="sync-dot-item">{{ dots.pbs_dot(pbs) }} {{ pbs.name }}</span>{% endfor %}
+      {%- if not topology.columns %}<span class="sync-dot-item">{{ dots.pve_icon(cluster) }} PVE</span>{% endif %}
+      {%- for pbs in unplaced %}<span class="sync-dot-item">{{ dots.pbs_icon(pbs) }} {{ pbs.name }}</span>{% endfor %}
     </div>
     {%- endif %}
   </div>
@@ -337,7 +337,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var title = document.getElementById('sync-log-title');
   var closeBtn = document.getElementById('sync-log-close');
 
-  for (var dot of document.querySelectorAll('.sync-dot')) {
+  for (var dot of document.querySelectorAll('.sync-icon-btn')) {
     dot.addEventListener('click', function() {
       var logStatus = document.getElementById('sync-log-status');
       if (window._liveSyncActive) {
@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function () {
             btn.classList.add('syncing');
             btn.title = T('js.syncing');
           }
-          // Store log data so sync-dot click shows live log
+          // Store log data so a sync symbol click shows the live log
           window._liveSyncLog = data.log.join('\n') + (data.log.length ? '\n' : '');
           window._liveSyncOffset = data.offset || 0;
           window._liveSyncActive = true;

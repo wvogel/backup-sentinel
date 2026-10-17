@@ -1437,6 +1437,24 @@ button.sync-dot {
   appearance: none;
 }
 button.sync-dot:hover { opacity: 0.75; transform: none; box-shadow: none; }
+
+/* Cluster page: the PVE / PBS symbol shows its sync state; click opens the log. */
+button.sync-icon-btn {
+  flex: none;
+  display: inline-flex;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  cursor: pointer;
+  line-height: 0;
+  transition: opacity 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+button.sync-icon-btn:hover { opacity: 0.75; transform: none; box-shadow: none; background: none; }
+button.sync-icon-btn svg { width: 16px; height: 16px; }
 button.sync-dot.sync-ok   { background: var(--ok); }
 button.sync-dot.sync-fail { background: var(--critical); }
 button.sync-dot.sync-unknown { background: var(--unknown); }
@@ -2433,8 +2451,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   font-size: 0.82rem;
 }
 
-.sync-dot-item,
-.topo-sync-state {
+.sync-dot-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2544,7 +2561,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   font-size: 0.82rem;
 }
 
-.topo-cluster .topo-icon { color: var(--running); width: 22px; height: 22px; }
+.topo-cluster .sync-icon-btn svg { width: 22px; height: 22px; }
 
 .topo-server {
   display: flex;

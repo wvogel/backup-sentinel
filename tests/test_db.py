@@ -600,7 +600,11 @@ class ClusterPageTests(DbTestCase):
         html = self.page()
         self.assertIn("data-topology", html)
         self.assertNotIn('class="sync-dots"', html)
-        self.assertEqual(html.count('class="sync-dot '), 2)  # PVE + pbs-fh-muc
+        # PVE + pbs-fh-muc, as coloured symbols: PVE never synced, the PBS not yet either.
+        self.assertNotIn('class="sync-dot ', html)
+        self.assertEqual(html.count('class="sync-icon-btn '), 2)
+        self.assertIn('class="sync-icon-btn sync-fresh-critical"', html)
+        self.assertIn('class="sync-icon-btn sync-fresh-unknown"', html)
 
     def running_sync(self) -> tuple[int, str]:
         """A sync job running right now."""

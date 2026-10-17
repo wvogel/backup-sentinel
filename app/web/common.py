@@ -17,10 +17,11 @@ from app.config import (
     DEFAULT_TIMEZONE,
     FOOTER_LINKS,
     LOGOUT_URL,
+    SYNC_INTERVAL_MINUTES,
 )
 from app.i18n import SUPPORTED_LANGUAGES, get_language, get_translations, t
 from app.services import theme
-from app.services.backup_status import format_duration
+from app.services.backup_status import format_duration, pbs_sync_state, pve_sync_state
 from app.services.human_format import format_count, format_rate, format_size
 from app.services.theme_store import active_theme
 
@@ -75,6 +76,10 @@ def _parse_footer_links(s: str) -> list[dict[str, str]]:
 _footer_links = _parse_footer_links(FOOTER_LINKS)
 
 templates.env.globals["t"] = t
+templates.env.globals["pve_sync_state"] = lambda cluster: pve_sync_state(
+    cluster, datetime.now(UTC), SYNC_INTERVAL_MINUTES
+)
+templates.env.globals["pbs_sync_state"] = lambda conn: pbs_sync_state(conn, datetime.now(UTC), SYNC_INTERVAL_MINUTES)
 templates.env.globals["get_language"] = get_language
 templates.env.globals["get_translations_json"] = lambda: json.dumps(get_translations(), ensure_ascii=False)
 templates.env.globals["supported_languages"] = SUPPORTED_LANGUAGES

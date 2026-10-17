@@ -9,9 +9,9 @@
   <svg class="topology-lines" aria-hidden="true"></svg>
   <div class="topology-col">
     <div class="topo-cluster" data-node="cluster">
-      <svg class="topo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+      {{ dots.pve_icon(cluster) }}
       <strong>{{ cluster.name }}</strong>
-      <span class="muted topo-sync-state">{{ dots.pve_dot(cluster) }} PVE</span>
+      <span class="muted">PVE</span>
     </div>
   </div>
   {%- for column in topology.columns %}
@@ -19,10 +19,11 @@
     {%- for group in column %}
     <div class="topo-server{% if not group.registered %} is-unregistered{% endif %}">
       <div class="topo-server-name">
-        <svg class="topo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
-        <span>{{ group.server }}</span>
         {%- set own = pbs_connections | selectattr("id", "equalto", group.conn_id) | first %}
-        {%- if own %}{{ dots.pbs_dot(own) }}{% endif %}
+        {%- if own %}{{ dots.pbs_icon(own) }}{% else %}
+        <svg class="topo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+        {%- endif %}
+        <span>{{ group.server }}</span>
         {%- if not group.registered %}<span class="muted topo-unregistered">{{ t('topology.unregistered') }}</span>{% endif %}
       </div>
       <div class="topo-stores">
