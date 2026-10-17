@@ -12,6 +12,7 @@ from app.services.backup_status import sync_freshness
 from app.services.proxmox_progress import cached_running_backups
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, templates
+from app.web.sync import refresh_sync_job_states_soon
 
 router = APIRouter()
 
@@ -77,6 +78,8 @@ def dashboard(request: Request) -> HTMLResponse:
         if progress is not None
     }
     id_by_slug = {c["slug"]: c["id"] for c in all_clusters}
+    # Replications started since the last sync show from the next page load.
+    refresh_sync_job_states_soon(list(id_by_slug.values()))
     for summary in clusters:
         if summary["cluster_slug"] in running_by_slug:
             summary["running_vms"] = running_by_slug[summary["cluster_slug"]]

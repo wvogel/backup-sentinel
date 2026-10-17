@@ -518,5 +518,25 @@ class BulkFetchNodeTests(unittest.TestCase):
         self.assertEqual(asked, [("pve1", 0), ("pve2", 2)])
 
 
+class SkipStoragesTests(unittest.TestCase):
+    def test_storages_read_directly_are_not_listed_through_pve(self) -> None:
+        asked = []
+
+        def fake(base_url, path, auth_header, **kwargs):
+            if path.endswith("/storage"):
+                return [
+                    {"storage": "pbs-main", "content": "backup", "type": "pbs"},
+                    {"storage": "nfs", "content": "backup", "type": "nfs"},
+                ]
+            asked.append(path.split("/storage/")[1].split("/")[0])
+            return []
+
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=fake):
+            fetch_backup_details(
+                "https://pve", "a", [{"name": "pve1"}], [{"vmid": 100}], storage_config=[], skip_storages={"pbs-main"}
+            )
+        self.assertEqual(asked, ["nfs"])
+
+
 if __name__ == "__main__":
     unittest.main()

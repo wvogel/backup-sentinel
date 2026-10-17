@@ -128,7 +128,11 @@ def get_monthly_report(report_id: int) -> MonthlyReportRow | None:
         return cur.fetchone()
 
 
-def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dict[str, Any]]) -> None:
+def sync_backup_events_for_source(
+    cluster_id: int, source: str, events: list[dict[str, Any]], *, mark_removed: bool = True
+) -> None:
+    """Upsert this source's events; ones no longer seen are marked removed
+    unless `mark_removed` is off (a source could not be read completely)."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT id, vmid FROM vms WHERE cluster_id = %s", (cluster_id,))
         vmid_to_id = {row["vmid"]: row["id"] for row in cur.fetchall()}
@@ -193,7 +197,7 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
 
         today = datetime.now(UTC).date()
         vm_ids = tuple(vmid_to_id.values())
-        if not vm_ids:
+        if not vm_ids or not mark_removed:
             conn.commit()
             return
 

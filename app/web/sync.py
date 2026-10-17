@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -21,7 +22,7 @@ from app.config import (
 )
 from app.i18n import ts
 from app.services import email_assets, topology_store, weekly_report
-from app.services.backup_location import CachedLookups, assign_pbs_servers
+from app.services.backup_location import CachedLookups, assign_pbs_servers, match_pbs_connection
 from app.services.backup_status import assess_slow_backup
 from app.services.notifications import (
     channel_enabled,
@@ -72,6 +73,24 @@ class SyncLogHandler(logging.Handler):
             buf.append(line)
 
 
+def read_directly(conns: list[dict], lookups: CachedLookups):
+    """Whether a PVE storage's backups come straight from its PBS in this
+    sync: a registered PBS of the cluster that sees the datastore (as of its
+    last usage read) and whose read covers the storage's namespace."""
+    seen = {(row["pbs_id"], row["store"]) for row in db.list_datastore_usage()}
+
+    def covered(cfg: dict) -> bool:
+        conn = match_pbs_connection(
+            str(cfg.get("fingerprint") or ""), str(cfg.get("server") or ""), conns, lookups.resolve
+        )
+        if not conn or (conn["id"], str(cfg.get("datastore") or "")) not in seen:
+            return False
+        scope, ns = str(conn.get("namespace") or ""), str(cfg.get("namespace") or "")
+        return ns == scope or (bool(scope) and ns.startswith(f"{scope}/"))
+
+    return covered
+
+
 class _StepTimes:
     """Seconds per sync step, for one "Zeiten:" line in the sync log."""
 
@@ -105,10 +124,16 @@ def sync_cluster_backups(cluster: dict) -> None:
         # could make existing backups look missing.
         prune_blockers: list[str] = []
         known_vmids = db.list_known_vmids(cluster["id"])
+        lookups = CachedLookups()
         with step(ts("synclog.step_inventory")):
-            inventory = fetch_cluster_inventory(cluster, known_vmids=known_vmids)
+            inventory = fetch_cluster_inventory(
+                cluster,
+                known_vmids=known_vmids,
+                read_directly=read_directly(db.list_pbs_connections(cluster["id"]), lookups),
+            )
         pve_events: list[dict] = []
         all_pbs_events: list[dict] = []
+        pbs_all_ok = True
         logger.info(
             "  %s",
             ts(
@@ -141,7 +166,6 @@ def sync_cluster_backups(cluster: dict) -> None:
         with step(ts("synclog.step_database")):
             db.sync_backup_events_for_source(cluster["id"], "pve", pve_events)
 
-        lookups = CachedLookups()
         for conn in db.list_pbs_connections(cluster["id"]):
             with step(ts("synclog.step_pbs_certs", name=conn.get("name"))):
                 record_cert_fingerprints(conn)
@@ -208,10 +232,13 @@ def sync_cluster_backups(cluster: dict) -> None:
                     )
                 db.update_pbs_sync_status(conn["id"], pbs_ok, "\n".join(pbs_log))
                 if not pbs_ok:
+                    pbs_all_ok = False
                     prune_blockers.append(ts("synclog.pbs_failed", name=conn.get("name")))
 
         with step(ts("synclog.step_database")):
-            db.sync_backup_events_for_source(cluster["id"], "pbs", all_pbs_events)
+            # A PBS that could not be read keeps its snapshots: PVE no longer
+            # lists them as a fallback (read_directly).
+            db.sync_backup_events_for_source(cluster["id"], "pbs", all_pbs_events, mark_removed=pbs_all_ok)
             db.update_backup_event_storages(cluster["id"], pve_events + all_pbs_events)
 
         # Mark stub in-progress events older than N hours as aborted so the
@@ -344,11 +371,14 @@ def record_cert_fingerprints(conn: dict) -> None:
         db.update_pbs_cert_fingerprints(conn["id"], fingerprints)
 
 
-def record_sync_jobs(conn: dict, pbs_log: list[str], lookups: CachedLookups | None = None) -> None:
+def record_sync_jobs(
+    conn: dict, pbs_log: list[str], lookups: CachedLookups | None = None, jobs: list[dict] | None = None
+) -> None:
     """Store this PBS's sync jobs for the replication view (best effort:
-    missing rights must not fail the PBS sync; old rows stay)."""
+    missing rights must not fail the PBS sync; old rows stay). `jobs`, when
+    already fetched, are stored as they are."""
     try:
-        jobs = fetch_pbs_sync_jobs(conn)
+        jobs = jobs if jobs is not None else fetch_pbs_sync_jobs(conn)
     except Exception as exc:
         pbs_log.append(ts("synclog.sync_jobs_failed", error=exc))
         logger.warning("Sync jobs failed for PBS %s: %s", conn.get("name"), exc)
@@ -361,6 +391,63 @@ def record_sync_jobs(conn: dict, pbs_log: list[str], lookups: CachedLookups | No
             job["remote_pbs_id"] = match["id"] if match else None
     db.replace_pbs_sync_jobs(conn["id"], jobs)
     pbs_log.append(ts("synclog.sync_jobs", count=len(jobs)))
+
+
+# A replication starting or ending between two syncs: the PBS feeding a
+# cluster's diagram are asked about their sync jobs at most this often.
+JOB_CHECK_SECONDS = 30.0
+_jobs_checked: dict[int, float] = {}
+_jobs_lock = threading.Lock()
+
+
+def refresh_sync_job_states(cluster_id: int) -> bool:
+    """Notice sync jobs that started or ended since the last sync, for the
+    cluster's diagram: when one did, store the jobs and rebuild the diagrams.
+    True when something changed (best effort: an unreachable PBS keeps what
+    is shown)."""
+    topology = topology_store.load(cluster_id)
+    pbs_ids = {e["pbs_id"] for e in topology["edges"] if e.get("kind") == "sync" and e.get("pbs_id")}
+    if not pbs_ids:
+        return False
+    now = time.monotonic()
+    with _jobs_lock:
+        due = {p for p in pbs_ids if now - _jobs_checked.get(p, -JOB_CHECK_SECONDS) >= JOB_CHECK_SECONDS}
+        _jobs_checked.update(dict.fromkeys(due, now))
+    if not due:
+        return False
+    conns = {c["id"]: c for c in db.list_pbs_connections()}
+    running: dict[int, dict[str, str | None]] = {}
+    for row in db.list_pbs_sync_jobs():
+        running.setdefault(row["pbs_id"], {})[row["job_id"]] = row.get("running_upid")
+    changed = False
+    for pbs_id in sorted(due):
+        conn = conns.get(pbs_id)
+        if not conn:
+            continue
+        try:
+            jobs = fetch_pbs_sync_jobs(conn, retries=0)
+        except Exception as exc:
+            logger.warning("Sync job check failed for PBS %s: %s", conn.get("name"), exc)
+            continue
+        if {j["job_id"]: j["running_upid"] for j in jobs} != running.get(pbs_id, {}):
+            record_sync_jobs(conn, [], jobs=jobs)
+            changed = True
+    if changed:
+        topology_store.refresh_all()
+    return changed
+
+
+def refresh_sync_job_states_soon(cluster_ids: list[int]) -> None:
+    """The same check in the background, so a page never waits for a PBS."""
+
+    def run() -> None:
+        for cluster_id in cluster_ids:
+            try:
+                refresh_sync_job_states(cluster_id)
+            except Exception:
+                logger.exception("Sync job check failed for cluster %s", cluster_id)
+
+    sync_executor.submit(run)
 
 
 def enrich_backup_events_from_task_logs(cluster: dict, nodes: list[str]) -> None:

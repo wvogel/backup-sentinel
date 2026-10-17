@@ -331,13 +331,17 @@
     document.querySelectorAll("[data-topology]").forEach(draw);
   }
 
-  // Live progress of running replication syncs, every 30 s while one runs.
+  // Live progress of running replication syncs, every 30 s; the server also
+  // notices replications that started or ended since the last sync.
   function pollSyncProgress(root) {
-    if (!root.querySelector("[data-sync-key]")) return;
     var slug = decodeURIComponent(location.pathname.split("/")[2] || "");
     fetch("/api/clusters/" + encodeURIComponent(slug) + "/sync-progress")
       .then(function (resp) { return resp.ok ? resp.json() : {}; })
       .then(function (progress) {
+        if (progress._changed) {
+          location.reload(); // the diagram changed: draw it anew
+          return;
+        }
         var finishedAny = false;
         root.querySelectorAll("[data-sync-key]").forEach(function (el) {
           var info = progress[el.dataset.syncKey];

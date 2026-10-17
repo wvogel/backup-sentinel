@@ -118,5 +118,59 @@ class RestoreAlertSettingTests(unittest.TestCase):
         self.assertTrue(self.send({"notify_restore_overdue": "true"}))
 
 
+PBS1 = {"id": 7, "name": "pbs1", "api_url": "https://pbs1:8007", "fingerprint": "AA:01", "namespace": ""}
+
+
+class ReadDirectlyTests(unittest.TestCase):
+    def covered(self, cfg, conn=None):
+        lookups = sync.CachedLookups(resolve=lambda host: set(), probe=lambda host, port: "")
+        usage = [{"pbs_id": 7, "store": "nas"}]
+        with mock.patch.object(sync.db, "list_datastore_usage", return_value=usage):
+            return sync.read_directly([conn or PBS1], lookups)(cfg)
+
+    def test_registered_pbs_with_its_datastore_and_namespace(self):
+        self.assertTrue(self.covered({"fingerprint": "AA:01", "server": "10.0.0.5", "datastore": "nas"}))
+
+    def test_datastore_the_connection_does_not_see(self):
+        self.assertFalse(self.covered({"fingerprint": "AA:01", "server": "10.0.0.5", "datastore": "other"}))
+
+    def test_unregistered_pbs(self):
+        self.assertFalse(self.covered({"fingerprint": "BB:02", "server": "elsewhere", "datastore": "nas"}))
+
+    def test_namespace_outside_what_is_read(self):
+        cfg = {"fingerprint": "AA:01", "server": "x", "datastore": "nas", "namespace": "aboe"}
+        self.assertFalse(self.covered(cfg))  # only the root is read
+        self.assertTrue(self.covered(cfg, {**PBS1, "namespace": "aboe"}))
+        self.assertTrue(self.covered({**cfg, "namespace": "aboe/sub"}, {**PBS1, "namespace": "aboe"}))
+
+
+class RefreshSyncJobStatesTests(unittest.TestCase):
+    def setUp(self):
+        sync._jobs_checked.clear()
+
+    def run_check(self, fetched, stored):
+        with (
+            mock.patch.object(sync.topology_store, "load", return_value={"edges": [{"kind": "sync", "pbs_id": 7}]}),
+            mock.patch.object(sync.db, "list_pbs_connections", return_value=[{"id": 7, "name": "pbs1"}]),
+            mock.patch.object(sync.db, "list_pbs_sync_jobs", return_value=stored),
+            mock.patch.object(sync, "fetch_pbs_sync_jobs", return_value=fetched) as fetch,
+            mock.patch.object(sync, "record_sync_jobs") as record,
+            mock.patch.object(sync.topology_store, "refresh_all") as refresh,
+        ):
+            changed = sync.refresh_sync_job_states(1)
+        return changed, fetch.call_count, record.called, refresh.called
+
+    def test_a_started_replication_redraws_once(self):
+        stored = [{"pbs_id": 7, "job_id": "s1", "running_upid": None}]
+        fetched = [{"job_id": "s1", "running_upid": "UPID:pbs1:1"}]
+        self.assertEqual(self.run_check(fetched, stored), (True, 1, True, True))
+        # Asked again within 30 s: the PBS is not bothered.
+        self.assertEqual(self.run_check(fetched, stored), (False, 0, False, False))
+
+    def test_nothing_changed(self):
+        stored = [{"pbs_id": 7, "job_id": "s1", "running_upid": None}]
+        self.assertEqual(self.run_check([{"job_id": "s1", "running_upid": None}], stored), (False, 1, False, False))
+
+
 if __name__ == "__main__":
     unittest.main()

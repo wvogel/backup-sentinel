@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.40.0] — 2026-10-17
+
+### Added
+
+- **Replications that start or end are noticed live.** Until now a running PBS sync job only showed after Sentinel's next own sync (hourly). The cluster page now asks the PBS behind its diagram every 30 s for their sync jobs (at most every 30 s per PBS, shared by all viewers); when one started or ended, the jobs are stored, the diagram is rebuilt and the page redraws. The overview triggers the same check in the background and shows it from the next load.
+
+### Changed
+
+- **No more listing through PVE of what is read straight from the PBS.** For a PBS storage whose PBS is registered for the cluster, sees the datastore and reads its namespace, PVE is no longer asked for the same snapshots — PVE passing that list on took up to 8 s, the direct read 0.3 s. If a PBS cannot be read in a sync, its snapshots are kept as they are instead of being marked removed.
+- Live checks (running sync progress, sync jobs) no longer wait for retries: they are asked again 30 s later anyway.
+
 ## [v2.39.2] — 2026-10-17
 
 ### Changed
