@@ -65,28 +65,53 @@
     return el;
   }
 
-  // Only while data moves (running backup or sync): packets flow through
-  // the pipe, a light sweep runs along it, a replication's blocks move.
+  // Soft streak: dashes of falling length share one centre, so their
+  // overlap fades out to both sides like a gradient, even round corners.
+  var STREAK_LAYERS = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+  var maskCount = 0;
+
+  // A replication's streak only lights its blocks, not the gaps: masked by a
+  // white copy of the pipe that moves with it.
+  function blockMask(svg, path) {
+    var id = "topo-mask-" + ++maskCount;
+    var mask = document.createElementNS(SVG_NS, "mask");
+    mask.setAttribute("id", id);
+    mask.setAttribute("maskUnits", "userSpaceOnUse");
+    ["x", "y"].forEach(function (k) { mask.setAttribute(k, "-10000"); });
+    ["width", "height"].forEach(function (k) { mask.setAttribute(k, "20000"); });
+    var copy = path.cloneNode(false);
+    copy.style.stroke = "#fff";
+    mask.appendChild(copy);
+    svg.appendChild(mask);
+    var group = document.createElementNS(SVG_NS, "g");
+    group.setAttribute("mask", "url(#" + id + ")");
+    svg.appendChild(group);
+    return group;
+  }
+
+  // Only while data moves (running backup or sync): a light streak runs
+  // through the pipe as in a running VM row, a replication's blocks move.
   function animate(svg, path, d, edge, cls, width) {
     if (calm || !edge.active) return;
-    var speed = edge.kind === "primary" ? 80 : 55; // px per second
     var length = path.getTotalLength();
     if (edge.kind === "sync") {
-      var period = edge.lane ? width * 3.4 : width * 2; // dash + gap, see below
+      var period = edge.lane ? width * 3.4 : width * 2; // dash + gap, see render
       path.style.setProperty("--flow-shift", -period + "px");
-      path.style.setProperty("--flow-time", (period / speed).toFixed(3) + "s");
+      path.style.setProperty("--flow-time", (period / 55).toFixed(3) + "s");
     }
-    var dot = Math.max(2, width * 0.36), gap = Math.max(10, width * 1.4);
-    var packets = overlay(svg, d, "topo-packets " + cls, dot);
-    packets.setAttribute("stroke-dasharray", "0.1 " + gap);
-    packets.style.setProperty("--flow-shift", -gap - 0.1 + "px");
-    packets.style.setProperty("--flow-time", ((gap + 0.1) / speed).toFixed(3) + "s");
-    var streak = Math.min(90, length * 0.35);
-    var sweep = overlay(svg, d, "topo-sweep " + cls, width * 0.8);
-    sweep.setAttribute("stroke-dasharray", streak + " " + (length + streak));
-    sweep.style.strokeDashoffset = streak + "px";
-    sweep.style.setProperty("--flow-shift", -length + "px");
-    sweep.style.setProperty("--sweep-time", Math.max(1.4, length / 160).toFixed(2) + "s");
+    var streak = Math.max(60, Math.min(220, length * 0.6));
+    var cycle = length + streak; // from just before the start to past the end
+    var time = Math.max(1.6, cycle / 260).toFixed(2) + "s";
+    var target = edge.kind === "sync" ? blockMask(svg, path) : svg;
+    STREAK_LAYERS.forEach(function (share) {
+      var dash = streak * share;
+      var start = (streak + dash) / 2; // centre half a streak before the start
+      var layer = overlay(target, d, "topo-sweep " + cls, width);
+      layer.setAttribute("stroke-dasharray", dash + " " + (cycle - dash));
+      layer.style.strokeDashoffset = start + "px";
+      layer.style.setProperty("--flow-shift", start - cycle + "px");
+      layer.style.setProperty("--sweep-time", time);
+    });
   }
 
   // PVE storages running backups write to: the guests' recent backup
