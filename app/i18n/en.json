@@ -9,8 +9,6 @@
   "common.ok": "ok",
   "common.warning": "warning",
   "common.warnings": "warnings",
-  "common.warning_count_one": "{count} warning",
-  "common.warning_count_other": "{count} warnings",
   "common.critical": "critical",
   "common.unknown": "unknown",
   "common.never": "never",

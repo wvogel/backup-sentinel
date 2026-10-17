@@ -743,6 +743,9 @@ class ClusterPageTests(DbTestCase):
         self.assertIn("sync-icon sync-fresh-ok", html)
         self.assertNotIn('class="muted cluster-sync-meta"', html)
         self.assertNotIn("health-bar", html)  # the cluster rows say it all
+        # The tiles show critical and warnings; no status badge next to the name.
+        self.assertNotIn('class="badge ok"', html)
+        self.assertNotIn('class="badge warning"', html)
         # One symbol per PBS next to PVE's, one tooltip for all of them.
         db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
         db.update_pbs_sync_status(db.list_pbs_connections(self.cid)[0]["id"], False, "403")

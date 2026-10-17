@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Overview rows of different heights.** At about 1000 px, a cluster with a warning badge, a running backup and a running replication had no room for them next to its name: they wrapped onto three lines and that row grew (126–148 instead of 92 px), with the name moving down. The status badge ("ok", "2 Warnungen", "1 kritisch") is gone — the "kritisch" and "Warnungen" tiles show the same, highlighted — so only what is running right now stays next to the name. Short of room, those badges may also use the symbols' line; two lines still fit the tiles' height, and the name keeps its place.
+
 ## [v2.41.8] — 2026-10-17
 
 ### Changed
