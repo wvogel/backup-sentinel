@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.31.2] — 2026-10-17
+
+### Fixed
+
+- **HA state in the language of the interface** ("Zustand: gestartet" instead of "started"). All states PVE HA reports are translated (started, starting, stopped, stopping, request_stop, disabled, ignored, migrate, relocate, recovery, fence, freeze, error); an unknown one is shown as PVE names it.
+
 ## [v2.31.1] — 2026-10-17
 
 ### Fixed
