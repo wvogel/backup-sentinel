@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.37.0] — 2026-10-17
+
+### Changed
+
+- **Running badges on the dashboard are shorter:** "4 Backups", "2 Replikationen" — the turning spinner already says they run (the full wording stays for screen readers).
+- **A running backup moves in its VM row,** not only as a tinted bar: a ring turns around the guest icon and a light streak runs along the filled part of the bar (the whole row while the percentage is unknown). Off with reduced motion.
+
+### Fixed
+
+- **Cluster names on the dashboard no longer break over several lines** next to many badges; the badges move to the next line, and the stat tiles stay in one row.
+
 ## [v2.36.0] — 2026-10-17
 
 ### Changed

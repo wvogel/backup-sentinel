@@ -1165,23 +1165,30 @@ pre {
 
 .cluster-row-title {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
 }
 
+/* The name never breaks; badges move to the next line instead. */
 .cluster-row-title h3 {
   margin: 0;
   font-size: 1rem;
   font-weight: 700;
+  white-space: nowrap;
 }
+.cluster-row-title .badge { white-space: nowrap; }
 
+/* Tiles stay in one row; the title takes the rest and wraps its badges. */
 .cluster-row-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(80px, auto);
   gap: 8px;
-  min-width: 500px;
+  flex: none;
 }
+.cluster-row > .cluster-hero-main { flex: 1 1 0; }
 
 .cluster-stat[data-tile-filter] {
   cursor: pointer;
@@ -1275,6 +1282,7 @@ pre {
   .cluster-row-stats {
     min-width: 0;
     width: 100%;
+    grid-auto-flow: row;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
@@ -2439,6 +2447,44 @@ details[open] > .encryption-alert-summary::before {
   padding-left: 12px;
 }
 #vm-table tr.is-running > td:nth-child(2) { font-weight: 700; }
+/* Something is moving: a ring turns around the guest icon and a light
+   streak runs along the filled part of the bar (all of it if no percent). */
+#vm-table tr.is-running .guest-icon { position: relative; color: var(--running); }
+#vm-table tr.is-running .guest-icon::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--running) 22%, transparent);
+  border-top-color: var(--running);
+  animation: running-spin 1.1s linear infinite;
+}
+#vm-table tr.is-running > td:first-child { position: relative; }
+#vm-table tr.is-running > td:first-child::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--row-w, 100%) * var(--pct, 100) / 100);
+  pointer-events: none;
+  background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--running) 30%, transparent),
+      transparent
+    )
+    no-repeat;
+  background-size: 160px 100%;
+  animation: running-sweep 2.4s linear infinite;
+}
+@keyframes running-sweep {
+  from { background-position-x: -160px; }
+  to { background-position-x: calc(100% + 160px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #vm-table tr.is-running .guest-icon::after,
+  #vm-table tr.is-running > td:first-child::before { animation: none; }
+  #vm-table tr.is-running > td:first-child::before { background: none; }
+}
 #vm-table tr.running-flash > td { animation: running-flash 1.4s ease-out; }
 @keyframes running-flash { from { box-shadow: inset 0 0 0 999px var(--running-fill); } }
 
