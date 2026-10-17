@@ -1969,7 +1969,7 @@ details[open] > .encryption-alert-summary::before {
 .kpi-ring-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 .kpi-ring {
   flex-shrink: 0;

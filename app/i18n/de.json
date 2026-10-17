@@ -33,7 +33,7 @@
   "common.unknown_user": "unbekannt",
   "common.no_log": "(kein Log vorhanden)",
   "dashboard.title": "Übersicht | Backup Sentinel",
-  "dashboard.restore_coverage": "Restore-Test-Abdeckung",
+  "dashboard.restore_coverage": "Restore-Abdeckung",
   "dashboard.restore_overdue": "Restore-Tests fällig",
   "dashboard.restore_critical": "Restore kritisch überfällig",
   "dashboard.restore_month": "Restore-Tests im Monat",
