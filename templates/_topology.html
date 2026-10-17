@@ -45,7 +45,10 @@
             {#- PVE backs up here directly: tag in the name row, saves a line. #}
             {%- for e in ds.primary %}
             <span class="topo-tag" data-tooltip="{{ t('topology.primary_tooltip', storage=e.storage_id, ns=e.to_ns or '/') }}">PVE{% if e.vms is not none %} · {{ t('topology.vms_one' if e.vms == 1 else 'topology.vms_other', count=e.vms) }}{% endif %}</span>
-            {%- endfor %}</div>
+            {%- endfor %}
+            {%- if ds.synced_vms %}
+            <span class="topo-tag topo-tag-sync" data-tooltip="{{ t('topology.synced_tooltip', count=ds.synced_vms) }}">Sync · {{ t('topology.vms_one' if ds.synced_vms == 1 else 'topology.vms_other', count=ds.synced_vms) }}</span>
+            {%- endif %}</div>
           {#- The warning triangle already says it (date in its tooltip). #}
           {%- if ds.estimated_full_at and ds.status != 'ok' and not ds.full_soon %}
           <div class="topo-full status-text-{{ ds.status }}">{{ t('cluster.datastore_full_short', date=ds.estimated_full_at|datetime_local('%m/%y')) }}</div>

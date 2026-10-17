@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.33.0] — 2026-10-17
+
+### Added
+
+- **"Sync · n VMs" next to "PVE · n VMs".** A datastore that sync jobs copy into shows how many guests of this cluster actually have backups lying there — taken from where the sync found each backup (PVE storage contents and direct PBS reads), not from what the sync jobs are configured to copy — minus the guests whose PVE backup jobs write there directly. Shown in the replication colour; the tooltip explains it.
+
 ## [v2.32.0] — 2026-10-17
 
 ### Added

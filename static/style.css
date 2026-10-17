@@ -2829,6 +2829,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
   white-space: nowrap;
 }
 
+.topo-tag.topo-tag-sync { color: var(--running); border-color: color-mix(in srgb, var(--running) 45%, transparent); }
+
 .topo-tag {
   padding: 0 6px;
   border: 1px solid var(--chip-border);
