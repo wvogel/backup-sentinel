@@ -4,7 +4,9 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -69,10 +71,30 @@ class SyncLogHandler(logging.Handler):
             buf.append(line)
 
 
+class _StepTimes:
+    """Seconds per sync step, for one "Zeiten:" line in the sync log."""
+
+    def __init__(self) -> None:
+        self.secs: dict[str, float] = {}
+
+    @contextmanager
+    def __call__(self, label: str) -> Iterator[None]:
+        t = time.monotonic()
+        try:
+            yield
+        finally:
+            self.secs[label] = self.secs.get(label, 0.0) + time.monotonic() - t
+
+    def line(self) -> str:
+        steps = sorted(self.secs.items(), key=lambda item: -item[1])
+        return ts("synclog.timings", steps=" · ".join(f"{label} {secs:.1f}s" for label, secs in steps))
+
+
 def sync_cluster_backups(cluster: dict) -> None:
     """Fetch backup events from PBS direct connections (preferred) and PVE proxy."""
     cutoff = None
     pve_log: list[str] = []
+    step = _StepTimes()
     t_start = time.monotonic()
     logger.info("══ Sync START: %s ══", cluster["name"])
 
@@ -82,7 +104,8 @@ def sync_cluster_backups(cluster: dict) -> None:
         # could make existing backups look missing.
         prune_blockers: list[str] = []
         known_vmids = db.list_known_vmids(cluster["id"])
-        inventory = fetch_cluster_inventory(cluster, known_vmids=known_vmids)
+        with step(ts("synclog.step_inventory")):
+            inventory = fetch_cluster_inventory(cluster, known_vmids=known_vmids)
         pve_events: list[dict] = []
         all_pbs_events: list[dict] = []
         logger.info(
@@ -95,11 +118,12 @@ def sync_cluster_backups(cluster: dict) -> None:
             ),
         )
         pve_log.append(f"Nodes: {len(inventory.nodes)}, VMs: {len(inventory.vms)}")
-        db.sync_cluster_inventory(cluster["id"], inventory.nodes, inventory.vms)
-        if inventory.qdevice is not None:  # unknown: keep the last known state
-            db.update_cluster_qdevice(cluster["id"], inventory.qdevice)
-        if inventory.ha is not None:
-            db.update_vm_ha(cluster["id"], inventory.ha)
+        with step(ts("synclog.step_database")):
+            db.sync_cluster_inventory(cluster["id"], inventory.nodes, inventory.vms)
+            if inventory.qdevice is not None:  # unknown: keep the last known state
+                db.update_cluster_qdevice(cluster["id"], inventory.qdevice)
+            if inventory.ha is not None:
+                db.update_vm_ha(cluster["id"], inventory.ha)
         if not inventory.vms:
             prune_blockers.append(ts("synclog.pve_zero_vms"))
         prune_blockers.extend(f"PVE {err}" for err in inventory.fetch_errors)
@@ -113,22 +137,25 @@ def sync_cluster_backups(cluster: dict) -> None:
         else:
             pve_log.append(ts("synclog.pve_events", count=0))
 
-        db.sync_backup_events_for_source(cluster["id"], "pve", pve_events)
+        with step(ts("synclog.step_database")):
+            db.sync_backup_events_for_source(cluster["id"], "pve", pve_events)
 
         lookups = CachedLookups()
         for conn in db.list_pbs_connections(cluster["id"]):
-            record_cert_fingerprints(conn)
+            with step(ts("synclog.step_pbs_certs", name=conn.get("name"))):
+                record_cert_fingerprints(conn)
         pbs_conns = db.list_pbs_connections(cluster["id"])
         # Name PBS storages seen through PVE after the registered PBS behind them,
         # so one server is one copy however it was reached.
-        assign_pbs_servers(inventory.backup_events or [], pbs_conns, lookups.resolve, lookups.probe)
-        if inventory.pbs_targets is not None:
-            # Any cluster's registration counts: the PBS may be registered elsewhere.
-            all_conns = db.list_pbs_connections()
-            for target in inventory.pbs_targets:
-                match = lookups.connection(target["fingerprint"], target["server"], all_conns)
-                target["pbs_id"] = match["id"] if match else None
-            db.replace_pve_pbs_targets(cluster["id"], inventory.pbs_targets)
+        with step(ts("synclog.step_matching")):
+            assign_pbs_servers(inventory.backup_events or [], pbs_conns, lookups.resolve, lookups.probe)
+            if inventory.pbs_targets is not None:
+                # Any cluster's registration counts: the PBS may be registered elsewhere.
+                all_conns = db.list_pbs_connections()
+                for target in inventory.pbs_targets:
+                    match = lookups.connection(target["fingerprint"], target["server"], all_conns)
+                    target["pbs_id"] = match["id"] if match else None
+                db.replace_pve_pbs_targets(cluster["id"], inventory.pbs_targets)
         if not pbs_conns:
             pve_log.append(ts("synclog.no_pbs"))
         else:
@@ -136,17 +163,19 @@ def sync_cluster_backups(cluster: dict) -> None:
             # are still tracked instead of being flagged as removed.
             vmids = {vm["vmid"] for vm in inventory.vms} | known_vmids
             # Namespaces sync jobs copy this cluster's backups into: read them
-            # too, so the copies count (from the diagram of the last sync).
-            sync_target_namespaces = topology_store.sync_target_namespaces(cluster["id"])
+            # too, so the copies count.
+            with step(ts("synclog.step_topology")):
+                sync_target_namespaces = topology_store.sync_target_namespaces(cluster["id"])
             for conn in pbs_conns:
                 pbs_log: list[str] = []
                 pbs_ok = True
                 t_pbs = time.monotonic()
                 logger.info("  %s", ts("synclog.pbs_start", name=conn.get("name")))
                 try:
-                    events, ds_logs, pbs_complete = fetch_all_pbs_backups(
-                        conn, vmids, cutoff, extra_namespaces=sync_target_namespaces.get(conn["id"])
-                    )
+                    with step(ts("synclog.step_pbs_backups", name=conn.get("name"))):
+                        events, ds_logs, pbs_complete = fetch_all_pbs_backups(
+                            conn, vmids, cutoff, extra_namespaces=sync_target_namespaces.get(conn["id"])
+                        )
                     if not pbs_complete:
                         pbs_ok = False
                     logger.info(
@@ -162,8 +191,10 @@ def sync_cluster_backups(cluster: dict) -> None:
                     for event in events:
                         event["source"] = "pbs"
                     all_pbs_events.extend(events)
-                    record_datastore_usage(cluster, conn, pbs_log)
-                    record_sync_jobs(conn, pbs_log, lookups)
+                    with step(ts("synclog.step_pbs_usage", name=conn.get("name"))):
+                        record_datastore_usage(cluster, conn, pbs_log)
+                    with step(ts("synclog.step_pbs_jobs", name=conn.get("name"))):
+                        record_sync_jobs(conn, pbs_log, lookups)
                 except PBSSyncError as exc:
                     pbs_ok = False
                     pbs_log.append(ts("synclog.error", error=exc))
@@ -178,8 +209,9 @@ def sync_cluster_backups(cluster: dict) -> None:
                 if not pbs_ok:
                     prune_blockers.append(ts("synclog.pbs_failed", name=conn.get("name")))
 
-        db.sync_backup_events_for_source(cluster["id"], "pbs", all_pbs_events)
-        db.update_backup_event_storages(cluster["id"], pve_events + all_pbs_events)
+        with step(ts("synclog.step_database")):
+            db.sync_backup_events_for_source(cluster["id"], "pbs", all_pbs_events)
+            db.update_backup_event_storages(cluster["id"], pve_events + all_pbs_events)
 
         # Mark stub in-progress events older than N hours as aborted so the
         # UI stops showing a "Backup running" badge for crashed/cancelled jobs.
@@ -190,11 +222,13 @@ def sync_cluster_backups(cluster: dict) -> None:
         db.update_vm_last_backup_from_events(cluster["id"])
 
         try:
-            enrich_backup_events_from_task_logs(cluster, [node["name"] for node in inventory.nodes])
+            with step(ts("synclog.step_task_logs")):
+                enrich_backup_events_from_task_logs(cluster, [node["name"] for node in inventory.nodes])
         except Exception as exc:  # best effort, never fails the sync
             logger.warning("Task-log enrichment failed for %s: %s", cluster["name"], exc)
         try:
-            notify_slow_running_backups(cluster, [node["name"] for node in inventory.nodes], inventory.vms)
+            with step(ts("synclog.step_slow_check")):
+                notify_slow_running_backups(cluster, [node["name"] for node in inventory.nodes], inventory.vms)
         except Exception as exc:
             logger.warning("Slow-backup check failed for %s: %s", cluster["name"], exc)
 
@@ -208,7 +242,8 @@ def sync_cluster_backups(cluster: dict) -> None:
                 logger.info("  %s", ts("synclog.pruned", count=pruned))
             pve_log.append(ts("synclog.pruned", count=pruned))
         # Shared PBS and sync jobs can change other clusters' diagrams too.
-        topology_store.refresh_all()
+        with step(ts("synclog.step_topology")):
+            topology_store.refresh_all()
     except Exception as exc:
         pve_log.append(ts("synclog.error", error=exc))
         logger.error("Sync failed for cluster %s: %s", cluster["name"], exc)
@@ -216,6 +251,7 @@ def sync_cluster_backups(cluster: dict) -> None:
         notify_sync_failed(cluster["name"], str(exc))
         raise
 
+    t_checks = time.monotonic()
     try:
         anomalies = db.detect_backup_size_anomalies(cluster["id"])
         if anomalies:
@@ -260,9 +296,12 @@ def sync_cluster_backups(cluster: dict) -> None:
     except Exception as exc:
         logger.warning("Encryption audit notification failed: %s", exc)
 
+    step.secs[ts("synclog.step_checks")] = time.monotonic() - t_checks
     elapsed_total = time.monotonic() - t_start
     logger.info("══ Sync DONE: %s (%.1fs gesamt) ══", cluster["name"], elapsed_total)
     pve_log.append(ts("synclog.duration", secs=f"{elapsed_total:.1f}"))
+    pve_log.append(step.line())
+    logger.info("  %s", step.line())
     db.update_cluster_sync_status(cluster["id"], True, "\n".join(pve_log))
 
 

@@ -62,3 +62,17 @@ class NotifyFailedVerifiesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StepTimesTests(unittest.TestCase):
+    def test_slowest_step_first_and_repeated_steps_add_up(self) -> None:
+        step = sync._StepTimes()
+        clock = iter([0.0, 1.0, 1.0, 5.0, 5.0, 5.5])
+        with mock.patch.object(sync.time, "monotonic", lambda: next(clock)):
+            with step("DB"):
+                pass
+            with step("Task-Logs"):
+                pass
+            with step("DB"):
+                pass
+        self.assertEqual(step.line(), sync.ts("synclog.timings", steps="Task-Logs 4.0s · DB 1.5s"))
