@@ -388,10 +388,22 @@
     });
     if (window.ResizeObserver) {
       document.querySelectorAll("[data-topology]").forEach(function (root) {
-        new ResizeObserver(function () { draw(root); }).observe(root);
+        // Boxes take their content's width and spare room goes to the arrows,
+        // so a box can move while the diagram keeps its size (e.g. once the
+        // web font has loaded): watch the columns too, redraw once per frame.
+        var pending = false;
+        var observer = new ResizeObserver(function () {
+          if (pending) return;
+          pending = true;
+          requestAnimationFrame(function () { pending = false; draw(root); });
+        });
+        observer.observe(root);
+        root.querySelectorAll(".topology-col").forEach(function (col) { observer.observe(col); });
       });
     } else {
       window.addEventListener("resize", drawAll);
     }
+    // Text measured with the fallback font is narrower: draw again with the real one.
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
   });
 })();

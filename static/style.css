@@ -2644,10 +2644,11 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-stores {
   flex: none;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px 16px;
+  /* One under the other: a wrapped row would keep the box as wide as all
+     datastores side by side, with empty room on the right. */
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 /* Ring left, text right: as low as possible. */
