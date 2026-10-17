@@ -48,7 +48,7 @@ from app.services.pbs import (
 )
 from app.services.pdf_reports import write_backup_period_pdf
 from app.services.proxmox import fetch_cluster_inventory, fetch_finished_backup_tasks
-from app.services.proxmox_progress import fetch_running_backup_progress
+from app.services.proxmox_progress import running_backup_progress_cached
 from app.services.reporting import build_backup_period_report, serialize_report_payload
 from app.services.theme_store import active_theme
 
@@ -468,7 +468,8 @@ def enrich_backup_events_from_task_logs(cluster: dict, nodes: list[str]) -> None
 
 
 def notify_slow_running_backups(cluster: dict, nodes: list[str], vms: list[dict]) -> None:
-    progress = fetch_running_backup_progress(cluster, nodes)
+    # Shared with the cluster pages' polls: no extra PVE fetch while they run.
+    progress, _complete = running_backup_progress_cached(cluster, nodes)
     if not progress:
         return
     typical = db.typical_backup_durations(cluster["id"])

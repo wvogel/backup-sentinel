@@ -8,15 +8,23 @@ import math
 import re
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib import parse
 from zoneinfo import ZoneInfo
 
 from app.config import DEFAULT_TIMEZONE
-from app.i18n import get_language, t
-from app.services.proxmox import ProxmoxSyncError, _pve_get, _pve_get_dict, _pve_get_json, build_token_header
+from app.i18n import t
+from app.services.proxmox import (
+    ProxmoxSyncError,
+    _pve_get_dict,
+    _pve_get_json,
+    _pve_get_payload,
+    build_token_header,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +187,22 @@ def _vm_started_at(log_lines: list[str]) -> datetime | None:
 
 
 def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -> dict[str, Any]:
+    return _localize(_parse_progress_data(task, log_lines))
+
+
+def _localize(progress: dict[str, Any]) -> dict[str, Any]:
+    """Progress with the UI language's label and tooltip (a copy: the parsed
+    data is cached once for all languages)."""
+    localized = dict(progress)
+    localized["label"] = (
+        f"Backup {progress['percent']}%" if progress.get("percent") is not None else t("progress.running")
+    )
+    localized["title"] = _build_progress_title(progress)
+    return localized
+
+
+def _parse_progress_data(task: dict[str, Any], log_lines: list[str]) -> dict[str, Any]:
+    """Progress of the running VM from its log section, without translated text."""
     progress: dict[str, Any] = {}
 
     start_raw = task.get("starttime") or task.get("start-time")
@@ -230,25 +254,195 @@ def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -
                 progress["eta_short"] = _fmt_short(eta)
             break
 
-    progress["label"] = (
-        f"Backup {progress['percent']}%" if progress.get("percent") is not None else t("progress.running")
-    )
-    progress["title"] = _build_progress_title(progress)
     return progress
 
 
-def fetch_running_backup_progress(
+# ── Reading the task logs ────────────────────────────────────────────────────
+# A scheduled job backs up many VMs in one task, and its log grows to many
+# thousands of lines. Each refresh reads only the lines added since the last
+# one; per task the section of the VM running right now is kept.
+_LOG_PAGE = 1000
+
+
+@dataclass(slots=True)
+class _TaskLog:
+    read: int = 0  # log lines read so far
+    section: list[str] = field(default_factory=list)  # from the last "Starting Backup" on
+
+
+def _with_lines(state: _TaskLog, lines: list[str], read: int) -> _TaskLog:
+    for i in range(len(lines) - 1, -1, -1):
+        if _START_RE.search(lines[i]):
+            return _TaskLog(read, lines[i:])
+    return _TaskLog(read, state.section + lines)
+
+
+def _read_task_log(get_page: Callable[[int, int], tuple[list[str], int | None]], state: _TaskLog) -> _TaskLog:
+    """Bring `state` up to date. `get_page(start, limit)` returns the log lines
+    after the first `start` ones and the log's total line count (PVE: "total")."""
+    lines, total = get_page(state.read, _LOG_PAGE)
+    if total is not None and total < state.read:  # not the log we read before
+        state = _TaskLog()
+        lines, total = get_page(0, _LOG_PAGE)
+    if total is None:  # no line count reported: read on page by page
+        page = lines
+        while len(page) == _LOG_PAGE:
+            page, _ = get_page(state.read + len(lines), _LOG_PAGE)
+            lines += page
+        return _with_lines(state, lines, state.read + len(lines))
+    if total == 1 and lines == ["no content"]:  # PVE's answer for an empty log
+        return state
+    floor = state.read + len(lines)
+    if total <= floor:
+        return _with_lines(state, lines, floor)
+    # More new lines than one page: the running VM's section is at the end.
+    # Read back from there to its "Starting Backup" line; the lines skipped
+    # belong to VMs that are already done.
+    tail: list[str] = []
+    end = total
+    while end > floor:
+        start = max(floor, end - _LOG_PAGE)
+        page, _ = get_page(start, end - start)
+        tail = page + tail
+        end = start
+        if any(_START_RE.search(line) for line in page):
+            return _with_lines(state, tail, total)
+    return _with_lines(state, lines + tail, total)
+
+
+# Per (cluster, node, UPID) of a running task; dropped once it no longer runs.
+_task_logs: dict[tuple[Any, str, str], _TaskLog] = {}
+_task_logs_lock = threading.Lock()
+# Nodes and tasks are asked in parallel. Long-lived threads keep their PVE
+# connection open (api_client keeps one per server and thread).
+_pve_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="backup-progress-pve")
+
+
+def _fetch_running_backup_progress(
     cluster: dict[str, Any], nodes: list[str], timeout: float = 5.0
-) -> dict[int, dict[str, Any]]:
-    return _fetch_running_backup_progress(cluster, nodes, timeout)[0]
+) -> tuple[dict[int, dict[str, Any]], bool]:
+    """Running backups of a cluster (progress by VMID, not translated) and
+    whether every node's task list could be read."""
+    if not cluster.get("api_user") or not cluster.get("token_id") or not cluster.get("token_secret"):
+        return {}, False
+
+    base_url = cluster["api_url"].rstrip("/")
+    auth_header = build_token_header(cluster["api_user"], cluster["token_id"], cluster["token_secret"])
+    cluster_key = cluster.get("id")
+
+    def node_path(node_name: str) -> str:
+        return f"/api2/json/nodes/{parse.quote(node_name, safe='')}"
+
+    def list_tasks(node_name: str) -> list[dict[str, Any]] | None:
+        # Live checks are asked once (no retries): the next poll asks again.
+        try:
+            return _pve_get_json(
+                base_url,
+                f"{node_path(node_name)}/tasks",
+                auth_header,
+                timeout=timeout,
+                query={"source": "active", "typefilter": "vzdump"},
+                retries=0,
+            )
+        except ProxmoxSyncError as exc:
+            logger.warning("Cannot list running backup tasks on node %s: %s", node_name, exc)
+            return None
+
+    def inspect(node_name: str, task: dict[str, Any]) -> tuple[int, dict[str, Any]] | None:
+        upid = str(task["upid"])
+        task_path = f"{node_path(node_name)}/tasks/{parse.quote(upid, safe='')}"
+        key = (cluster_key, node_name, upid)
+
+        def get_page(start: int, limit: int) -> tuple[list[str], int | None]:
+            payload = _pve_get_payload(
+                base_url,
+                f"{task_path}/log",
+                auth_header,
+                timeout=max(timeout, 10.0),
+                query={"start": str(start), "limit": str(limit)},
+                retries=0,
+            )
+            total = payload.get("total")
+            return _extract_log_lines(payload.get("data")), total if isinstance(total, int) else None
+
+        try:
+            status = _pve_get_dict(base_url, f"{task_path}/status", auth_header, timeout=timeout, retries=0)
+            if status.get("status") == "stopped":
+                return None
+            with _task_logs_lock:
+                state = _task_logs.get(key) or _TaskLog()
+            state = _read_task_log(get_page, state)
+        except ProxmoxSyncError as exc:
+            logger.warning("Cannot inspect running backup task %s on %s: %s", upid, node_name, exc)
+            return None
+        with _task_logs_lock:
+            _task_logs[key] = state
+
+        vmid = _extract_vmid_from_task({**task, **status}, state.section)
+        if vmid is None:
+            return None
+        return vmid, _parse_progress_data({**task, **status}, _current_vm_log(state.section))
+
+    task_lists = dict(zip(nodes, _pve_pool.map(list_tasks, nodes), strict=True))
+    complete = all(tasks is not None for tasks in task_lists.values())
+    running = [
+        (node_name, task)
+        for node_name, tasks in task_lists.items()
+        for task in tasks or []
+        if str(task.get("upid") or "")
+    ]
+    result: dict[int, dict[str, Any]] = {}
+    for item in _pve_pool.map(lambda pair: inspect(*pair), running):
+        if item is not None:
+            result[item[0]] = item[1]
+
+    # Forget tasks that ended (only on nodes that answered).
+    active = {(cluster_key, node_name, str(task["upid"])) for node_name, task in running}
+    with _task_logs_lock:
+        for key in list(_task_logs):
+            if key[0] == cluster_key and task_lists.get(key[1]) is not None and key not in active:
+                del _task_logs[key]
+    return result, complete
 
 
-# ── Cached access (dashboard, cluster page, status endpoint) ─────────────────
-# Keyed by cluster and UI language: labels and tooltips are translated.
+# ── Cached access (dashboard, cluster page, status endpoint, sync) ───────────
+# One entry per cluster for all UI languages; labels are added per request.
 _CACHE_MAX_AGE = 20.0
-_cache: dict[tuple[int, str], tuple[float, dict[int, dict[str, Any]], bool]] = {}
+_cache: dict[Any, tuple[float, dict[int, dict[str, Any]], bool]] = {}
 _cache_lock = threading.Lock()
 _executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="backup-progress")
+# Fetch running per cluster: everyone who needs fresh data waits for it.
+_inflight: dict[Any, Future[tuple[dict[int, dict[str, Any]], bool]]] = {}
+# How old a cached result may be and still be shown while a refresh runs.
+_PEEK_MAX_AGE = 300.0
+
+
+def _localize_all(progress: dict[int, dict[str, Any]]) -> dict[int, dict[str, Any]]:
+    return {vmid: _localize(item) for vmid, item in progress.items()}
+
+
+def _refresh_future(cluster: dict[str, Any], nodes: list[str]) -> Future[tuple[dict[int, dict[str, Any]], bool]]:
+    """The running fetch of the cluster, or a new one. Call with `_cache_lock` held."""
+    key = cluster["id"]
+    future = _inflight.get(key)
+    if future is None:
+        future = _executor.submit(contextvars.copy_context().run, _refresh, key, cluster, nodes)
+        _inflight[key] = future
+    return future
+
+
+def _refresh(key: Any, cluster: dict[str, Any], nodes: list[str]) -> tuple[dict[int, dict[str, Any]], bool]:
+    try:
+        progress, complete = _fetch_running_backup_progress(cluster, nodes)
+        with _cache_lock:
+            _cache[key] = (time.monotonic(), progress, complete)
+        return progress, complete
+    except Exception:
+        logger.exception("Refreshing running backups of cluster %s failed", cluster.get("name"))
+        raise
+    finally:
+        with _cache_lock:
+            _inflight.pop(key, None)
 
 
 def running_backup_progress_cached(cluster: dict[str, Any], nodes: list[str]) -> tuple[dict[int, dict[str, Any]], bool]:
@@ -256,21 +450,15 @@ def running_backup_progress_cached(cluster: dict[str, Any], nodes: list[str]) ->
 
     Returns (progress by VMID, complete); `complete` is False when a node's
     task list could not be read, so the result may be missing backups.
+    Callers that find the cache stale at the same time share one fetch.
     """
-    key = (cluster["id"], get_language())
     with _cache_lock:
-        hit = _cache.get(key)
-    if hit and time.monotonic() - hit[0] < _CACHE_MAX_AGE:
-        return hit[1], hit[2]
-    progress, complete = _fetch_running_backup_progress(cluster, nodes)
-    with _cache_lock:
-        _cache[key] = (time.monotonic(), progress, complete)
-    return progress, complete
-
-
-_refreshing: set[tuple[int, str]] = set()
-# How old a cached result may be and still be shown while a refresh runs.
-_PEEK_MAX_AGE = 300.0
+        hit = _cache.get(cluster["id"])
+        if hit and time.monotonic() - hit[0] < _CACHE_MAX_AGE:
+            return _localize_all(hit[1]), hit[2]
+        future = _refresh_future(cluster, nodes)
+    progress, complete = future.result()
+    return _localize_all(progress), complete
 
 
 def running_backup_progress_peek(
@@ -282,28 +470,14 @@ def running_backup_progress_peek(
     recent is cached. A stale or missing entry is refreshed in the background,
     so the next look (or the page's poll) gets live data.
     """
-    key = (cluster["id"], get_language())
     with _cache_lock:
-        hit = _cache.get(key)
+        hit = _cache.get(cluster["id"])
         age = time.monotonic() - hit[0] if hit else None
-        if (age is None or age >= _CACHE_MAX_AGE) and key not in _refreshing:
-            _refreshing.add(key)
-            _executor.submit(contextvars.copy_context().run, _refresh, key, cluster, nodes)
+        if age is None or age >= _CACHE_MAX_AGE:
+            _refresh_future(cluster, nodes)
     if hit and age is not None and age < _PEEK_MAX_AGE:
-        return hit[1], hit[2]
+        return _localize_all(hit[1]), hit[2]
     return None, False
-
-
-def _refresh(key: tuple[int, str], cluster: dict[str, Any], nodes: list[str]) -> None:
-    try:
-        progress, complete = _fetch_running_backup_progress(cluster, nodes)
-        with _cache_lock:
-            _cache[key] = (time.monotonic(), progress, complete)
-    except Exception:  # best effort; the next look retries
-        logger.exception("Refreshing running backups of cluster %s failed", cluster.get("name"))
-    finally:
-        with _cache_lock:
-            _refreshing.discard(key)
 
 
 def cached_running_backups(
@@ -316,63 +490,3 @@ def cached_running_backups(
         progress, complete = running_backup_progress_peek(cluster, nodes)
         result[cluster["id"]] = progress if progress is not None and complete else None
     return result
-
-
-def _fetch_running_backup_progress(
-    cluster: dict[str, Any], nodes: list[str], timeout: float = 5.0
-) -> tuple[dict[int, dict[str, Any]], bool]:
-    if not cluster.get("api_user") or not cluster.get("token_id") or not cluster.get("token_secret"):
-        return {}, False
-    complete = True
-
-    base_url = cluster["api_url"].rstrip("/")
-    auth_header = build_token_header(cluster["api_user"], cluster["token_id"], cluster["token_secret"])
-    result: dict[int, dict[str, Any]] = {}
-
-    for node_name in nodes:
-        try:
-            tasks = _pve_get_json(
-                base_url,
-                f"/api2/json/nodes/{parse.quote(node_name, safe='')}/tasks",
-                auth_header,
-                timeout=timeout,
-                query={"source": "active", "typefilter": "vzdump"},
-            )
-        except ProxmoxSyncError as exc:
-            logger.warning("Cannot list running backup tasks on node %s: %s", node_name, exc)
-            complete = False
-            continue
-
-        for task in tasks:
-            upid = str(task.get("upid") or "")
-            if not upid:
-                continue
-            try:
-                status = _pve_get_dict(
-                    base_url,
-                    f"/api2/json/nodes/{parse.quote(node_name, safe='')}/tasks/{parse.quote(upid, safe='')}/status",
-                    auth_header,
-                    timeout=timeout,
-                )
-                if status.get("status") == "stopped":
-                    continue
-                log_data = _pve_get(
-                    base_url,
-                    f"/api2/json/nodes/{parse.quote(node_name, safe='')}/tasks/{parse.quote(upid, safe='')}/log",
-                    auth_header,
-                    timeout=max(timeout, 10.0),
-                    query={"start": "0", "limit": "5000"},
-                )
-            except ProxmoxSyncError as exc:
-                logger.warning("Cannot inspect running backup task %s on %s: %s", upid, node_name, exc)
-                continue
-
-            log_lines = _extract_log_lines(log_data)
-            vmid = _extract_vmid_from_task({**task, **status}, log_lines)
-            if vmid is None:
-                continue
-            progress = _parse_running_backup_progress({**task, **status}, _current_vm_log(log_lines))
-            if progress:
-                result[vmid] = progress
-
-    return result, complete

@@ -1,6 +1,7 @@
 import unittest
 from datetime import UTC, datetime
 from unittest import mock
+from urllib import parse
 from zoneinfo import ZoneInfo
 
 from app.services import proxmox, proxmox_progress
@@ -165,11 +166,11 @@ class RunningBackupsForClustersTests(unittest.TestCase):
             release.set()
             proxmox_progress._executor.submit(lambda: None).result()
             for _ in range(50):
-                if not proxmox_progress._refreshing:
+                if not proxmox_progress._inflight:
                     break
                 threading.Event().wait(0.02)
             result = proxmox_progress.cached_running_backups(clusters)
-        self.assertEqual(result, {1: {103: {"percent": 48}}, 2: None, 3: None})
+        self.assertEqual(result, {1: {103: {"percent": 48, "label": "Backup 48%", "title": ""}}, 2: None, 3: None})
 
     def test_cache_avoids_a_second_pve_call(self) -> None:
         fetch = mock.Mock(return_value=({101: {}}, True))
@@ -177,7 +178,160 @@ class RunningBackupsForClustersTests(unittest.TestCase):
             proxmox_progress.running_backup_progress_cached({"id": 7}, ["n1"])
             progress, complete = proxmox_progress.running_backup_progress_cached({"id": 7}, ["n1"])
         self.assertEqual(fetch.call_count, 1)
-        self.assertEqual((progress, complete), ({101: {}}, True))
+        self.assertEqual(complete, True)
+        self.assertEqual(list(progress), [101])
+
+
+class FakePve:
+    """A PVE node with running vzdump tasks; log pages as the API returns them
+    ("start" skips that many lines, "total" counts all of them)."""
+
+    def __init__(self, logs: dict[str, list[str]]) -> None:
+        self.logs = logs
+        self.pages: list[tuple[str, int, int]] = []
+        self.task_lists = 0
+
+    def get_json(self, base_url, path, auth_header, **kwargs):
+        self.task_lists += 1
+        return [{"upid": upid, "starttime": 1760040000} for upid in self.logs]
+
+    def get_dict(self, base_url, path, auth_header, **kwargs):
+        return {"status": "running"}
+
+    def get_payload(self, base_url, path, auth_header, **kwargs):
+        upid = parse.unquote(path.split("/tasks/")[1].removesuffix("/log"))
+        start, limit = int(kwargs["query"]["start"]), int(kwargs["query"]["limit"])
+        self.pages.append((upid, start, limit))
+        lines = self.logs[upid]
+        rows = [{"n": n, "t": text} for n, text in enumerate(lines[start : start + limit], start + 1)]
+        return {"data": rows, "total": len(lines)}
+
+    def patches(self):
+        return (
+            mock.patch.object(proxmox_progress, "_pve_get_json", side_effect=self.get_json),
+            mock.patch.object(proxmox_progress, "_pve_get_dict", side_effect=self.get_dict),
+            mock.patch.object(proxmox_progress, "_pve_get_payload", side_effect=self.get_payload),
+        )
+
+
+def _multi_vm_log(finished_lines: int) -> list[str]:
+    """A job log: VM 100 done after `finished_lines` lines, VM 101 running."""
+    log = ["INFO: starting new backup job: vzdump 100 101", "INFO: Starting Backup of VM 100 (qemu)"]
+    log += [f"INFO: {i % 100}% (1 GiB of 2 GiB) in 1m 0s, read: 1 MiB/s, write: 1 MiB/s" for i in range(finished_lines)]
+    log += ["INFO: Finished Backup of VM 100 (00:10:00)", "INFO: Starting Backup of VM 101 (qemu)"]
+    log += ["INFO: creating Proxmox Backup Server archive 'vm/101/2026-10-09T18:00:01Z'"]
+    log += ["INFO:  12% (12 GiB of 100 GiB) in 10m 0s, read: 20 MiB/s, write: 20 MiB/s"]
+    return log
+
+
+_CLUSTER = {"id": 11, "api_url": "https://pve", "api_user": "u@pve", "token_id": "t", "token_secret": "s"}
+
+
+class IncrementalTaskLogTests(unittest.TestCase):
+    CLUSTER = _CLUSTER
+
+    def setUp(self) -> None:
+        proxmox_progress._cache.clear()
+        proxmox_progress._task_logs.clear()
+
+    def fetch(self, fake: FakePve):
+        p1, p2, p3 = fake.patches()
+        with p1, p2, p3:
+            return proxmox_progress._fetch_running_backup_progress(self.CLUSTER, ["pve1"])
+
+    def test_log_longer_than_5000_lines_still_yields_the_current_vm(self) -> None:
+        fake = FakePve({"UPID:pve1:job": _multi_vm_log(7000)})
+        progress, complete = self.fetch(fake)
+        self.assertTrue(complete)
+        self.assertEqual(list(progress), [101])
+        self.assertEqual(progress[101]["percent"], 12)
+        self.assertEqual(progress[101]["started_at"], datetime(2026, 10, 9, 18, 0, 1, tzinfo=UTC))
+        # The head page and the tail back to VM 101's start, not the 7000 lines in between.
+        read = sum(min(limit, 7005 - start) for _upid, start, limit in fake.pages)
+        self.assertLess(read, 2100)
+
+    def test_second_refresh_requests_only_new_lines(self) -> None:
+        log = _multi_vm_log(10)
+        fake = FakePve({"UPID:pve1:job": log})
+        self.fetch(fake)
+        first_total = len(log)
+        log.append("INFO:  13% (13 GiB of 100 GiB) in 11m 0s, read: 20 MiB/s, write: 20 MiB/s")
+        fake.pages.clear()
+        progress, _ = self.fetch(fake)
+        self.assertEqual(fake.pages, [("UPID:pve1:job", first_total, proxmox_progress._LOG_PAGE)])
+        self.assertEqual(progress[101]["percent"], 13)
+        # The current VM's start, read in the first refresh, is still known.
+        self.assertEqual(progress[101]["started_at"], datetime(2026, 10, 9, 18, 0, 1, tzinfo=UTC))
+
+    def test_large_gap_between_refreshes_reads_from_the_tail(self) -> None:
+        log = _multi_vm_log(0)[:2]  # VM 100 just started
+        fake = FakePve({"UPID:pve1:job": log})
+        self.fetch(fake)
+        log += _multi_vm_log(6000)[2:]  # meanwhile VM 100 finished, VM 101 runs
+        progress, _ = self.fetch(fake)
+        self.assertEqual(list(progress), [101])
+        self.assertEqual(progress[101]["percent"], 12)
+
+    def test_ended_tasks_are_forgotten(self) -> None:
+        fake = FakePve({"UPID:pve1:job": _multi_vm_log(3)})
+        self.fetch(fake)
+        self.assertEqual(len(proxmox_progress._task_logs), 1)
+        fake.logs.clear()
+        self.assertEqual(self.fetch(fake), ({}, True))
+        self.assertEqual(proxmox_progress._task_logs, {})
+
+    def test_log_without_total_is_read_page_by_page(self) -> None:
+        log = _multi_vm_log(2500)
+
+        def get_page(start, limit):
+            return log[start : start + limit], None
+
+        state = proxmox_progress._read_task_log(get_page, proxmox_progress._TaskLog())
+        self.assertEqual(state.read, len(log))
+        self.assertEqual(state.section[0], "INFO: Starting Backup of VM 101 (qemu)")
+
+    def test_one_fetch_serves_both_languages(self) -> None:
+        fake = FakePve({"UPID:pve1:job": _multi_vm_log(3)})
+        p1, p2, p3 = fake.patches()
+        with p1, p2, p3:
+            with mock.patch.object(proxmox_progress, "t", side_effect=lambda key, **kw: f"de:{key}"):
+                german, _ = proxmox_progress.running_backup_progress_cached(self.CLUSTER, ["pve1"])
+            with mock.patch.object(proxmox_progress, "t", side_effect=lambda key, **kw: f"en:{key}"):
+                english, _ = proxmox_progress.running_backup_progress_cached(self.CLUSTER, ["pve1"])
+        self.assertEqual(fake.task_lists, 1)
+        self.assertTrue(german[101]["title"].startswith("de:"))
+        self.assertTrue(english[101]["title"].startswith("en:"))
+        # Translating one language's copy leaves the cached data alone.
+        self.assertNotIn("title", proxmox_progress._cache[11][1][101])
+
+    def test_concurrent_misses_cause_one_fetch(self) -> None:
+        import threading
+
+        release = threading.Event()
+        calls = []
+
+        def slow_fetch(cluster, nodes, timeout=5.0):
+            calls.append(cluster["id"])
+            release.wait(2)
+            return {101: {"percent": 5}}, True
+
+        results = []
+        with mock.patch.object(proxmox_progress, "_fetch_running_backup_progress", side_effect=slow_fetch):
+            threads = [
+                threading.Thread(
+                    target=lambda: results.append(proxmox_progress.running_backup_progress_cached(self.CLUSTER, []))
+                )
+                for _ in range(5)
+            ]
+            for thread in threads:
+                thread.start()
+            proxmox_progress.running_backup_progress_peek(self.CLUSTER, [])
+            release.set()
+            for thread in threads:
+                thread.join(3)
+        self.assertEqual(calls, [11])
+        self.assertEqual(len(results), 5)
+        self.assertTrue(all(progress[101]["percent"] == 5 and complete for progress, complete in results))
 
 
 class ProgressThroughputTests(unittest.TestCase):
