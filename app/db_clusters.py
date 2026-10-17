@@ -5,9 +5,8 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from app.config import SYNC_INTERVAL_MINUTES
 from app.db_core import connect
-from app.types import ClusterRow, NodeRow, PBSConnectionRow, SyncHealthRow, VMRow
+from app.types import ClusterRow, NodeRow, PBSConnectionRow, VMRow
 
 
 def create_cluster(name: str, slug: str, api_url: str, enrollment_secret: str) -> None:
@@ -359,19 +358,6 @@ def delete_pbs_connection(conn_id: int) -> bool:
         deleted = cur.rowcount > 0
         conn.commit()
         return deleted
-
-
-def cluster_sync_health(cluster: dict[str, Any]) -> SyncHealthRow:
-    """Failed syncs in a row (estimated from when failing started), from a
-    cluster row the caller has already loaded."""
-    if cluster.get("last_pve_sync_ok") is not False:
-        return {"failures": 0, "stale": False}
-    failure_start = cluster.get("last_pve_sync_failure_started_at")
-    if not failure_start:
-        return {"failures": 1, "stale": False}
-    delta_hours = (datetime.now(UTC) - failure_start).total_seconds() / 3600
-    est_failures = max(1, int(delta_hours / (SYNC_INTERVAL_MINUTES / 60)))
-    return {"failures": est_failures, "stale": est_failures >= 3}
 
 
 def replace_datastore_usage(pbs_id: int, rows: list[dict[str, Any]]) -> None:

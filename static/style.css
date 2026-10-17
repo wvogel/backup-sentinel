@@ -507,44 +507,6 @@ td .icon-button {
   line-height: 1.35;
 }
 
-/* ── Health Bar ──────────────────────────────────────────────── */
-.health-bar {
-  display: flex;
-  gap: 6px;
-  margin-bottom: var(--gap);
-  padding: var(--pad-box) var(--pad-card);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-box);
-  box-shadow: var(--shadow);
-  overflow-x: auto;
-}
-.health-segment {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border-radius: var(--radius-tag);
-  font-size: 0.82em;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background 0.12s ease;
-}
-.health-segment:hover { filter: brightness(0.95); }
-.health-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.health-ok    { background: var(--ok-soft); color: var(--ok); }
-.health-ok .health-dot { background: var(--ok); }
-.health-critical { background: var(--critical-soft); color: var(--critical); }
-.health-critical .health-dot { background: var(--critical); }
-.health-unknown  { background: var(--unknown-soft); color: var(--unknown); }
-.health-unknown .health-dot { background: var(--unknown); }
-
 .summary-grid,
 .panel-grid {
   display: grid;
@@ -1984,27 +1946,6 @@ details[open] > .encryption-alert-summary::before {
 .encryption-alert-body {
   border-top: 1px solid var(--line);
   padding: 0 var(--pad-card) var(--pad-card);
-}
-
-/* ── Feature 6: Stale sync badge ─────────────────────────────────────── */
-.health-stale {
-  border: 2px dashed var(--critical) !important;
-  animation: stale-pulse 2s ease-in-out infinite;
-}
-.health-stale-badge {
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: var(--critical);
-  color: #fff;
-  padding: 1px 5px;
-  border-radius: var(--radius-tag);
-  margin-left: 2px;
-}
-@keyframes stale-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
 }
 
 /* ── Feature 7: Restore coverage ring ────────────────────────────────── */
