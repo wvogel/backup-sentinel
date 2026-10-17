@@ -228,6 +228,8 @@ Ein Seitenbereich fasst die NIST-CSF-2.0-Ausrichtung zusammen:
 - **Detect** -- Automatische Alarmierung bei Fehlern und Anomalien.
 - **Recover** -- Dokumentierte Restore-Tests mit Compliance-Tracking.
 
+**Überfällige Restore-Tests** -- Im Gotify-Block lässt sich *Warnung bei überfälligen Restore-Tests senden* einschalten (Standard: aus). Dann meldet jeder Sync VMs, deren letzter Restore-Test älter als ihr Intervall ist, einmal pro VM und Tag mit der Zahl der überfälligen Tage. Nie getestete VMs („offen“) lösen keine Warnung aus.
+
 **Wochenbericht** -- Ist E-Mail aktiv und der Schalter *Wochenbericht* gesetzt (Standard), kommt jeden Montag ab 7 Uhr eine gestaltete HTML-Mail (mit Textversion für Mail-Programme ohne HTML): im Kopf Logo und Schriftzug wie in der Web-Oberfläche, oben das Urteil der Woche („Alles im grünen Bereich“ oder „N Punkte brauchen Aufmerksamkeit“), die Kennzahlen und je Cluster eine Zeile mit VMs, Nodes, Verschlüsselung und dem, was Aufmerksamkeit braucht (kritisch, Warnungen, fehlgeschlagene Backups, fällige Restore-Tests, Sync-Fehler), darunter die Probleme -- Backups, Verifies, fast volle Datastores (mit Füllstand) -- und als Info die Voll-Läufe der Woche und VMs mit nur einem Backup-Standort, zum Schluss der Stand der Restore-Tests. VM-Namen verlinken auf ihren Cluster (dafür muss `APP_URL` gesetzt sein). Der Button **Wochenbericht-Vorschau** zeigt den Bericht so, wie er jetzt verschickt würde. War der Server montags aus, wird der Bericht im Lauf der Woche nachgeholt.
 
 ### Einstellungs-Auditlog

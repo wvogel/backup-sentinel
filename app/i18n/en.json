@@ -479,6 +479,7 @@
   "cluster.history_empty": "No backups in the last 30 days.",
   "settings.weekly_preview": "Weekly report preview",
   "settings.weekly_report": "Send a weekly report by email every Monday at 7:00",
+  "settings.restore_overdue_alerts": "Send a warning for overdue restore tests (once per VM and day)",
   "weekly.html_lang": "en",
   "weekly.title": "Weekly report",
   "weekly.week_label": "Week {week}",

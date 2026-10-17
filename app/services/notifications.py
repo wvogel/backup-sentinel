@@ -311,9 +311,14 @@ def notify_sync_overdue(cluster_name: str, failure_started_at: datetime | None) 
             pass
 
 
+def restore_alerts_enabled() -> bool:
+    """Overdue restore tests are announced only when switched on (default off)."""
+    return _notify_settings().get("notify_restore_overdue", "false").lower() in ("1", "true", "on", "yes")
+
+
 def notify_restore_overdue(cluster_name: str, vm_name: str, vmid: int, days_overdue: int) -> None:
     key = f"restore-overdue:{cluster_name}:{vmid}"
-    if not _should_send(key):
+    if not restore_alerts_enabled() or not _should_send(key):
         return
     send_gotify(
         title=ts("notify.restore_overdue_title", vm=vm_name),

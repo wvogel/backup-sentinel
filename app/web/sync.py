@@ -28,6 +28,7 @@ from app.services.notifications import (
     notify_backup_critical,
     notify_backup_slow,
     notify_datastore_full,
+    notify_restore_overdue,
     notify_size_anomaly,
     notify_sync_failed,
     notify_sync_overdue,
@@ -270,15 +271,7 @@ def sync_cluster_backups(cluster: dict) -> None:
         logger.warning("Anomaly detection failed for %s: %s", cluster["name"], exc)
 
     try:
-        governance = db.vm_governance_rows(cluster["id"])
-        for row in governance:
-            if row["backup_severity"] == "critical" and row["status_backup_kind"] != "none":
-                notify_backup_critical(
-                    cluster["name"],
-                    row["vm_name"],
-                    row["vmid"],
-                    row["backup_age_days"],
-                )
+        notify_guest_alerts(cluster, db.vm_governance_rows(cluster["id"]))
     except Exception as exc:
         logger.warning("Critical notification check failed: %s", exc)
 
@@ -303,6 +296,18 @@ def sync_cluster_backups(cluster: dict) -> None:
     pve_log.append(step.line())
     logger.info("  %s", step.line())
     db.update_cluster_sync_status(cluster["id"], True, "\n".join(pve_log))
+
+
+def notify_guest_alerts(cluster: dict, rows: list[dict]) -> None:
+    """Critical backup age and expired restore tests, per guest."""
+    for row in rows:
+        if row["backup_severity"] == "critical" and row["status_backup_kind"] != "none":
+            notify_backup_critical(cluster["name"], row["vm_name"], row["vmid"], row["backup_age_days"])
+        # Expired restore test (not: never tested, see restore_due_status).
+        if row["restore_due_status"] == "critical" and not row["vm_gone"]:
+            notify_restore_overdue(
+                cluster["name"], row["vm_name"], row["vmid"], row["restore_age_days"] - row["restore_interval_days"]
+            )
 
 
 def notify_failed_verifies(cluster: dict) -> None:

@@ -60,10 +60,6 @@ class NotifyFailedVerifiesTests(unittest.TestCase):
         notify.assert_called_once_with("pve-x", "a", 1, failed_at)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class StepTimesTests(unittest.TestCase):
     def test_slowest_step_first_and_repeated_steps_add_up(self) -> None:
         step = sync._StepTimes()
@@ -76,3 +72,51 @@ class StepTimesTests(unittest.TestCase):
             with step("DB"):
                 pass
         self.assertEqual(step.line(), sync.ts("synclog.timings", steps="Task-Logs 4.0s · DB 1.5s"))
+
+
+class NotifyGuestAlertsTests(unittest.TestCase):
+    def row(self, vmid, restore, age=None, interval=90, gone=False):
+        return {
+            "vm_name": f"vm{vmid}",
+            "vmid": vmid,
+            "backup_severity": "ok",
+            "status_backup_kind": "daily",
+            "restore_due_status": restore,
+            "restore_age_days": age,
+            "restore_interval_days": interval,
+            "vm_gone": gone,
+        }
+
+    def test_only_expired_restore_tests_of_present_guests_alert(self):
+        rows = [
+            self.row(1, "critical", age=100),
+            self.row(2, "open"),  # never tested: not overdue
+            self.row(3, "warning", age=80),
+            self.row(4, "critical", age=200, gone=True),
+        ]
+        with mock.patch.object(sync, "notify_restore_overdue") as notify:
+            sync.notify_guest_alerts(CLUSTER, rows)
+        notify.assert_called_once_with("pve-x", "vm1", 1, 10)
+
+
+class RestoreAlertSettingTests(unittest.TestCase):
+    def send(self, settings):
+        from app.services import notifications
+
+        with (
+            mock.patch.object(notifications, "_notify_settings", return_value=settings),
+            mock.patch.object(notifications, "_should_send", return_value=True),
+            mock.patch.object(notifications, "send_gotify") as gotify,
+        ):
+            notifications.notify_restore_overdue("pve-x", "vm1", 1, 10)
+        return gotify.called
+
+    def test_off_by_default(self):
+        self.assertFalse(self.send({}))
+
+    def test_sent_when_switched_on(self):
+        self.assertTrue(self.send({"notify_restore_overdue": "true"}))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.38.0] — 2026-10-17
+
+### Added
+
+- **Warning for overdue restore tests** (Gotify), switchable in the notification settings and off by default. Each sync reports guests whose last restore test is older than their interval — once per guest and day, with the days overdue. Guests never tested ("offen") and guests gone from PVE raise none. The warning existed but was never sent.
+
 ## [v2.37.2] — 2026-10-17
 
 ### Added
