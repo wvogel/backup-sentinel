@@ -1,25 +1,59 @@
 // ── Sync-related interactions ────────────────────────────────────────────────
 
-// ── Klick auf alles mit data-log → Log-Panel anzeigen
-//    (Sync-Dots auf der Settings-Seite, Restore-Test-Logs etc.)
-document.addEventListener("click", (event) => {
-  const trigger = event.target.closest("[data-log]");
-  if (!trigger) return;
-  event.preventDefault();
-  const panel = document.getElementById("sync-log-panel");
+// ── Log dialog: anything with data-log opens it (sync symbols, restore-test
+//    notes). While a sync runs, a sync symbol shows its live log.
+const logDialog = document.getElementById("sync-log-panel");
+
+function openLog(trigger) {
   const content = document.getElementById("sync-log-content");
   const title = document.getElementById("sync-log-title");
-  if (!panel || !content) return;
-  if (title) title.textContent = trigger.dataset.logTitle || T('js.sync_log');
-  content.textContent = trigger.dataset.log;
-  panel.classList.remove("hidden");
-  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-});
+  const status = document.getElementById("sync-log-status");
+  const live = window._liveSyncActive && trigger.classList.contains("sync-icon-btn");
+  content.textContent = live ? window._liveSyncLog || "" : trigger.dataset.log || T("common.no_log");
+  title.textContent = live ? T("js.live_sync_log") : trigger.dataset.logTitle || T("js.sync_log");
+  status.textContent = live ? T("js.sync_running") : "";
+  status.className = "muted";
+  if (!logDialog.open) logDialog.showModal();
+  content.scrollTop = content.scrollHeight;
+}
 
-const syncLogClose = document.getElementById("sync-log-close");
-if (syncLogClose) {
-  syncLogClose.addEventListener("click", () => {
-    document.getElementById("sync-log-panel").classList.add("hidden");
+async function copyLog(button) {
+  const text = document.getElementById("sync-log-content").textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // No clipboard API (plain http): copy the selected text instead.
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById("sync-log-content"));
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.execCommand("copy");
+    selection.removeAllRanges();
+  }
+  button.classList.add("is-copied");
+  button.setAttribute("aria-label", T("js.copied"));
+  button.title = T("js.copied");
+  clearTimeout(button._copiedTimer);
+  button._copiedTimer = setTimeout(() => {
+    button.classList.remove("is-copied");
+    button.setAttribute("aria-label", T("common.copy"));
+    button.title = T("common.copy");
+  }, 1500);
+}
+
+if (logDialog) {
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-log]");
+    if (!trigger) return;
+    event.preventDefault();
+    openLog(trigger);
+  });
+  document.getElementById("sync-log-close").addEventListener("click", () => logDialog.close());
+  document.getElementById("sync-log-copy").addEventListener("click", (event) => copyLog(event.currentTarget));
+  // A click on the backdrop (outside the box) closes it; Esc does natively.
+  logDialog.addEventListener("click", (event) => {
+    if (event.target === logDialog) logDialog.close();
   });
 }
 
@@ -58,7 +92,7 @@ for (const form of document.querySelectorAll(".js-sync-form")) {
         if (data.log && data.log.length > 0) {
           window._liveSyncLog += data.log.join("\n") + "\n";
           // Update panel if it's open
-          if (panel && logContent && !panel.classList.contains("hidden") && window._liveSyncActive) {
+          if (panel && logContent && panel.open && window._liveSyncActive) {
             logContent.textContent = window._liveSyncLog;
             logContent.scrollTop = logContent.scrollHeight;
           }
@@ -70,7 +104,7 @@ for (const form of document.querySelectorAll(".js-sync-form")) {
           window._liveSyncActive = false;
           btn.classList.remove("syncing");
           btn.title = T('cluster.sync_now');
-          if (logStatus && panel && !panel.classList.contains("hidden")) {
+          if (logStatus && panel && panel.open) {
             logStatus.textContent = "✓ " + T('js.sync_complete');
             logStatus.classList.remove("muted");
             logStatus.classList.add("ok-text");
