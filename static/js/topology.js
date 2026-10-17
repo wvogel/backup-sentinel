@@ -70,9 +70,10 @@
   var STREAK_LAYERS = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
   var maskCount = 0;
 
-  // A replication's streak only lights its blocks, not the gaps: masked by a
-  // white copy of the pipe that moves with it.
-  function blockMask(svg, path) {
+  // The streak lights only the connection's own shape: masked by a white
+  // copy of the pipe (a replication's moving blocks, not the gaps) and of
+  // its arrowhead.
+  function shapeMask(svg, path, arrowhead) {
     var id = "topo-mask-" + ++maskCount;
     var mask = document.createElementNS(SVG_NS, "mask");
     mask.setAttribute("id", id);
@@ -82,6 +83,9 @@
     var copy = path.cloneNode(false);
     copy.style.stroke = "#fff";
     mask.appendChild(copy);
+    var tip = arrowhead.cloneNode(false);
+    tip.style.fill = "#fff";
+    mask.appendChild(tip);
     svg.appendChild(mask);
     var group = document.createElementNS(SVG_NS, "g");
     group.setAttribute("mask", "url(#" + id + ")");
@@ -91,22 +95,25 @@
 
   // Only while data moves (running backup or sync): a light streak runs
   // through the pipe as in a running VM row, a replication's blocks move.
-  function animate(svg, path, d, edge, cls, width) {
+  function animate(svg, path, arrowhead, r, edge, cls) {
     if (calm || !edge.active) return;
-    var length = path.getTotalLength();
+    var width = r.width;
     if (edge.kind === "sync") {
       var period = edge.lane ? width * 3.4 : width * 2; // dash + gap, see render
       path.style.setProperty("--flow-shift", -period + "px");
       path.style.setProperty("--flow-time", (period / 55).toFixed(3) + "s");
     }
+    // On through the arrowhead to its tip, broad enough to fill the head.
+    var d = r.d + " L" + r.end[0] + "," + r.end[1];
+    var length = path.getTotalLength() + headLength(width);
     var streak = Math.max(60, Math.min(220, length * 0.6));
     var cycle = length + streak; // from just before the start to past the end
     var time = Math.max(1.6, cycle / 260).toFixed(2) + "s";
-    var target = edge.kind === "sync" ? blockMask(svg, path) : svg;
+    var target = shapeMask(svg, path, arrowhead);
     STREAK_LAYERS.forEach(function (share) {
       var dash = streak * share;
       var start = (streak + dash) / 2; // centre half a streak before the start
-      var layer = overlay(target, d, "topo-sweep " + cls, width);
+      var layer = overlay(target, d, "topo-sweep " + cls, width * 1.6 + 10);
       layer.setAttribute("stroke-dasharray", dash + " " + (cycle - dash));
       layer.style.strokeDashoffset = start + "px";
       layer.style.setProperty("--flow-shift", start - cycle + "px");
@@ -294,7 +301,7 @@
     arrowhead.setAttribute("d", head(r.end[0], r.end[1], r.dir[0], r.dir[1], r.width));
     arrowhead.setAttribute("class", "topo-head " + cls);
     group.appendChild(arrowhead);
-    animate(group, path, r.d, g, cls, r.width);
+    animate(group, path, arrowhead, r, g, cls);
   }
 
   function draw(root) {
