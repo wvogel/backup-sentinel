@@ -228,30 +228,30 @@ class AppearanceSettingsTests(DbTestCase):
     def test_valid_colours_are_normalised_and_audited(self) -> None:
         errors, warnings = self.save(primary=" #000 ")
         self.assertEqual((errors, warnings), ([], []))
-        self.assertEqual(db.get_setting("theme_primary"), "#000000")
+        self.assertEqual(db.get_settings_dict().get("theme_primary", ""), "#000000")
         keys = {entry["key"] for entry in db.list_settings_audit_entries(10)}
         self.assertIn("theme_primary", keys)
 
     def test_invalid_hex_saves_nothing(self) -> None:
         errors, _ = self.save(primary="#000000", accent="red")
         self.assertEqual(errors, ["accent"])
-        self.assertEqual(db.get_setting("theme_primary"), "")
+        self.assertEqual(db.get_settings_dict().get("theme_primary", ""), "")
 
     def test_preset_values_are_not_stored_as_overrides(self) -> None:
         self.save(primary="#141450", accent="#FFFF00")
-        self.assertEqual(db.get_setting("theme_primary"), "")
-        self.assertEqual(db.get_setting("theme_accent"), "")
+        self.assertEqual(db.get_settings_dict().get("theme_primary", ""), "")
+        self.assertEqual(db.get_settings_dict().get("theme_accent", ""), "")
 
     def test_reset_clears_overrides(self) -> None:
         self.save(primary="#000000")
         self.save(reset="1", primary="#000000")
-        self.assertEqual(db.get_setting("theme_primary"), "")
+        self.assertEqual(db.get_settings_dict().get("theme_primary", ""), "")
 
     def test_poor_contrast_warns_but_saves(self) -> None:
         errors, warnings = self.save(background="#ffff00", running="#ffff66")
         self.assertEqual(errors, [])
         self.assertIn("running", {w.key for w in warnings})
-        self.assertEqual(db.get_setting("theme_background"), "#ffff00")
+        self.assertEqual(db.get_settings_dict().get("theme_background", ""), "#ffff00")
 
     def test_unknown_preset_is_an_error(self) -> None:
         errors, _ = self.save(preset="hacker")
@@ -790,3 +790,76 @@ class ClusterPageTests(DbTestCase):
         row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
         self.assertEqual(row["copy_count"], 2)  # fed weekly: 9 days count
         self.assertEqual([c["current"] for c in row["copy_history"]], [True, True])
+
+
+class PageQueryTests(DbTestCase):
+    """The overview and the cluster page load each thing once."""
+
+    def dashboard(self) -> str:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_dashboard
+
+        app = FastAPI()
+        app.include_router(routes_dashboard.router)
+        with mock.patch("app.web.routes_dashboard.cached_running_backups", return_value={}):
+            response = TestClient(app).get("/")
+        self.assertEqual(response.status_code, 200)
+        return response.text
+
+    def test_overview_runs_the_vm_query_once(self) -> None:
+        from app import db_reports
+
+        counting = mock.Mock(wraps=db_governance.vm_governance_rows)
+        with (
+            mock.patch.object(db, "vm_governance_rows", counting),
+            mock.patch.object(db_reports, "vm_governance_rows", counting),
+            mock.patch.object(db_governance, "vm_governance_rows", counting),
+        ):
+            self.dashboard()
+        self.assertEqual(counting.call_count, 1)
+
+    def test_overview_encryption_total_equals_the_full_audit(self) -> None:
+        from app.web.routes_dashboard import _encryption_total
+
+        vm_id = self.vm_row(100)["id"]
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO backup_events (vm_id, started_at, status, encrypted, size_bytes) VALUES "
+                "(%s, %s, 'ok', TRUE, 10), (%s, %s, 'ok', FALSE, 10), (%s, %s, 'ok', TRUE, 10)",
+                (vm_id, NOW, vm_id, NOW - timedelta(days=1), vm_id, NOW - timedelta(days=2)),
+            )
+            conn.commit()
+        self.assertEqual(_encryption_total(db.cluster_summaries()), db.encryption_audit())
+
+    def test_node_names_of_all_clusters_in_one_query(self) -> None:
+        self.assertEqual(db.node_names_by_cluster(), {self.cid: ["pve1"]})
+
+    def test_sync_health_from_the_loaded_cluster_row(self) -> None:
+        self.assertEqual(db.cluster_sync_health({"last_pve_sync_ok": True}), {"failures": 0, "stale": False})
+        self.assertEqual(db.cluster_sync_health({"last_pve_sync_ok": None}), {"failures": 0, "stale": False})
+        self.assertEqual(
+            db.cluster_sync_health({"last_pve_sync_ok": False, "last_pve_sync_failure_started_at": None}),
+            {"failures": 1, "stale": False},
+        )
+        long_ago = datetime.now(UTC) - timedelta(days=1)
+        health = db.cluster_sync_health({"last_pve_sync_ok": False, "last_pve_sync_failure_started_at": long_ago})
+        self.assertTrue(health["stale"])
+
+    def test_sync_status_cache_is_kept_per_language(self) -> None:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_clusters
+
+        routes_clusters._sync_status_cache.clear()
+        app = FastAPI()
+        app.include_router(routes_clusters.router)
+        client = TestClient(app)
+        fetch = mock.Mock(return_value=({}, True))
+        with mock.patch.object(routes_clusters, "running_backup_progress_cached", fetch):
+            for lang in ("de", "en", "de"):
+                with mock.patch.object(routes_clusters, "get_language", return_value=lang):
+                    self.assertEqual(client.get("/api/clusters/test/sync-status").status_code, 200)
+        self.assertEqual(fetch.call_count, 2)  # de, en; the second de is cached

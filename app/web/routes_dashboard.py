@@ -17,10 +17,24 @@ from app.web.sync import refresh_sync_job_states_soon
 router = APIRouter()
 
 
+def _encryption_total(summaries: list[dict]) -> dict[str, int]:
+    """All clusters together, from the per-cluster counts already loaded."""
+    total = sum(s["encryption"]["total_backups"] for s in summaries)
+    encrypted = sum(s["encryption"]["encrypted_backups"] for s in summaries)
+    return {
+        "total_backups": total,
+        "encrypted_backups": encrypted,
+        "pct_encrypted": round(encrypted / total * 100) if total else 100,
+    }
+
+
 @router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request) -> HTMLResponse:
-    clusters = db.cluster_summaries()
+    # The per-VM governance query is the expensive one: run it once and hand
+    # it to everything on this page that needs it.
+    all_clusters = db.list_clusters()
     vm_rows = db.vm_governance_rows()
+    clusters = db.cluster_summaries(all_clusters, vm_rows)
     vm_rows.sort(
         key=lambda row: (
             row["backup_severity"],
@@ -32,8 +46,7 @@ def dashboard(request: Request) -> HTMLResponse:
     restore_tests = db.recent_restore_tests()
     compliance_summary = build_compliance_summary(vm_rows, restore_tests)
 
-    # Batch-fetch all PBS connections and cluster data for health bar
-    all_clusters = db.list_clusters()
+    # Batch-fetch all PBS connections for the health bar
     all_pbs = db.list_pbs_connections()
     pbs_by_cluster: dict[int, list[dict]] = {}
     for p in all_pbs:
@@ -52,7 +65,7 @@ def dashboard(request: Request) -> HTMLResponse:
             health = "critical"
         else:
             health = "ok"
-        sync_health = db.get_cluster_sync_health(cluster["id"])
+        sync_health = db.cluster_sync_health(cluster)
         health_bar.append(
             {
                 "name": cluster["name"],
@@ -69,7 +82,8 @@ def dashboard(request: Request) -> HTMLResponse:
     # Running backups live from PVE: the sync's in-progress markers expire
     # after 6 h, so long backups would vanish. Unreachable clusters keep them.
     registered = [c for c in all_clusters if c.get("token_secret")]
-    live = cached_running_backups([(c, [n["name"] for n in db.list_nodes(c["id"])]) for c in registered])
+    nodes_by_cluster = db.node_names_by_cluster()
+    live = cached_running_backups([(c, nodes_by_cluster.get(c["id"], [])) for c in registered])
     slug_by_id = {c["id"]: c["slug"] for c in all_clusters}
     names = {(row["cluster_id"], row["vmid"]): row["vm_name"] for row in vm_rows}
     running_by_slug = {
@@ -98,7 +112,7 @@ def dashboard(request: Request) -> HTMLResponse:
         "restore_tests": restore_tests[:10],
         "compliance_summary": compliance_summary,
         "health_bar": health_bar,
-        "encryption": db.encryption_audit(),
-        "restore_coverage": db.restore_test_coverage(),
+        "encryption": _encryption_total(clusters),
+        "restore_coverage": db.restore_test_coverage(vm_rows),
     }
     return templates.TemplateResponse(request, "dashboard.html", common_context(request) | context)

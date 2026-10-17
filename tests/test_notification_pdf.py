@@ -5,7 +5,8 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import PageBreak, Paragraph, Table
 
 from app.services.pdf_reports import (
-    _NOTIFICATION_TYPE_LABELS,
+    _labels,
+    _notif_type_label,
     _notifications_section,
     _styles,
 )
@@ -21,6 +22,7 @@ def _styles_with_cell() -> dict:
 
 class NotificationTypeLabelsTest(unittest.TestCase):
     def test_all_six_types_have_labels(self) -> None:
+        de = _labels("de")
         for notification_type in (
             "backup_critical",
             "size_anomaly",
@@ -29,13 +31,16 @@ class NotificationTypeLabelsTest(unittest.TestCase):
             "restore_overdue",
             "unencrypted_backups",
         ):
-            self.assertIn(notification_type, _NOTIFICATION_TYPE_LABELS)
+            self.assertNotEqual(_notif_type_label(de, notification_type), notification_type)
 
     def test_backup_critical_has_expected_label(self) -> None:
-        self.assertEqual(_NOTIFICATION_TYPE_LABELS["backup_critical"], "Backup kritisch")
+        self.assertEqual(_notif_type_label(_labels("de"), "backup_critical"), "Backup kritisch")
 
     def test_size_anomaly_has_expected_label(self) -> None:
-        self.assertEqual(_NOTIFICATION_TYPE_LABELS["size_anomaly"], "Größenanomalie")
+        self.assertEqual(_notif_type_label(_labels("de"), "size_anomaly"), "Größenanomalie")
+
+    def test_unknown_type_echoes_its_key(self) -> None:
+        self.assertEqual(_notif_type_label(_labels("de"), "made_up"), "made_up")
 
 
 class NotificationsSectionTest(unittest.TestCase):

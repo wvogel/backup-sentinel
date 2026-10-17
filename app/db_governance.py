@@ -541,8 +541,9 @@ def vm_backup_sparkline_data(cluster_id: int, days: int = 31) -> dict[int, list[
     return result
 
 
-def restore_test_coverage() -> dict[str, Any]:
-    rows = vm_governance_rows()
+def restore_test_coverage(rows: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    if rows is None:
+        rows = vm_governance_rows()
     required = sum(1 for row in rows if row["restore_required"] and row["status_backup_kind"] != "none")
     tested = sum(
         1

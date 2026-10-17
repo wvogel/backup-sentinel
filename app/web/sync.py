@@ -571,7 +571,8 @@ def weekly_report_email(*, inline_images: bool = True) -> tuple[str, str, str, d
         row["status"] = assess_datastore_usage(row["used_bytes"], total, row["estimated_full_at"])
         datastores.append(row)
     stats = db.weekly_backup_stats(now - timedelta(days=7))
-    report = weekly_report.collect(db.vm_governance_rows(), datastores, stats, now, db.cluster_summaries())
+    vm_rows = db.vm_governance_rows()
+    report = weekly_report.collect(vm_rows, datastores, stats, now, db.cluster_summaries(vm_rows=vm_rows))
     pngs = {"wordmark": email_assets.wordmark_png()}
     if logo := email_assets.brand_logo_png():
         pngs["logo"] = logo
