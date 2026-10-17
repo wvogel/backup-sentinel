@@ -2535,8 +2535,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* Lines of the topology (static/js/topology.js). Direct lines are broad
    pipes, the long way around stays thin. One colour per kind and state for
    line and arrowhead. At rest a pipe is dimmed and still; while data moves
-   (running backup or sync) it lights up, packets flow through it and a
-   light sweep runs along. */
+   (running backup or sync) it lights up and a soft light streak runs
+   through it, as in a running VM row. */
 /* Each connection is one group (line, arrowhead, moving parts): colour and
    dimming apply to the group, so line and head never show a seam where
    they meet. */
@@ -2558,24 +2558,16 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-head { fill: currentColor; }
 
 /* Moving parts, only drawn while data moves (sized by the script). */
-.topo-packets {
-  fill: none;
-  stroke: #fff;
-  stroke-linecap: round;
-  opacity: 0.8;
-  animation: topo-flow var(--flow-time, 1s) linear infinite;
-}
 .topo-sweep {
   fill: none;
   stroke: #fff;
-  stroke-linecap: round;
-  opacity: 0.35;
-  animation: topo-flow var(--sweep-time, 2.4s) ease-in-out infinite;
+  stroke-linecap: butt;
+  opacity: 0.045;
+  animation: topo-flow var(--sweep-time, 2.4s) linear infinite;
 }
 .topo-active .topo-line.topo-line-sync { animation: topo-flow var(--flow-time, 1s) linear infinite; }
 @keyframes topo-flow { to { stroke-dashoffset: var(--flow-shift, -24px); } }
 @media (prefers-reduced-motion: reduce) {
-  .topo-packets,
   .topo-sweep,
   .topo-active .topo-line.topo-line-sync { animation: none; }
 }

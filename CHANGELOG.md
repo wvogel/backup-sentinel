@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.39.0] — 2026-10-17
+
+### Changed
+
+- **Running pipes in the diagram move like a running VM row:** instead of data packets (dots) a soft light streak runs through the pipe, brightest in the middle and fading to both sides, also round corners and along thin lanes. On a replication it lights only the blocks, which keep moving; the gaps stay dark. Off with reduced motion.
+
 ## [v2.38.2] — 2026-10-17
 
 ### Fixed
