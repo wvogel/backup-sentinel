@@ -447,21 +447,22 @@ td .icon-button {
   text-align: right;
 }
 
-/* "+Q" next to the node count: smaller and muted like the label. */
-/* Overview: is the cluster's data current? (time on hover) */
-.sync-fresh {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--ok);
+/* Overview: PVE and PBS sync symbols in a row under the cluster name. */
+.sync-icons {
+  display: flex;
+  gap: 6px;
 }
-.sync-fresh-warning { background: var(--warn); }
-.sync-fresh-critical {
-  background: var(--critical);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 25%, transparent);
+.sync-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
 }
+.sync-fresh-ok { color: var(--ok); }
+.sync-fresh-warning { color: var(--warn); }
+.sync-fresh-critical { color: var(--critical); }
+.sync-fresh-unknown { color: var(--unknown); }
 
+/* "+Q" next to the node count: smaller and muted like the label. */
 .qdevice-tag {
   margin-left: 3px;
   color: var(--muted);
@@ -1027,6 +1028,7 @@ pre {
 }
 
 .cluster-row {
+  align-items: stretch; /* tiles as tall as the name, symbols and badges */
   text-decoration: none;
   color: inherit;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -1037,12 +1039,18 @@ pre {
   box-shadow: 0 4px 16px rgba(20, 20, 80, 0.1);
 }
 
+/* Name, then the sync symbols, then what is going on right now. */
 .cluster-row-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.cluster-row-badges {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 4px;
 }
 
 /* The name never breaks; badges move to the next line instead. */
@@ -1063,6 +1071,11 @@ pre {
   flex: none;
 }
 .cluster-row > .cluster-hero-main { flex: 1 1 0; }
+.cluster-row .cluster-stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 
 .cluster-stat[data-tile-filter] {
   cursor: pointer;

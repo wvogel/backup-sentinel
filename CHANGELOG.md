@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Cluster rows on the overview: name, sync symbols, current state.** The single green dot before the name is replaced by a line of small symbols under it: one for PVE and one per PBS, each coloured by how current its own sync is (green, amber, red; grey for a PBS not synced yet). A failed PBS sync is visible again on the overview — the cluster strip removed in v2.41.1 had shown it. One tooltip covers all symbols (PVE state and last successful sync, error state, each PBS's last sync). Status, running backups and replications follow in the third line. The key-figure tiles now fill the row's height, centred.
+
 ## [v2.41.1] — 2026-10-17
 
 ### Removed
