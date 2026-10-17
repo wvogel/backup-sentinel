@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Cluster rows on the overview as low as before v2.41.2.** Status, running backups and replications are back on the cluster name's line, in a column next to it; the sync symbols stay under the name. The key-figure tiles keep their own height again (92 px rows at 1920 px, as in v2.41.1).
+
 ## [v2.41.2] — 2026-10-17
 
 ### Changed
