@@ -92,11 +92,6 @@ class AuditLogRow(TypedDict):
     created_at: datetime
 
 
-class SyncHealthRow(TypedDict):
-    failures: int
-    stale: bool
-
-
 class NotificationLogRow(TypedDict):
     id: int
     notification_type: str

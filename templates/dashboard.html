@@ -4,20 +4,6 @@
 {% import "_nodes_tile.html" as tiles with context %}
 {% set recovery_type_labels = {"full": t('cluster.recovery_full'), "partial": t('cluster.recovery_partial'), "file": t('cluster.recovery_file')} %}
 
-{# ── Cluster Health Bar ──────────────────────────────────────────────── #}
-{% if health_bar %}
-<section class="health-bar">
-  {% for h in health_bar %}
-  <a href="/clusters/{{ h.slug }}" class="health-segment health-{{ h.health }}{% if h.stale %} health-stale{% endif %}"
-     title="{{ h.name }}{% if h.stale %} – {{ t('dashboard.stale_syncs', count=h.est_failures) }}{% endif %}{% if h.last_sync %} – {{ t('dashboard.last_sync_label') }} {{ h.last_sync|datetime_local }}{% endif %}{% if h.pbs_count %} – {{ t('dashboard.pbs_status', ok=h.pbs_ok, total=h.pbs_count) }}{% endif %}">
-    <span class="health-dot"></span>
-    <span class="health-label">{{ h.name }}</span>
-    {% if h.stale %}<span class="health-stale-badge">{{ t('common.stale') }}</span>{% endif %}
-  </a>
-  {% endfor %}
-</section>
-{% endif %}
-
 {# ── KPI Cards ───────────────────────────────────────────────────────── #}
 <section class="summary-grid report-grid">
   {# Feature 7: Restore-Test-Abdeckung als Ring-KPI #}

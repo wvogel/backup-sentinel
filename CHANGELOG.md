@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+
+- **The cluster strip at the top of the overview.** It listed each cluster with a status dot, which the cluster rows right below already show (name, sync dot with last sync and errors, warnings). The overview now starts with the key figures. Its CSS, texts and the helper that estimated failed syncs for it are gone too.
+
 ## [v2.41.0] — 2026-10-17
 
 ### Fixed

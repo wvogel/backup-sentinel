@@ -731,6 +731,7 @@ class ClusterPageTests(DbTestCase):
             html = TestClient(app).get("/").text
         self.assertIn("sync-fresh sync-fresh-ok", html)
         self.assertNotIn('class="muted cluster-sync-meta"', html)
+        self.assertNotIn("health-bar", html)  # the cluster rows say it all
 
     def test_sync_target_namespaces_come_from_the_current_sync_jobs(self) -> None:
         db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
@@ -835,17 +836,6 @@ class PageQueryTests(DbTestCase):
 
     def test_node_names_of_all_clusters_in_one_query(self) -> None:
         self.assertEqual(db.node_names_by_cluster(), {self.cid: ["pve1"]})
-
-    def test_sync_health_from_the_loaded_cluster_row(self) -> None:
-        self.assertEqual(db.cluster_sync_health({"last_pve_sync_ok": True}), {"failures": 0, "stale": False})
-        self.assertEqual(db.cluster_sync_health({"last_pve_sync_ok": None}), {"failures": 0, "stale": False})
-        self.assertEqual(
-            db.cluster_sync_health({"last_pve_sync_ok": False, "last_pve_sync_failure_started_at": None}),
-            {"failures": 1, "stale": False},
-        )
-        long_ago = datetime.now(UTC) - timedelta(days=1)
-        health = db.cluster_sync_health({"last_pve_sync_ok": False, "last_pve_sync_failure_started_at": long_ago})
-        self.assertTrue(health["stale"])
 
     def test_sync_status_cache_is_kept_per_language(self) -> None:
         from fastapi import FastAPI

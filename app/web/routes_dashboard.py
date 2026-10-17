@@ -46,39 +46,6 @@ def dashboard(request: Request) -> HTMLResponse:
     restore_tests = db.recent_restore_tests()
     compliance_summary = build_compliance_summary(vm_rows, restore_tests)
 
-    # Batch-fetch all PBS connections for the health bar
-    all_pbs = db.list_pbs_connections()
-    pbs_by_cluster: dict[int, list[dict]] = {}
-    for p in all_pbs:
-        pbs_by_cluster.setdefault(p["cluster_id"], []).append(p)
-
-    health_bar: list[dict] = []
-    for cluster in all_clusters:
-        pbs_conns = pbs_by_cluster.get(cluster["id"], [])
-        pbs_all_ok = all(p.get("last_sync_ok") for p in pbs_conns) if pbs_conns else True
-        pve_ok = cluster.get("last_pve_sync_ok")
-        if pve_ok and pbs_all_ok:
-            health = "ok"
-        elif pve_ok is None:
-            health = "unknown"
-        elif pve_ok is False or not pbs_all_ok:
-            health = "critical"
-        else:
-            health = "ok"
-        sync_health = db.cluster_sync_health(cluster)
-        health_bar.append(
-            {
-                "name": cluster["name"],
-                "slug": cluster["slug"],
-                "health": health,
-                "last_sync": cluster.get("last_pve_sync_at"),
-                "pbs_count": len(pbs_conns),
-                "pbs_ok": sum(1 for p in pbs_conns if p.get("last_sync_ok")),
-                "stale": sync_health["stale"],
-                "est_failures": sync_health["failures"],
-            }
-        )
-
     # Running backups live from PVE: the sync's in-progress markers expire
     # after 6 h, so long backups would vanish. Unreachable clusters keep them.
     registered = [c for c in all_clusters if c.get("token_secret")]
@@ -111,7 +78,6 @@ def dashboard(request: Request) -> HTMLResponse:
         "generated_at": datetime.now(UTC),
         "restore_tests": restore_tests[:10],
         "compliance_summary": compliance_summary,
-        "health_bar": health_bar,
         "encryption": _encryption_total(clusters),
         "restore_coverage": db.restore_test_coverage(vm_rows),
     }
