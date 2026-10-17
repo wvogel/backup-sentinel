@@ -6,7 +6,9 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from app import db
+from app.config import SYNC_INTERVAL_MINUTES
 from app.services import sync_progress
+from app.services.backup_status import sync_freshness
 from app.services.proxmox_progress import cached_running_backups
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, templates
@@ -80,6 +82,9 @@ def dashboard(request: Request) -> HTMLResponse:
             summary["running_vms"] = running_by_slug[summary["cluster_slug"]]
         # Replication (PBS sync jobs) running into this cluster's datastores,
         # from the precomputed diagram: one stored row per cluster, no PBS call.
+        summary["sync_freshness"] = sync_freshness(
+            summary["last_pve_sync_success_at"], summary["last_pve_sync_ok"], datetime.now(UTC), SYNC_INTERVAL_MINUTES
+        )
         cid = id_by_slug.get(summary["cluster_slug"])
         summary["running_syncs"] = sync_progress.running_syncs(cid) if cid is not None else []
 

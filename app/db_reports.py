@@ -75,6 +75,7 @@ def cluster_summaries() -> list[dict[str, Any]]:
                 "last_pve_sync_at": cluster.get("last_pve_sync_at"),
                 "last_pve_sync_success_at": cluster.get("last_pve_sync_success_at"),
                 "last_pve_sync_failure_started_at": cluster.get("last_pve_sync_failure_started_at"),
+                "last_pve_sync_ok": cluster.get("last_pve_sync_ok"),
                 "node_count": node_counts.get(cid, 0),
                 "qdevice": cluster.get("qdevice"),
                 "vm_count": len(vms),

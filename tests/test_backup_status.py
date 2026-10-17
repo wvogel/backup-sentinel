@@ -7,6 +7,7 @@ from app.services.backup_status import (
     format_duration,
     overall_status,
     restore_summary,
+    sync_freshness,
 )
 
 
@@ -126,3 +127,20 @@ class RestoreSummaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SyncFreshnessTests(unittest.TestCase):
+    NOW = datetime(2026, 10, 17, 12, 0, tzinfo=UTC)
+
+    def fresh(self, minutes_ago, last_ok=True):
+        last = self.NOW - timedelta(minutes=minutes_ago) if minutes_ago is not None else None
+        return sync_freshness(last, last_ok, self.NOW, interval_minutes=60)
+
+    def test_levels(self) -> None:
+        self.assertEqual(self.fresh(30), "ok")
+        self.assertEqual(self.fresh(129), "ok")  # one missed run is tolerated
+        self.assertEqual(self.fresh(131), "warning")
+        self.assertEqual(self.fresh(30, last_ok=False), "warning")  # latest attempt failed
+        self.assertEqual(self.fresh(23 * 60), "warning")
+        self.assertEqual(self.fresh(25 * 60), "critical")
+        self.assertEqual(self.fresh(None), "critical")

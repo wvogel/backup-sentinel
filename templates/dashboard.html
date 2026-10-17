@@ -59,6 +59,10 @@
   <a class="hero-card cluster-row" href="/clusters/{{ cluster.cluster_slug }}">
     <div class="cluster-hero-main">
       <div class="cluster-row-title">
+        {#- How current the data is; details on hover. #}
+        <span class="sync-fresh sync-fresh-{{ cluster.sync_freshness }}" role="img"
+              aria-label="{{ t('dashboard.sync_fresh_' ~ cluster.sync_freshness) }}"
+              data-tooltip="{{ t('dashboard.sync_fresh_' ~ cluster.sync_freshness) }}&#10;{{ t('dashboard.last_sync_success') }} {{ cluster.last_pve_sync_success_at|datetime_local if cluster.last_pve_sync_success_at else t('dashboard.never_synced_short') }}{% if cluster.last_pve_sync_failure_started_at %}&#10;{{ t('dashboard.error_since') }} {{ cluster.last_pve_sync_failure_started_at|datetime_local }}{% endif %}"></span>
         <h3>{{ cluster.cluster_name }}</h3>
         {% if cluster.critical_count %}
         <span class="badge critical">{{ cluster.critical_count }} {{ t('common.critical') }}</span>
@@ -74,17 +78,6 @@
         <span class="badge running-badge" title="{{ cluster.running_syncs|join('\n') }}"><svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg>{{ t('dashboard.sync_running_one' if cluster.running_syncs|length == 1 else 'dashboard.sync_running_other', count=cluster.running_syncs|length) }}</span>
         {% endif %}
       </div>
-      <p class="muted cluster-sync-meta" style="margin:6px 0 0;">
-        {{ t('dashboard.last_sync_success') }}
-        {% if cluster.last_pve_sync_success_at %}
-          {{ cluster.last_pve_sync_success_at|datetime_local }}
-        {% else %}
-          {{ t('dashboard.never_synced_short') }}
-        {% endif %}
-        {% if cluster.last_pve_sync_failure_started_at %}
-          &middot; {{ t('dashboard.error_since') }} {{ cluster.last_pve_sync_failure_started_at|datetime_local }}
-        {% endif %}
-      </p>
     </div>
     <div class="cluster-row-stats">
       {{ tiles.nodes_tile(cluster.node_count, cluster.qdevice) }}

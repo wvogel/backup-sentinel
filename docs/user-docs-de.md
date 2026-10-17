@@ -43,8 +43,7 @@ Unterhalb der Gesundheitsleiste werden vier Zusammenfassungskarten angezeigt:
 Jeder Cluster wird als Karte dargestellt mit:
 
 - Clustername mit Gesamtstatus-Badge (OK / Warnung / Kritisch).
-- Zeitstempel der letzten erfolgreichen PVE-Synchronisation.
-- Fehler-seit-Zeitstempel, falls die letzte Synchronisation fehlschlug.
+- Punkt vor dem Clusternamen: wie aktuell die Daten sind. Grün = letzter Sync erfolgreich und höchstens zwei Sync-Intervalle her (ein ausgelassener Lauf ist in Ordnung), gelb = länger her oder der letzte Versuch schlug fehl, rot = seit über 24 Stunden kein erfolgreicher Sync. Der Tooltip nennt den letzten erfolgreichen Sync und ggf. „Fehler seit“.
 - Anzahl der Nodes, VMs und eine Aufschlüsselung der Backup-Status. Hat der Cluster ein Quorum-Device (QDevice), steht in der Nodes-Kachel ein kleines „+Q“ neben der Zahl (Tooltip: Zustand und QNetd-Host); ist es nicht verbunden, wird die Kachel gelb.
 - PBS-Verbindungsstatus (sofern konfiguriert).
 - Aktuelle Restore-Test-Ergebnisse als kompakte Icons.
