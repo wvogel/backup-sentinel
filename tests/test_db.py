@@ -374,26 +374,13 @@ class TopologyDbTests(DbTestCase):
         db.replace_pve_pbs_targets(self.cid, [target])
         self.assertEqual([t["storage_id"] for t in db.list_pve_pbs_targets(self.cid)], ["pbs"])
 
-    def test_recent_storages_and_guest_count_per_storage(self) -> None:
-        started = (datetime.now(UTC) - timedelta(hours=2)).replace(second=0, microsecond=0)
-        events = [
-            {
-                "vmid": vmid,
-                "upid": "",
-                "started_at": started,
-                "finished_at": None,
-                "duration_seconds": None,
-                "size_bytes": 10,
-                "encrypted": True,
-                "verify_state": None,
-                "status": "ok",
-                "storage": storage,
-            }
-            for vmid, storage in ((100, "pbs-main"), (101, "pbs-main"), (100, "pbs-side"))
+    def test_direct_backup_storages_per_guest(self) -> None:
+        vms = [
+            {**_vm(100, "a"), "backup_storages": ["pbs-main", "pbs-side"]},
+            {**_vm(101, "b"), "backup_storages": ["pbs-main"]},
         ]
-        db.sync_backup_events_for_source(self.cid, "pve", events)
-        db.update_backup_event_storages(self.cid, events)
-        storages = db.recent_storages_by_vmid(self.cid)
+        db.sync_cluster_inventory(self.cid, [{"name": "pve1", "status": "online"}], vms)
+        storages = db.job_storages_by_vmid(self.cid)
         self.assertEqual(storages, {100: ["pbs-main", "pbs-side"], 101: ["pbs-main"]})
         self.assertEqual(topology_store.vm_count_by_storage(storages), {"pbs-main": 2, "pbs-side": 1})
 

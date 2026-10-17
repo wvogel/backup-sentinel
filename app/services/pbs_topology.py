@@ -181,6 +181,11 @@ def build_topology(
 
     primary_edges: list[dict[str, Any]] = []
     for t in targets:
+        # A storage configured in PVE but used by no backup job only holds
+        # copies (e.g. a pull sync's): no "PVE backs up here" line. Without
+        # job data (before the first sync) every configured storage counts.
+        if vms_by_storage and not vms_by_storage.get(t["storage_id"]):
+            continue
         node = (servers.resolve(t["fingerprint"], t["server"], pbs_id=t.get("pbs_id")), str(t["datastore"]))
         primary_edges.append({"dst": node, "dst_ns": str(t["namespace"] or ""), "storage_id": t["storage_id"]})
         reach(node, str(t["namespace"] or ""), 1)

@@ -119,6 +119,7 @@ def fetch_cluster_inventory(
                     "vmid": int(vmid),
                     "name": str(row.get("name") or f"{row_type}-{vmid}"),
                     "guest_type": str(row_type),
+                    "pool": row.get("pool"),
                     "backup_kind": "daily",
                     "last_backup_at": None,
                 }
@@ -141,7 +142,9 @@ def fetch_cluster_inventory(
     )
     logger.info("Latest backups found for VMIDs: %s", sorted(latest_backup_by_vmid.keys()))
 
+    storages_by_vmid = job_storages_by_vmid(vms, backup_jobs)
     for vm in vms:
+        vm["backup_storages"] = storages_by_vmid.get(vm["vmid"], [])
         vm["backup_kind"] = backup_kind_by_vmid.get(vm["vmid"], "none")
         vm["last_backup_at"] = latest_backup_by_vmid.get(vm["vmid"])
         logger.debug(
@@ -338,6 +341,33 @@ def infer_backup_kind_by_vmid(vms: list[dict[str, Any]], jobs: list[dict[str, An
                     result[vmid] = backup_kind
 
     return result
+
+
+def job_storages_by_vmid(vms: list[dict[str, Any]], jobs: list[dict[str, Any]]) -> dict[int, list[str]]:
+    """Storages each guest is backed up to directly by an enabled PVE backup
+    job — as opposed to copies a PBS sync job pulls into a datastore, which
+    PVE also lists as that storage's content.
+
+    A job selects guests by `vmid` (list/ranges), `all` (minus `exclude`) or
+    `pool`, optionally limited to one `node`."""
+    result: dict[int, set[str]] = {}
+    all_vmids = {vm["vmid"] for vm in vms}
+    for job in jobs:
+        if not isinstance(job, dict) or not job.get("storage"):
+            continue
+        if str(job.get("enabled", 1)) in {"0", "false", "False"}:
+            continue
+        if job.get("pool"):
+            vmids = {vm["vmid"] for vm in vms if vm.get("pool") == job["pool"]}
+        else:
+            vmids = expand_job_vmids(str(job.get("vmid") or ""), all_vmids)
+        if job.get("exclude"):
+            vmids -= _parse_vmid_set(str(job["exclude"]))
+        if job.get("node"):
+            vmids &= {vm["vmid"] for vm in vms if vm.get("node_name") == job["node"]}
+        for vmid in vmids & all_vmids:
+            result.setdefault(vmid, set()).add(str(job["storage"]))
+    return {vmid: sorted(storages) for vmid, storages in result.items()}
 
 
 def _parse_vmid_set(vmid_spec: str) -> set[int]:

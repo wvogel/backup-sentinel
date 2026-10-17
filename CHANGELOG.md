@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.31.1] — 2026-10-17
+
+### Fixed
+
+- **"PVE · n VMs" counted pulled copies as direct backups.** The count came from the backups found on each PVE storage — but PVE lists the whole datastore, including the snapshots a PBS sync job pulls in. Now it comes from PVE's backup jobs: each enabled job's target storage and its guest selection (VMIDs/ranges, all minus excludes, pool, limited to a node). Stored per guest (`vms.backup_storages`).
+- A PBS storage configured in PVE but used by no backup job no longer gets a "PVE backs up here" line — it only holds copies. (Before the first sync with job data, every configured storage still counts.)
+- The PVE line that lights up for a running backup is likewise the one its backup jobs write to, not every storage holding a copy.
+
 ## [v2.31.0] — 2026-10-17
 
 ### Added

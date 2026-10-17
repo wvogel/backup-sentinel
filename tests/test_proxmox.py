@@ -418,3 +418,33 @@ class HaTests(unittest.TestCase):
     def test_unreadable_is_unknown(self) -> None:
         with mock.patch.object(proxmox, "_pve_get_json", side_effect=proxmox.ProxmoxSyncError("403")):
             self.assertIsNone(proxmox.fetch_ha("https://pve", "a"))
+
+
+JOB_VMS = [
+    {"vmid": 100, "node_name": "pve1", "pool": None},
+    {"vmid": 101, "node_name": "pve2", "pool": "db"},
+    {"vmid": 102, "node_name": "pve2", "pool": None},
+    {"vmid": 103, "node_name": "pve1", "pool": None},
+]
+
+
+class JobStorageTests(unittest.TestCase):
+    def test_direct_backup_targets_per_guest(self) -> None:
+        jobs = [
+            # Like `vzdump --all 1 --exclude 103 --storage pbs-main`.
+            {"id": "main", "all": 1, "exclude": "103", "storage": "pbs-main", "schedule": "daily"},
+            {"id": "side", "vmid": "103", "storage": "pbs-side", "schedule": "daily"},
+            {"id": "pool", "pool": "db", "storage": "pbs-db", "schedule": "sun 03:00"},
+            {"id": "node", "all": 1, "node": "pve2", "storage": "nfs-pve2", "schedule": "daily"},
+            {"id": "off", "all": 1, "storage": "old", "enabled": 0},
+        ]
+        result = proxmox.job_storages_by_vmid(JOB_VMS, jobs)
+        self.assertEqual(
+            result,
+            {
+                100: ["pbs-main"],
+                101: ["nfs-pve2", "pbs-db", "pbs-main"],
+                102: ["nfs-pve2", "pbs-main"],
+                103: ["pbs-side"],
+            },
+        )

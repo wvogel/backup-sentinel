@@ -221,7 +221,7 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
         "compliance_summary": build_compliance_summary(vm_rows, restore_tests),
         "pbs_connections": db.list_pbs_connections(cluster["id"]),
         "topology": sync_progress.with_live_progress(topology_store.load(cluster["id"])),
-        "storages_by_vmid": db.recent_storages_by_vmid(cluster["id"]),
+        "storages_by_vmid": db.job_storages_by_vmid(cluster["id"]),
         "sparklines": db.vm_backup_sparkline_data(cluster["id"], days=31),
         "encryption": encryption,
         "unencrypted_vms": db.unencrypted_vms(cluster["id"]) if encryption["pct_encrypted"] < 100 else [],

@@ -88,12 +88,13 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
         for vm in vms:
             cur.execute(
                 """
-                INSERT INTO vms (cluster_id, node_name, vmid, name, guest_type, backup_kind, last_backup_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO vms (cluster_id, node_name, vmid, name, guest_type, backup_storages, backup_kind, last_backup_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (cluster_id, vmid) DO UPDATE SET
                     node_name = EXCLUDED.node_name,
                     name = EXCLUDED.name,
                     guest_type = EXCLUDED.guest_type,
+                    backup_storages = EXCLUDED.backup_storages,
                     backup_kind = EXCLUDED.backup_kind,
                     last_backup_at = COALESCE(EXCLUDED.last_backup_at, vms.last_backup_at),
                     missing_since = NULL
@@ -104,6 +105,7 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
                     vm["vmid"],
                     vm["name"],
                     vm.get("guest_type", "qemu"),
+                    vm.get("backup_storages", []),
                     vm["backup_kind"],
                     vm["last_backup_at"],
                 ),
@@ -523,23 +525,18 @@ def get_cluster_topology(cluster_id: int) -> dict[str, Any] | None:
         return row["data"] if row else None
 
 
-def recent_storages_by_vmid(cluster_id: int, days: int = 7) -> dict[int, list[str]]:
-    """Storages each guest backed up to recently: where a running backup
-    is most likely writing to (PVE does not say in the task)."""
+def job_storages_by_vmid(cluster_id: int) -> dict[int, list[str]]:
+    """Storages each existing guest is backed up to directly by its PVE backup
+    jobs (a PBS sync's copies in the same datastore do not count)."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT v.vmid, ARRAY_AGG(DISTINCT s.storage ORDER BY s.storage) AS storages
-            FROM backup_events be
-            JOIN vms v ON v.id = be.vm_id
-            CROSS JOIN LATERAL unnest(be.storages) AS s(storage)
-            WHERE v.cluster_id = %s AND be.removed_at IS NULL
-              AND be.started_at >= NOW() - (%s * INTERVAL '1 day')
-            GROUP BY v.vmid
+            SELECT vmid, backup_storages FROM vms
+            WHERE cluster_id = %s AND missing_since IS NULL AND cardinality(backup_storages) > 0
             """,
-            (cluster_id, days),
+            (cluster_id,),
         )
-        return {row["vmid"]: row["storages"] for row in cur.fetchall()}
+        return {row["vmid"]: list(row["backup_storages"]) for row in cur.fetchall()}
 
 
 def update_cluster_qdevice(cluster_id: int, qdevice: dict[str, str]) -> None:
