@@ -88,7 +88,11 @@ class FormatDurationTests(unittest.TestCase):
     def test_formats(self) -> None:
         self.assertEqual(format_duration(20), "1 min")
         self.assertEqual(format_duration(305), "5 min")
-        self.assertEqual(format_duration(185000), "51 h 23 min")
+        self.assertEqual(format_duration(3 * 3600 + 7 * 60 + 10), "3 h 07 min")
+        self.assertEqual(format_duration(2 * 3600 - 10), "2 h 00 min")
+        # From 10 hours on the minutes are noise.
+        self.assertEqual(format_duration(10 * 3600 - 20), "10 h")
+        self.assertEqual(format_duration(185000), "51 h")
 
 
 class OverallStatusTests(unittest.TestCase):

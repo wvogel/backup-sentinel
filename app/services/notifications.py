@@ -29,6 +29,7 @@ from app.config import DEFAULT_TIMEZONE, REPORT_LANGUAGE
 from app.i18n import t, ts
 from app.services.backup_status import format_duration
 from app.services.crypto import decrypt
+from app.services.human_format import format_size
 
 logger = logging.getLogger(__name__)
 
@@ -261,8 +262,8 @@ def notify_size_anomaly(
         message=(
             f"Cluster: {cluster_name}\n"
             f"VM: {vm_name} (VMID {vmid})\n"
-            f"{ts('notify.size_current', size=f'{latest_size / 1_073_741_824:.1f}')}\n"
-            f"{ts('notify.size_average', size=f'{avg_size / 1_073_741_824:.1f}')}\n"
+            f"{ts('notify.size_current', size=format_size(latest_size, REPORT_LANGUAGE))}\n"
+            f"{ts('notify.size_average', size=format_size(avg_size, REPORT_LANGUAGE))}\n"
             f"{ts(direction_key, pct=f'{deviation * 100:.0f}')}"
         ),
         priority=5,
