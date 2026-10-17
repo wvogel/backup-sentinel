@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Cluster page: coloured PVE and PBS symbols instead of green dots.** In the diagram the cluster's server symbol and each PBS's datastore symbol now show the sync state themselves, coloured as on the overview (green, amber, red; grey before a PBS's first sync); the separate dots are gone. The tooltip names the state and the last sync, and a click still opens the sync log. Overview and cluster page share one rule for the colours. The settings page keeps its dots.
+
 ## [v2.41.4] — 2026-10-17
 
 ### Changed

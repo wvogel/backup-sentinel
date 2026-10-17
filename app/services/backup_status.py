@@ -123,3 +123,20 @@ def sync_freshness(last_success: datetime | None, last_ok: bool | None, now: dat
     if last_ok is False or age_minutes > 2 * interval_minutes + 10:
         return "warning"
     return "ok"
+
+
+def pve_sync_state(cluster: dict, now: datetime, interval_minutes: int) -> str:
+    """Colour of a cluster's PVE sync symbol (see `sync_freshness`)."""
+    return sync_freshness(
+        cluster.get("last_pve_sync_success_at"), cluster.get("last_pve_sync_ok"), now, interval_minutes
+    )
+
+
+def pbs_sync_state(conn: dict, now: datetime, interval_minutes: int) -> str:
+    """Colour of a PBS's sync symbol: "unknown" before the first sync,
+    "critical" when the last one failed, otherwise how current it is."""
+    if conn.get("last_sync_ok") is None:
+        return "unknown"
+    if not conn["last_sync_ok"]:
+        return "critical"
+    return sync_freshness(conn.get("last_sync_at"), True, now, interval_minutes)

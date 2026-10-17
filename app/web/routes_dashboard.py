@@ -8,26 +8,13 @@ from fastapi.responses import HTMLResponse
 from app import db
 from app.config import SYNC_INTERVAL_MINUTES
 from app.services import sync_progress
-from app.services.backup_status import sync_freshness
+from app.services.backup_status import pbs_sync_state, sync_freshness
 from app.services.proxmox_progress import cached_running_backups
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, templates
 from app.web.sync import refresh_sync_job_states_soon
 
 router = APIRouter()
-
-
-def _pbs_sync_state(conn: dict, now: datetime) -> dict:
-    """A PBS's own sync, for its symbol next to the cluster name: "unknown"
-    before the first sync, "critical" when the last one failed, otherwise
-    how current it is (as for PVE)."""
-    if conn.get("last_sync_ok") is None:
-        state = "unknown"
-    elif not conn["last_sync_ok"]:
-        state = "critical"
-    else:
-        state = sync_freshness(conn.get("last_sync_at"), True, now, SYNC_INTERVAL_MINUTES)
-    return {"name": conn["name"], "state": state, "at": conn.get("last_sync_at"), "ok": conn.get("last_sync_ok")}
 
 
 def _encryption_total(summaries: list[dict]) -> dict[str, int]:
@@ -87,7 +74,15 @@ def dashboard(request: Request) -> HTMLResponse:
             summary["last_pve_sync_success_at"], summary["last_pve_sync_ok"], now, SYNC_INTERVAL_MINUTES
         )
         cid = id_by_slug.get(summary["cluster_slug"])
-        summary["pbs_syncs"] = [_pbs_sync_state(conn, now) for conn in pbs_by_cluster.get(cid, [])]
+        summary["pbs_syncs"] = [
+            {
+                "name": conn["name"],
+                "state": pbs_sync_state(conn, now, SYNC_INTERVAL_MINUTES),
+                "at": conn.get("last_sync_at"),
+                "ok": conn.get("last_sync_ok"),
+            }
+            for conn in pbs_by_cluster.get(cid, [])
+        ]
         summary["running_syncs"] = sync_progress.running_syncs(cid) if cid is not None else []
 
     context = {
