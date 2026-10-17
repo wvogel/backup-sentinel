@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Progress of the wrong VM in long backup jobs.** The live progress read only the first 5,000 lines of a running job's task log. A job that backs up many VMs writes more than that, and then the running VM's start and progress lines were cut off: the badge could show a VM that had already finished. Now the log's line count is read and, when the log is long, only its end back to the running VM's "Starting Backup" line.
+
+### Changed
+
+- **Live backup progress asks PVE much less.** Each refresh reads only the task-log lines written since the previous one (per running task, the running VM's section is kept in memory), instead of the whole log every 20 seconds. Nodes and tasks are asked in parallel over kept-alive connections, once each (no retries: the next poll asks again). One fetch per cluster now serves German and English viewers (labels are added per request), tabs that find the cache stale at the same moment wait for the same fetch, and the slow-backup check of each sync uses the same cache instead of its own fetch.
+
 ## [v2.40.7] — 2026-10-17
 
 ### Changed

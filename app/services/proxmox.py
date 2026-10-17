@@ -11,7 +11,14 @@ from urllib import parse
 
 from app.config import API_TIMEOUT
 from app.i18n import ts
-from app.services.api_client import APIError, api_get, api_get_dict, api_get_json, api_test_connection
+from app.services.api_client import (
+    APIError,
+    api_get,
+    api_get_dict,
+    api_get_json,
+    api_get_payload,
+    api_test_connection,
+)
 from app.services.backup_location import pbs_location, pve_location
 from app.services.vzdump_log import VmBackupRun, guest_name_from_notes, parse_vzdump_log
 
@@ -45,6 +52,13 @@ def build_token_header(api_user: str, token_id: str, token_secret: str) -> str:
 def _pve_get(base_url: str, path: str, auth_header: str, **kwargs: Any) -> Any:
     try:
         return api_get(base_url, path, auth_header, label="PVE", **kwargs)
+    except APIError as exc:
+        raise ProxmoxSyncError(str(exc)) from exc
+
+
+def _pve_get_payload(base_url: str, path: str, auth_header: str, **kwargs: Any) -> dict[str, Any]:
+    try:
+        return api_get_payload(base_url, path, auth_header, label="PVE", **kwargs)
     except APIError as exc:
         raise ProxmoxSyncError(str(exc)) from exc
 
