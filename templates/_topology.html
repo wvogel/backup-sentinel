@@ -46,8 +46,12 @@
             {%- for e in ds.primary %}
             <span class="topo-tag" data-tooltip="{{ t('topology.primary_tooltip', storage=e.storage_id, ns=e.to_ns or '/') }}">PVE{% if e.vms is not none %} · {{ t('topology.vms_one' if e.vms == 1 else 'topology.vms_other', count=e.vms) }}{% endif %}</span>
             {%- endfor %}
-            {%- if ds.synced_vms %}
-            <span class="topo-tag topo-tag-sync" data-tooltip="{{ t('topology.synced_tooltip', count=ds.synced_vms) }}">Sync · {{ t('topology.vms_one' if ds.synced_vms == 1 else 'topology.vms_other', count=ds.synced_vms) }}</span>
+            {%- if ds.synced_vms or ds.stale_vms %}
+            {%- set stale_tip %}{{ t('topology.stale_tooltip') }}{% for s in ds.stale_vms %}&#10; • {{ t('cluster.copy_line', server=s.vmid, date=s.latest|datetime_local('%d.%m.%Y')) }}{% endfor %}{% endset %}
+            <span class="topo-tag topo-tag-sync" data-tooltip="{% if ds.synced_vms %}{{ t('topology.synced_tooltip', count=ds.synced_vms) }}{% endif %}{% if ds.synced_vms and ds.stale_vms %}&#10;{% endif %}{% if ds.stale_vms %}{{ stale_tip }}{% endif %}">Sync
+              {%- if ds.synced_vms %} · {{ t('topology.vms_one' if ds.synced_vms == 1 else 'topology.vms_other', count=ds.synced_vms) }}{% endif %}
+              {%- if ds.stale_vms %} · <span class="topo-stale">{{ t('topology.stale_short', count=ds.stale_vms|length) }}</span>{% endif -%}
+            </span>
             {%- endif %}</div>
           {#- The warning triangle already says it (date in its tooltip). #}
           {%- if ds.estimated_full_at and ds.status != 'ok' and not ds.full_soon %}

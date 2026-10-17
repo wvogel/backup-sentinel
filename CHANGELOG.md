@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.36.0] — 2026-10-17
+
+### Changed
+
+- **"Sync · n VMs" counts only current copies.** Before, every guest with any backup in the copy counted — also one whose last copy is months old because the sync no longer brings it (e.g. 103 on pbs-aboe-muc, last copied in January), so the diagram looked fine while the protection column said "PBS ×1". Current means as in the protection column (7 days, 9 for weekly sync jobs). Guests with only older copies follow in yellow as "n veraltet"; the tooltip lists each with the date of its latest copy.
+
 ## [v2.35.1] — 2026-10-17
 
 ### Fixed

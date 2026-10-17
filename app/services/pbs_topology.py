@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from collections import deque
 from collections.abc import Iterable, Mapping
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -70,24 +70,40 @@ def _synced_guests(
     primary_edges: list[dict[str, Any]],
     edges: list[dict[str, Any]],
     guests_by_storage: Mapping[str, set[int]] | None,
-    present_by_store: Mapping[tuple[str, str], set[int]] | None,
-) -> dict[Node, set[int]] | None:
+    present_by_store: Mapping[tuple[str, str], Mapping[int, datetime]] | None,
+    copy_windows: Mapping[str, int],
+    default_window: int,
+    now: datetime,
+) -> dict[Node, tuple[set[int], dict[int, datetime]]] | None:
     """Guests of this cluster whose backups lie in a datastore that receives
     sync jobs, minus those its PVE backup jobs write there directly: what
-    actually arrived by replication, not what is configured."""
+    actually arrived by replication, not what is configured. Split into
+    (current, stale): a guest whose latest copy there is older than the
+    server's copy window (as in the protection column) is stale, with the
+    date of that copy."""
     if present_by_store is None:
         return None
-    present: dict[Node, set[int]] = {}
+    present: dict[Node, dict[int, tuple[bool, datetime]]] = {}
     for (label, store), guests in present_by_store.items():
         node = (servers.resolve("", label, label), store)
-        present.setdefault(node, set()).update(guests)
+        since = now - timedelta(days=copy_windows.get(f"pbs:{label}", default_window))
+        seen = present.setdefault(node, {})
+        for vmid, latest in guests.items():
+            current, newest = seen.get(vmid, (False, latest))
+            seen[vmid] = (current or latest >= since, max(newest, latest))
     direct: dict[Node, set[int]] = {}
     for p in primary_edges:
         direct.setdefault(p["dst"], set()).update((guests_by_storage or {}).get(p["storage_id"], set()))
     receiving = {e["dst"] for e in edges}
-    return {
-        node: (present.get(node, set()) - direct.get(node, set())) if node in receiving else set() for node in nodes
-    }
+    result: dict[Node, tuple[set[int], dict[int, datetime]]] = {}
+    for node in nodes:
+        guests = present.get(node, {}) if node in receiving else {}
+        synced = {vmid: seen for vmid, seen in guests.items() if vmid not in direct.get(node, set())}
+        result[node] = (
+            {vmid for vmid, (current, _) in synced.items() if current},
+            {vmid: latest for vmid, (current, latest) in synced.items() if not current},
+        )
+    return result
 
 
 class _Servers:
@@ -150,14 +166,18 @@ def build_topology(
     now: datetime | None = None,
     vms_by_storage: Mapping[str, int] | None = None,
     guests_by_storage: Mapping[str, set[int]] | None = None,
-    present_by_store: Mapping[tuple[str, str], set[int]] | None = None,
+    present_by_store: Mapping[tuple[str, str], Mapping[int, datetime]] | None = None,
+    copy_windows: Mapping[str, int] | None = None,
+    default_copy_window: int = 7,
 ) -> dict[str, Any]:
     """Columns of datastore groups (by distance from the cluster) and edges.
 
     `guests_by_storage` (PVE storage → guests its backup jobs write there)
     gives the "PVE · n VMs" counts (`vms_by_storage`: the counts alone).
     `present_by_store` ((server name, datastore) → guests with backups lying
-    there, as the sync found them) gives how many arrive by replication."""
+    there with their latest backup, as the sync found them) gives how many
+    arrive by replication, and how many of those copies are stale beyond
+    `copy_windows` ("pbs:<name>" → days, else `default_copy_window`)."""
     if guests_by_storage is not None:
         vms_by_storage = {storage: len(guests) for storage, guests in guests_by_storage.items()}
     servers = _Servers(connections)
@@ -252,7 +272,17 @@ def build_topology(
     max_vms = max((p["vms"] or 0 for p in primary_edges), default=0)
 
     layer, back_edges = _layers(depth, primary_edges, edges, primary_vms)
-    synced = _synced_guests(servers, depth, primary_edges, edges, guests_by_storage, present_by_store)
+    synced = _synced_guests(
+        servers,
+        depth,
+        primary_edges,
+        edges,
+        guests_by_storage,
+        present_by_store,
+        copy_windows or {},
+        default_copy_window,
+        now or datetime.now(UTC),
+    )
 
     own_conn_by_server = {servers.key_of_conn[c["id"]]: c for c in own_conns}
     node_ids = {node: f"ds-{i}" for i, node in enumerate(sorted(depth, key=lambda n: (layer[n], n)))}
@@ -271,7 +301,11 @@ def build_topology(
             "total_bytes": total or None,
             "estimated_full_at": row["estimated_full_at"] if row else None,
             # Guests whose backups lie here by sync job (None: unknown).
-            "synced_vms": len(synced[node]) if synced is not None else None,
+            "synced_vms": len(synced[node][0]) if synced is not None else None,
+            # Guests whose copy here is out of date, with its date.
+            "stale_vms": [{"vmid": vmid, "latest": latest} for vmid, latest in sorted(synced[node][1].items())]
+            if synced is not None
+            else [],
             "primary": [],
             "incoming": [],
         }
