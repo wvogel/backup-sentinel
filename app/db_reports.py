@@ -133,6 +133,7 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
         cur.execute("SELECT id, vmid FROM vms WHERE cluster_id = %s", (cluster_id,))
         vmid_to_id = {row["vmid"]: row["id"] for row in cur.fetchall()}
         seen_keys: set[tuple[int, datetime]] = set()
+        rows: list[tuple[Any, ...]] = []
 
         for event in events:
             vm_id = vmid_to_id.get(event["vmid"])
@@ -142,7 +143,25 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
             if hasattr(started_at, "replace"):
                 started_at = started_at.replace(second=0, microsecond=0)
             seen_keys.add((vm_id, started_at))
-            cur.execute(
+            rows.append(
+                (
+                    vm_id,
+                    started_at,
+                    event.get("finished_at"),
+                    event.get("duration_seconds"),
+                    event.get("size_bytes"),
+                    event.get("encrypted"),
+                    event.get("verify_state"),
+                    event["status"],
+                    event.get("upid", ""),
+                    source,
+                    event.get("guest_name"),
+                )
+            )
+        # One batch instead of a round trip per snapshot (in order, so the
+        # merge rules apply exactly as row by row).
+        if rows:
+            cur.executemany(
                 """
                 INSERT INTO backup_events
                     (vm_id, started_at, finished_at, duration_seconds, size_bytes, encrypted, verify_state, status, upid, source, guest_name)
@@ -169,19 +188,7 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
                     END,
                     removed_at    = NULL
                 """,
-                (
-                    vm_id,
-                    started_at,
-                    event.get("finished_at"),
-                    event.get("duration_seconds"),
-                    event.get("size_bytes"),
-                    event.get("encrypted"),
-                    event.get("verify_state"),
-                    event["status"],
-                    event.get("upid", ""),
-                    source,
-                    event.get("guest_name"),
-                ),
+                rows,
             )
 
         today = datetime.now(UTC).date()
@@ -197,10 +204,13 @@ def sync_backup_events_for_source(cluster_id: int, source: str, events: list[dic
             """,
             (list(vm_ids), source),
         )
-        for row in cur.fetchall():
-            key = (row["vm_id"], row["started_at"].replace(second=0, microsecond=0))
-            if key not in seen_keys:
-                cur.execute("UPDATE backup_events SET removed_at = %s WHERE id = %s", (today, row["id"]))
+        gone = [
+            row["id"]
+            for row in cur.fetchall()
+            if (row["vm_id"], row["started_at"].replace(second=0, microsecond=0)) not in seen_keys
+        ]
+        if gone:
+            cur.execute("UPDATE backup_events SET removed_at = %s WHERE id = ANY(%s)", (today, gone))
         conn.commit()
 
 
@@ -475,15 +485,6 @@ def cleanup_stale_inprogress_backups(cluster_id: int, max_age_hours: int = 48) -
         return merged + aborted
 
 
-def upsert_backup_events(cluster_id: int, events: list[dict[str, Any]]) -> None:
-    if not events:
-        return
-    source = next((str(event.get("source") or "").strip() for event in events if event.get("source")), "")
-    if not source:
-        return
-    sync_backup_events_for_source(cluster_id, source, events)
-
-
 def list_backup_events_for_period(
     period_start: datetime, period_end: datetime, cluster_id: int | None = None
 ) -> list[dict[str, Any]]:
@@ -499,29 +500,6 @@ def list_backup_events_for_period(
         JOIN vms v ON v.id = be.vm_id
         JOIN clusters c ON c.id = v.cluster_id
         WHERE be.started_at >= %s AND be.started_at < %s
-    """
-    if cluster_id is not None:
-        query += " AND v.cluster_id = %s"
-        params.append(cluster_id)
-    query += " ORDER BY c.name, v.name, be.started_at DESC"
-    with connect() as conn, conn.cursor() as cur:
-        cur.execute(query, params)
-        return list(cur.fetchall())
-
-
-def list_all_available_backup_events(cluster_id: int | None = None) -> list[dict[str, Any]]:
-    params: list[Any] = []
-    query = """
-        SELECT
-            be.id, be.started_at, be.finished_at, be.duration_seconds,
-            be.size_bytes, be.encrypted, be.verify_state,
-            be.status, be.upid, be.source, be.removed_at,
-            v.name AS vm_name, v.vmid, v.node_name,
-            c.name AS cluster_name, c.slug AS cluster_slug, c.id AS cluster_id
-        FROM backup_events be
-        JOIN vms v ON v.id = be.vm_id
-        JOIN clusters c ON c.id = v.cluster_id
-        WHERE be.removed_at IS NULL
     """
     if cluster_id is not None:
         query += " AND v.cluster_id = %s"

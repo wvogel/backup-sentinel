@@ -28,11 +28,6 @@ def pve_location(storage_id: str) -> str:
     return f"pve:{storage_id}"
 
 
-def server_of(location: str) -> str:
-    """The machine part of a location: copies on two servers survive one failing."""
-    return location.split("/", 1)[0]
-
-
 def server_name(server: str) -> str:
     """Display name of a server key: short host name, IPs unchanged
     ("pbs:pbs-aboe-muc.int.example.de" → "pbs-aboe-muc")."""

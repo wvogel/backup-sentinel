@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-BackupKind = Literal["daily", "weekly", "none"]
-Severity = Literal["ok", "warning", "critical", "unknown"]
-Criticality = Literal["low", "medium", "high", "critical"]
 RestoreResult = Literal["passed", "failed", "limited"]
 
 
@@ -32,27 +29,6 @@ class BootstrapFinalize(BaseModel):
     token_id: str
     token_secret: str
     fingerprint: str = ""
-
-
-class VmStatus(BaseModel):
-    vm_name: str
-    vmid: int
-    node_name: str
-    backup_kind: BackupKind
-    last_backup_at: datetime | None
-    severity: Severity
-    age_days: int | None
-
-
-class ClusterSummary(BaseModel):
-    cluster_name: str
-    cluster_slug: str
-    api_url: str
-    registered_at: datetime | None
-    node_count: int
-    vm_count: int
-    warning_count: int
-    critical_count: int
 
 
 class RestoreTestCreate(BaseModel):

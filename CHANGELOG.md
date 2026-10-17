@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.37.1] — 2026-10-17
+
+### Changed
+
+- **Saving backup events during a sync is about 11× faster** (12,000 events: 1.4 s → 0.13 s): one batch instead of a database round trip per snapshot, and removed backups are marked in one statement. Same merge rules as before.
+
+### Removed
+
+- Dead code: unused database helpers (`upsert_backup_events`, `list_all_available_backup_events`), old PVE date parsing, legacy `proxmox_get_*` aliases, unused models and types, the unused `DATA_DIR` setting, 16 unused translations per language and 17 unused CSS classes (about 340 lines).
+
 ## [v2.37.0] — 2026-10-17
 
 ### Changed

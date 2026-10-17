@@ -62,12 +62,6 @@ def _pve_get_dict(base_url: str, path: str, auth_header: str, **kwargs: Any) -> 
         raise ProxmoxSyncError(str(exc)) from exc
 
 
-# Keep old names for backward compatibility in imports
-proxmox_get_data = _pve_get
-proxmox_get_json = _pve_get_json
-proxmox_get_dict = _pve_get_dict
-
-
 def fetch_cluster_inventory(
     cluster: dict[str, Any], timeout: float = API_TIMEOUT, known_vmids: set[int] | None = None
 ) -> ProxmoxInventory:
@@ -665,54 +659,6 @@ def extract_vmid(item: dict[str, Any]) -> int | None:
             match = re.search(pattern, value)
             if match:
                 return int(match.group(1))
-    return None
-
-
-def extract_backup_time(item: dict[str, Any]) -> datetime | None:
-    for key in ("ctime", "backup-time", "starttime", "time"):
-        raw_value = item.get(key)
-        if raw_value in (None, ""):
-            continue
-        try:
-            return datetime.fromtimestamp(int(raw_value), UTC)
-        except (TypeError, ValueError, OSError):
-            parsed = parse_datetime_string(str(raw_value))
-            if parsed is not None:
-                return parsed
-    for key in ("volid", "volid-path", "text", "notes"):
-        parsed = parse_datetime_string(str(item.get(key) or ""))
-        if parsed is not None:
-            return parsed
-    return None
-
-
-def parse_datetime_string(raw_value: str) -> datetime | None:
-    value = raw_value.strip()
-    if not value:
-        return None
-
-    iso_match = re.search(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z", value)
-    if iso_match:
-        try:
-            return datetime.fromisoformat(f"{iso_match.group(1)}+00:00").astimezone(UTC)
-        except ValueError:
-            pass
-
-    vzdump_match = re.search(r"(\d{4})_(\d{2})_(\d{2})[-T_](\d{2})_(\d{2})_(\d{2})", value)
-    if vzdump_match:
-        try:
-            return datetime(
-                int(vzdump_match.group(1)),
-                int(vzdump_match.group(2)),
-                int(vzdump_match.group(3)),
-                int(vzdump_match.group(4)),
-                int(vzdump_match.group(5)),
-                int(vzdump_match.group(6)),
-                tzinfo=UTC,
-            )
-        except ValueError:
-            pass
-
     return None
 
 

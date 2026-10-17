@@ -8,8 +8,12 @@ from app.services.backup_location import (
     pve_location,
     resolve_pbs_connection,
     server_name,
-    server_of,
 )
+
+
+def server_of(location: str) -> str:
+    """Server part of a location, as the copy count groups them."""
+    return location.split("/", 1)[0]
 
 
 class BackupLocationTests(unittest.TestCase):

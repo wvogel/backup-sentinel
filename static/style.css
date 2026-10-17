@@ -413,16 +413,6 @@ aside {
   margin-bottom: 0;
 }
 
-.hero-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 0.875rem;
-  white-space: nowrap;
-}
-
 .cluster-hero-main {
   min-width: 0;
   display: grid;
@@ -458,13 +448,6 @@ td .icon-button {
   font-size: 1.1rem;
   padding: 0;
   margin-right: 8px;
-}
-
-.cluster-hero-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(90px, 1fr));
-  gap: 8px;
-  min-width: 460px;
 }
 
 .cluster-stat {
@@ -588,41 +571,15 @@ td .icon-button {
   grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
 }
 
-.cluster-overview-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr);
-  gap: 12px;
-  margin-bottom: 12px;
-  align-items: start;
-}
-
-.cluster-overview-grid .table-card {
-  margin-bottom: 0;
-}
-
-.card-head,
-.section-head,
-.metric-row {
+.section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.card-head,
 .section-head {
   margin-bottom: 8px;
-}
-
-.card-head h3 {
-  font-size: 1rem;
-}
-
-.metric-row {
-  flex-wrap: wrap;
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: 0.875rem;
 }
 
 .eyebrow {
@@ -999,33 +956,6 @@ pre {
 .result-icon.result-failed { color: var(--critical); }
 .result-icon.result-limited { color: var(--warn); }
 
-.cluster-node-list,
-.cluster-connection-list {
-  gap: 0;
-  padding-left: 0;
-  list-style: none;
-}
-
-.cluster-node-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 20px;
-}
-
-.cluster-node-list li,
-.cluster-connection-list li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.cluster-node-list li:last-child,
-.cluster-connection-list li:last-child {
-  border-bottom: 0;
-}
-
 .archive-table {
   table-layout: fixed;
   width: 100%;
@@ -1074,7 +1004,6 @@ pre {
   opacity: 0.8;
 }
 
-
 .bootstrap-result.hidden {
   display: none;
 }
@@ -1111,7 +1040,6 @@ pre {
 .settings-tabs { margin-bottom: 16px; }
 .settings-tab-panel[hidden] { display: none; }
 
-
 .report-grid .summary-card {
   text-align: left;
 }
@@ -1139,7 +1067,6 @@ pre {
 .footer-sep {
   opacity: 0.6;
 }
-
 
 /* ── Cluster-Liste (Dashboard) ───────────────────────────────── */
 .cluster-list {
@@ -1241,8 +1168,7 @@ pre {
 
 @media (max-width: 920px) {
   .hero-card,
-  .section-head,
-  .card-head {
+  .section-head {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -1269,16 +1195,6 @@ pre {
     grid-template-columns: 1fr;
   }
 
-  .cluster-overview-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-meta {
-    align-items: flex-start;
-    white-space: normal;
-  }
-
-  .cluster-hero-stats,
   .cluster-row-stats {
     min-width: 0;
     width: 100%;
@@ -1315,10 +1231,6 @@ pre {
   .table-card,
   .summary-card {
     padding: 14px;
-  }
-
-  .cluster-node-list {
-    grid-template-columns: 1fr;
   }
 
   /* VM table → one card per row on phones. A 7-column table forced into
@@ -1412,14 +1324,6 @@ html[data-theme="dark"] .brand-logo-dark {
   display: inline-flex;
 }
 
-/* ── Report page ─────────────────────────────────────────────────────────── */
-.report-totals {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
 .ok-pill {
   background: var(--ok-soft);
   color: var(--ok);
@@ -1436,17 +1340,6 @@ html[data-theme="dark"] .brand-logo-dark {
   background: var(--warn-soft);
   color: var(--warn);
   border-color: var(--warn);
-}
-
-.cluster-section-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 10px 16px 4px;
-  border-top: 1px solid var(--line);
-  margin-top: 4px;
 }
 
 .vm-backup-details {
@@ -1593,13 +1486,6 @@ button.sync-dot:hover { opacity: 0.75; transform: none; box-shadow: none; }
 button.sync-dot.sync-ok   { background: var(--ok); }
 button.sync-dot.sync-fail { background: var(--critical); }
 button.sync-dot.sync-unknown { background: var(--unknown); }
-
-.sync-time {
-  font-size: 0.78rem;
-  color: var(--muted);
-  white-space: nowrap;
-  line-height: 1.2;
-}
 
 .pbs-sync-arrow {
   color: var(--muted);
@@ -1752,44 +1638,8 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
   }
 }
 
-/* ── Connection status dots (settings page) ──────────────────────────── */
-.conn-status-dot {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  vertical-align: middle;
-  margin-left: 5px;
-  cursor: default;
-  background: var(--unknown);
-  transition: background 0.2s;
-}
-.conn-status-dot.conn-pending { background: var(--unknown); opacity: 0.5; }
-.conn-status-dot.conn-ok      { background: var(--ok); }
-.conn-status-dot.conn-fail    { background: var(--critical); }
-
-/* ── PBS cell in settings table ──────────────────────────────────────── */
-.pbs-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  align-items: flex-start;
-}
-
-.pbs-entry {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-
 .pbs-name-pill {
   font-size: 0.78rem;
-}
-
-.pbs-url-small {
-  font-size: 0.72rem;
-  word-break: break-all;
 }
 
 .pbs-remove-btn,
@@ -2589,7 +2439,6 @@ details[open] > .encryption-alert-summary::before {
   border: 1px solid var(--running);
 }
 
-
 /* ── Brand: primary action = Neon Yellow with Dark Blue text ─────────── */
 button.button-primary {
   background: var(--accent-fill);
@@ -2921,7 +2770,6 @@ html[data-theme="dark"] .node-filter-button.is-active {
   .topo-store-name { flex-wrap: wrap; }
   .topo-cluster { min-width: 160px; }
 }
-
 
 /* "Only problems" filter sits at the end of the node filter bar. */
 .problem-filter-button { margin-left: auto; }
