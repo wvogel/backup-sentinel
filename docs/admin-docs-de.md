@@ -426,6 +426,8 @@ Oder verwenden Sie das mitgelieferte Deploy-Skript:
 ./deploy.sh
 ```
 
+Das Skript übergibt außerdem `data/` und `reports/` an den Benutzer, unter dem die Anwendung im Container läuft (UID/GID aus dem gebauten Image). Ohne diese Rechte kann z. B. der Monatsbericht nicht geschrieben werden („Permission denied“). Dafür muss es als root laufen; sonst gibt es eine Warnung aus. Wer manuell aktualisiert, gleicht die Rechte einmal selbst an: `chown -R 1000:1000 data reports`.
+
 Die Anwendung führt Datenbank-Migrationen beim Start automatisch durch -- manuelle Migrationsschritte sind nicht erforderlich.
 
 ### Rollback

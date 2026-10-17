@@ -426,6 +426,8 @@ Or use the included deploy script:
 ./deploy.sh
 ```
 
+The script also hands `data/` and `reports/` to the user the application runs as inside the container (UID/GID taken from the built image). Without that, e.g. the monthly report cannot be written ("Permission denied"). This needs root; otherwise the script prints a warning. When updating manually, fix the ownership once yourself: `chown -R 1000:1000 data reports`.
+
 The application applies database migrations automatically on startup -- no manual migration steps are needed.
 
 ### Rollback
