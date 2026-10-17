@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -63,12 +64,18 @@ def _pve_get_dict(base_url: str, path: str, auth_header: str, **kwargs: Any) -> 
 
 
 def fetch_cluster_inventory(
-    cluster: dict[str, Any], timeout: float = API_TIMEOUT, known_vmids: set[int] | None = None
+    cluster: dict[str, Any],
+    timeout: float = API_TIMEOUT,
+    known_vmids: set[int] | None = None,
+    read_directly: Callable[[dict[str, Any]], bool] | None = None,
 ) -> ProxmoxInventory:
     """Fetch nodes, VMs and storage backups.
 
     `known_vmids` are VMIDs seen in earlier syncs; backups of those are still
-    collected even if the VM itself no longer exists in PVE.
+    collected even if the VM itself no longer exists in PVE. PBS storages for
+    which `read_directly(storage config)` is true are not listed through PVE:
+    the same snapshots come straight from the PBS, and PVE passing the list
+    on takes seconds.
     """
     base_url = cluster["api_url"].rstrip("/")
     auth_header = build_token_header(cluster["api_user"], cluster["token_id"], cluster["token_secret"])
@@ -126,6 +133,13 @@ def fetch_cluster_inventory(
     logger.info("Backup kind by VMID: %s", backup_kind_by_vmid)
 
     storage_config = fetch_storage_config(base_url, auth_header, timeout=timeout)
+    direct = {
+        str(cfg.get("storage"))
+        for cfg in storage_config or []
+        if read_directly and cfg.get("type") == "pbs" and read_directly(cfg)
+    }
+    if direct:
+        logger.info("PBS storages read directly, not through PVE: %s", sorted(direct))
     latest_backup_by_vmid, backup_events, fetch_errors = fetch_backup_details(
         base_url,
         auth_header,
@@ -134,6 +148,7 @@ def fetch_cluster_inventory(
         timeout=timeout,
         extra_vmids=known_vmids,
         storage_config=storage_config if storage_config is not None else [],
+        skip_storages=direct,
     )
     logger.info("Latest backups found for VMIDs: %s", sorted(latest_backup_by_vmid.keys()))
 
@@ -448,6 +463,7 @@ def fetch_backup_details(
     timeout: float = 10.0,
     extra_vmids: set[int] | None = None,
     storage_config: list[dict[str, Any]] | None = None,
+    skip_storages: set[str] | None = None,
 ) -> tuple[dict[int, datetime], list[dict[str, Any]], list[str]]:
     """Fetch backup inventory using BULK queries per storage (not per VM).
 
@@ -494,7 +510,11 @@ def fetch_backup_details(
             logger.warning("Cannot list storages for node %s: %s", node_name, exc)
             errors.append(ts("synclog.node_storages_failed", node=node_name, error=exc))
             raw = []
-        storages = [s for s in raw if "backup" in str(s.get("content", "")) and s.get("storage")]
+        storages = [
+            s
+            for s in raw
+            if "backup" in str(s.get("content", "")) and s.get("storage") and s["storage"] not in (skip_storages or ())
+        ]
         logger.info("Node %s: backup storages: %s", node_name, [s["storage"] for s in storages])
         return node_name, storages
 

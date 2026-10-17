@@ -324,13 +324,15 @@ def sync_task_state(conn: dict[str, Any], upid: str) -> tuple[float | None, bool
     task is still "active"; the node in the path is not used (the UPID names it).
     """
     path = f"/api2/json/nodes/localhost/tasks/{parse.quote(upid, safe='')}/log"
-    head = _pbs_get_payload(conn, path, query={"start": "0", "limit": "1", "test-status": "1"})
+    head = _pbs_get_payload(conn, path, query={"start": "0", "limit": "1", "test-status": "1"}, retries=0)
     total = head.get("total")
     if isinstance(total, int):
         start = max(0, total - _SYNC_LOG_TAIL)
-        rows = _pbs_get_payload(conn, path, query={"start": str(start), "limit": str(_SYNC_LOG_TAIL)}).get("data")
+        rows = _pbs_get_payload(conn, path, query={"start": str(start), "limit": str(_SYNC_LOG_TAIL)}, retries=0).get(
+            "data"
+        )
     else:  # no line count reported: read it all
-        rows = _pbs_get_payload(conn, path, query={"start": "0", "limit": "100000"}).get("data")
+        rows = _pbs_get_payload(conn, path, query={"start": "0", "limit": "100000"}, retries=0).get("data")
     rows = rows if isinstance(rows, list) else []
     active = head.get("active")
     # Older PBS without "active": a finished task's log ends with "TASK OK/ERROR".
@@ -346,22 +348,24 @@ def sync_task_state(conn: dict[str, Any], upid: str) -> tuple[float | None, bool
     return None, finished
 
 
-def fetch_pbs_sync_jobs(conn: dict[str, Any]) -> list[dict[str, Any]]:
+def fetch_pbs_sync_jobs(conn: dict[str, Any], retries: int = 2) -> list[dict[str, Any]]:
     """Sync jobs on this PBS (pull, push and local), with the remote resolved
-    to its host and fingerprint so it can be matched to a registered PBS."""
+    to its host and fingerprint so it can be matched to a registered PBS.
+    `retries=0` for the frequent live check (it is asked again soon)."""
     base_url = conn["api_url"].rstrip("/")
     token_id = conn["api_token_id"]
     token_secret = conn["api_token_secret"]
     path = "/api2/json/admin/sync"
     try:
         # Push jobs (PBS 3.3+) are only listed on request.
-        jobs = _pbs_get_json(base_url, path, token_id, token_secret, query={"sync-direction": "all"})
+        jobs = _pbs_get_json(base_url, path, token_id, token_secret, query={"sync-direction": "all"}, retries=retries)
     except PBSSyncError as exc:
         if "HTTP 400" not in str(exc):
             raise
-        jobs = _pbs_get_json(base_url, path, token_id, token_secret)
+        jobs = _pbs_get_json(base_url, path, token_id, token_secret, retries=retries)
     remotes = {
-        str(r.get("name")): r for r in _pbs_get_json(base_url, "/api2/json/config/remote", token_id, token_secret)
+        str(r.get("name")): r
+        for r in _pbs_get_json(base_url, "/api2/json/config/remote", token_id, token_secret, retries=retries)
     }
     result: list[dict[str, Any]] = []
     for job in jobs:

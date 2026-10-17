@@ -51,6 +51,20 @@ class DbTestCase(unittest.TestCase):
             return cur.fetchone()
 
 
+class UnreadSourceTests(DbTestCase):
+    def removed(self) -> list:
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT removed_at FROM backup_events ORDER BY id")
+            return [row["removed_at"] for row in cur.fetchall()]
+
+    def test_snapshots_stay_when_a_source_could_not_be_read(self) -> None:
+        db.sync_backup_events_for_source(self.cid, "pbs", [_event(100, NOW)])
+        db.sync_backup_events_for_source(self.cid, "pbs", [], mark_removed=False)
+        self.assertEqual(self.removed(), [None])
+        db.sync_backup_events_for_source(self.cid, "pbs", [])
+        self.assertIsNotNone(self.removed()[0])
+
+
 class GoneVmTests(DbTestCase):
     def test_missing_vm_is_flagged_and_cleared_when_it_returns(self) -> None:
         db.sync_cluster_inventory(self.cid, [], [_vm(100, "a")])

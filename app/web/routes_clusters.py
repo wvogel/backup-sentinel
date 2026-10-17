@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time as _time
 from datetime import datetime
 
@@ -17,9 +18,10 @@ from app.services.bootstrap import slugify_cluster
 from app.services.proxmox_progress import running_backup_progress_cached, running_backup_progress_peek
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, datetime_local, settings_actor, templates
-from app.web.sync import background_sync, sync_executor, sync_logs, syncing_clusters
+from app.web.sync import background_sync, refresh_sync_job_states, sync_executor, sync_logs, syncing_clusters
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Cache für sync-status: cluster_slug → (timestamp, result_dict)
 _sync_status_cache: dict[str, tuple[float, dict]] = {}
@@ -123,7 +125,17 @@ def get_sync_progress(cluster_slug: str) -> JSONResponse:
     cluster = db.get_cluster_by_slug(cluster_slug)
     if not cluster:
         raise HTTPException(status_code=404)
-    return JSONResponse(sync_progress.live_progress(cluster["id"]))
+    # Also notices replications that started or ended since the last sync
+    # ("_changed": the page reloads to redraw the diagram).
+    try:
+        changed = refresh_sync_job_states(cluster["id"])
+    except Exception:
+        logger.exception("Sync job check failed for cluster %s", cluster_slug)
+        changed = False
+    progress: dict = sync_progress.live_progress(cluster["id"])
+    if changed:
+        progress["_changed"] = True
+    return JSONResponse(progress)
 
 
 @router.get("/api/clusters/{cluster_slug}/sync-status")
