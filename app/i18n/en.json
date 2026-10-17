@@ -463,7 +463,7 @@
   "notify.verify_failed_title": "Verify failed: {vm}",
   "notify.verify_failed_message": "The PBS could not verify the backup of {date}.",
   "notifications.type_verify_failed": "Verify failed",
-  "cluster.only_problems": "Only problems",
+  "cluster.only_problems": "Problems",
   "cluster.history_size": "Size",
   "cluster.history_duration": "Duration",
   "cluster.history_throughput": "Avg. throughput",

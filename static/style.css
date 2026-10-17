@@ -20,8 +20,9 @@
   --radius-card: 14px; /* cards, dialogs */
   --radius-box: 10px;  /* everything inside a card: tiles, diagram boxes, fields, buttons */
   --radius-tag: 6px;   /* small tags and header buttons */
-  --pad-card: 16px;
-  --pad-box: 10px 12px;
+  --gap: 16px;        /* between any two boxes: cards, tiles, diagram boxes */
+  --pad-card: 16px;   /* inside a card */
+  --pad-box: 12px;    /* inside a box in a card, all four sides */
   --font-brand: Impact, "Arial Black", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --bg: #f8f5f2;
   --panel: #ffffff;
@@ -383,7 +384,7 @@ aside {
 
 .hero-card,
 .table-card {
-  margin-bottom: 16px;
+  margin-bottom: var(--gap);
   padding: var(--pad-card);
   border-radius: var(--radius-card);
 }
@@ -398,7 +399,7 @@ aside {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--gap);
 }
 
 .hero-card h2,
@@ -732,6 +733,7 @@ tbody tr:last-child td {
 
 /* ── Settings form ──────────────────────────────────────────── */
 .settings-form fieldset {
+  min-width: 0; /* a fieldset is min-content wide by default: long URLs would push it out */
   border: 1px solid var(--line);
   border-radius: var(--radius-box);
   padding: var(--pad-card);
@@ -971,7 +973,7 @@ pre {
 .archive-table col:nth-child(1) { width: auto; }  /* spacer */
 .archive-table col:nth-child(2) { width: 90px; }  /* Monat */
 .archive-table col:nth-child(3) { width: 188px; } /* Generiert = 2×90 + 8 gap */
-.archive-table col:nth-child(4) { width: 90px; }  /* Modus */
+.archive-table col:nth-child(4) { width: 120px; } /* Modus: "automatisch" fits */
 .archive-table col:nth-child(5) { width: 90px; }  /* PDF */
 .archive-table col:nth-child(6) { width: 90px; }  /* JSON */
 .archive-table col:nth-child(7) { width: 90px; }  /* Löschen */
@@ -1117,8 +1119,8 @@ pre {
 .cluster-row-stats {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(80px, auto);
-  gap: 8px;
+  grid-auto-columns: minmax(80px, 1fr); /* all as wide as the widest */
+  gap: var(--gap);
   flex: none;
 }
 .cluster-row > .cluster-hero-main { flex: 1 1 0; }
@@ -1205,7 +1207,8 @@ pre {
     min-width: 0;
     width: 100%;
     grid-auto-flow: row;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* Three per row where the labels fit, otherwise two. */
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
   }
 
   table {
@@ -1233,12 +1236,6 @@ pre {
     grid-template-columns: 1fr;
   }
 
-  .hero-card,
-  .table-card,
-  .summary-card {
-    padding: 14px;
-  }
-
   /* VM table → one card per row on phones. A 7-column table forced into
      horizontal scroll hides most of each row; cards keep everything visible. */
   #vm-table {
@@ -1256,10 +1253,10 @@ pre {
 
   #vm-table tr {
     display: block;
-    margin-bottom: 10px;
-    padding: 6px 12px;
+    margin-bottom: var(--gap);
+    padding: 5px 12px; /* + 7 px cell padding = 12 px like every box */
     border: 1px solid var(--line);
-    border-radius: var(--radius-card);
+    border-radius: var(--radius-box);
     background: var(--panel-alt);
   }
 
@@ -1526,6 +1523,7 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
 }
 
 .settings-cluster-card {
+  min-width: 0; /* a fieldset is min-content wide by default: long URLs would push it out */
   border: 1px solid var(--line);
   border-radius: var(--radius-box);
   padding: var(--pad-card);
@@ -1582,7 +1580,8 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
 
 .settings-cluster-sublist {
   display: grid;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
 }
 
 .settings-subcard {
@@ -1623,7 +1622,7 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
 }
 
 .pbs-namespace-form input {
-  width: 14rem;
+  width: min(14rem, 100%);
   padding: 4px 8px;
 }
 
@@ -1852,6 +1851,8 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
 }
 
 /* Status columns – fixed-width grid aligned to header boxes */
+.report-hero-stats { grid-template-columns: repeat(5, 90px); min-width: unset; }
+
 .report-status-cols {
   display: grid;
   grid-template-columns: repeat(5, 90px);
@@ -2347,7 +2348,7 @@ details[open] > .encryption-alert-summary::before {
 .last-backup-date { white-space: nowrap; }
 
 /* Running backups above the VM table: tiles only, no frame of their own. */
-.running-banner { margin-bottom: 16px; }
+.running-banner { margin-bottom: var(--gap); }
 .running-banner.hidden { display: none; }
 
 .sr-only {
@@ -2366,14 +2367,15 @@ details[open] > .encryption-alert-summary::before {
 .running-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 10px;
-  margin: 12px 0 0;
+  gap: var(--gap);
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 .running-item {
   display: flex;
   align-items: center;
+  justify-content: flex-start; /* a button, but laid out like a box */
   gap: 12px;
   width: 100%;
   height: 100%;
@@ -2516,7 +2518,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
   position: relative;
   display: flex;
   align-items: center;
-  /* Compact arrows: the gaps stay short, spare room goes to the boxes. */
+  /* Boxes are as wide as their content plus the same padding; spare room
+     goes evenly to the arrows between them, never into a box. */
+  justify-content: space-between;
   gap: clamp(88px, 7vw, 130px);
   /* No frame of its own: the boxes sit on the card like the key-figure tiles. */
   padding: 0;
@@ -2578,15 +2582,15 @@ html[data-theme="dark"] .node-filter-button.is-active {
   .topo-active .topo-line.topo-line-sync { animation: none; }
 }
 
-/* Columns share the full width; boxes fill their column's width and get
-   one common height (static/js/topology.js), columns centred vertically. */
+/* Columns take their content's width; boxes fill their column's width and
+   get one common height (static/js/topology.js), columns centred vertically. */
 .topology-col {
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 10px;
-  flex: 1 1 auto;
+  gap: var(--gap);
+  flex: 0 1 auto; /* short of room: boxes wrap their sync lines before the arrows shrink */
   /* Never narrower than names that must not wrap. */
   min-width: min-content;
 }
@@ -2617,6 +2621,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-server {
   display: flex;
   flex-direction: column;
+  justify-content: center; /* boxes share one height: equal room above and below */
   min-width: 0;
   padding: var(--pad-box);
 }
@@ -2637,11 +2642,11 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-icon { width: 16px; height: 16px; flex: none; }
 
 .topo-stores {
-  flex: 1;
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-evenly;
+  justify-content: flex-start;
   gap: 10px 16px;
 }
 
@@ -2823,6 +2828,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* Guest type icon in the VM table: shape = VM/container, colour = status. */
 .guest-icon {
   display: block;
+  flex: none; /* in the phone cards a flex item: never squeezed to nothing */
   width: 17px;
   height: 17px;
   color: var(--ok);
@@ -2881,3 +2887,77 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .vm-settings form { margin: 0; }
 .vm-settings label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted); }
 .vm-settings select { width: auto; min-height: 0; padding: 4px 26px 4px 8px; font-size: 0.85rem; }
+
+/* Phone cards of the VM table. Last in the file: these must beat the table
+   rules above (cell indent, zebra on cells). */
+@media (max-width: 640px) {
+  #vm-table th:first-child,
+  #vm-table td:first-child,
+  #vm-table tr.is-running > td:first-child,
+  #vm-table .status-cell { padding: 7px 0; }
+  /* Zebra and hover tint the whole card, not the cells inside its padding. */
+  #vm-table tbody tr:nth-child(even of :not(.vm-detail-row, .hidden)) { background: var(--row-alt); }
+  #vm-table tbody tr[data-vm-id]:hover,
+  #vm-table tr.is-expanded { background: var(--row-hover); }
+  #vm-table tbody tr > td { background-color: transparent !important; }
+  /* Label left, everything else packed right (icon, ▶ + name, tags). */
+  #vm-table td { justify-content: flex-end; }
+  #vm-table td::before { margin-right: auto; }
+  #vm-table .status-cell { width: auto; }
+  #vm-table td.sparkline-cell { padding: 7px 0 !important; }
+  /* Not enough room for all 30 days: the newest stay, the oldest drop off
+     the left edge instead of running past the card. */
+  #vm-table td.sparkline-cell .sparkline { overflow: hidden; justify-content: flex-end; }
+}
+
+/* Reports on phones: tiles and status columns wrap, the archive becomes cards. */
+@media (max-width: 640px) {
+  .report-hero-stats { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+  .report-hero-stats .pdf-snapshot-btn { grid-column: span 2; margin-bottom: 0; }
+  .report-cluster-details > summary,
+  .vm-summary-row { flex-wrap: wrap; justify-content: flex-start; }
+  .report-cluster-head { flex: 1 1 auto; }
+  .report-status-cols {
+    width: 100%;
+    margin: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* A VM's counts are pills: they simply flow. */
+  .vm-summary-row .report-status-cols { display: flex; flex-wrap: wrap; gap: 6px; margin-right: 0; }
+  .report-status-cols > :nth-child(5) { display: none; }
+  .vm-summary-row { padding: 10px 0; }
+  .vm-name-label,
+  .node-label { min-width: 0; }
+  .inner-col-headers,
+  .inner-table { width: 100%; margin-left: 0; }
+  .inner-col-headers span,
+  .inner-table td { padding: 6px 4px; hyphens: auto; }
+  .archive-table,
+  .archive-table tbody { display: block; }
+  .archive-table colgroup,
+  .archive-table thead { display: none; }
+  .archive-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .archive-table td { display: block; padding: 0; border: 0 !important; }
+  .archive-table tr:last-child { border-bottom: 0; padding-bottom: 0; }
+  .archive-table td:empty { display: none; }
+  .archive-table td:nth-child(2) { font-weight: 700; }
+  .archive-table td:nth-child(3) { flex: 1 1 auto; color: var(--muted); }
+  .archive-table td:nth-child(4) { flex-basis: 100%; }
+  .archive-table td[colspan] { flex-basis: 100%; }
+}
+
+/* Long URLs and names break instead of widening their box. */
+.settings-cluster-meta-value,
+.settings-subcard { overflow-wrap: anywhere; }
+
+/* Phones: a running sync's ring moves below rather than overlap the text. */
+@media (max-width: 640px) {
+  .topo-store { flex-wrap: wrap; }
+}
