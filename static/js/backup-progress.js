@@ -109,6 +109,7 @@
     renderBanner();
     layoutRows();
     document.dispatchEvent(new CustomEvent("backup-progress-updated"));
+    syncAnimations(); // rebuilt tiles and new rows run on in step
   }
 
   async function poll() {
