@@ -448,3 +448,26 @@ class JobStorageTests(unittest.TestCase):
                 103: ["pbs-side"],
             },
         )
+
+
+class TemplateTests(unittest.TestCase):
+    def test_templates_are_flagged(self) -> None:
+        resources = [
+            {"type": "node", "node": "pve1", "status": "online"},
+            {"type": "qemu", "vmid": 9000, "node": "pve1", "name": "tpl", "template": 1},
+            {"type": "lxc", "vmid": 101, "node": "pve1", "name": "ct"},
+        ]
+
+        def fake(base_url, path, auth_header, **kwargs):
+            return resources if path.endswith("/cluster/resources") else []
+
+        with (
+            mock.patch.object(proxmox, "_pve_get_json", side_effect=fake),
+            mock.patch.object(proxmox, "fetch_backup_details", return_value=({}, [], [])),
+            mock.patch.object(proxmox, "fetch_qdevice", return_value={}),
+            mock.patch.object(proxmox, "fetch_ha", return_value={}),
+        ):
+            inventory = proxmox.fetch_cluster_inventory(
+                {"api_url": "https://pve", "api_user": "u", "token_id": "t", "token_secret": "s"}
+            )
+        self.assertEqual({vm["vmid"]: vm["is_template"] for vm in inventory.vms}, {9000: True, 101: False})

@@ -71,6 +71,7 @@
   "cluster.ha_never": "May never run on: {nodes}",
   "cluster.ha_avoid": "Preferably not on: {nodes}",
   "cluster.ha_any": "May run on any node",
+  "cluster.template_tooltip": "Template — does not run, used for cloning",
   "ha_state.started": "started",
   "ha_state.starting": "starting",
   "ha_state.stopped": "stopped",

@@ -81,6 +81,7 @@ The main table lists every VM in the cluster with sortable columns:
 |----------------|------------------------------------------------------------|
 | 🖥 / 📦         | Guest icon: monitor = VM, box = container. The colour is the status: green = all fine and at least 2 backup locations, blue = fine but a single backup location (information, not a problem), yellow = warning, red = critical (worst of backup age and verify); greyed out = VM deleted. The tooltip lists the reasons |
 | HA             | The guest is managed by PVE HA. Outlined when it may only run on certain nodes (or never on some). The tooltip shows the HA state and nodes, e.g. "May only run on: pve1 (2), pve2" (number = priority); taken from node-affinity rules (PVE 9) or the HA group (older PVE) |
+| TPL            | The guest is a PVE template: does not run, used for cloning. Shown quietly greyed out |
 | VM             | Guest name; a small **w** or **–** marks weekly backups or "no backup expected" |
 | Node           | The Proxmox node the VM runs on                           |
 | VMID           | Proxmox VM ID                                             |

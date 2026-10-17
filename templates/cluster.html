@@ -154,6 +154,7 @@
           </td>
           <td class="vm-name-cell" data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}"><span class="vm-expand-icon" aria-hidden="true">▶</span>{{ row.vm_name }}
             {%- if not row.vm_gone and row.status_backup_kind in ['weekly', 'none'] %} <span class="kind-tag" data-tooltip="{{ t('cluster.backup_frequency') }}: {{ row.backup_kind_label }}">{{ row.backup_kind_short }}</span>{% endif %}
+            {%- if row.is_template %} <span class="kind-tag tpl-tag" data-tooltip="{{ t('cluster.template_tooltip') }}">TPL</span>{% endif %}
             {%- if row.ha %}
             {%- set ha_key = 'ha_state.' ~ (row.ha.state or '') %}
             {%- set ha_state = t(ha_key) if t(ha_key) != ha_key else (row.ha.state or '?') %}

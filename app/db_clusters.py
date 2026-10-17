@@ -88,12 +88,15 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
         for vm in vms:
             cur.execute(
                 """
-                INSERT INTO vms (cluster_id, node_name, vmid, name, guest_type, backup_storages, backup_kind, last_backup_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO vms (
+                    cluster_id, node_name, vmid, name, guest_type, is_template, backup_storages, backup_kind, last_backup_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (cluster_id, vmid) DO UPDATE SET
                     node_name = EXCLUDED.node_name,
                     name = EXCLUDED.name,
                     guest_type = EXCLUDED.guest_type,
+                    is_template = EXCLUDED.is_template,
                     backup_storages = EXCLUDED.backup_storages,
                     backup_kind = EXCLUDED.backup_kind,
                     last_backup_at = COALESCE(EXCLUDED.last_backup_at, vms.last_backup_at),
@@ -105,6 +108,7 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
                     vm["vmid"],
                     vm["name"],
                     vm.get("guest_type", "qemu"),
+                    bool(vm.get("is_template")),
                     vm.get("backup_storages", []),
                     vm["backup_kind"],
                     vm["last_backup_at"],
