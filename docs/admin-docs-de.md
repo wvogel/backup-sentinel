@@ -230,7 +230,7 @@ Unter **Einstellungen → Erscheinungsbild** lassen sich anpassen:
 
 Änderungen landen im Einstellungs-Audit. Der PDF-Report übernimmt Primär-, Akzent- und Laufend-Farbe.
 
-**Schrift:** [Instrument Sans](https://github.com/Instrument/instrument-sans) (SIL Open Font License 1.1), lokal ausgeliefert aus `static/fonts/` samt `OFL.txt` – die Anwendung lädt nichts von Google.
+**Schrift:** die Systemschrift des Geräts (macOS/iOS: San Francisco, Windows: Segoe UI, Android: Roboto). Es wird keine Schrift geladen, daher springt beim Laden nichts.
 
 ---
 

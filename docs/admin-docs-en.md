@@ -230,7 +230,7 @@ Under **Settings → Appearance** you can change:
 
 Changes are recorded in the settings audit. The PDF report uses the primary, accent and running colours.
 
-**Font:** [Instrument Sans](https://github.com/Instrument/instrument-sans) (SIL Open Font License 1.1), served locally from `static/fonts/` with `OFL.txt` — the app loads nothing from Google.
+**Font:** the device's system font (macOS/iOS: San Francisco, Windows: Segoe UI, Android: Roboto). No font is downloaded, so nothing shifts while the page loads.
 
 ---
 
