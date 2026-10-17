@@ -395,9 +395,7 @@ aside {
   line-height: 1.3;
 }
 
-.summary-card h3 {
-  font-size: 1.5rem;
-}
+.summary-card h3 { font-size: 1.5rem; }
 
 .hero-card p:last-child,
 .summary-card p:last-child {
@@ -567,11 +565,9 @@ td .icon-button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.section-head {
   margin-bottom: 8px;
 }
+
 
 .eyebrow {
   margin: 0 0 4px;
@@ -856,9 +852,6 @@ html[data-theme="dark"] select {
   gap: 0.5rem;
 }
 
-.inline-form {
-  display: inline;
-}
 
 .js-sync-btn.syncing svg {
   animation: spin 1s linear infinite;
@@ -1437,7 +1430,6 @@ html[data-theme="dark"] .brand-logo-dark {
 
 .col-right  { text-align: right; }
 .col-center { text-align: center; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
 
 .empty-state {
   padding: 24px 16px;
@@ -2249,13 +2241,11 @@ details[open] > .encryption-alert-summary::before {
 }
 .notification-filters .filter-reset,
 .notification-filters .csv-export {
+  margin-left: auto;
   padding: 6px 14px;
   font-size: 0.85rem;
   text-decoration: none;
   border-radius: var(--radius-box);
-}
-.notification-filters .csv-export {
-  margin-left: auto;
 }
 
 /* ── Running backups ─────────────────────────────────────────────────── */
@@ -2284,6 +2274,7 @@ details[open] > .encryption-alert-summary::before {
   background-position: var(--cell-x, 0) 0;
 }
 #vm-table tr.is-running > td:first-child {
+  position: relative;
   box-shadow: inset 4px 0 0 var(--running);
   padding-left: 12px;
 }
@@ -2300,7 +2291,6 @@ details[open] > .encryption-alert-summary::before {
   border-top-color: var(--running);
   animation: running-spin 1.1s linear infinite;
 }
-#vm-table tr.is-running > td:first-child { position: relative; }
 #vm-table tr.is-running > td:first-child::before {
   content: "";
   position: absolute;

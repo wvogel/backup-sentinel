@@ -212,19 +212,6 @@ def _labels(lang: str) -> dict[str, str]:
     return _PDF_LABELS_DE
 
 
-# Backward-compat: older callers and tests import this module-level dict.
-# It mirrors the German labels for the notification types. For multi-language
-# output use the per-language lookup via _labels(lang).
-_NOTIFICATION_TYPE_LABELS = {
-    "backup_critical": _PDF_LABELS_DE["notif_type_backup_critical"],
-    "size_anomaly": _PDF_LABELS_DE["notif_type_size_anomaly"],
-    "sync_failed": _PDF_LABELS_DE["notif_type_sync_failed"],
-    "sync_overdue": _PDF_LABELS_DE["notif_type_sync_overdue"],
-    "restore_overdue": _PDF_LABELS_DE["notif_type_restore_overdue"],
-    "unencrypted_backups": _PDF_LABELS_DE["notif_type_unencrypted_backups"],
-}
-
-
 def _notif_type_label(L: dict[str, str], notification_type: str) -> str:
     """Look up a localized label for a notification type, or echo the raw key."""
     key = f"notif_type_{notification_type}"
@@ -873,8 +860,3 @@ def _write_backup_period_pdf(report: dict, target: Path, notifications: list[dic
 
     canvas_factory = _NumberedCanvas(generated_str, logo_normal_bytes, APP_VERSION, labels=L)
     doc.build(story, canvasmaker=canvas_factory)
-
-
-# Keep backward compat for any code that still calls the old name
-def write_monthly_report_pdf(report: dict, target: Path) -> None:
-    write_backup_period_pdf(report, target)

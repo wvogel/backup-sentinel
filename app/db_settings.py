@@ -6,13 +6,6 @@ from app.db_core import connect
 from app.types import AuditLogRow
 
 
-def get_setting(key: str, default: str = "") -> str:
-    with connect() as conn, conn.cursor() as cur:
-        cur.execute("SELECT value FROM app_settings WHERE key = %s", (key,))
-        row = cur.fetchone()
-        return row["value"] if row else default
-
-
 def get_settings_dict(prefix: str = "") -> dict[str, str]:
     with connect() as conn, conn.cursor() as cur:
         if prefix:

@@ -5,6 +5,21 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.40.7] — 2026-10-17
+
+### Changed
+
+- **The overview loads each thing once.** The per-VM query (five lookups per VM into the backup history) ran three times per page load — for the cluster summaries, the VM list and the restore-test coverage — and now runs once and is handed on. The cluster list was read twice, the sync state was read again per cluster, the node list once per cluster, and the encryption totals over all backups were counted a second time; all of this now comes from data already loaded. The weekly report shares its VM query the same way, and the cluster page reads its nodes once.
+- **Indexes:** the restore tests per VM (looked up for every VM on each overview, and scanned on every VM delete) and the processed backup tasks per cluster are now indexed. Three indexes that duplicated a UNIQUE constraint's own index are dropped.
+
+### Fixed
+
+- **Running-backup labels in the wrong language.** The 2-second cache of the cluster page's status poll was shared by all viewers, so a German and an English tab could get each other's labels; it is now kept per language.
+
+### Removed
+
+- `scripts/monthly_report.py` and the code only it used (`build_monthly_report`, `write_monthly_report_pdf`, `list_vms`): nothing called the script any more, and its report no longer matched what the PDF writer expects. Monthly reports come from the reports page and the automatic run. Also removed: `get_setting` and a German-only notification label table, both only used by tests (now testing the live functions), and an unused CSS class; duplicate CSS rules merged (no visible change — computed styles of all ~2,800 elements on every page compared before and after).
+
 ## [v2.40.6] — 2026-10-17
 
 ### Removed

@@ -198,9 +198,16 @@ def init_db() -> None:
                 );
                 """
             )
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_vms_cluster_vmid ON vms(cluster_id, vmid)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_nodes_cluster ON nodes(cluster_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_clusters_slug ON clusters(slug)")
+            # These duplicated the UNIQUE constraints' own indexes.
+            cur.execute("DROP INDEX IF EXISTS idx_vms_cluster_vmid")
+            cur.execute("DROP INDEX IF EXISTS idx_nodes_cluster")
+            cur.execute("DROP INDEX IF EXISTS idx_clusters_slug")
+            # Foreign keys get no index of their own: the latest restore test is
+            # looked up per VM on every overview, and a VM delete cascades here.
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_restore_tests_vm ON restore_tests(vm_id, tested_at DESC)")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_processed_backup_tasks_cluster ON processed_backup_tasks(cluster_id)"
+            )
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS pbs_connections (

@@ -1,60 +1,10 @@
 from __future__ import annotations
 
-from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 
-from app.services.backup_status import RESTORE_DUE_STATUSES, assess_backup_status
+from app.services.backup_status import RESTORE_DUE_STATUSES
 
 REPORT_REMOVED_RETENTION_DAYS = 31
-
-
-def build_monthly_report(
-    cluster_rows: list[dict],
-    vm_rows: list[dict],
-    now: datetime | None = None,
-    report_month: date | None = None,
-) -> dict:
-    reference = now or datetime.now(UTC)
-    month = report_month or reference.date().replace(day=1)
-    severity_counter: Counter[str] = Counter()
-    backup_kind_counter: Counter[str] = Counter()
-    cluster_map = {row["id"]: row["name"] for row in cluster_rows}
-    cluster_counter: Counter[str] = Counter()
-
-    detailed_rows: list[dict] = []
-    for vm in vm_rows:
-        backup_kind = vm.get("status_backup_kind") or vm.get("effective_backup_kind", vm["backup_kind"])
-        severity, age_days = assess_backup_status(backup_kind, vm["last_backup_at"], reference)
-        severity_counter[severity] += 1
-        backup_kind_counter[backup_kind] += 1
-        cluster_counter[cluster_map.get(vm["cluster_id"], "unknown")] += 1
-        detailed_rows.append(
-            {
-                "cluster_name": cluster_map.get(vm["cluster_id"], "unknown"),
-                "vm_name": vm["name"],
-                "node_name": vm["node_name"],
-                "backup_kind": backup_kind,
-                "last_backup_at": vm["last_backup_at"],
-                "severity": severity,
-                "age_days": age_days,
-            }
-        )
-
-    return {
-        "generated_at": reference,
-        "report_month": month,
-        "report_month_label": month.strftime("%m/%Y"),
-        "totals": {
-            "clusters": len(cluster_rows),
-            "vms": len(vm_rows),
-            "critical": severity_counter["critical"],
-            "warning": severity_counter["warning"],
-            "ok": severity_counter["ok"],
-        },
-        "by_kind": dict(backup_kind_counter),
-        "by_cluster": dict(cluster_counter),
-        "rows": detailed_rows,
-    }
 
 
 def serialize_report_payload(value):

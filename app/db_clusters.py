@@ -9,17 +9,6 @@ from app.config import SYNC_INTERVAL_MINUTES
 from app.db_core import connect
 from app.types import ClusterRow, NodeRow, PBSConnectionRow, SyncHealthRow, VMRow
 
-# A VM row is shown while it exists in PVE, or — once deleted — as long as at
-# least one real backup of it is still present on a storage/PBS.
-VISIBLE_VM_SQL = """(
-    v.missing_since IS NULL
-    OR EXISTS (
-        SELECT 1 FROM backup_events be
-        WHERE be.vm_id = v.id AND be.status = 'ok' AND be.removed_at IS NULL
-          AND COALESCE(be.size_bytes, 0) > 1
-    )
-)"""
-
 
 def create_cluster(name: str, slug: str, api_url: str, enrollment_secret: str) -> None:
     now = datetime.now(UTC)
@@ -270,17 +259,14 @@ def list_nodes(cluster_id: int) -> list[NodeRow]:
         return list(cur.fetchall())
 
 
-def list_vms(cluster_id: int | None = None) -> list[VMRow]:
-    # Skip VMs that are gone from PVE and have no backups left — pure leftovers.
-    query = f"SELECT * FROM vms v WHERE {VISIBLE_VM_SQL}"
-    params: tuple[Any, ...] = ()
-    if cluster_id is not None:
-        query += " AND cluster_id = %s"
-        params = (cluster_id,)
-    query += " ORDER BY backup_kind, name"
+def node_names_by_cluster() -> dict[int, list[str]]:
+    """Node names of every cluster in one query."""
     with connect() as conn, conn.cursor() as cur:
-        cur.execute(query, params)
-        return list(cur.fetchall())
+        cur.execute("SELECT cluster_id, name FROM nodes ORDER BY cluster_id, name")
+        result: dict[int, list[str]] = {}
+        for row in cur.fetchall():
+            result.setdefault(row["cluster_id"], []).append(row["name"])
+        return result
 
 
 def get_vm_for_cluster(cluster_id: int, vm_id: int) -> VMRow | None:
@@ -375,20 +361,17 @@ def delete_pbs_connection(conn_id: int) -> bool:
         return deleted
 
 
-def get_cluster_sync_health(cluster_id: int) -> SyncHealthRow:
-    with connect() as conn, conn.cursor() as cur:
-        cur.execute("SELECT * FROM clusters WHERE id = %s", (cluster_id,))
-        cluster = cur.fetchone()
-        if not cluster:
-            return {"failures": 0, "stale": False}
-        if cluster.get("last_pve_sync_ok") is not False:
-            return {"failures": 0, "stale": False}
-        failure_start = cluster.get("last_pve_sync_failure_started_at")
-        if not failure_start:
-            return {"failures": 1, "stale": False}
-        delta_hours = (datetime.now(UTC) - failure_start).total_seconds() / 3600
-        est_failures = max(1, int(delta_hours / (SYNC_INTERVAL_MINUTES / 60)))
-        return {"failures": est_failures, "stale": est_failures >= 3}
+def cluster_sync_health(cluster: dict[str, Any]) -> SyncHealthRow:
+    """Failed syncs in a row (estimated from when failing started), from a
+    cluster row the caller has already loaded."""
+    if cluster.get("last_pve_sync_ok") is not False:
+        return {"failures": 0, "stale": False}
+    failure_start = cluster.get("last_pve_sync_failure_started_at")
+    if not failure_start:
+        return {"failures": 1, "stale": False}
+    delta_hours = (datetime.now(UTC) - failure_start).total_seconds() / 3600
+    est_failures = max(1, int(delta_hours / (SYNC_INTERVAL_MINUTES / 60)))
+    return {"failures": est_failures, "stale": est_failures >= 3}
 
 
 def replace_datastore_usage(pbs_id: int, rows: list[dict[str, Any]]) -> None:

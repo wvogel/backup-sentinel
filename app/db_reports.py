@@ -14,14 +14,18 @@ from app.services.reporting import serialize_report_payload
 from app.types import MonthlyReportRow
 
 
-def cluster_summaries() -> list[dict[str, Any]]:
-    """Build dashboard summary for all clusters using batch queries."""
-    clusters = list_clusters()
+def cluster_summaries(
+    clusters: list[dict[str, Any]] | None = None, vm_rows: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """Build dashboard summary for all clusters using batch queries. Pass
+    `clusters` and `vm_rows` when the caller has loaded them already."""
+    if clusters is None:
+        clusters = list_clusters()
     if not clusters:
         return []
 
     # Single query for all VMs across all clusters
-    all_vms = vm_governance_rows()
+    all_vms = vm_governance_rows() if vm_rows is None else vm_rows
 
     # Group VMs by cluster_id
     vms_by_cluster: dict[int, list[dict[str, Any]]] = {}

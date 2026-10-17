@@ -10,7 +10,7 @@ from pydantic import ValidationError as PydanticValidationError
 from starlette import status
 
 from app import db
-from app.i18n import t
+from app.i18n import get_language, t
 from app.models import RestoreTestCreate
 from app.services import sync_progress, topology_store
 from app.services.backup_status import RESTORE_CLASSES, assess_slow_backup, format_duration
@@ -23,8 +23,9 @@ from app.web.sync import background_sync, refresh_sync_job_states, sync_executor
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Cache für sync-status: cluster_slug → (timestamp, result_dict)
-_sync_status_cache: dict[str, tuple[float, dict]] = {}
+# sync-status cache: (cluster slug, language) → (timestamp, result). The labels
+# are translated, so each language needs its own entry.
+_sync_status_cache: dict[tuple[str, str], tuple[float, dict]] = {}
 _SYNC_STATUS_TTL = 2.0  # Sekunden
 
 
@@ -146,7 +147,8 @@ def get_sync_status(cluster_slug: str, since: int = 0):
     cid = cluster["id"]
 
     now = _time.monotonic()
-    cache_entry = _sync_status_cache.get(cluster_slug)
+    cache_key = (cluster_slug, get_language())
+    cache_entry = _sync_status_cache.get(cache_key)
     if cache_entry is None or (now - cache_entry[0]) >= _SYNC_STATUS_TTL:
         buf = list(sync_logs.get(cid, []))
         progress, complete = running_backup_progress_cached(
@@ -165,7 +167,7 @@ def get_sync_status(cluster_slug: str, since: int = 0):
             "backup_progress_complete": complete,
             "running_count_label": running_count_label(len(serializable_progress)),
         }
-        _sync_status_cache[cluster_slug] = (now, cached)
+        _sync_status_cache[cache_key] = (now, cached)
     else:
         cached = cache_entry[1]
 
@@ -202,11 +204,10 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
     vm_rows = db.vm_governance_rows(cluster["id"])
+    nodes = db.list_nodes(cluster["id"])
     # Never wait for PVE here: the page's poll fills in progress right away
     # when nothing recent is cached.
-    live_backup_progress, live_complete = running_backup_progress_peek(
-        cluster, [node["name"] for node in db.list_nodes(cluster["id"])]
-    )
+    live_backup_progress, live_complete = running_backup_progress_peek(cluster, [node["name"] for node in nodes])
     progress_pending = live_backup_progress is None
     # Complete live data from PVE says what runs; the sync's in-progress
     # placeholders (a failed backup leaves one behind) only count without it.
@@ -224,7 +225,7 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
     encryption = db.encryption_audit(cluster["id"])
     context = {
         "cluster": cluster,
-        "nodes": db.list_nodes(cluster["id"]),
+        "nodes": nodes,
         "vm_rows": vm_rows,
         "running_backups": running_backups,
         "running_count_label": running_count_label(len(running_backups)),
