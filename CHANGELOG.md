@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.40.6] — 2026-10-17
+
+### Removed
+
+- **The Smile Sans / Instrument Sans web font.** The page now uses the device's system font (San Francisco on macOS/iOS, Segoe UI on Windows, Roboto on Android). The two font files under `static/fonts/` are gone; nothing is downloaded, so the page no longer flickers and reflows when the font arrives after a reload. The brand wordmark is unchanged.
+
 ## [v2.40.5] — 2026-10-17
 
 ### Fixed

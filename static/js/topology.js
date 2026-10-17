@@ -389,8 +389,8 @@
     if (window.ResizeObserver) {
       document.querySelectorAll("[data-topology]").forEach(function (root) {
         // Boxes take their content's width and spare room goes to the arrows,
-        // so a box can move while the diagram keeps its size (e.g. once the
-        // web font has loaded): watch the columns too, redraw once per frame.
+        // so a box can move while the diagram keeps its size: watch the
+        // columns too, redraw once per frame.
         var pending = false;
         var observer = new ResizeObserver(function () {
           if (pending) return;
@@ -403,7 +403,5 @@
     } else {
       window.addEventListener("resize", drawAll);
     }
-    // Text measured with the fallback font is narrower: draw again with the real one.
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
   });
 })();
