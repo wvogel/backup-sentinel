@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import UTC, datetime
 from typing import Any
@@ -539,3 +540,13 @@ def recent_storages_by_vmid(cluster_id: int, days: int = 7) -> dict[int, list[st
             (cluster_id, days),
         )
         return {row["vmid"]: row["storages"] for row in cur.fetchall()}
+
+
+def update_cluster_qdevice(cluster_id: int, qdevice: dict[str, str]) -> None:
+    """Store the cluster's quorum device ({} = none)."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE clusters SET qdevice = %s::jsonb WHERE id = %s",
+            (json.dumps(qdevice) if qdevice else None, cluster_id),
+        )
+        conn.commit()

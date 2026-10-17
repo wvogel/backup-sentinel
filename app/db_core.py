@@ -61,6 +61,8 @@ def init_db() -> None:
             cur.execute("ALTER TABLE clusters ADD COLUMN IF NOT EXISTS last_pve_sync_success_at TIMESTAMPTZ")
             cur.execute("ALTER TABLE clusters ADD COLUMN IF NOT EXISTS last_pve_sync_failure_started_at TIMESTAMPTZ")
             cur.execute("ALTER TABLE clusters ADD COLUMN IF NOT EXISTS last_pve_sync_failure_notified_at TIMESTAMPTZ")
+            # Corosync quorum device ({state, host, model, algorithm}); NULL = none.
+            cur.execute("ALTER TABLE clusters ADD COLUMN IF NOT EXISTS qdevice JSONB")
             cur.execute(
                 "ALTER TABLE clusters ADD COLUMN IF NOT EXISTS consecutive_sync_failures INTEGER NOT NULL DEFAULT 0"
             )

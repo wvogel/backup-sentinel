@@ -31,6 +31,8 @@ class ProxmoxInventory:
     # PBS storages of the cluster (where PVE backs up to); None when the
     # storage config could not be read.
     pbs_targets: list[dict[str, str]] | None = None
+    # Quorum device: {} without one, None when it could not be asked.
+    qdevice: dict[str, str] | None = None
 
 
 def build_token_header(api_user: str, token_id: str, token_secret: str) -> str:
@@ -154,7 +156,23 @@ def fetch_cluster_inventory(
         backup_events=backup_events,
         fetch_errors=fetch_errors,
         pbs_targets=pbs_storage_targets(storage_config) if storage_config is not None else None,
+        qdevice=fetch_qdevice(base_url, auth_header, timeout=timeout),
     )
+
+
+# Fields of PVE's QDevice status ("status verbose" of corosync-qdevice) we keep.
+_QDEVICE_FIELDS = {"State": "state", "QNetd host": "host", "Model": "model", "Algorithm": "algorithm"}
+
+
+def fetch_qdevice(base_url: str, auth_header: str, timeout: float = 10.0) -> dict[str, str] | None:
+    """The cluster's QDevice (corosync quorum device): {} without one, None
+    when it cannot be asked. PVE answers from the node handling the request."""
+    try:
+        status = _pve_get_dict(base_url, "/api2/json/cluster/config/qdevice", auth_header, timeout=timeout)
+    except ProxmoxSyncError as exc:
+        logger.warning("Cannot read QDevice status: %s", exc)
+        return None
+    return {key: str(status[raw]) for raw, key in _QDEVICE_FIELDS.items() if status.get(raw)}
 
 
 def fetch_storage_config(base_url: str, auth_header: str, timeout: float = 10.0) -> list[dict[str, Any]] | None:

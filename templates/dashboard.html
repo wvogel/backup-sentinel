@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ t('dashboard.title') }}{% endblock %}
 {% block content %}
+{% import "_nodes_tile.html" as tiles with context %}
 {% set recovery_type_labels = {"full": t('cluster.recovery_full'), "partial": t('cluster.recovery_partial'), "file": t('cluster.recovery_file')} %}
 
 {# ── Cluster Health Bar ──────────────────────────────────────────────── #}
@@ -86,10 +87,7 @@
       </p>
     </div>
     <div class="cluster-row-stats">
-      <div class="cluster-stat">
-        <strong>{{ cluster.node_count }}</strong>
-        <span>{{ t('common.nodes') }}</span>
-      </div>
+      {{ tiles.nodes_tile(cluster.node_count, cluster.qdevice) }}
       <div class="cluster-stat">
         <strong>{{ cluster.vm_count }}</strong>
         <span>{{ t('common.vms') }}</span>

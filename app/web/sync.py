@@ -96,6 +96,8 @@ def sync_cluster_backups(cluster: dict) -> None:
         )
         pve_log.append(f"Nodes: {len(inventory.nodes)}, VMs: {len(inventory.vms)}")
         db.sync_cluster_inventory(cluster["id"], inventory.nodes, inventory.vms)
+        if inventory.qdevice is not None:  # unknown: keep the last known state
+            db.update_cluster_qdevice(cluster["id"], inventory.qdevice)
         if not inventory.vms:
             prune_blockers.append(ts("synclog.pve_zero_vms"))
         prune_blockers.extend(f"PVE {err}" for err in inventory.fetch_errors)
