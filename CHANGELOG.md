@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.40.2] — 2026-10-17
+
+### Changed
+
+- **One measure for all boxes.** Corners and inner spacing were set box by box (nine radii from 1 to 24 px, paddings like 14/16, 8/10, 10/14, 8/12/10). They now follow three radii and one spacing grid, defined once in `:root`: 14 px for cards and dialogs, 10 px for everything inside a card (key-figure tiles, diagram boxes, fields, buttons, filters), 6 px for small tags and header buttons; status pills stay round. Cards have 16 px inside on all sides, boxes inside them 10/12 px, the cluster header 16 px between key figures and diagram. Borders are 1 px in the line colour everywhere; only a state (warning, unregistered PBS) colours or dashes them.
+
 ## [v2.40.1] — 2026-10-17
 
 ### Fixed
