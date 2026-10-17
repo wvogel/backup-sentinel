@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.35.0] — 2026-10-17
+
+### Fixed
+
+- **Weekly offsite copies dropped out of the protection count** ("PBS ×1" although the guest has an offsite copy, while "Sync · n VMs" counted it). A copy counted only if its latest backup was at most 7 days old — a weekly sync job's copy is up to about 8 days old before the next run. The window now follows the sync jobs feeding a server: 9 days for weekly jobs, 7 otherwise.
+
+### Added
+
+- **Protection tooltip lists every server with its latest copy**, marking too old ones as "älter als n Tage, zählt nicht".
+- **Target namespaces of sync jobs are read automatically.** When a sync job copies this cluster's backups into a namespace on one of its PBS (e.g. `mar-lej` on pbs-aboe-muc), the PBS read covers that namespace too — no namespace setting needed, and other clusters' namespaces stay out (taken from the diagram, i.e. only namespaces fed from this cluster's own datastores).
+
 ## [v2.34.0] — 2026-10-17
 
 ### Changed

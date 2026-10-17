@@ -100,3 +100,18 @@ def load(cluster_id: int) -> dict[str, Any]:
         db.save_cluster_topology(cluster_id, _encode(topology))
     mark_full_soon(topology, datetime.now(UTC))
     return topology
+
+
+def sync_target_namespaces(cluster_id: int) -> dict[int, dict[str, set[str]]]:
+    """{connection id: {datastore: namespaces}} that sync jobs copy this
+    cluster's backups into, through the cluster's own PBS connection."""
+    stored = db.get_cluster_topology(cluster_id)
+    if stored is None:
+        return {}
+    stores = {s["id"]: s["store"] for column in stored["columns"] for g in column for s in g["stores"]}
+    result: dict[int, dict[str, set[str]]] = {}
+    for edge in stored["edges"]:
+        conn_id, namespace = edge.get("to_conn_id"), edge.get("to_ns")
+        if edge.get("kind") == "sync" and conn_id and namespace and edge.get("to") in stores:
+            result.setdefault(conn_id, {}).setdefault(stores[edge["to"]], set()).add(namespace)
+    return result

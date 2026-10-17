@@ -138,7 +138,7 @@
           {%- set protect_lines = [] -%}
           {%- if row.copy_count -%}
             {%- set _ = protect_lines.append(t('cluster.copies_tooltip_one' if row.copy_count == 1 else 'cluster.copies_tooltip_other', count=row.copy_count)) -%}
-            {%- for name in row.copy_server_names %}{% set _ = protect_lines.append('\u2003• ' ~ name) %}{% endfor -%}
+            {%- for copy in row.copy_history %}{% set _ = protect_lines.append('\u2003• ' ~ t('cluster.copy_line', server=copy.name, date=copy.latest|datetime_local('%d.%m.')) ~ ('' if copy.current else ' ' ~ t('cluster.copy_too_old', days=copy.window))) %}{% endfor -%}
           {%- endif -%}
           {%- if row.verify_status == 'critical' %}{% set _ = protect_lines.append(t('cluster.verify_failed_tooltip', date=row.verify_failed_at|datetime_local('%d.%m.%Y'))) %}
           {%- elif row.verify_status == 'warning' %}{% set _ = protect_lines.append(t('cluster.verify_stale_tooltip', date=row.last_verified_at|datetime_local('%d.%m.%Y') if row.last_verified_at else t('common.never'))) %}

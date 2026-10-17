@@ -717,3 +717,60 @@ class ClusterPageTests(DbTestCase):
             html = TestClient(app).get("/").text
         self.assertIn("sync-fresh sync-fresh-ok", html)
         self.assertNotIn('class="muted cluster-sync-meta"', html)
+
+    def test_sync_target_namespaces_come_from_the_diagram(self) -> None:
+        db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
+        pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
+        target = {"storage_id": "pbs", "server": "pbs-fh-muc", "fingerprint": "", "datastore": "nas", "namespace": ""}
+        db.replace_pve_pbs_targets(self.cid, [target])
+        job = {
+            "job_id": "s",
+            "direction": "pull",
+            "store": "nas-off",
+            "ns": "mar-lej",
+            "remote_name": "",
+            "remote_host": "",
+            "remote_fingerprint": "",
+            "remote_store": "nas",
+            "remote_ns": "",
+            "schedule": "daily",
+            "last_run_state": "OK",
+            "last_run_at": datetime.now(UTC),
+            "next_run_at": None,
+        }
+        db.replace_pbs_sync_jobs(pbs_id, [job])
+        topology_store.refresh_all()
+        self.assertEqual(topology_store.sync_target_namespaces(self.cid), {pbs_id: {"nas-off": {"mar-lej"}}})
+
+    def test_weekly_sync_keeps_its_copy_counted_longer(self) -> None:
+        db.upsert_pbs_connection(self.cid, {**PBS_FH_MUC, "name": "pbs-aboe-muc", "api_url": "https://aboe:8007"})
+        pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
+        now = datetime.now(UTC).replace(second=0, microsecond=0)
+        fresh, weekly_copy = now - timedelta(days=1), now - timedelta(days=8)
+        events = [
+            {**_event(100, fresh), "storage": "a", "location": "pbs:mgm-pbs-mar-lej/nas"},
+            {**_event(100, weekly_copy), "storage": "b", "location": "pbs:pbs-aboe-muc/nas-off/mar-lej"},
+        ]
+        db.sync_backup_events_for_source(self.cid, "pbs", events)
+        db.update_backup_event_storages(self.cid, events)
+        row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
+        self.assertEqual(row["copy_count"], 1)  # 8 days: too old for the default 7
+        job = {
+            "job_id": "s",
+            "direction": "pull",
+            "store": "nas-off",
+            "ns": "mar-lej",
+            "remote_name": "lej",
+            "remote_host": "",
+            "remote_fingerprint": "",
+            "remote_store": "nas",
+            "remote_ns": "",
+            "schedule": "sat 2:00",
+            "last_run_state": "OK",
+            "last_run_at": now,
+            "next_run_at": None,
+        }
+        db.replace_pbs_sync_jobs(pbs_id, [job])
+        row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
+        self.assertEqual(row["copy_count"], 2)  # fed weekly: 9 days count
+        self.assertEqual([c["current"] for c in row["copy_history"]], [True, True])

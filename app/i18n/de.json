@@ -446,6 +446,8 @@
   "topology.running_since": "Läuft gerade, seit {when}",
   "topology.running_short": "läuft seit {when}",
   "topology.just_finished": "gerade fertig",
+  "cluster.copy_line": "{server} – letzte Kopie {date}",
+  "cluster.copy_too_old": "(älter als {days} Tage, zählt nicht)",
   "topology.full_soon": "Läuft in ~{days} Tagen voll",
   "topology.primary_tooltip": "PVE sichert direkt hierher (Storage {storage}, Namespace {ns})",
   "topology.vms_one": "{count} VM",
