@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.38.1] — 2026-10-17
+
+### Fixed
+
+- **Sync several seconds faster per cluster:** calls whose failure is expected no longer wait for retries. PVE 9 answers the old HA-groups call with HTTP 500 — it was retried twice (1.5 s + 3 s) on every cluster; now groups are only asked on PVE without HA rules, once. Reading a storage's backups starts on a node where the storage is active, and a node that cannot answer ("storage … is not available on node") is skipped at once for the next one instead of being retried. Measured on the live log: 4.5 s per cluster, 9 s on pve-fh-muc.
+
 ## [v2.38.0] — 2026-10-17
 
 ### Added
