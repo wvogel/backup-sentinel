@@ -27,6 +27,7 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             v.vmid,
             v.name AS vm_name,
             v.guest_type,
+            v.ha,
             v.backup_kind,
             v.missing_since,
             be_copies.copy_servers,

@@ -154,6 +154,11 @@
           </td>
           <td class="vm-name-cell" data-label="{{ t('common.vm') }}" data-sort-value="{{ row.vm_name }}"><span class="vm-expand-icon" aria-hidden="true">▶</span>{{ row.vm_name }}
             {%- if not row.vm_gone and row.status_backup_kind in ['weekly', 'none'] %} <span class="kind-tag" data-tooltip="{{ t('cluster.backup_frequency') }}: {{ row.backup_kind_label }}">{{ row.backup_kind_short }}</span>{% endif %}
+            {%- if row.ha %}
+            {%- set ha_lines = [t('cluster.ha_state', state=row.ha.state or '?')] %}
+            {%- if row.ha.placement %}{% set _ = ha_lines.append(t('cluster.ha_' ~ row.ha.placement, nodes=row.ha.nodes|join(', '))) %}{% else %}{% set _ = ha_lines.append(t('cluster.ha_any')) %}{% endif %}
+            <span class="kind-tag ha-tag{% if row.ha.placement in ['only', 'never'] %} is-restricted{% endif %}" data-tooltip="{{ ha_lines|join('\n') }}">HA</span>
+            {%- endif %}
             {%- if row.vm_gone %} <span class="badge unknown vm-gone-badge">{{ t('cluster.vm_gone') }}</span>{% endif %}</td>
           <td class="muted" data-label="{{ t('common.node') }}" data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
           <td class="col-right muted" data-label="VMID" data-sort-value="{{ row.vmid }}">{{ row.vmid }}</td>

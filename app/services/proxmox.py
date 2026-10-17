@@ -33,6 +33,8 @@ class ProxmoxInventory:
     pbs_targets: list[dict[str, str]] | None = None
     # Quorum device: {} without one, None when it could not be asked.
     qdevice: dict[str, str] | None = None
+    # HA-managed guests by VMID; None when the HA config could not be read.
+    ha: dict[int, dict[str, Any]] | None = None
 
 
 def build_token_header(api_user: str, token_id: str, token_secret: str) -> str:
@@ -157,7 +159,74 @@ def fetch_cluster_inventory(
         fetch_errors=fetch_errors,
         pbs_targets=pbs_storage_targets(storage_config) if storage_config is not None else None,
         qdevice=fetch_qdevice(base_url, auth_header, timeout=timeout),
+        ha=fetch_ha(base_url, auth_header, timeout=timeout),
     )
+
+
+def _ha_nodes(nodes: str) -> list[str]:
+    """ "pve1:2,pve2" → ["pve1 (2)", "pve2"] (priority only when set)."""
+    result = []
+    for entry in str(nodes or "").split(","):
+        name, _, prio = entry.strip().partition(":")
+        if name:
+            result.append(f"{name} ({prio})" if prio and prio != "0" else name)
+    return result
+
+
+def fetch_ha(base_url: str, auth_header: str, timeout: float = 10.0) -> dict[int, dict[str, Any]] | None:
+    """HA-managed guests by VMID: {"state", "placement", "nodes"}, None when
+    the HA config cannot be read.
+
+    placement: "only" (may run only on `nodes`), "prefer", "never", "avoid"
+    or None (any node). From node-affinity rules (PVE 9) or, on older PVE,
+    from the guest's HA group ("restricted" = only)."""
+    try:
+        resources = _pve_get_json(base_url, "/api2/json/cluster/ha/resources", auth_header, timeout=timeout)
+    except ProxmoxSyncError as exc:
+        logger.warning("Cannot read HA resources: %s", exc)
+        return None
+    try:
+        rules = _pve_get_json(base_url, "/api2/json/cluster/ha/rules", auth_header, timeout=timeout)
+    except ProxmoxSyncError:
+        rules = []  # PVE before 9: no rules
+    try:
+        groups = {
+            g.get("group"): g
+            for g in _pve_get_json(base_url, "/api2/json/cluster/ha/groups", auth_header, timeout=timeout)
+        }
+    except ProxmoxSyncError:
+        groups = {}  # PVE 9: groups became rules
+
+    placement_by_sid: dict[str, dict[str, Any]] = {}
+    for rule in rules:
+        if rule.get("type") != "node-affinity" or rule.get("disable"):
+            continue
+        negative = rule.get("affinity") == "negative"
+        strict = bool(int(rule.get("strict") or 0))
+        kind = ("never" if strict else "avoid") if negative else ("only" if strict else "prefer")
+        for sid in str(rule.get("resources") or "").split(","):
+            sid = sid.strip()
+            # A strict rule says more than a preference; keep the first strict one.
+            if sid and (
+                sid not in placement_by_sid or (strict and placement_by_sid[sid]["placement"] in ("prefer", "avoid"))
+            ):
+                placement_by_sid[sid] = {"placement": kind, "nodes": _ha_nodes(rule.get("nodes"))}
+
+    result: dict[int, dict[str, Any]] = {}
+    for res in resources:
+        sid = str(res.get("sid") or "")
+        kind_, _, vmid = sid.partition(":")
+        if kind_ not in ("vm", "ct") or not vmid.isdigit():
+            continue
+        info: dict[str, Any] = {"state": str(res.get("state") or ""), "placement": None, "nodes": []}
+        if sid in placement_by_sid:
+            info.update(placement_by_sid[sid])
+        elif res.get("group") in groups:
+            group = groups[res["group"]]
+            info["placement"] = "only" if int(group.get("restricted") or 0) else "prefer"
+            info["nodes"] = _ha_nodes(group.get("nodes"))
+        result[int(vmid)] = info
+    return result
 
 
 # Fields of PVE's QDevice status ("status verbose" of corosync-qdevice) we keep.
