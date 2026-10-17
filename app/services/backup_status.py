@@ -45,11 +45,13 @@ RESTORE_DUE_STATUSES = frozenset({"open", "warning", "critical"})
 
 
 def format_duration(seconds: int) -> str:
-    """Compact duration: "5 min" or "51 h 23 min"."""
+    """Compact duration: "5 min", "3 h 07 min", from 10 hours on just "51 h"."""
     if seconds < 3600:
         return f"{max(1, round(seconds / 60))} min"
-    hours, rest = divmod(seconds, 3600)
-    return f"{hours} h {rest // 60:02d} min"
+    if seconds >= 10 * 3600 - 30:
+        return f"{round(seconds / 3600)} h"
+    minutes = round(seconds / 60)
+    return f"{minutes // 60} h {minutes % 60:02d} min"
 
 
 SLOW_FACTOR = 1.5

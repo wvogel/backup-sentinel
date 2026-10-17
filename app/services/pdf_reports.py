@@ -29,6 +29,7 @@ from reportlab.platypus.flowables import Flowable
 from svglib.svglib import svg2rlg
 
 from app.config import BRAND_LOGO_LIGHT_URL, DEFAULT_TIMEZONE
+from app.services.human_format import format_count, format_size
 from app.services.theme import DEFAULT_PRESET, PRESETS, BaseColors, best_ink
 from app.services.theme import mix as theme_mix
 
@@ -431,23 +432,14 @@ def _styles() -> dict:
     }
 
 
-# ── Number formatting ────────────────────────────────────────────────────────
-def _fmt_num(n: int | float, lang: str = "de") -> str:
-    """Format integer with thousand separators.
-    DE uses '.', EN uses ','. Kept backward-compatible: default is DE."""
-    if (lang or "").lower() == "en":
-        return f"{int(n):,}"
-    return f"{int(n):,}".replace(",", ".")
-
-
 # ── Summary table ─────────────────────────────────────────────────────────────
 def _summary_table(totals: dict, st: dict, L: dict[str, str], lang: str) -> Table:
     data = [
         [
-            _stat_cell(L["vms"], _fmt_num(totals["vms"], lang), st),
-            _stat_cell(L["events"], _fmt_num(totals["events"], lang), st),
-            _stat_cell(L["successful"], _fmt_num(totals["ok"], lang), st, color=C_OK),
-            _stat_cell(L["errors"], _fmt_num(totals["failed"], lang), st, color=C_FAIL),
+            _stat_cell(L["vms"], format_count(totals["vms"], lang), st),
+            _stat_cell(L["events"], format_count(totals["events"], lang), st),
+            _stat_cell(L["successful"], format_count(totals["ok"], lang), st, color=C_OK),
+            _stat_cell(L["errors"], format_count(totals["failed"], lang), st, color=C_FAIL),
         ]
     ]
     col_w = (PAGE_W - 2 * MARGIN) / 4
@@ -529,8 +521,8 @@ def _comparison_section(comparison: dict, st: dict, L: dict[str, str], lang: str
         rows_data.append(
             [
                 Paragraph(f"<b>{label}</b>", td),
-                Paragraph(_fmt_num(cur_val, lang), td_r),
-                Paragraph(_fmt_num(prev_val, lang), td_r),
+                Paragraph(format_count(cur_val, lang), td_r),
+                Paragraph(format_count(prev_val, lang), td_r),
                 Paragraph(f"<font color='{dc.hexval()}'>{delta_text}</font>", td_r),
             ]
         )
@@ -558,26 +550,6 @@ def _comparison_section(comparison: dict, st: dict, L: dict[str, str], lang: str
 
 # ── Backup events table ───────────────────────────────────────────────────────
 _COL_W = [36 * mm, 24 * mm, 26 * mm, 22 * mm, 20 * mm, 18 * mm, 24 * mm]  # total ≈ 170mm usable
-
-
-def _fmt_bytes(value: object, lang: str = "de") -> str:
-    try:
-        v = int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return "–"
-    # Thousands separator depends on language; decimal stays '.'
-    if (lang or "").lower() == "en":
-        if v >= 1_073_741_824:
-            return f"{v / 1_073_741_824:,.1f} GB"
-        if v >= 1_048_576:
-            return f"{v / 1_048_576:,.0f} MB"
-        return f"{v / 1024:,.0f} KB"
-    # German: swap thousand sep to '.' (kept as in the original implementation)
-    if v >= 1_073_741_824:
-        return f"{v / 1_073_741_824:,.1f} GB".replace(",", ".")
-    if v >= 1_048_576:
-        return f"{v / 1_048_576:,.0f} MB".replace(",", ".")
-    return f"{v / 1024:,.0f} KB".replace(",", ".")
 
 
 def _events_table(rows: list[dict], st: dict, L: dict[str, str], lang: str, tz_name: str = "Europe/Berlin") -> list:
@@ -626,10 +598,10 @@ def _events_table(rows: list[dict], st: dict, L: dict[str, str], lang: str, tz_n
         cluster_deleted = sum(r.get("deleted_count", 0) for r in vm_rows)
         flowables.append(
             Paragraph(
-                f"{_fmt_num(cluster_vms, lang)} {L['vms']}  ·  {_fmt_num(cluster_events, lang)} {L['events']}  ·  "
-                f"<font color='#059669'>{_fmt_num(cluster_ok, lang)} {L['ok']}</font>  ·  "
-                f"<font color='#b22c3a'>{_fmt_num(cluster_fail, lang)} {L['errors']}</font>"
-                + (f"  ·  {_fmt_num(cluster_deleted, lang)} {L['deleted']}" if cluster_deleted else ""),
+                f"{format_count(cluster_vms, lang)} {L['vms']}  ·  {format_count(cluster_events, lang)} {L['events']}  ·  "
+                f"<font color='#059669'>{format_count(cluster_ok, lang)} {L['ok']}</font>  ·  "
+                f"<font color='#b22c3a'>{format_count(cluster_fail, lang)} {L['errors']}</font>"
+                + (f"  ·  {format_count(cluster_deleted, lang)} {L['deleted']}" if cluster_deleted else ""),
                 st["body"],
             )
         )
@@ -664,7 +636,7 @@ def _events_table(rows: list[dict], st: dict, L: dict[str, str], lang: str, tz_n
                     Paragraph(vm_name if first else "", st["td"]),
                     Paragraph(node_name if first else "", st["td"]),
                     Paragraph(fmt_dt(evt["started_at"], dt_fmt), st["td"]),
-                    Paragraph(_fmt_bytes(evt.get("size_bytes"), lang), st["td"]),
+                    Paragraph(format_size(evt.get("size_bytes"), lang), st["td"]),
                     Paragraph(enc_str, st["td"]),
                     Paragraph(verify_str, verify_style),
                     status_para,
