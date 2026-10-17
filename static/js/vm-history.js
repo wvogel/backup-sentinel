@@ -5,14 +5,22 @@
   const slug = decodeURIComponent(location.pathname.split("/")[2] || "");
   const INTERACTIVE = "a, button, select, input, textarea, label, form";
 
-  const fmtBytes = (v) =>
-    v >= 1099511627776 ? (v / 1099511627776).toFixed(1) + " TiB"
-    : v >= 1073741824 ? (v / 1073741824).toFixed(1) + " GiB"
-    : (v / 1048576).toFixed(0) + " MiB";
+  // Same rules as app/services/human_format.py: one decimal below 10, whole
+  // numbers above, unit scaled below 1000, decimal comma in German.
+  const UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB"];
+  const LOCALE = typeof BSENTINEL_LANG !== "undefined" && BSENTINEL_LANG === "en" ? "en-US" : "de-DE";
+  const fmtBytes = (v) => {
+    let unit = 0;
+    while (unit < UNITS.length - 1 && v >= 999.5) { v /= 1024; unit++; }
+    const digits = unit > 0 && v < 9.95 ? 1 : 0;
+    const n = digits ? Math.round(v * 10) / 10 : Math.round(v);
+    return n.toLocaleString(LOCALE, { maximumFractionDigits: digits }) + " " + UNITS[unit];
+  };
   const fmtDuration = (s) =>
     s < 3600 ? Math.max(1, Math.round(s / 60)) + " min"
-    : Math.floor(s / 3600) + " h " + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + " min";
-  const fmtRate = (v) => (v >= 1073741824 ? (v / 1073741824).toFixed(1) + " GiB/s" : (v / 1048576).toFixed(1) + " MiB/s");
+    : s >= 10 * 3600 - 30 ? Math.round(s / 3600) + " h"
+    : Math.floor(Math.round(s / 60) / 60) + " h " + String(Math.round(s / 60) % 60).padStart(2, "0") + " min";
+  const fmtRate = (v) => fmtBytes(v) + "/s";
   const fmtPct = (v) => v + " %";
 
   const CHARTS = [
