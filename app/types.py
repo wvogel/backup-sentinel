@@ -63,21 +63,6 @@ class PBSConnectionRow(TypedDict):
     created_at: datetime
 
 
-class BackupEventRow(TypedDict):
-    id: int
-    vm_id: int
-    started_at: datetime
-    finished_at: datetime | None
-    duration_seconds: int | None
-    size_bytes: int | None
-    encrypted: bool | None
-    verify_state: str | None
-    status: str
-    upid: str | None
-    source: str | None
-    removed_at: date | None
-
-
 class RestoreTestRow(TypedDict):
     id: int
     vm_id: int
