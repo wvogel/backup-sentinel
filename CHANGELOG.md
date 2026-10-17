@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.39.2] — 2026-10-17
+
+### Changed
+
+- **Connections to PVE and PBS are kept open (keep-alive):** each sync thread reuses one connection per server instead of opening a new one — with name lookup and TLS handshake — for every API call. The live logs showed single calls hanging 2–5 s at random while the same call otherwise takes 0.1 s, typical for connection setup; this now happens at most once per server and sync. A connection the server has closed in the meantime is reopened at once, without waiting.
+
 ## [v2.39.1] — 2026-10-17
 
 ### Fixed
