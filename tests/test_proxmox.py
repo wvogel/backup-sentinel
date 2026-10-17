@@ -254,10 +254,6 @@ class BackupLocationTaggingTests(unittest.TestCase):
         self.assertEqual(sorted(str(e["location"]) for e in events), ["None", "pve:nfs"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class FetchBackupDetailsTests(unittest.TestCase):
     def _fake_pve(self, base_url, path, auth_header, **kwargs):
         if path.endswith("/storage"):
@@ -471,3 +467,56 @@ class TemplateTests(unittest.TestCase):
                 {"api_url": "https://pve", "api_user": "u", "token_id": "t", "token_secret": "s"}
             )
         self.assertEqual({vm["vmid"]: vm["is_template"] for vm in inventory.vms}, {9000: True, 101: False})
+
+
+class HaCallTests(unittest.TestCase):
+    def test_pve9_rules_mean_no_groups_call_and_no_retries(self) -> None:
+        calls = []
+
+        def fake(base_url, path, auth_header, **kwargs):
+            calls.append((path.rsplit("/", 1)[-1], kwargs.get("retries")))
+            return []
+
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=fake):
+            proxmox.fetch_ha("https://pve", "a")
+        self.assertEqual(calls, [("resources", None), ("rules", 0)])
+
+
+class BulkFetchNodeTests(unittest.TestCase):
+    def test_asks_a_node_where_the_storage_is_active_first(self) -> None:
+        asked = []
+
+        def fake(base_url, path, auth_header, **kwargs):
+            if path.endswith("/storage"):
+                active = 0 if "/pve1/" in path else 1
+                return [{"storage": "pbs", "content": "backup", "type": "pbs", "active": active}]
+            asked.append((path.split("/")[4], kwargs.get("retries")))
+            return []
+
+        nodes = [{"name": "pve1"}, {"name": "pve2"}]
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=fake):
+            _latest, _events, errors = fetch_backup_details(
+                "https://pve", "a", nodes, [{"vmid": 100}], storage_config=[]
+            )
+        self.assertEqual(asked, [("pve2", 0)])
+        self.assertEqual(errors, [])
+
+    def test_failing_node_falls_through_without_waiting(self) -> None:
+        asked = []
+
+        def fake(base_url, path, auth_header, **kwargs):
+            if path.endswith("/storage"):
+                return [{"storage": "nfs", "content": "backup", "type": "nfs"}]
+            asked.append((path.split("/")[4], kwargs.get("retries")))
+            if "/pve1/" in path:
+                raise proxmox.ProxmoxSyncError("storage 'nfs' is not available on node 'pve1'")
+            return []
+
+        nodes = [{"name": "pve1"}, {"name": "pve2"}]
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=fake):
+            fetch_backup_details("https://pve", "a", nodes, [{"vmid": 100}], storage_config=[])
+        self.assertEqual(asked, [("pve1", 0), ("pve2", 2)])
+
+
+if __name__ == "__main__":
+    unittest.main()

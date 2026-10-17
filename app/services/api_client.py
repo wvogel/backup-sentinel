@@ -47,9 +47,12 @@ def api_get(
     timeout: float = API_TIMEOUT,
     query: dict[str, str] | None = None,
     label: str = "API",
+    retries: int = _MAX_RETRIES,
 ) -> Any:
     """Perform an authenticated GET and return the parsed JSON 'data' field."""
-    return api_get_payload(base_url, path, auth_header, timeout=timeout, query=query, label=label).get("data")
+    return api_get_payload(base_url, path, auth_header, timeout=timeout, query=query, label=label, retries=retries).get(
+        "data"
+    )
 
 
 def api_get_payload(
@@ -60,10 +63,12 @@ def api_get_payload(
     timeout: float = API_TIMEOUT,
     query: dict[str, str] | None = None,
     label: str = "API",
+    retries: int = _MAX_RETRIES,
 ) -> dict[str, Any]:
     """Perform an authenticated GET and return the whole JSON body ('data' plus
     fields such as 'total'). Retries transient network errors and 5xx/429
-    responses with exponential backoff."""
+    responses with exponential backoff; `retries=0` for calls whose failure
+    is expected or has a fallback (no waiting for the same answer)."""
     query_string = f"?{parse.urlencode(query)}" if query else ""
     url = f"{base_url}{path}{query_string}"
     req = request.Request(
@@ -78,7 +83,7 @@ def api_get_payload(
     logger.info("→ %s %s%s …", label, short_path, qs_short)
 
     last_exc: Exception | None = None
-    for attempt in range(_MAX_RETRIES + 1):
+    for attempt in range(retries + 1):
         t0 = time.monotonic()
         try:
             with request.urlopen(req, timeout=timeout, context=context) as response:
@@ -91,7 +96,7 @@ def api_get_payload(
             return payload
         except error.HTTPError as exc:
             elapsed = time.monotonic() - t0
-            if attempt < _MAX_RETRIES and _is_retryable_http(exc.code):
+            if attempt < retries and _is_retryable_http(exc.code):
                 delay = _RETRY_BACKOFF * (2**attempt)
                 logger.warning(
                     "← %s %s%s → HTTP %d (%.1fs), retry in %.1fs", label, short_path, qs_short, exc.code, elapsed, delay
@@ -107,7 +112,7 @@ def api_get_payload(
             # SSL / cert errors are never transient — fail fast.
             reason_str = str(exc.reason)
             is_ssl_error = isinstance(exc.reason, ssl.SSLError) or "SSL" in reason_str or "certificate" in reason_str
-            if attempt < _MAX_RETRIES and not is_ssl_error:
+            if attempt < retries and not is_ssl_error:
                 delay = _RETRY_BACKOFF * (2**attempt)
                 logger.warning(
                     "← %s %s%s → FEHLER (%.1fs): %s, retry in %.1fs",
@@ -136,9 +141,10 @@ def api_get_json(
     timeout: float = API_TIMEOUT,
     query: dict[str, str] | None = None,
     label: str = "API",
+    retries: int = _MAX_RETRIES,
 ) -> list[dict[str, Any]]:
     """Like api_get but asserts the result is a list."""
-    data = api_get(base_url, path, auth_header, timeout=timeout, query=query, label=label)
+    data = api_get(base_url, path, auth_header, timeout=timeout, query=query, label=label, retries=retries)
     if not isinstance(data, list):
         raise APIError(f"Unexpected {label} response for {path}")
     return data
@@ -152,9 +158,10 @@ def api_get_dict(
     timeout: float = API_TIMEOUT,
     query: dict[str, str] | None = None,
     label: str = "API",
+    retries: int = _MAX_RETRIES,
 ) -> dict[str, Any]:
     """Like api_get but asserts the result is a dict."""
-    data = api_get(base_url, path, auth_header, timeout=timeout, query=query, label=label)
+    data = api_get(base_url, path, auth_header, timeout=timeout, query=query, label=label, retries=retries)
     if not isinstance(data, dict):
         raise APIError(f"Unexpected {label} response for {path}")
     return data

@@ -183,17 +183,22 @@ def fetch_ha(base_url: str, auth_header: str, timeout: float = 10.0) -> dict[int
     except ProxmoxSyncError as exc:
         logger.warning("Cannot read HA resources: %s", exc)
         return None
+    # PVE 9 has rules and answers HTTP 500 for groups; older PVE only groups.
+    # Each is asked once (no retries): the failure is the expected answer.
+    groups: dict[Any, dict[str, Any]] = {}
     try:
-        rules = _pve_get_json(base_url, "/api2/json/cluster/ha/rules", auth_header, timeout=timeout)
+        rules = _pve_get_json(base_url, "/api2/json/cluster/ha/rules", auth_header, timeout=timeout, retries=0)
     except ProxmoxSyncError:
-        rules = []  # PVE before 9: no rules
-    try:
-        groups = {
-            g.get("group"): g
-            for g in _pve_get_json(base_url, "/api2/json/cluster/ha/groups", auth_header, timeout=timeout)
-        }
-    except ProxmoxSyncError:
-        groups = {}  # PVE 9: groups became rules
+        rules = []
+        try:
+            groups = {
+                g.get("group"): g
+                for g in _pve_get_json(
+                    base_url, "/api2/json/cluster/ha/groups", auth_header, timeout=timeout, retries=0
+                )
+            }
+        except ProxmoxSyncError:
+            pass
 
     placement_by_sid: dict[str, dict[str, Any]] = {}
     for rule in rules:
@@ -499,19 +504,26 @@ def fetch_backup_details(
 
     storage_query_node: dict[str, str] = {}
     storage_types: dict[str, str] = {}
+    active_somewhere: set[str] = set()
     for node_name in all_node_names:
         for s in node_storages.get(node_name, []):
             sid = str(s["storage"])
-            if sid not in storage_query_node:
+            # Ask a node where the storage is active ("not available on
+            # node" otherwise); an inactive one stays a fallback.
+            active = str(s.get("active", 1)) != "0"
+            if sid not in storage_query_node or (active and sid not in active_somewhere):
                 storage_query_node[sid] = node_name
                 storage_types[sid] = str(s.get("type", "")).lower()
+            if active:
+                active_somewhere.add(sid)
 
     logger.info("Unique backup storages: %s", list(storage_query_node.keys()))
 
     bulk_items_by_vmid: dict[int, list[dict[str, Any]]] = {}
 
     def _bulk_fetch_storage(storage_id: str, primary_node: str) -> tuple[str, list[dict[str, Any]]]:
-        for query_node in dict.fromkeys([primary_node, *all_node_names]):
+        candidates = list(dict.fromkeys([primary_node, *all_node_names]))
+        for index, query_node in enumerate(candidates):
             path = (
                 f"/api2/json/nodes/{parse.quote(query_node, safe='')}"
                 f"/storage/{parse.quote(storage_id, safe='')}/content"
@@ -523,6 +535,8 @@ def fetch_backup_details(
                     auth_header,
                     timeout=max(timeout, 60.0),
                     query={"content": "backup"},
+                    # Another node can answer: try it instead of waiting.
+                    retries=0 if index < len(candidates) - 1 else 2,
                 )
             except ProxmoxSyncError as exc:
                 logger.warning("Bulk fetch %s via %s failed: %s", storage_id, query_node, exc)
