@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.38.2] — 2026-10-17
+
+### Fixed
+
+- **Monthly report could not be written** ("Permission denied" on `/reports`): the app runs as an unprivileged user in the container, but the mounted host directories belonged to root. `deploy.sh` now hands `data/` and `reports/` to that user on every deploy, with UID/GID taken from the freshly built image; without root rights it warns instead of failing the deploy.
+
 ## [v2.38.1] — 2026-10-17
 
 ### Fixed
