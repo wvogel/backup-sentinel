@@ -21,6 +21,7 @@ from app.config import (
 from app.i18n import SUPPORTED_LANGUAGES, get_language, get_translations, t
 from app.services import theme
 from app.services.backup_status import format_duration
+from app.services.human_format import format_count, format_rate, format_size
 from app.services.theme_store import active_theme
 
 templates = Jinja2Templates(directory="templates")
@@ -38,33 +39,15 @@ def datetime_local(value: object, fmt: str = "%d.%m.%Y %H:%M") -> str:
     return str(value)
 
 
-def format_bytes(value: object) -> str:
-    if value is None:
-        return "–"
-    try:
-        v = int(value)
-    except (TypeError, ValueError):
-        return "–"
-    if v >= 1_073_741_824:
-        return f"{v / 1_073_741_824:,.0f} GB".replace(",", ".")
-    if v >= 1_048_576:
-        return f"{v / 1_048_576:,.0f} MB".replace(",", ".")
-    return f"{v / 1024:,.0f} KB".replace(",", ".")
-
-
-def _format_rate(bps: int) -> str:
-    return f"{bps / 1_073_741_824:.1f} GiB/s" if bps >= 1_073_741_824 else f"{bps / 1_048_576:.1f} MiB/s"
-
-
 def spark_tooltip(day: dict) -> str:
-    """One line per bar: "08.10.: ok · 42 GB · 5 min · ⌀ 43.6 MiB/s · 90 % reused"."""
+    """One line per bar: "08.10.: ok · 42 GiB · 5 min · ⌀ 44 MiB/s · 90 % reused"."""
     parts = [f"{day['date'].strftime('%d.%m.')}: {t('spark.' + day['status'])}"]
     if day.get("size_bytes"):
-        parts.append(format_bytes(day["size_bytes"]))
+        parts.append(format_size(day["size_bytes"]))
     if day.get("duration_seconds"):
         parts.append(format_duration(day["duration_seconds"]))
     if day.get("throughput_bps"):
-        parts.append(f"⌀ {_format_rate(day['throughput_bps'])}")
+        parts.append(f"⌀ {format_rate(day['throughput_bps'])}")
     if day.get("full_backup"):
         parts.append(t("spark.full"))
     elif day.get("reused_pct") is not None:
@@ -72,17 +55,10 @@ def spark_tooltip(day: dict) -> str:
     return " · ".join(parts)
 
 
-def format_number(value: object) -> str:
-    try:
-        return f"{int(value):,}".replace(",", ".")
-    except (TypeError, ValueError):
-        return str(value)
-
-
 templates.env.filters["datetime_local"] = datetime_local
-templates.env.filters["format_bytes"] = format_bytes
+templates.env.filters["format_bytes"] = format_size
 templates.env.filters["spark_tooltip"] = spark_tooltip
-templates.env.filters["format_number"] = format_number
+templates.env.filters["format_number"] = format_count
 
 
 def _parse_footer_links(s: str) -> list[dict[str, str]]:

@@ -15,7 +15,12 @@ from app.models import RestoreTestCreate
 from app.services import sync_progress, topology_store
 from app.services.backup_status import RESTORE_CLASSES, assess_slow_backup, format_duration
 from app.services.bootstrap import slugify_cluster
-from app.services.proxmox_progress import running_backup_progress_cached, running_backup_progress_peek
+from app.services.human_format import format_rate, format_size
+from app.services.proxmox_progress import (
+    _parse_size_to_bytes,
+    running_backup_progress_cached,
+    running_backup_progress_peek,
+)
 from app.services.reporting import build_compliance_summary
 from app.web.common import common_context, datetime_local, settings_actor, templates
 from app.web.sync import background_sync, refresh_sync_job_states, sync_executor, sync_logs, syncing_clusters
@@ -93,17 +98,26 @@ def running_backup_info(progress: dict | None, typical_seconds: int | None = Non
     slow = assess_slow_backup(progress, typical_seconds)
     percent = progress.get("percent")
     details: list[str] = []
-    if progress.get("written_label") and progress.get("target_label"):
-        details.append(t("progress.written_of", written=progress["written_label"], total=progress["target_label"]))
+    if progress.get("written_bytes") and progress.get("target_bytes"):
+        details.append(
+            t(
+                "progress.written_of",
+                written=format_size(progress["written_bytes"]),
+                total=format_size(progress["target_bytes"]),
+            )
+        )
     if progress.get("eta_short"):
         details.append(t("cluster.running_until", time=progress["eta_short"]))
     rates: list[str] = []
-    if progress.get("read_label") and progress.get("write_label"):
-        if progress["read_label"] == progress["write_label"]:
-            rates.append(t("cluster.running_rw", rate=progress["read_label"]))
+    read_bps = _parse_size_to_bytes(progress.get("read_label"))
+    write_bps = _parse_size_to_bytes(progress.get("write_label"))
+    if read_bps is not None and write_bps is not None:
+        read, write = format_rate(read_bps), format_rate(write_bps)
+        if read == write:
+            rates.append(t("cluster.running_rw", rate=read))
         else:
-            rates.append(t("cluster.running_read", rate=progress["read_label"]))
-            rates.append(t("cluster.running_write", rate=progress["write_label"]))
+            rates.append(t("cluster.running_read", rate=read))
+            rates.append(t("cluster.running_write", rate=write))
         details.append(" · ".join(rates))
     parts = ([t("cluster.running_percent", pct=percent)] if percent is not None else []) + details
     return {

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Sizes, rates and durations without false precision.** One shared formatter (`app/services/human_format.py`) for the web pages, the VM history charts, the PDF report and the size-anomaly notification: the unit is scaled so the number stays below 1000, with one decimal below 10 and whole numbers above, in binary units like the Proxmox GUI. German uses a decimal comma, English a decimal point. The datastore tooltip read "5.466 GB von 38.929 GB belegt" and now reads "5,3 TiB von 38 TiB belegt"; throughput "43.6 MiB/s" becomes "44 MiB/s", and the running-backup banner shows "867 GiB von 1,6 TiB" instead of the raw log text. Durations from 10 hours on drop the minutes ("51 h" instead of "51 h 23 min"). Sizes used to be labelled "GB" although they were computed in GiB. Counts in English now use a comma as thousands separator. Exports, API fields and sort keys keep the raw values.
+
 ## [v2.40.7] — 2026-10-17
 
 ### Changed
