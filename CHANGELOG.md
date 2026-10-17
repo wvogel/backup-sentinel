@@ -5,6 +5,18 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.40.3] — 2026-10-17
+
+### Changed
+
+- **The same spacing everywhere, as seen, not just as set.** v2.40.2 unified the values in the stylesheet, but on screen the room still differed: key-figure tiles 8 px apart, running tiles 10 px, cards 16 px; diagram boxes stretched to their column with their content centred (about 140 px of empty border in one box, 20 px in the next); running tiles centred like buttons. Now every gap between two boxes is 16 px (cards, tiles, diagram boxes, running tiles), every box has 12 px inside on all four sides, and cards 16 px. Diagram boxes are as wide as their content; the spare room goes evenly to the arrows, and content sits centred vertically so the room above equals the room below. Key-figure tiles are all as wide as the widest.
+- The problem filter is now called **"Probleme (n)"** instead of "Nur Probleme (n)" ("Problems" in English).
+
+### Fixed
+
+- **Nothing runs over on phones any more** (checked at 320 and 375 px on every page): the reports page was 544 px wide — its tiles and status columns now wrap and the archive shows one card per report; in the settings, the cluster box and the PBS boxes grew past the card (a fieldset is as wide as its content by default, the namespace field was fixed at 14 rem); in the VM cards the 30-day bars ran past the card edge (the oldest days now drop off the left), the status icon was squeezed to nothing, the first line was indented differently and the zebra tint sat inside the card's padding; key-figure tiles switch to two per row when three labels do not fit; a running sync's ring moves below its text instead of covering it.
+- On the reports page the "automatisch" pill no longer covers the PDF button in the archive.
+
 ## [v2.40.2] — 2026-10-17
 
 ### Changed
