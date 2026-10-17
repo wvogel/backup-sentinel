@@ -283,3 +283,18 @@ class TopologyStoreTests(unittest.TestCase):
         vms = {"st-nas-b0-volume2": 24, "st-nas-b0-volume10": 3, "st-nas-b0-volume1": 20}
         topo = build_topology(10, targets, [ABOE], [], [], now=NOW, vms_by_storage=vms)
         self.assertEqual(names(topo), [[("pbs-aboe-muc", ["nas-b0-volume1", "nas-b0-volume2", "nas-b0-volume10"])]])
+
+
+class DirectTargetTests(unittest.TestCase):
+    def test_configured_storage_without_backup_job_has_no_pve_line(self) -> None:
+        targets = [target("pbs-aboe-muc", "nas-b1"), target("pbs-aboe-muc", "nas-off")]
+        jobs = [job(1, "local", "nas-off", remote_store="nas-b1")]
+        topo = build_topology(10, targets, [ABOE], jobs, [], now=NOW, vms_by_storage={"st-nas-b1": 6})
+        primaries = [e["to"] for e in topo["edges"] if e["kind"] == "primary"]
+        self.assertEqual(len(primaries), 1)  # nas-off is only a copy here
+        self.assertEqual(names(topo), [[("pbs-aboe-muc", ["nas-b1"])], [("pbs-aboe-muc", ["nas-off"])]])
+
+    def test_without_job_data_every_configured_storage_counts(self) -> None:
+        targets = [target("pbs-aboe-muc", "nas-b1"), target("pbs-aboe-muc", "nas-off")]
+        topo = build_topology(10, targets, [ABOE], [], [], now=NOW)
+        self.assertEqual(len([e for e in topo["edges"] if e["kind"] == "primary"]), 2)
