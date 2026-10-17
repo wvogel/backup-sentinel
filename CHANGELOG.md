@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.40.4] — 2026-10-17
+
+### Changed
+
+- **Tighter, plainer look.** Radii and spacing came down one step, still one measure for everything: corners 10 px for cards, 6 px for everything inside them, 4 px for small tags (were 14/10/6); 12 px between any two boxes and from the header to the first card, 12 px inside cards, 10 px inside boxes (were 16/16/12). Spacings that were still written out (health bar, card lists, report and encryption-alert bodies, code blocks, bootstrap panel, page top) now use the same values.
+
 ## [v2.40.3] — 2026-10-17
 
 ### Changed
