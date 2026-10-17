@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.31.0] — 2026-10-17
+
+### Added
+
+- **HA guests are marked** with a small blue "HA" next to the name in the VM table. It is outlined when the guest may only run on certain nodes (or never on some); the tooltip shows the HA state and the nodes, e.g. "Darf nur laufen auf: pve1 (2), pve2" (number = priority), "Bevorzugt auf: …", "Darf nie laufen auf: …" or "Darf auf allen Nodes laufen".
+- Read on every sync from `/cluster/ha/resources` plus the node-affinity rules (`/cluster/ha/rules`, PVE 9: nodes with priority, strict, positive/negative, disabled rules ignored) or, on older PVE, the guest's HA group (`/cluster/ha/groups`, "restricted" = only these nodes). Stored per guest (`vms.ha`); if the HA config cannot be read, the last known state is kept.
+
 ## [v2.30.1] — 2026-10-17
 
 ### Changed

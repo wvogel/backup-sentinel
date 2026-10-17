@@ -683,3 +683,12 @@ class ClusterPageTests(DbTestCase):
         self.assertIn('class="cluster-stat is-warn"', self.page())
         db.update_cluster_qdevice(self.cid, {})
         self.assertNotIn('class="qdevice-tag"', self.page())
+
+    def test_ha_tag_with_placement(self) -> None:
+        db.update_vm_ha(self.cid, {100: {"state": "started", "placement": "only", "nodes": ["pve1 (2)", "pve2"]}})
+        html = self.page()
+        self.assertIn("ha-tag is-restricted", html)
+        self.assertIn("Darf nur laufen auf: pve1 (2), pve2", html)
+        # No longer HA-managed: the tag goes.
+        db.update_vm_ha(self.cid, {})
+        self.assertNotIn("ha-tag", self.page())

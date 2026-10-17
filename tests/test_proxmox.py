@@ -343,3 +343,78 @@ class QDeviceTests(unittest.TestCase):
     def test_unreadable_is_unknown(self) -> None:
         with mock.patch.object(proxmox, "_pve_get_dict", side_effect=proxmox.ProxmoxSyncError("403")):
             self.assertIsNone(proxmox.fetch_qdevice("https://pve", "a"))
+
+
+class HaTests(unittest.TestCase):
+    def fetch(self, resources, groups=None, rules=None):
+        def fake(base_url, path, auth_header, **kwargs):
+            if path.endswith("/ha/resources"):
+                return resources
+            if path.endswith("/ha/groups"):
+                if groups is None:
+                    raise proxmox.ProxmoxSyncError("501 not implemented")
+                return groups
+            if path.endswith("/ha/rules"):
+                if rules is None:
+                    raise proxmox.ProxmoxSyncError("501 not implemented")
+                return rules
+            raise AssertionError(path)
+
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=fake):
+            return proxmox.fetch_ha("https://pve", "a")
+
+    def test_strict_node_affinity_rule(self) -> None:
+        ha = self.fetch(
+            [
+                {"sid": "vm:100", "state": "started"},
+                {"sid": "ct:101", "state": "started"},
+                {"sid": "vm:102", "state": "stopped"},
+            ],
+            rules=[
+                {
+                    "rule": "db",
+                    "type": "node-affinity",
+                    "resources": "vm:100,ct:101",
+                    "nodes": "pve1:2,pve2",
+                    "strict": 1,
+                },
+                {"rule": "off", "type": "node-affinity", "resources": "vm:102", "nodes": "pve3", "disable": 1},
+                {"rule": "sep", "type": "resource-affinity", "resources": "vm:100,vm:102", "affinity": "negative"},
+            ],
+        )
+        self.assertEqual(ha[100], {"state": "started", "placement": "only", "nodes": ["pve1 (2)", "pve2"]})
+        self.assertEqual(ha[101]["placement"], "only")
+        self.assertEqual(ha[102], {"state": "stopped", "placement": None, "nodes": []})
+
+    def test_preferred_and_avoided_nodes(self) -> None:
+        ha = self.fetch(
+            [{"sid": "vm:100", "state": "started"}, {"sid": "vm:101", "state": "started"}],
+            rules=[
+                {"rule": "a", "type": "node-affinity", "resources": "vm:100", "nodes": "pve1", "strict": 0},
+                {
+                    "rule": "b",
+                    "type": "node-affinity",
+                    "resources": "vm:101",
+                    "nodes": "pve3",
+                    "affinity": "negative",
+                    "strict": 1,
+                },
+            ],
+        )
+        self.assertEqual((ha[100]["placement"], ha[100]["nodes"]), ("prefer", ["pve1"]))
+        self.assertEqual((ha[101]["placement"], ha[101]["nodes"]), ("never", ["pve3"]))
+
+    def test_groups_on_older_pve(self) -> None:
+        ha = self.fetch(
+            [
+                {"sid": "vm:100", "state": "started", "group": "g1"},
+                {"sid": "vm:101", "state": "started", "group": "g2"},
+            ],
+            groups=[{"group": "g1", "nodes": "pve1,pve2", "restricted": 1}, {"group": "g2", "nodes": "pve2:1"}],
+        )
+        self.assertEqual((ha[100]["placement"], ha[100]["nodes"]), ("only", ["pve1", "pve2"]))
+        self.assertEqual((ha[101]["placement"], ha[101]["nodes"]), ("prefer", ["pve2 (1)"]))
+
+    def test_unreadable_is_unknown(self) -> None:
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=proxmox.ProxmoxSyncError("403")):
+            self.assertIsNone(proxmox.fetch_ha("https://pve", "a"))

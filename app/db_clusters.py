@@ -550,3 +550,14 @@ def update_cluster_qdevice(cluster_id: int, qdevice: dict[str, str]) -> None:
             (json.dumps(qdevice) if qdevice else None, cluster_id),
         )
         conn.commit()
+
+
+def update_vm_ha(cluster_id: int, ha_by_vmid: dict[int, dict[str, Any]]) -> None:
+    """Store which guests PVE HA manages (and where they may run); others NULL."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE vms SET ha = NULL WHERE cluster_id = %s AND ha IS NOT NULL", (cluster_id,))
+        cur.executemany(
+            "UPDATE vms SET ha = %s::jsonb WHERE cluster_id = %s AND vmid = %s",
+            [(json.dumps(info), cluster_id, vmid) for vmid, info in ha_by_vmid.items()],
+        )
+        conn.commit()

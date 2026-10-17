@@ -2925,6 +2925,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .guest-icon.status-gone { color: var(--unknown); opacity: 0.55; }
 
 .vm-name-cell { font-weight: 600; }
+/* PVE HA-managed guest; outlined when it may run only on (or never on) certain nodes. */
+.kind-tag.ha-tag { color: var(--running); }
+.kind-tag.ha-tag.is-restricted { box-shadow: inset 0 0 0 1px var(--running); }
 .kind-tag {
   margin-left: 4px;
   padding: 0 5px;
