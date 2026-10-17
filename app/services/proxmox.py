@@ -120,6 +120,7 @@ def fetch_cluster_inventory(
                     "name": str(row.get("name") or f"{row_type}-{vmid}"),
                     "guest_type": str(row_type),
                     "pool": row.get("pool"),
+                    "is_template": bool(int(row.get("template") or 0)),
                     "backup_kind": "daily",
                     "last_backup_at": None,
                 }

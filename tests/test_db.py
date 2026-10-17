@@ -680,3 +680,9 @@ class ClusterPageTests(DbTestCase):
         # No longer HA-managed: the tag goes.
         db.update_vm_ha(self.cid, {})
         self.assertNotIn("ha-tag", self.page())
+
+    def test_template_tag(self) -> None:
+        vms = [{**_vm(100, "tpl-debian"), "is_template": True}, _vm(101, "b")]
+        db.sync_cluster_inventory(self.cid, [{"name": "pve1", "status": "online"}], vms)
+        html = self.page()
+        self.assertEqual(html.count('class="kind-tag tpl-tag"'), 1)

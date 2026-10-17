@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.32.0] — 2026-10-17
+
+### Added
+
+- **Templates are marked** with a quiet, greyed-out "TPL" next to the name in the VM table (tooltip: template, does not run, used for cloning). Read from PVE's cluster resources on every sync (`vms.is_template`).
+
 ## [v2.31.2] — 2026-10-17
 
 ### Fixed

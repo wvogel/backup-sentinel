@@ -95,6 +95,7 @@ def init_db() -> None:
             cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS guest_type TEXT NOT NULL DEFAULT 'qemu'")
             # PVE HA: {state, placement, nodes}; NULL = not HA-managed.
             cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS ha JSONB")
+            cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT FALSE")
             # Storages the guest's PVE backup jobs write to (direct backups).
             cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS backup_storages TEXT[] NOT NULL DEFAULT '{}'")
             # PBS storages in the cluster's PVE config: where PVE backs up to.
