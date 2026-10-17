@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Overview key figures in one line.** "Restore-Test-Abdeckung" wrapped onto two lines at about 1000 px and made all four tiles taller (115 instead of 96 px). It now reads "Restore-Abdeckung" ("Restore coverage" in English), and the ring next to it is slightly smaller (48 instead of 56 px).
+
 ## [v2.41.3] — 2026-10-17
 
 ### Changed
