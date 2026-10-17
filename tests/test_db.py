@@ -718,7 +718,7 @@ class ClusterPageTests(DbTestCase):
         self.assertIn("sync-fresh sync-fresh-ok", html)
         self.assertNotIn('class="muted cluster-sync-meta"', html)
 
-    def test_sync_target_namespaces_come_from_the_diagram(self) -> None:
+    def test_sync_target_namespaces_come_from_the_current_sync_jobs(self) -> None:
         db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
         pbs_id = db.list_pbs_connections(self.cid)[0]["id"]
         target = {"storage_id": "pbs", "server": "pbs-fh-muc", "fingerprint": "", "datastore": "nas", "namespace": ""}
@@ -739,7 +739,9 @@ class ClusterPageTests(DbTestCase):
             "next_run_at": None,
         }
         db.replace_pbs_sync_jobs(pbs_id, [job])
-        topology_store.refresh_all()
+        # A diagram stored by an older version lacks the target connection:
+        # it must not hide the namespace from the next sync.
+        db.save_cluster_topology(self.cid, '{"columns": [], "edges": [], "lines": []}')
         self.assertEqual(topology_store.sync_target_namespaces(self.cid), {pbs_id: {"nas-off": {"mar-lej"}}})
 
     def test_weekly_sync_keeps_its_copy_counted_longer(self) -> None:

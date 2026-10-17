@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.35.1] — 2026-10-17
+
+### Fixed
+
+- **Offsite copies in sync target namespaces were still not seen** (e.g. `mar-lej` on pbs-aboe-muc: only an old snapshot from the root namespace counted, so "PBS ×1"). The namespaces to read were taken from the stored diagram, which a version before v2.35.0 had saved without the target connection — so they were skipped. They are now worked out from the current sync jobs at every sync. This, not the copy age, was the cause of the v2.35.0 report.
+
 ## [v2.35.0] — 2026-10-17
 
 ### Fixed
