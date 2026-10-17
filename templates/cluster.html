@@ -295,7 +295,7 @@
         <span class="result-icon result-{{ restore.result }}">{% if restore.result == 'passed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% elif restore.result == 'failed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>{% else %}&sim;{% endif %}</span><span class="restore-type-icon" title="{{ recovery_type_labels.get(restore.recovery_type, restore.recovery_type) }}">{{ recovery_type_icons.get(restore.recovery_type, "•") }}</span>
         <strong>{{ restore.vm_name }}</strong>
         <span class="muted">{{ restore.tested_at|datetime_local("%d.%m.%Y") }} &middot; {{ restore_result_labels.get(restore.result, restore.result) }} &middot; {{ restore.duration_minutes }} min</span>{% if restore.evidence_note %}
-        <a href="#sync-log-panel" class="restore-log-link" data-log="{{ restore.evidence_note }}" data-log-title="{{ t('cluster.evidence_note') }} – {{ restore.vm_name }}">{{ t('cluster.show_log') }}</a>{% endif %}
+        <a href="#" class="restore-log-link" data-log="{{ restore.evidence_note }}" data-log-title="{{ t('cluster.evidence_note') }} – {{ restore.vm_name }}">{{ t('cluster.show_log') }}</a>{% endif %}
       </li>
       {% else %}
       <li class="muted">{{ t('cluster.no_restore_tests') }}</li>
@@ -304,19 +304,7 @@
   </section>
 </section>
 
-<section class="table-card hidden js-sync-log-panel" id="sync-log-panel">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow">{{ t('cluster.sync_log_eyebrow') }}</p>
-      <h3 id="sync-log-title">{{ t('cluster.last_sync') }}</h3>
-    </div>
-    <div class="sync-log-actions">
-      <span id="sync-log-status" class="muted"></span>
-      <button type="button" class="button-secondary" id="sync-log-close">{{ t('common.close') }}</button>
-    </div>
-  </div>
-  <pre id="sync-log-content" class="sync-log-pre"></pre>
-</section>
+{% include "_log_dialog.html" %}
 
 <script>
 function saveScrollAndSubmit(form) {
@@ -334,34 +322,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   var panel = document.getElementById('sync-log-panel');
   var content = document.getElementById('sync-log-content');
-  var title = document.getElementById('sync-log-title');
-  var closeBtn = document.getElementById('sync-log-close');
-
-  for (var dot of document.querySelectorAll('.sync-icon-btn')) {
-    dot.addEventListener('click', function() {
-      var logStatus = document.getElementById('sync-log-status');
-      if (window._liveSyncActive) {
-        // Show live log from running sync
-        content.textContent = window._liveSyncLog || '';
-        title.textContent = T('js.live_sync_log');
-        if (logStatus) { logStatus.textContent = T('js.sync_running'); logStatus.className = 'muted'; }
-      } else {
-        // Show saved log from last sync
-        content.textContent = this.dataset.log || T('common.no_log');
-        title.textContent = this.dataset.logTitle || T('cluster.last_sync');
-        if (logStatus) logStatus.textContent = '';
-      }
-      panel.classList.remove('hidden');
-      content.scrollTop = content.scrollHeight;
-      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }
-
-  if (closeBtn) {
-    closeBtn.addEventListener('click', function() {
-      panel.classList.add('hidden');
-    });
-  }
 
   // Check if a sync is already running (auto-sync or triggered before page load)
   var slug = '{{ cluster.slug }}';
@@ -387,7 +347,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (d.log && d.log.length > 0) {
                   window._liveSyncLog += d.log.join('\n') + '\n';
                   // Update panel content if it's visible
-                  if (!panel.classList.contains('hidden') && window._liveSyncActive) {
+                  if (panel.open && window._liveSyncActive) {
                     content.textContent = window._liveSyncLog;
                     content.scrollTop = content.scrollHeight;
                   }
@@ -401,7 +361,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     btn.title = T('cluster.sync_now');
                   }
                   var logStatus = document.getElementById('sync-log-status');
-                  if (logStatus && !panel.classList.contains('hidden')) {
+                  if (logStatus && panel.open) {
                     logStatus.textContent = T('js.sync_complete');
                     logStatus.classList.remove('muted');
                     logStatus.classList.add('ok-text');

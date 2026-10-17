@@ -587,6 +587,13 @@ class ClusterPageTests(DbTestCase):
         self.assertIn('class="sync-dots"', html)
         self.assertNotIn("data-topology", html)
 
+    def test_logs_open_in_a_dialog_with_copy_and_close(self) -> None:
+        html = self.page()
+        self.assertIn('<dialog class="log-dialog" id="sync-log-panel"', html)
+        self.assertIn('id="sync-log-copy"', html)
+        self.assertIn('id="sync-log-close"', html)
+        self.assertNotIn('<section class="table-card hidden js-sync-log-panel"', html)
+
     def test_diagram_carries_the_sync_dots(self) -> None:
         db.upsert_pbs_connection(self.cid, PBS_FH_MUC)
         pbs_id = db.list_pbs_connections(self.cid)[0]["id"]

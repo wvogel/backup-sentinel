@@ -184,17 +184,7 @@
 </section>
 
 
-{# ── Sync-Log-Panel ──────────────────────────────────────────────────── #}
-<section class="table-card hidden js-sync-log-panel" id="sync-log-panel">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow">{{ t('settings.sync_log') }}</p>
-      <h3 id="sync-log-title">{{ t('settings.sync_protocol') }}</h3>
-    </div>
-    <button type="button" class="button-secondary" id="sync-log-close">{{ t('common.close') }}</button>
-  </div>
-  <pre id="sync-log-content" class="sync-log-pre"></pre>
-</section>
+{% include "_log_dialog.html" %}
 </div>
 
 <div class="lightbox-overlay hidden" id="rename-cluster-lightbox">

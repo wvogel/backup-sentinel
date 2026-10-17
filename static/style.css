@@ -1480,11 +1480,75 @@ button.sync-dot.sync-unknown { background: var(--unknown); }
   overflow-y: auto;
 }
 
-.sync-log-actions {
+/* Log viewer over the page: header with copy and close, log scrolls. */
+.log-dialog {
+  width: min(960px, calc(100vw - 32px));
+  max-width: none;
+  max-height: min(80vh, 820px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.log-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.log-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+.log-dialog-head {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 8px;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--line);
 }
+.log-dialog-head h3 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.log-dialog-head #sync-log-status { font-size: 0.82rem; white-space: nowrap; }
+/* The log takes the focus on open (arrow keys scroll it), without a ring. */
+.log-dialog .sync-log-pre:focus { outline: none; }
+.log-dialog .sync-log-pre {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+}
+button.log-dialog-btn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-box);
+  background: none;
+  box-shadow: none;
+  color: var(--muted);
+}
+button.log-dialog-btn:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--chip);
+  color: var(--ink);
+}
+button.log-dialog-btn svg { width: 18px; height: 18px; }
+.log-dialog-btn .icon-copied,
+.log-dialog-btn.is-copied .icon-copy { display: none; }
+.log-dialog-btn.is-copied .icon-copied { display: block; }
+.log-dialog-btn.is-copied { color: var(--ok); }
 
 .settings-cluster-list {
   display: grid;

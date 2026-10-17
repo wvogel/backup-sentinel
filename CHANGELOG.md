@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Logs open over the page.** A click on a sync symbol (cluster page, settings) or on a restore test's note used to show the log in a panel at the bottom of the page, to be scrolled to, selected by hand and closed with a button. It now opens in a dialog in the middle of the screen, scrolled to the end, with a copy symbol (copies the whole log; a tick confirms it) and ×; Esc or a click beside it closes it too. A running sync's live log still streams into it.
+
 ## [v2.41.5] — 2026-10-17
 
 ### Changed
