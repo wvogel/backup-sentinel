@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import http.client
+import io
 import json
 import logging
 import ssl
+import threading
 import time
 from typing import Any
 from urllib import error, parse, request
@@ -24,6 +27,56 @@ def _get_ssl_context() -> ssl.SSLContext:
         else:
             _ssl_context = ssl.create_default_context()
     return _ssl_context
+
+
+# One open connection per server and thread (keep-alive): a sync asks the
+# same PVE/PBS dozens of times, and each new connection costs a name lookup
+# and a TLS handshake — occasionally seconds.
+_local = threading.local()
+
+
+def _pooled(scheme: str, host: str, port: int | None, timeout: float) -> http.client.HTTPConnection:
+    pool: dict[tuple[str, str, int | None], http.client.HTTPConnection] = _local.__dict__.setdefault("pool", {})
+    key = (scheme, host, port)
+    conn = pool.get(key)
+    if conn is None:
+        if scheme == "https":
+            conn = http.client.HTTPSConnection(host, port, timeout=timeout, context=_get_ssl_context())
+        else:
+            conn = http.client.HTTPConnection(host, port, timeout=timeout)
+        pool[key] = conn
+    conn.timeout = timeout
+    if conn.sock is not None:
+        conn.sock.settimeout(timeout)
+    return conn
+
+
+def _send(url: str, headers: dict[str, str], timeout: float) -> bytes:
+    """GET over the pooled connection; errors as urllib raises them (HTTPError
+    for status >= 400, URLError otherwise), so callers handle both alike."""
+    parts = parse.urlsplit(url)
+    target = parts.path + (f"?{parts.query}" if parts.query else "")
+    for first in (True, False):
+        conn = _pooled(parts.scheme, parts.hostname or "", parts.port, timeout)
+        reused = conn.sock is not None
+        try:
+            conn.request("GET", target, headers=headers)
+            response = conn.getresponse()
+            body = response.read()
+        except (ConnectionResetError, BrokenPipeError, http.client.BadStatusLine) as exc:
+            conn.close()
+            if first and reused:
+                continue  # the server closed the idle connection: open a new one at once
+            raise error.URLError(exc) from exc
+        except (OSError, http.client.HTTPException) as exc:
+            conn.close()
+            raise error.URLError(exc) from exc
+        if response.will_close:
+            conn.close()
+        if response.status >= 400:
+            raise error.HTTPError(url, response.status, response.reason, response.headers, io.BytesIO(body))
+        return body
+    raise AssertionError("unreachable")
 
 
 class APIError(RuntimeError):
@@ -71,12 +124,7 @@ def api_get_payload(
     is expected or has a fallback (no waiting for the same answer)."""
     query_string = f"?{parse.urlencode(query)}" if query else ""
     url = f"{base_url}{path}{query_string}"
-    req = request.Request(
-        url,
-        headers={"Authorization": auth_header, "Accept": "application/json"},
-        method="GET",
-    )
-    context = _get_ssl_context()
+    headers = {"Authorization": auth_header, "Accept": "application/json"}
 
     short_path = path.replace("/api2/json", "")
     qs_short = f"?{parse.urlencode(query)}" if query else ""
@@ -86,8 +134,7 @@ def api_get_payload(
     for attempt in range(retries + 1):
         t0 = time.monotonic()
         try:
-            with request.urlopen(req, timeout=timeout, context=context) as response:
-                payload = json.load(response)
+            payload = json.loads(_send(url, headers, timeout))
             elapsed = time.monotonic() - t0
             if not isinstance(payload, dict):
                 raise APIError(f"Unexpected {label} response for {path}")
