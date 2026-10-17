@@ -135,13 +135,18 @@ def sync_cluster_backups(cluster: dict) -> None:
             # Include VMs deleted from PVE so their remaining PBS snapshots
             # are still tracked instead of being flagged as removed.
             vmids = {vm["vmid"] for vm in inventory.vms} | known_vmids
+            # Namespaces sync jobs copy this cluster's backups into: read them
+            # too, so the copies count (from the diagram of the last sync).
+            sync_target_namespaces = topology_store.sync_target_namespaces(cluster["id"])
             for conn in pbs_conns:
                 pbs_log: list[str] = []
                 pbs_ok = True
                 t_pbs = time.monotonic()
                 logger.info("  %s", ts("synclog.pbs_start", name=conn.get("name")))
                 try:
-                    events, ds_logs, pbs_complete = fetch_all_pbs_backups(conn, vmids, cutoff)
+                    events, ds_logs, pbs_complete = fetch_all_pbs_backups(
+                        conn, vmids, cutoff, extra_namespaces=sync_target_namespaces.get(conn["id"])
+                    )
                     if not pbs_complete:
                         pbs_ok = False
                     logger.info(

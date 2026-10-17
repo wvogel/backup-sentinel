@@ -301,6 +301,9 @@ def build_topology(
             "to": node_ids[e["dst"]],
             "from_ns": e["src_ns"],
             "to_ns": e["dst_ns"],
+            # The cluster's own connection to the target PBS: the sync reads
+            # this namespace through it (see app/web/sync.py).
+            "to_conn_id": own_conn_by_server[e["dst"][0]]["id"] if e["dst"][0] in own_conn_by_server else None,
             "state": e["state"],
             "job_id": job["job_id"],
             "schedule": job["schedule"],

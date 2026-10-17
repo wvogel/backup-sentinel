@@ -9,7 +9,7 @@ CONN = {"api_url": "https://pbs", "api_token_id": "id", "api_token_secret": "sec
 
 class FetchAllPBSBackupsTests(unittest.TestCase):
     def test_failed_datastore_marks_result_incomplete(self) -> None:
-        def fake_backups(conn, vmids, cutoff, datastore=""):
+        def fake_backups(conn, vmids, cutoff, datastore="", extra_namespaces=()):
             if datastore == "broken":
                 raise pbs.PBSSyncError("timeout")
             return [{"vmid": 100}]
@@ -290,3 +290,21 @@ class SyncProgressTests(unittest.TestCase):
             job = pbs.fetch_pbs_sync_jobs(CONN)[0]
         self.assertEqual(job["running_upid"], self.UPID)
         self.assertNotIn("running_percent", job)
+
+
+class SyncTargetNamespaceTests(unittest.TestCase):
+    def test_root_plus_sync_target_namespaces(self) -> None:
+        rows = [{"ns": ""}, {"ns": "dresden"}, {"ns": "dresden/old"}, {"ns": "other"}]
+        with mock.patch.object(pbs, "_pbs_get_json", return_value=rows):
+            self.assertEqual(pbs.fetch_pbs_namespaces(CONN, "nas-off", ["dresden"]), ["", "dresden", "dresden/old"])
+
+    def test_configured_scope_plus_sync_target(self) -> None:
+        rows = [{"ns": ""}, {"ns": "kiel"}, {"ns": "dresden"}]
+        with mock.patch.object(pbs, "_pbs_get_json", return_value=rows):
+            self.assertEqual(
+                pbs.fetch_pbs_namespaces({**CONN, "namespace": "kiel"}, "nas", ["dresden"]), ["dresden", "kiel"]
+            )
+
+    def test_missing_sync_target_on_this_datastore(self) -> None:
+        with mock.patch.object(pbs, "_pbs_get_json", return_value=[{"ns": ""}]):
+            self.assertEqual(pbs.fetch_pbs_namespaces(CONN, "nas-b1", ["dresden"]), [""])

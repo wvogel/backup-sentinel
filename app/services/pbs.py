@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 from urllib import parse
@@ -118,15 +119,17 @@ def fetch_pbs_datastores(conn: dict[str, Any]) -> tuple[list[str], str, bool]:
     return [], " | ".join(debug_lines), not had_error
 
 
-def fetch_pbs_namespaces(conn: dict[str, Any], datastore: str) -> list[str]:
+def fetch_pbs_namespaces(conn: dict[str, Any], datastore: str, extra: Iterable[str] = ()) -> list[str]:
     """Namespaces of a datastore this connection covers.
 
-    Without a configured namespace only the root is read, as other namespaces
-    may hold other clusters' guests with the same VMIDs. With one (e.g. the
-    target of a pull sync) it and its child namespaces are read, if present.
-    """
+    Without a configured namespace the root is read, as other namespaces may
+    hold other clusters' guests with the same VMIDs; with one (e.g. the target
+    of a pull sync) it and its children. `extra` adds namespaces known to hold
+    this cluster's copies — sync jobs writing there from its own datastores —
+    with their children, if present on this datastore."""
     scope = str(conn.get("namespace") or "")
-    if not scope:
+    extra = sorted({ns for ns in extra if ns})
+    if not scope and not extra:
         return [""]
     rows = _pbs_get_json(
         conn["api_url"].rstrip("/"),
@@ -134,8 +137,16 @@ def fetch_pbs_namespaces(conn: dict[str, Any], datastore: str) -> list[str]:
         conn["api_token_id"],
         conn["api_token_secret"],
     )
-    namespaces = {str(row.get("ns") or "") for row in rows}
-    return sorted(ns for ns in namespaces if ns == scope or ns.startswith(f"{scope}/"))
+    available = {str(row.get("ns") or "") for row in rows}
+
+    def covered(ns: str, root: str) -> bool:
+        return ns == root or ns.startswith(f"{root}/")
+
+    wanted = {ns for ns in available if any(covered(ns, root) for root in [scope] if scope)}
+    if not scope:
+        wanted.add("")
+    wanted |= {ns for ns in available if any(covered(ns, root) for root in extra)}
+    return sorted(wanted)
 
 
 def fetch_pbs_backups(
@@ -143,6 +154,7 @@ def fetch_pbs_backups(
     vmids: set[int],
     cutoff: datetime | None = None,
     datastore: str = "",
+    extra_namespaces: Iterable[str] = (),
 ) -> list[dict[str, Any]]:
     """Query PBS directly for backup snapshots in a specific datastore."""
     base_url = conn["api_url"].rstrip("/")
@@ -152,7 +164,7 @@ def fetch_pbs_backups(
 
     snapshots: list[tuple[str, dict[str, Any]]] = []
     try:
-        for namespace in fetch_pbs_namespaces(conn, datastore):
+        for namespace in fetch_pbs_namespaces(conn, datastore, extra_namespaces):
             rows = _pbs_get_json(
                 base_url,
                 f"/api2/json/admin/datastore/{parse.quote(datastore, safe='')}/snapshots",
@@ -243,6 +255,7 @@ def fetch_all_pbs_backups(
     conn: dict[str, Any],
     vmids: set[int],
     cutoff: datetime | None = None,
+    extra_namespaces: Mapping[str, Iterable[str]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str], bool]:
     """Fetch backups from all datastores on this PBS.
 
@@ -262,7 +275,9 @@ def fetch_all_pbs_backups(
 
     for ds in datastores:
         try:
-            events = fetch_pbs_backups(conn, vmids, cutoff, datastore=ds)
+            events = fetch_pbs_backups(
+                conn, vmids, cutoff, datastore=ds, extra_namespaces=(extra_namespaces or {}).get(ds, ())
+            )
             all_events.extend(events)
             log_lines.append(ts("synclog.pbs_datastore_done", ds=ds, count=len(events)))
         except PBSSyncError as exc:

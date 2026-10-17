@@ -15,6 +15,33 @@ from app.services.backup_status import (
 )
 from app.types import RestoreTestRow
 
+# How long a copy on another server counts (offsite syncs often run hours
+# after the backup; see copy_windows for weekly syncs).
+COPY_WINDOW_DAYS = 7
+# Weekly sync jobs: a week between copies, plus the backup's own day and a margin.
+WEEKLY_COPY_WINDOW_DAYS = 9
+
+
+def copy_windows() -> dict[str, int]:
+    """Copy window in days per server ("pbs:<name>" as in backup locations)
+    that pull sync jobs write to: longer where they run only weekly."""
+    from app.services.proxmox import classify_schedule
+
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT LOWER(p.name) AS server, j.schedule
+            FROM pbs_sync_jobs j JOIN pbs_connections p ON p.id = j.pbs_id
+            WHERE j.direction = 'pull'
+            """
+        )
+        windows: dict[str, int] = {}
+        for row in cur.fetchall():
+            days = WEEKLY_COPY_WINDOW_DAYS if classify_schedule(row["schedule"] or "") == "weekly" else COPY_WINDOW_DAYS
+            key = f"pbs:{row['server']}"
+            windows[key] = max(windows.get(key, COPY_WINDOW_DAYS), days)
+        return windows
+
 
 def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
     query = """
@@ -31,7 +58,7 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             v.is_template,
             v.backup_kind,
             v.missing_since,
-            be_copies.copy_servers,
+            be_copies.copy_latest,
             be_copies.copy_storages,
             be_verify.last_verified_at,
             be_verify.verify_failed_at,
@@ -73,15 +100,19 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         ) be_latest ON TRUE
 
         LEFT JOIN LATERAL (
-            -- Second copy: distinct servers holding a backup of the last 7 days
-            -- (offsite sync jobs often run hours after the backup itself).
+            -- Servers holding a backup of the guest, with the latest one each;
+            -- which still count as a copy is decided in Python (copy_windows).
             SELECT
-                ARRAY(
-                    SELECT DISTINCT split_part(loc, '/', 1)
-                    FROM backup_events c, unnest(c.locations) AS loc
-                    WHERE c.vm_id = v.id AND c.status = 'ok' AND c.removed_at IS NULL
-                      AND COALESCE(c.size_bytes, 0) > 1 AND c.started_at >= NOW() - INTERVAL '7 days'
-                ) AS copy_servers,
+                (
+                    SELECT jsonb_object_agg(srv, latest)
+                    FROM (
+                        SELECT split_part(loc, '/', 1) AS srv, MAX(c.started_at) AS latest
+                        FROM backup_events c, unnest(c.locations) AS loc
+                        WHERE c.vm_id = v.id AND c.status = 'ok' AND c.removed_at IS NULL
+                          AND COALESCE(c.size_bytes, 0) > 1
+                        GROUP BY 1
+                    ) per_server
+                ) AS copy_latest,
                 ARRAY(
                     SELECT DISTINCT unnest(c.storages)
                     FROM backup_events c
@@ -132,6 +163,7 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         rows = list(cur.fetchall())
 
     now = datetime.now(UTC)
+    windows = copy_windows()
     for row in rows:
         effective_backup_kind = row["effective_backup_kind"]
         status_backup_kind = effective_backup_kind
@@ -162,8 +194,29 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         )
 
         row["restore_class"] = row["criticality"] if row["restore_required"] else "none"
-        row["copy_count"] = len(row["copy_servers"] or [])
-        row["copy_server_names"] = sorted(server_name(s) for s in row["copy_servers"] or [])
+        # A server counts as a copy while its latest backup of the guest is
+        # recent: 7 days, or longer where weekly sync jobs feed it.
+        latest_by_server = {srv: datetime.fromisoformat(ts) for srv, ts in (row.get("copy_latest") or {}).items()}
+        current = {
+            srv
+            for srv, latest in latest_by_server.items()
+            if latest >= now - timedelta(days=windows.get(srv, COPY_WINDOW_DAYS))
+        }
+        row["copy_servers"] = sorted(current)
+        row["copy_count"] = len(current)
+        row["copy_server_names"] = sorted(server_name(s) for s in current)
+        row["copy_history"] = sorted(
+            (
+                {
+                    "name": server_name(srv),
+                    "latest": latest,
+                    "current": srv in current,
+                    "window": windows.get(srv, COPY_WINDOW_DAYS),
+                }
+                for srv, latest in latest_by_server.items()
+            ),
+            key=lambda c: c["name"],
+        )
         row["copy_status"], row["verify_status"] = _protection_status(row, now)
         if row["restore_required"] and status_backup_kind != "none":
             class_interval = RESTORE_CLASS_INTERVALS.get(row["criticality"], RESTORE_CLASS_INTERVALS["medium"])
