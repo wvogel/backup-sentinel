@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Cluster page: no "PVE" label next to the PVE symbol.** The cluster's box in the diagram (and the header when there is no diagram yet) showed "PVE" under the name although the coloured server symbol already says it.
+
 ## [v2.41.6] — 2026-10-17
 
 ### Changed

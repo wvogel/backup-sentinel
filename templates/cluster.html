@@ -26,7 +26,7 @@
     {%- if not topology.columns or unplaced %}
     {#- Only what the diagram cannot show: no diagram yet, or PBS without a box in it. #}
     <div class="sync-dots">
-      {%- if not topology.columns %}<span class="sync-dot-item">{{ dots.pve_icon(cluster) }} PVE</span>{% endif %}
+      {%- if not topology.columns %}<span class="sync-dot-item">{{ dots.pve_icon(cluster) }}</span>{% endif %}
       {%- for pbs in unplaced %}<span class="sync-dot-item">{{ dots.pbs_icon(pbs) }} {{ pbs.name }}</span>{% endfor %}
     </div>
     {%- endif %}
