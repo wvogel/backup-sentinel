@@ -43,8 +43,7 @@ Below the health bar, four summary cards are displayed:
 Each cluster is displayed as a card showing:
 
 - Cluster name with an overall status badge (OK / Warning / Critical).
-- Last successful PVE sync timestamp.
-- Error-since timestamp if the most recent sync failed.
+- Dot before the cluster name: how current the data is. Green = last sync succeeded and at most two sync intervals ago (one missed run is fine), yellow = older or the latest attempt failed, red = no successful sync for over 24 hours. The tooltip shows the last successful sync and, if any, "error since".
 - Node count, VM count, and a breakdown of backup statuses. With a quorum device (QDevice) the nodes tile shows a small "+Q" next to the count (tooltip: state and QNetd host); it turns yellow when the QDevice is not connected.
 - PBS connection status (if configured).
 - Recent restore test results as compact icons.

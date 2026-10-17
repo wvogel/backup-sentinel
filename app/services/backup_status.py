@@ -103,3 +103,21 @@ def restore_summary(
     if due_status == "critical":
         return "critical", age_days - interval_days
     return due_status, interval_days - age_days
+
+
+# No successful sync for this long is critical (same as the overdue notice).
+SYNC_STALE_HOURS = 24
+
+
+def sync_freshness(last_success: datetime | None, last_ok: bool | None, now: datetime, interval_minutes: int) -> str:
+    """How current a cluster's data is: "ok" (last sync succeeded, within two
+    intervals — one missed run is fine), "warning" (older, or the latest
+    attempt failed) or "critical" (no success for a day, or never)."""
+    if last_success is None:
+        return "critical"
+    age_minutes = (now - last_success).total_seconds() / 60
+    if age_minutes > SYNC_STALE_HOURS * 60:
+        return "critical"
+    if last_ok is False or age_minutes > 2 * interval_minutes + 10:
+        return "warning"
+    return "ok"

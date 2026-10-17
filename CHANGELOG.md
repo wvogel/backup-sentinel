@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.34.0] — 2026-10-17
+
+### Changed
+
+- **Overview: sync status as a dot instead of a text line.** Before each cluster name a dot shows how current its data is — green: the last sync succeeded and is at most two sync intervals old (one missed run is fine); yellow: older, or the latest attempt failed; red: no successful sync for over 24 hours (as the overdue notice), or never. The last successful sync and "error since" are in the tooltip; the "Letzter erfolgreicher Sync" line is gone, so the cluster cards are lower.
+
 ## [v2.33.0] — 2026-10-17
 
 ### Added

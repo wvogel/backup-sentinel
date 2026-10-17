@@ -476,6 +476,20 @@ td .icon-button {
 }
 
 /* "+Q" next to the node count: smaller and muted like the label. */
+/* Overview: is the cluster's data current? (time on hover) */
+.sync-fresh {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.sync-fresh-warning { background: var(--warn); }
+.sync-fresh-critical {
+  background: var(--critical);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 25%, transparent);
+}
+
 .qdevice-tag {
   margin-left: 3px;
   color: var(--muted);

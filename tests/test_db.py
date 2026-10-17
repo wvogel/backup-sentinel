@@ -700,3 +700,20 @@ class ClusterPageTests(DbTestCase):
         db.sync_cluster_inventory(self.cid, [{"name": "pve1", "status": "online"}], vms)
         html = self.page()
         self.assertEqual(html.count('class="kind-tag tpl-tag"'), 1)
+
+    def test_overview_sync_freshness_dot(self) -> None:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_dashboard
+
+        app = FastAPI()
+        app.include_router(routes_dashboard.router)
+        with mock.patch("app.web.routes_dashboard.cached_running_backups", return_value={}):
+            html = TestClient(app).get("/").text
+        self.assertIn("sync-fresh sync-fresh-critical", html)  # never synced
+        db.update_cluster_sync_status(self.cid, True, "ok")
+        with mock.patch("app.web.routes_dashboard.cached_running_backups", return_value={}):
+            html = TestClient(app).get("/").text
+        self.assertIn("sync-fresh sync-fresh-ok", html)
+        self.assertNotIn('class="muted cluster-sync-meta"', html)
