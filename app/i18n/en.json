@@ -63,6 +63,8 @@
   "cluster.running_read": "↓ {rate}",
   "cluster.running_write": "↑ {rate}",
   "cluster.running_rw": "⇅ {rate}",
+  "cluster.qdevice_short": "+ QDevice",
+  "cluster.qdevice_tooltip": "Quorum device (QDevice): {state}\nQNetd host: {host}",
   "cluster.running_one": "{count} backup running",
   "cluster.running_other": "{count} backups running",
   "cluster.running_jump": "Jump to VM",

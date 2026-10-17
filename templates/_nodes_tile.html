@@ -1,0 +1,10 @@
+{#- Nodes key-figure tile; a corosync quorum device shows as "+ QDevice",
+    yellow when it is not connected. Used on the overview and the cluster page. -#}
+{% macro nodes_tile(count, qdevice) -%}
+{%- set connected = qdevice and (qdevice.state or '')|lower == 'connected' %}
+<div class="cluster-stat{% if qdevice and not connected %} is-warn{% endif %}"
+     {%- if qdevice %} data-tooltip="{{ t('cluster.qdevice_tooltip', state=qdevice.state or '?', host=qdevice.host or '?') }}"{% endif %}>
+  <strong>{{ count }}</strong>
+  <span>{{ t('common.nodes') }}{% if qdevice %} <span class="qdevice-tag">{{ t('cluster.qdevice_short') }}</span>{% endif %}</span>
+</div>
+{%- endmacro %}

@@ -663,3 +663,23 @@ class ClusterPageTests(DbTestCase):
             html = TestClient(app).get("/").text
         self.assertIn("Replikation läuft", html)
         self.assertIn("pbs-fh-muc/nas → copy", html)
+
+    def test_qdevice_in_the_nodes_tile(self) -> None:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_dashboard
+
+        db.update_cluster_qdevice(self.cid, {"state": "Connected", "host": "10.0.0.9:5403"})
+        html = self.page()
+        self.assertIn('class="qdevice-tag"', html)
+        self.assertIn("QNetd-Host: 10.0.0.9:5403", html)
+        app = FastAPI()
+        app.include_router(routes_dashboard.router)
+        with mock.patch("app.web.routes_dashboard.cached_running_backups", return_value={}):
+            self.assertIn('class="qdevice-tag"', TestClient(app).get("/").text)
+        # Not connected: the tile turns yellow; none: no hint at all.
+        db.update_cluster_qdevice(self.cid, {"state": "Disconnected", "host": "10.0.0.9:5403"})
+        self.assertIn('class="cluster-stat is-warn"', self.page())
+        db.update_cluster_qdevice(self.cid, {})
+        self.assertNotIn('class="qdevice-tag"', self.page())

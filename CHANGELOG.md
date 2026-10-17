@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.30.0] — 2026-10-17
+
+### Added
+
+- **Quorum device in the nodes tile.** On the overview and the cluster page, a cluster with a corosync quorum device shows "Nodes + QDevice"; the tooltip names its state and QNetd host, and the tile turns yellow when the QDevice is not connected. Read on every sync from PVE's `GET /cluster/config/qdevice` (`Sys.Audit`, part of the bootstrap's `PVEAuditor` role) and stored with the cluster (`clusters.qdevice`); if it cannot be read, the last known state is kept.
+
 ## [v2.29.2] — 2026-10-17
 
 ### Changed

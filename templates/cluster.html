@@ -2,6 +2,7 @@
 {% block title %}{{ t('cluster.title', name=cluster.name) }}{% endblock %}
 {% block content %}
 {% import "_sync_dots.html" as dots with context %}
+{% import "_nodes_tile.html" as tiles with context %}
 {% set critical_count = vm_rows | selectattr("backup_severity", "equalto", "critical") | list | length %}
 {% set warning_count = vm_rows | selectattr("backup_severity", "equalto", "warning") | list | length %}
 {% set severity_labels = {"ok": t('common.ok'), "info": t('cluster.status_info'), "warning": t('common.warning'), "critical": t('common.critical'), "unknown": t('common.unknown'), "open": t('cluster.restore_open')} %}
@@ -32,10 +33,7 @@
   </div>
   <div class="cluster-hero-side">
   <div class="cluster-row-stats js-stat-filter-tiles" data-filter-target="#vm-table">
-    <div class="cluster-stat">
-      <strong>{{ nodes|length }}</strong>
-      <span>{{ t('common.nodes') }}</span>
-    </div>
+    {{ tiles.nodes_tile(nodes|length, cluster.qdevice) }}
     <div class="cluster-stat">
       <strong>{{ vm_rows|length }}</strong>
       <span>{{ t('common.vms') }}</span>

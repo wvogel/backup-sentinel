@@ -45,7 +45,7 @@ Jeder Cluster wird als Karte dargestellt mit:
 - Clustername mit Gesamtstatus-Badge (OK / Warnung / Kritisch).
 - Zeitstempel der letzten erfolgreichen PVE-Synchronisation.
 - Fehler-seit-Zeitstempel, falls die letzte Synchronisation fehlschlug.
-- Anzahl der Nodes, VMs und eine Aufschlüsselung der Backup-Status.
+- Anzahl der Nodes, VMs und eine Aufschlüsselung der Backup-Status. Hat der Cluster ein Quorum-Device (QDevice), steht in der Nodes-Kachel „Nodes + QDevice“ (Tooltip: Zustand und QNetd-Host); ist es nicht verbunden, wird die Kachel gelb.
 - PBS-Verbindungsstatus (sofern konfiguriert).
 - Aktuelle Restore-Test-Ergebnisse als kompakte Icons.
 

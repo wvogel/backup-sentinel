@@ -475,6 +475,8 @@ td .icon-button {
   text-align: right;
 }
 
+.qdevice-tag { white-space: nowrap; }
+
 .cluster-stat strong {
   display: block;
   margin-bottom: 2px;

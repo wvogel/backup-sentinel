@@ -324,3 +324,22 @@ class RateLabelTests(unittest.TestCase):
         self.assertEqual(proxmox_progress._round_rate("187.7 MiB/s"), "188 MiB/s")
         self.assertEqual(proxmox_progress._round_rate("1.6 GiB/s"), "1.6 GiB/s")
         self.assertEqual(proxmox_progress._round_rate("9.0 MiB/s"), "9 MiB/s")
+
+
+class QDeviceTests(unittest.TestCase):
+    def test_qdevice_status(self) -> None:
+        status = {"State": "Connected", "QNetd host": "10.0.0.9:5403", "Model": "Net", "Algorithm": "Fifty-Fifty split"}
+        with mock.patch.object(proxmox, "_pve_get_dict", return_value=status) as get:
+            self.assertEqual(
+                proxmox.fetch_qdevice("https://pve", "a"),
+                {"state": "Connected", "host": "10.0.0.9:5403", "model": "Net", "algorithm": "Fifty-Fifty split"},
+            )
+        self.assertEqual(get.call_args.args[1], "/api2/json/cluster/config/qdevice")
+
+    def test_no_qdevice_is_an_empty_answer(self) -> None:
+        with mock.patch.object(proxmox, "_pve_get_dict", return_value={}):
+            self.assertEqual(proxmox.fetch_qdevice("https://pve", "a"), {})
+
+    def test_unreadable_is_unknown(self) -> None:
+        with mock.patch.object(proxmox, "_pve_get_dict", side_effect=proxmox.ProxmoxSyncError("403")):
+            self.assertIsNone(proxmox.fetch_qdevice("https://pve", "a"))
