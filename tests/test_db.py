@@ -660,6 +660,15 @@ class ClusterPageTests(DbTestCase):
         # The page shows that live value.
         self.assertTrue(self.ring(self.page()).endswith(">45%"))
 
+    def test_progress_ring_sits_in_its_sync_line(self) -> None:
+        self.running_sync()
+        html = self.page()
+        line = html[html.index("data-sync-key=") : html.index('class="topo-sync-from"')]
+        self.assertIn("data-sync-ring=", line)
+        # "Running since" is in the ring's tooltip; no ring outside the lines.
+        self.assertIn('data-tooltip="Läuft gerade, seit', line)
+        self.assertEqual(html.count("data-sync-ring="), 1)
+
     def test_page_without_live_value_shows_no_stale_percent(self) -> None:
         self.running_sync()
         ring = self.ring(self.page())

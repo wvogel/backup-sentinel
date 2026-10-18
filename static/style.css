@@ -1414,34 +1414,8 @@ html[data-theme="dark"] .brand-logo-dark {
   text-align: center;
 }
 
-/* ── Sync status dots (diagram boxes, settings) ─────────────────────── */
-button.sync-dot {
-  flex-shrink: 0;
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  min-width: 10px;
-  min-height: 10px;
-  max-width: 10px;
-  max-height: 10px;
-  border-radius: 50%;
-  cursor: pointer;
-  border: none;
-  padding: 0;
-  margin: 0;
-  line-height: 0;
-  font-size: 0;
-  font-weight: normal;
-  vertical-align: middle;
-  background: var(--unknown);
-  transition: opacity 0.15s;
-  box-shadow: none;
-  -webkit-appearance: none;
-  appearance: none;
-}
-button.sync-dot:hover { opacity: 0.75; transform: none; box-shadow: none; }
-
-/* Cluster page: the PVE / PBS symbol shows its sync state; click opens the log. */
+/* ── Sync status symbols (diagram boxes, settings) ──────────────────── */
+/* The PVE / PBS symbol shows its sync state; click opens the log. */
 button.sync-icon-btn {
   flex: none;
   display: inline-flex;
@@ -1458,9 +1432,6 @@ button.sync-icon-btn {
 }
 button.sync-icon-btn:hover { opacity: 0.75; transform: none; box-shadow: none; background: none; }
 button.sync-icon-btn svg { width: 16px; height: 16px; }
-button.sync-dot.sync-ok   { background: var(--ok); }
-button.sync-dot.sync-fail { background: var(--critical); }
-button.sync-dot.sync-unknown { background: var(--unknown); }
 
 .pbs-sync-arrow {
   color: var(--muted);
@@ -2767,6 +2738,12 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 
 .topo-sync-icon { font-weight: 700; }
+/* A running sync: its progress ring in its line, "running since" on hover. */
+.topo-sync.topo-state-running { align-items: center; flex-wrap: nowrap; }
+.topo-state-running .topo-sync-icon,
+.topo-state-running .topo-sync-when { display: none; }
+.topo-sync .topo-ring { width: 34px; height: 34px; }
+.topo-sync .topo-ring span { width: 26px; height: 26px; font-size: 0.6rem; color: var(--ink); }
 .topo-sync.topo-state-ok .topo-sync-icon { color: var(--ok); }
 .topo-sync.topo-state-running,
 .topo-sync.topo-state-running .topo-sync-icon { color: var(--running); }
