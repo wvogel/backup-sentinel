@@ -82,6 +82,14 @@
         </div>
       </footer>
     </div>
+    {# Success messages (showSuccessLightbox): settings actions and a finished sync. #}
+    <div class="lightbox-overlay hidden" id="success-lightbox">
+      <div class="lightbox-box lightbox-success">
+        <div class="lightbox-success-icon">&#x2713;</div>
+        <h3 id="success-lightbox-title">{{ t('settings.success') }}</h3>
+        <p id="success-lightbox-msg"></p>
+      </div>
+    </div>
     <script>
       var BSENTINEL_LANG = "{{ get_language() }}";
       var BSENTINEL_TRANSLATIONS = {{ get_translations_json()|safe }};

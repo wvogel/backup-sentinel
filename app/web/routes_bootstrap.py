@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app import db
+from app.i18n import ts
 from app.models import BootstrapFinalize, BootstrapPayload, ClusterCreate
 from app.services.bootstrap import build_enrollment_bundle, slugify_cluster
 from app.web.common import settings_actor
@@ -50,7 +51,7 @@ def finalize_bootstrap(payload: BootstrapFinalize) -> JSONResponse:
     if cluster["registered_at"] is not None:
         raise HTTPException(
             status_code=409,
-            detail="Cluster bereits registriert. Neues Enrollment-Secret in den Einstellungen generieren.",
+            detail=ts("errors.cluster_already_registered"),
         )
     db.finalize_cluster_registration(payload.model_dump())
     cluster = db.get_cluster_by_slug(payload.cluster_slug)

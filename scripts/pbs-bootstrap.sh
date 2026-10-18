@@ -10,7 +10,7 @@ Usage:
 Run this script on a Proxmox Backup Server node (as root).
 --namespace limits the cluster to that namespace and its children, e.g. the
 target of a pull sync; without it only the root namespace is read.
-The token receives Admin access (can be tightened later).
+The user and token receive read-only access (role Audit on /).
 EOF
 }
 
@@ -84,12 +84,17 @@ fi
 
 TOKEN_ID="${API_USER}!${TOKEN_NAME}"
 
-# ── Grant Admin on all paths for user AND token (tighten later) ───────────────
+# ── Grant read-only access (Audit) for user AND token ────────────────────────
 # PBS uses privilege separation: effective perms = user perms ∩ token perms
-# Both need the role, otherwise the intersection is empty.
+# Both need the role, otherwise the intersection is empty. Audit covers all
+# that Backup Sentinel reads: datastores, namespaces, snapshots, usage, sync
+# jobs, remotes and task logs. Earlier versions granted Admin; a re-run takes
+# it back.
 for AUTH_ID in "${API_USER}" "${TOKEN_ID}"; do
-  proxmox-backup-manager acl update / Admin \
+  proxmox-backup-manager acl update / Audit \
     --auth-id "${AUTH_ID}" --propagate 1
+  proxmox-backup-manager acl update / Admin \
+    --auth-id "${AUTH_ID}" --delete true >/dev/null 2>&1 || true
 done
 
 # ── TLS fingerprint ──────────────────────────────────────────────────────────

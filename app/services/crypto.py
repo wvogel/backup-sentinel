@@ -31,7 +31,7 @@ def encrypt(plaintext: str) -> str:
     try:
         return _fernet().encrypt(plaintext.encode()).decode()
     except Exception as exc:
-        logger.warning("Verschlüsselung fehlgeschlagen: %s", exc)
+        logger.warning("Encryption failed: %s", exc)
         return plaintext
 
 

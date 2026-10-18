@@ -17,7 +17,6 @@ from app.services.api_client import (
     api_get_dict,
     api_get_json,
     api_get_payload,
-    api_test_connection,
 )
 from app.services.backup_location import pbs_location, pve_location
 from app.services.vzdump_log import VmBackupRun, guest_name_from_notes, parse_vzdump_log
@@ -298,16 +297,6 @@ def pbs_storage_targets(storage_config: list[dict[str, Any]]) -> list[dict[str, 
         for s in storage_config
         if s.get("type") == "pbs" and s.get("storage") and s.get("datastore") and not s.get("disable")
     ]
-
-
-def test_proxmox_connection(cluster: dict[str, Any], timeout: float = 5.0) -> None:
-    """Test PVE API connectivity. Raises ProxmoxSyncError on failure."""
-    base_url = cluster["api_url"].rstrip("/")
-    auth_header = build_token_header(cluster["api_user"], cluster["token_id"], cluster["token_secret"])
-    try:
-        api_test_connection(f"{base_url}/api2/json/version", auth_header, timeout=timeout, label="PVE")
-    except APIError as exc:
-        raise ProxmoxSyncError(str(exc)) from exc
 
 
 def dedupe_nodes(nodes: list[dict[str, str]]) -> list[dict[str, str]]:

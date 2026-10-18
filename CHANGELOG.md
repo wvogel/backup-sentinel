@@ -5,6 +5,24 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.14] — 2026-10-18
+
+### Security
+
+- **The API accounts get far fewer rights.** On PBS the bootstrap script now grants the read-only role `Audit` instead of `Admin`. On PVE the custom role `BackupSentinelBackupList` (`Datastore.AllocateSpace`, `VM.Backup`) replaces `PVEDatastoreAdmin` on `/storage`, next to `PVEAuditor`: PVE lists backup volumes only with one of these two, and the new one can neither change the storage configuration nor delete VM disks or ISOs. A re-run of the bootstrap command takes the old roles back — run it once per cluster and once per PBS (see the Admin Guide).
+- **PBS certificate fingerprint from the TLS connection** instead of PBS's certificates API, which needs `Sys.Modify`.
+
+### Fixed
+
+- **"Sync complete" dialog on the cluster page.** Its markup only existed on the settings page, so the cluster page reloaded without it.
+
+### Changed
+
+- **One parser for backup logs.** Sizes, start lines and archive lines of vzdump logs are read by one set of functions instead of two copies; units are accepted in any spelling.
+- **One sync poll.** The cluster page used its own copy of the live-sync polling; it now uses the shared script, which also picks up a sync that is already running when the page loads.
+- **Error messages in the chosen language:** invalid date, duplicate cluster name and an already registered cluster. Remaining German log messages are now English.
+- Removed the unused connection-test helpers.
+
 ## [v2.41.13] — 2026-10-18
 
 ### Fixed

@@ -474,6 +474,11 @@ class RateLabelTests(unittest.TestCase):
         self.assertEqual(proxmox_progress._round_rate("187.7 MiB/s"), "188 MiB/s")
         self.assertEqual(proxmox_progress._round_rate("1.6 GiB/s"), "1.6 GiB/s")
         self.assertEqual(proxmox_progress._round_rate("9.0 MiB/s"), "9 MiB/s")
+        # Same rule as human_format, but no thousands separator: the label is
+        # cached for every UI language.
+        self.assertEqual(proxmox_progress._round_rate("1023.6 MiB/s"), "1024 MiB/s")
+        self.assertEqual(proxmox_progress._round_rate("9.96 MiB/s"), "10 MiB/s")
+        self.assertEqual(proxmox_progress._round_rate("n/a"), "n/a")
 
 
 class QDeviceTests(unittest.TestCase):

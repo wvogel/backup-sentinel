@@ -12,9 +12,13 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, tzinfo
 
-_START_RE = re.compile(r"Starting Backup of (?:VM|CT) (?P<vmid>\d+)", re.IGNORECASE)
-_PBS_ARCHIVE_RE = re.compile(r"archive '(?:vm|ct)/\d+/(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z'")
-_STARTED_AT_RE = re.compile(r"Backup started at (?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+# Shared with the running-backup parser (app.services.proxmox_progress).
+# Start of a VM's section of the log.
+START_RE = re.compile(r"Starting Backup of (?:VM|CT)\s+(?P<vmid>\d+)", re.IGNORECASE)
+# Start of a VM's backup: the PBS archive name carries it in UTC; "Backup
+# started at" is the node's local time.
+PBS_ARCHIVE_RE = re.compile(r"archive '(?:vm|ct)/\d+/(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z'")
+STARTED_AT_RE = re.compile(r"Backup started at (?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 _TRANSFERRED_RE = re.compile(
     r"transferred (?P<size>[\d.]+ [KMGTPE]?i?B) in (?P<secs>\d+) seconds(?: \((?P<rate>[\d.]+ [KMGTPE]?i?B/s)\))?",
     re.IGNORECASE,
@@ -37,12 +41,15 @@ _UNITS = {
     "GIB": 1024**3,
     "TIB": 1024**4,
     "PIB": 1024**5,
+    "EIB": 1024**6,
     "KB": 1000,
     "MB": 1000**2,
     "GB": 1000**3,
     "TB": 1000**4,
     "PB": 1000**5,
+    "EB": 1000**6,
 }
+_SIZE_RE = re.compile(r"(?P<num>\d+(?:\.\d+)?|\.\d+)\s*(?P<unit>[KMGTPE]?i?B)", re.IGNORECASE)
 
 
 @dataclass(slots=True)
@@ -63,14 +70,14 @@ def guest_name_from_notes(notes: object) -> str | None:
     return first[0].strip()[:200] if first and first[0].strip() else None
 
 
-def _to_bytes(value: str) -> int | None:
-    number, _, unit = value.strip().partition(" ")
-    unit = unit.upper().removesuffix("/S")
-    factor = _UNITS.get(unit)
-    try:
-        return int(float(number) * factor) if factor else None
-    except ValueError:
+def parse_size(value: str | None) -> int | None:
+    """Bytes of a size or rate as vzdump writes it: "12.5 GiB", "187.7 MiB/s",
+    "3GB" (binary and decimal units, any case); None when there is none."""
+    match = _SIZE_RE.search(value or "")
+    if not match:
         return None
+    factor = _UNITS.get(match.group("unit").upper())
+    return int(float(match.group("num")) * factor) if factor else None
 
 
 def parse_vzdump_log(lines: list[str], node_tz: tzinfo) -> list[VmBackupRun]:
@@ -94,7 +101,7 @@ def parse_vzdump_log(lines: list[str], node_tz: tzinfo) -> list[VmBackupRun]:
         runs.append(current)
 
     for line in lines:
-        start = _START_RE.search(line)
+        start = START_RE.search(line)
         if start:
             close()
             current = VmBackupRun(vmid=int(start.group("vmid")))
@@ -102,14 +109,14 @@ def parse_vzdump_log(lines: list[str], node_tz: tzinfo) -> list[VmBackupRun]:
             continue
         if current is None:
             continue
-        if match := _PBS_ARCHIVE_RE.search(line):
+        if match := PBS_ARCHIVE_RE.search(line):
             current.started_at = datetime.fromisoformat(match.group("ts")).replace(tzinfo=UTC)
-        elif (match := _STARTED_AT_RE.search(line)) and current.started_at is None:
+        elif (match := STARTED_AT_RE.search(line)) and current.started_at is None:
             current.started_at = datetime.fromisoformat(match.group("ts")).replace(tzinfo=node_tz).astimezone(UTC)
         elif match := _TRANSFERRED_RE.search(line):
-            current.transferred_bytes = _to_bytes(match.group("size"))
+            current.transferred_bytes = parse_size(match.group("size"))
             if match.group("rate"):
-                current.throughput_bps = _to_bytes(match.group("rate"))
+                current.throughput_bps = parse_size(match.group("rate"))
             elif current.transferred_bytes and int(match.group("secs")):
                 current.throughput_bps = current.transferred_bytes // int(match.group("secs"))
         elif match := _REUSED_RE.search(line):

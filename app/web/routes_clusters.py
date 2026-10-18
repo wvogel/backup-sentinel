@@ -16,12 +16,9 @@ from app.services import sync_progress, topology_store
 from app.services.backup_status import RESTORE_CLASSES, assess_slow_backup, format_duration
 from app.services.bootstrap import slugify_cluster
 from app.services.human_format import format_rate, format_size
-from app.services.proxmox_progress import (
-    _parse_size_to_bytes,
-    running_backup_progress_cached,
-    running_backup_progress_peek,
-)
+from app.services.proxmox_progress import running_backup_progress_cached, running_backup_progress_peek
 from app.services.reporting import build_compliance_summary
+from app.services.vzdump_log import parse_size
 from app.web.common import common_context, datetime_local, settings_actor, templates
 from app.web.sync import background_sync, refresh_sync_job_states, sync_executor, sync_logs, syncing_clusters
 
@@ -43,7 +40,7 @@ def rename_cluster(request: Request, cluster_slug: str, name: str = Form(...)) -
     if new_slug != cluster_slug:
         existing = db.get_cluster_by_slug(new_slug)
         if existing:
-            raise HTTPException(status_code=409, detail="Ein Cluster mit diesem Namen existiert bereits.")
+            raise HTTPException(status_code=409, detail=t("errors.cluster_name_exists"))
     old_name = cluster["name"]
     new_name = name.strip()
     db.rename_cluster(cluster["id"], new_name, new_slug)
@@ -109,8 +106,8 @@ def running_backup_info(progress: dict | None, typical_seconds: int | None = Non
     if progress.get("eta_short"):
         details.append(t("cluster.running_until", time=progress["eta_short"]))
     rates: list[str] = []
-    read_bps = _parse_size_to_bytes(progress.get("read_label"))
-    write_bps = _parse_size_to_bytes(progress.get("write_label"))
+    read_bps = parse_size(progress.get("read_label"))
+    write_bps = parse_size(progress.get("write_label"))
     if read_bps is not None and write_bps is not None:
         read, write = format_rate(read_bps), format_rate(write_bps)
         if read == write:
@@ -273,7 +270,7 @@ def add_restore_test(
     try:
         parsed_date = datetime.fromisoformat(tested_at).date()
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Ungültiges Datum") from exc
+        raise HTTPException(status_code=400, detail=t("errors.invalid_date")) from exc
     # Several VMs can be documented at once (e.g. a full restore drill).
     # Validate everything first so a bad entry doesn't leave half the tests saved.
     vms = [db.get_vm_for_cluster(cluster["id"], single_vm_id) for single_vm_id in vm_id]
