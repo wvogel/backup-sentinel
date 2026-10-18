@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from app import db
 from app.i18n import ts
@@ -135,3 +135,13 @@ def pbs_bootstrap_finalize(request: Request) -> JSONResponse:
             syncing_clusters.add(cluster["id"])
             sync_executor.submit(background_sync, cluster)
     return JSONResponse({"status": "ok", "cluster": cluster["name"]})
+
+
+@router.get("/bootstrap/proxmox-agent.sh", response_class=PlainTextResponse)
+def proxmox_bootstrap_script() -> PlainTextResponse:
+    return PlainTextResponse(db.bootstrap_script(), media_type="text/x-shellscript")
+
+
+@router.get("/bootstrap/pbs-agent.sh", response_class=PlainTextResponse)
+def pbs_bootstrap_script() -> PlainTextResponse:
+    return PlainTextResponse(db.pbs_bootstrap_script(), media_type="text/x-shellscript")

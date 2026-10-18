@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.15] — 2026-10-18
+
+### Fixed
+
+- **Bootstrap scripts could not be downloaded** (`/bootstrap/proxmox-agent.sh`, `/bootstrap/pbs-agent.sh` answered 404) since v2.41.13, so no cluster or PBS could be added or re-bootstrapped. The cleanup that removed the unused connection-status endpoint took the two routes after it along. They are back, with a test.
+
 ## [v2.41.14] — 2026-10-18
 
 ### Security
