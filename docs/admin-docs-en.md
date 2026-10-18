@@ -442,4 +442,4 @@ docker compose up -d --build  # rebuild with the old version
 
 ### Version Check
 
-The current build version is shown in the UI footer and can also be checked via the health endpoint response or container logs at startup. The format is `1.2.<git-short-sha>`.
+The current build version is shown in the UI footer and can also be checked via the health endpoint response or container logs at startup. The format is `vMAJOR.MINOR.PATCH` (e.g. `v2.41.10`), as in `CHANGELOG.md` and the git tags; `/healthz` returns it as `version`.

@@ -442,4 +442,4 @@ docker compose up -d --build  # mit der alten Version neu bauen
 
 ### Versionsprüfung
 
-Die aktuelle Build-Version wird in der Fußzeile der Oberfläche angezeigt und kann auch über den Health-Endpunkt oder die Container-Logs beim Start geprüft werden. Das Format ist `1.2.<git-short-sha>`.
+Die aktuelle Build-Version wird in der Fußzeile der Oberfläche angezeigt und kann auch über den Health-Endpunkt oder die Container-Logs beim Start geprüft werden. Das Format ist `vMAJOR.MINOR.PATCH` (z. B. `v2.41.10`), wie in `CHANGELOG.md` und den Git-Tags; `/healthz` liefert sie als `version`.
