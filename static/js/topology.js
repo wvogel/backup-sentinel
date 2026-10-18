@@ -354,6 +354,8 @@
             el.removeAttribute("data-sync-key");
             var when = el.querySelector(".topo-sync-when");
             if (when) when.textContent = T("topology.just_finished");
+            var icon = el.querySelector(".topo-sync-icon");
+            if (icon) icon.textContent = "✓";
             if (ring) ring.remove();
             finishedAny = true;
           } else if (ring && info.percent !== null) {

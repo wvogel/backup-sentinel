@@ -60,22 +60,22 @@
           {%- for e in ds.incoming %}
           <div class="topo-sync topo-state-{{ e.state }}"{% if e.state == 'running' %} data-sync-key="{{ e.pbs_id }}:{{ e.job_id }}"{% endif %}
                data-tooltip="{{ t('topology.sync_tooltip', job=e.job_id, source=e.source_label ~ ('/' ~ e.from_ns if e.from_ns else ''), target=ds.store ~ ('/' ~ e.to_ns if e.to_ns else '')) }}&#10;{{ t('topology.schedule', schedule=e.schedule or '–') }}&#10;{% if e.running_since %}{{ t('topology.running_since', when=e.running_since|datetime_local) }}{% else %}{{ t('topology.last_run', when=e.last_run_at|datetime_local if e.last_run_at else t('common.never'), state=e.last_run_state or '–') }}{% endif %}{% if e.next_run_at %}&#10;{{ t('topology.next_run', when=e.next_run_at|datetime_local) }}{% endif %}">
+            {%- if e.state == 'running' %}
+            {#- Its progress in its own line (live via static/js/topology.js);
+                icon and time show again once it has finished. #}
+            <span class="topo-ring running-ring{% if e.running_percent is none %} is-indeterminate{% endif %}"
+                  data-sync-ring="{{ e.pbs_id }}:{{ e.job_id }}" style="--p:{{ e.running_percent or 0 }}"
+                  role="img" aria-label="{{ t('topology.running_since', when=e.running_since|datetime_local) }}"
+                  data-tooltip="{{ t('topology.running_since', when=e.running_since|datetime_local) }}">
+              <span class="running-ring-label">{{ (e.running_percent|round|int ~ '%') if e.running_percent is not none else '' }}</span>
+            </span>
+            {%- endif %}
             <span class="topo-sync-icon" aria-hidden="true">{{ state_icons[e.state] }}</span>
             <span class="topo-sync-when">{% if e.running_since %}{{ t('topology.running_short', when=e.running_since|datetime_local('%H:%M')) }}{% else %}{{ e.last_run_at|datetime_local('%d.%m. %H:%M') if e.last_run_at else t('common.never') }}{% endif %}</span>
-            <span class="topo-sync-from">← {% if e.source_server != group.server %}<span class="nowrap">{{ e.source_server }}/</span><wbr>{% endif %}<span class="nowrap">{{ e.source_store }}</span></span>
+            <span class="topo-sync-from">← {% if e.source_server != group.server %}<span class="nowrap">{{ e.source_server }}/</span><wbr>{% endif %}<span class="nowrap">{{ e.source_store }}{% if e.from_ns %}/{{ e.from_ns }}{% endif %}</span></span>
           </div>
           {%- endfor %}
           </div>
-          {#- A sync writing here right now: the same turning ring as a running
-              backup, with its progress (live via static/js/topology.js). #}
-          {%- for e in ds.incoming if e.state == 'running' %}
-          <span class="topo-ring running-ring{% if e.running_percent is none %} is-indeterminate{% endif %}"
-                data-sync-ring="{{ e.pbs_id }}:{{ e.job_id }}" style="--p:{{ e.running_percent or 0 }}"
-                role="img" aria-label="{{ t('topology.running_since', when=e.running_since|datetime_local) }}"
-                data-tooltip="{{ t('topology.running_since', when=e.running_since|datetime_local) }}">
-            <span class="running-ring-label">{{ (e.running_percent|round|int ~ '%') if e.running_percent is not none else '' }}</span>
-          </span>
-          {%- endfor %}
         </div>
         {%- endfor %}
       </div>

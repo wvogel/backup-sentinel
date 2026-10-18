@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Settings page: coloured PVE and PBS symbols instead of dots,** as on the overview and the cluster page (same colours, tooltip with the last sync; a click opens the log).
+- **Cluster page: each running replication's progress in its own sync line.** The progress rings sat side by side at the right of the datastore, without showing which sync they belong to. Each running sync line now starts with its own small ring, one under the other; "running since" is in the ring's tooltip instead of the line. Once a sync finishes, its line shows the tick and "just finished" again. Sync lines name the source namespace too ("← nas-b1/mar-lej").
+
 ## [v2.41.9] — 2026-10-17
 
 ### Fixed
