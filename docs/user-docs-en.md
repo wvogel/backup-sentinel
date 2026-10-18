@@ -7,8 +7,9 @@
 1. [Dashboard](#dashboard)
 2. [Cluster Detail Page](#cluster-detail-page)
 3. [Reports](#reports)
-4. [Settings](#settings)
-5. [Theme & Language](#theme--language)
+4. [Notifications](#notifications)
+5. [Settings](#settings)
+6. [Theme & Language](#theme--language)
 
 ---
 
@@ -78,7 +79,7 @@ The main table lists every VM in the cluster with sortable columns:
 
 Rows are striped. **Clicking a row** (marked by the ▶ before the VM name) opens its details below: the VM's settings and the history of the last 30 days with one bar per day (size, duration, throughput, reused data). Close them with **Collapse**, a click on free space in the details, or another click on the row.
 
-**Node filter bar** -- Buttons above the table let you filter VMs by node.
+**Node filter bar** -- Buttons above the table let you filter VMs by node. **Problems (n)** at the end shows only VMs with a problem: backup critical or warning, restore test critically overdue, or verify failed or not verified for over 30 days. A VM never tested ("open") alone does not count; n is the number of such VMs.
 
 **Sorting** -- Click any column header to sort ascending/descending.
 
@@ -136,7 +137,7 @@ A hero card at the top shows aggregated stats for the current reporting period:
 
 ### Cluster Breakdown
 
-Below the summary, each cluster is shown as a collapsible card. Expand a cluster to see per-VM backup details:
+Below the summary, each cluster is shown as a collapsible card with its VM count and the same figures as the summary. Expand a cluster to see per-VM backup details:
 
 - Each VM is a nested collapsible section.
 - VMs with failures or deletions are expanded by default.
@@ -144,9 +145,21 @@ Below the summary, each cluster is shown as a collapsible card. Expand a cluster
 
 ### Report Archive
 
-At the bottom, a list of previously generated reports (PDF and JSON) is available for download. Reports are stored in the `/reports` volume and persist across container restarts.
+At the bottom, a list of previously generated reports with month, creation time, mode (automatic or manual) and PDF/JSON download. Reports are stored in the `/reports` volume and persist across container restarts. **Delete** removes an archived report after a confirmation.
 
-Monthly reports are generated automatically at the end of each month. You can also trigger a snapshot at any time using the PDF Snapshot button.
+The previous month's report is generated automatically on the first sync after the month changes and, if email is enabled, sent as a PDF to the recipients. You can also trigger a snapshot at any time using the PDF Snapshot button.
+
+---
+
+## Notifications
+
+The notifications page (`/notifications`, bell symbol in the header) lists the notifications sent in the last 30 days, newest first, 50 per page.
+
+- **Filters** -- Type, cluster and channel (Gotify / email); **Reset filters** clears them.
+- **Columns** -- Time, type, cluster, message and channel. Clicking a message shows its title and full text.
+- **Export CSV** -- Downloads the filtered list as `notifications.csv` (semicolon-separated).
+
+Only notifications actually delivered are listed. Entries are kept for 90 days.
 
 ---
 
@@ -174,18 +187,22 @@ Each registered cluster is shown as a card with:
 
 ### PBS Connections
 
-Each cluster card has an "Add PBS" section to connect a Proxmox Backup Server:
+Each cluster card has an **Add PBS** button to connect a Proxmox Backup Server:
 
-1. Enter the **PBS name** (display label).
-2. Enter the **PBS API URL**.
-3. A bootstrap script is shown to run on the PBS host.
-4. Once connected, the PBS appears under the cluster with its own sync symbol (click opens its log).
+1. Click **Add PBS**. A bootstrap command is shown; there is nothing to enter, the script detects the PBS name and API URL itself.
+2. Copy the command and run it on the PBS host as root.
+3. The page waits for completion. Once connected, the PBS appears under the cluster with its own sync symbol (click opens its log).
+
+Each connected PBS has two fields:
+
+- **Namespace** -- Limits the connection to this namespace and its children, e.g. the target of a pull sync holding this cluster's copies. Empty = root namespace only.
+- **Aliases** -- Other host names or IPs under which PVE or a sync remote knows this PBS (comma separated). Only needed when Backup Sentinel cannot recognise the PBS itself, e.g. in a separate backup network.
 
 PBS connections can be removed individually.
 
 ### Notification Settings
 
-A dedicated panel configures notification channels:
+The **Notifications** tab configures the notification channels:
 
 **Gotify (push notifications):**
 - Gotify server URL.
@@ -203,7 +220,38 @@ A dedicated panel configures notification channels:
 **Quiet Hours:**
 - Enable/disable quiet hours.
 - Start and end time (e.g. 22:00 -- 07:00).
-- During quiet hours, notifications are suppressed.
+- During quiet hours, Gotify messages are held back and sent together once quiet hours end. Emails are not affected.
+
+**Notification types** -- Gotify reports:
+
+| Type | When | Priority |
+|------|------|----------|
+| Backup critical | A VM's backup is critically old or missing | 8 |
+| Size anomaly | A backup is clearly larger or smaller than the VM's average | 5 |
+| Sync failed | A cluster sync failed | 7 |
+| Sync overdue | No successful sync for 24 hours (once per outage; **also by email**) | 9 |
+| Restore overdue | A restore test is overdue (only if switched on, see below) | 6 |
+| Backup slow | A running backup takes clearly longer than usual (once per run) | 5 |
+| Datastore nearly full | A PBS datastore is filling up | 8 |
+| Verify failed | A PBS verify of a backup failed (once per snapshot) | 8 |
+| Unencrypted | A cluster has unencrypted backups | 6 |
+
+The same alert is sent at most once per 24 hours. Gotify messages are collected for 5 minutes; if nothing new arrives, they go out as one message ("Backup Sentinel: N alerts") with the highest priority among them. Email is used only for sync outages over 24 hours, the monthly PDF report and the weekly report.
+
+**Overdue restore tests** -- In the Gotify block, *Send a warning for overdue restore tests* can be switched on (default: off). Each sync then reports guests whose last restore test is older than their interval, once per guest and day, with the days overdue. Guests never tested ("open") raise no warning.
+
+**Weekly report** -- With email enabled and *weekly report* switched on (default), a designed HTML email (with a text version for clients without HTML) arrives every Monday from 7:00: logo and wordmark as in the web interface, the week's verdict ("All good" or "N items need attention"), key figures and one line per cluster with VMs, nodes, encryption and what needs attention (critical, warnings, failed backups, due restore tests, sync failures), then the problems -- backups, verifies, nearly full datastores (with fill level) -- and, as information, the week's full runs and VMs with a single backup location, finally the restore-test status. VM names link to their cluster (requires `APP_URL`). The **Weekly report preview** button shows the report as it would be sent now. If the server was down on Monday, the report is sent later that week.
+
+### Appearance
+
+The **Appearance** tab sets the colours of the interface:
+
+- **Preset:** *smile eyes* (default) or *Neutral*.
+- **Four base colours:** primary, accent (main action), background and running backups. All other tones, including dark mode, are derived. A preview shows the result before saving.
+- **Contrast check:** saving checks WCAG contrast (text ≥ 4.5:1, running backups ≥ 3:1). Poor readability shows a warning with the measured ratio; the setting is saved anyway.
+- **Reset to preset** removes custom colours.
+
+Changes are recorded in the settings audit. The PDF report uses the primary, accent and running colours.
 
 ### Governance Panel
 
@@ -213,10 +261,6 @@ A sidebar panel summarizes the NIST CSF 2.0 alignment:
 - **Protect** -- Encryption monitoring, backup policy enforcement.
 - **Detect** -- Automated alerting on failures and anomalies.
 - **Recover** -- Documented restore tests with compliance tracking.
-
-**Overdue restore tests** -- In the Gotify block, *Send a warning for overdue restore tests* can be switched on (default: off). Each sync then reports guests whose last restore test is older than their interval, once per guest and day, with the days overdue. Guests never tested ("open") raise no warning.
-
-**Weekly report** -- With email enabled and *weekly report* switched on (default), a designed HTML email (with a text version for clients without HTML) arrives every Monday from 7:00: logo and wordmark as in the web interface, the week's verdict ("All good" or "N items need attention"), key figures and one line per cluster with VMs, nodes, encryption and what needs attention (critical, warnings, failed backups, due restore tests, sync failures), then the problems -- backups, verifies, nearly full datastores (with fill level) -- and, as information, the week's full runs and VMs with a single backup location, finally the restore-test status. VM names link to their cluster (requires `APP_URL`). The **Weekly report preview** button shows the report as it would be sent now. If the server was down on Monday, the report is sent later that week.
 
 ### Settings Audit Log
 
@@ -228,16 +272,16 @@ Changes to settings are logged with a timestamp and the user who made the change
 
 ### Theme Switching
 
-Backup Sentinel supports three theme modes, accessible from the header:
+Backup Sentinel supports three theme modes. The switcher in the header cycles through them:
 
 - **Light** -- Light background with dark text.
 - **Dark** -- Dark background with light text.
 - **Auto** -- Follows the operating system preference (`prefers-color-scheme`).
 
-The selection is stored in a browser cookie and persists across sessions.
+The selection is stored in the browser's local storage (`bsentinel-theme`) and persists across sessions. It applies to this browser only.
 
 ### Language Switching
 
-The application is fully bilingual (English and German). Switch the language from the header menu. The selection is stored in the `bsentinel-lang` cookie.
+The application is fully bilingual (English and German). The language button in the header (EN / DE) switches it. The selection is stored per browser in the `bsentinel-lang` cookie and applies to all UI labels.
 
-All UI labels, notifications, and generated reports respect the selected language.
+Everything generated on the server -- PDF reports, Gotify and email notifications, the weekly report and sync logs -- uses the server language set by the administrator (`BSENTINEL_REPORT_LANGUAGE`, default German), regardless of the UI language.

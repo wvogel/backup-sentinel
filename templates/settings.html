@@ -197,7 +197,7 @@
 <div class="lightbox-overlay hidden" id="delete-cluster-lightbox">
   <div class="lightbox-box">
     <h3>{{ t('settings.delete_confirm_title') }}</h3>
-    <p>{{ t('settings.delete_confirm_text')|replace('{name}', '<strong id="delete-cluster-name"></strong>')|safe }}</p>
+    <p>{{ t('settings.delete_confirm_text')|replace('<strong>{name}</strong>', '<strong id="delete-cluster-name"></strong>')|safe }}</p>
     <div class="lightbox-actions">
       <button type="button" class="button-secondary" id="delete-cluster-cancel">{{ t('common.cancel') }}</button>
       <form method="post" id="delete-cluster-form" class="inline-form">

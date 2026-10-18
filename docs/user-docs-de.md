@@ -7,8 +7,9 @@
 1. [Dashboard](#dashboard)
 2. [Cluster-Detailseite](#cluster-detailseite)
 3. [Berichte](#berichte)
-4. [Einstellungen](#einstellungen)
-5. [Design & Sprache](#design--sprache)
+4. [Benachrichtigungen](#benachrichtigungen)
+5. [Einstellungen](#einstellungen)
+6. [Design & Sprache](#design--sprache)
 
 ---
 
@@ -78,7 +79,7 @@ Die Haupttabelle listet jede VM im Cluster mit sortierbaren Spalten:
 
 Die Zeilen sind abwechselnd hinterlegt. **Ein Klick auf eine Zeile** (erkennbar am ▶ vor dem VM-Namen) öffnet darunter die Details: die Einstellungen der VM und den Verlauf der letzten 30 Tage mit einem Balken pro Tag (Größe, Dauer, Durchsatz, wiederverwendete Daten). Zugeklappt wird mit **Einklappen**, einem Klick auf eine freie Stelle der Details oder erneut auf die Zeile.
 
-**Node-Filterleiste** -- Buttons oberhalb der Tabelle filtern VMs nach Node.
+**Node-Filterleiste** -- Buttons oberhalb der Tabelle filtern VMs nach Node. **Probleme (n)** am Ende zeigt nur VMs mit einem Problem: Backup kritisch oder Warnung, Restore-Test kritisch überfällig, oder Verify fehlgeschlagen bzw. seit über 30 Tagen nicht verifiziert. Eine nie getestete VM („offen“) zählt allein nicht; n ist die Zahl dieser VMs.
 
 **Sortierung** -- Klicken Sie auf einen Spaltenkopf, um auf-/absteigend zu sortieren.
 
@@ -136,7 +137,7 @@ Eine Hero-Karte am oberen Rand zeigt aggregierte Statistiken für den aktuellen 
 
 ### Cluster-Aufschlüsselung
 
-Unterhalb der Zusammenfassung wird jeder Cluster als aufklappbare Karte dargestellt. Beim Aufklappen werden die VM-Details sichtbar:
+Unterhalb der Zusammenfassung wird jeder Cluster als aufklappbare Karte mit seiner VM-Anzahl und denselben Kennzahlen wie die Zusammenfassung dargestellt. Beim Aufklappen werden die VM-Details sichtbar:
 
 - Jede VM ist ein verschachtelter aufklappbarer Bereich.
 - VMs mit Fehlern oder Löschungen sind standardmäßig aufgeklappt.
@@ -144,9 +145,21 @@ Unterhalb der Zusammenfassung wird jeder Cluster als aufklappbare Karte dargeste
 
 ### Berichtsarchiv
 
-Am unteren Rand steht eine Liste zuvor erstellter Berichte (PDF und JSON) zum Download bereit. Berichte werden im `/reports`-Volume gespeichert und bleiben über Container-Neustarts hinweg erhalten.
+Am unteren Rand steht eine Liste zuvor erstellter Berichte mit Monat, Erstellungszeit, Modus (automatisch oder manuell) und Download als PDF/JSON. Berichte werden im `/reports`-Volume gespeichert und bleiben über Container-Neustarts hinweg erhalten. **Löschen** entfernt einen archivierten Bericht nach einer Rückfrage.
 
-Monatsberichte werden am Ende jedes Monats automatisch erstellt. Sie können jederzeit über den PDF-Snapshot-Button einen Bericht manuell auslösen.
+Der Bericht des Vormonats wird beim ersten Sync nach dem Monatswechsel automatisch erstellt und, wenn E-Mail aktiv ist, als PDF an die Empfänger geschickt. Sie können jederzeit über den PDF-Snapshot-Button einen Bericht manuell auslösen.
+
+---
+
+## Benachrichtigungen
+
+Die Benachrichtigungsseite (`/notifications`, Glocken-Symbol in der Kopfzeile) listet die Benachrichtigungen der letzten 30 Tage, neueste zuerst, 50 pro Seite.
+
+- **Filter** -- Typ, Cluster und Kanal (Gotify / E-Mail); **Filter zurücksetzen** hebt sie auf.
+- **Spalten** -- Zeit, Typ, Cluster, Nachricht und Kanal. Ein Klick auf eine Nachricht zeigt Titel und vollständigen Text.
+- **CSV exportieren** -- Lädt die gefilterte Liste als `notifications.csv` herunter (Semikolon als Trennzeichen).
+
+Aufgeführt sind nur tatsächlich zugestellte Benachrichtigungen. Einträge werden 90 Tage aufbewahrt.
 
 ---
 
@@ -174,18 +187,22 @@ Jeder registrierte Cluster wird als Karte angezeigt mit:
 
 ### PBS-Verbindungen
 
-Jede Cluster-Karte hat einen "PBS hinzufügen"-Bereich, um einen Proxmox Backup Server anzubinden:
+Jede Cluster-Karte hat einen Button **PBS hinzufügen**, um einen Proxmox Backup Server anzubinden:
 
-1. **PBS-Name** eingeben (Anzeige-Label).
-2. **PBS-API-URL** eingeben.
-3. Ein Bootstrap-Skript wird angezeigt, das auf dem PBS-Host ausgeführt werden muss.
-4. Nach der Verbindung erscheint der PBS unter dem Cluster mit eigenem Sync-Symbol (Klick öffnet sein Log).
+1. Auf **PBS hinzufügen** klicken. Ein Bootstrap-Befehl wird angezeigt; einzugeben ist nichts, PBS-Name und API-URL ermittelt das Skript selbst.
+2. Den Befehl kopieren und auf dem PBS-Host als root ausführen.
+3. Die Seite wartet auf den Abschluss. Nach der Verbindung erscheint der PBS unter dem Cluster mit eigenem Sync-Symbol (Klick öffnet sein Log).
+
+Jeder angebundene PBS hat zwei Felder:
+
+- **Namespace** -- Beschränkt die Verbindung auf diesen Namespace samt Unter-Namespaces, z. B. das Ziel eines Pull-Syncs mit den Kopien dieses Clusters. Leer = nur Root-Namespace.
+- **Aliase** -- Weitere Hostnamen oder IPs, unter denen PVE oder ein Sync-Remote diesen PBS kennt (durch Komma getrennt). Nur nötig, wenn Backup Sentinel den PBS nicht selbst erkennt, z. B. in einem getrennten Backup-Netz.
 
 PBS-Verbindungen können einzeln entfernt werden.
 
 ### Benachrichtigungs-Einstellungen
 
-Ein eigener Bereich konfiguriert die Benachrichtigungskanäle:
+Der Tab **Benachrichtigungen** konfiguriert die Benachrichtigungskanäle:
 
 **Gotify (Push-Benachrichtigungen):**
 - Gotify-Server-URL.
@@ -203,7 +220,38 @@ Ein eigener Bereich konfiguriert die Benachrichtigungskanäle:
 **Ruhezeiten (Quiet Hours):**
 - Ruhezeiten aktivieren/deaktivieren.
 - Start- und Endzeit (z. B. 22:00 -- 07:00).
-- Während der Ruhezeiten werden Benachrichtigungen unterdrückt.
+- Während der Ruhezeiten werden Gotify-Meldungen zurückgehalten und nach dem Ende der Ruhezeit gesammelt verschickt. E-Mails sind nicht betroffen.
+
+**Benachrichtigungstypen** -- Gotify meldet:
+
+| Typ | Wann | Priorität |
+|-----|------|-----------|
+| Backup kritisch | Das Backup einer VM ist kritisch alt oder fehlt | 8 |
+| Größenanomalie | Ein Backup ist deutlich größer oder kleiner als der Durchschnitt der VM | 5 |
+| Sync fehlgeschlagen | Ein Cluster-Sync ist fehlgeschlagen | 7 |
+| Sync überfällig | Seit 24 Stunden kein erfolgreicher Sync (einmal pro Ausfall; **auch per E-Mail**) | 9 |
+| Restore überfällig | Ein Restore-Test ist überfällig (nur wenn eingeschaltet, siehe unten) | 6 |
+| Backup langsam | Ein laufendes Backup dauert deutlich länger als üblich (einmal pro Lauf) | 5 |
+| Datastore fast voll | Ein PBS-Datastore läuft voll | 8 |
+| Verify fehlgeschlagen | Ein PBS-Verify eines Backups ist fehlgeschlagen (einmal pro Snapshot) | 8 |
+| Unverschlüsselt | Ein Cluster hat unverschlüsselte Backups | 6 |
+
+Dieselbe Meldung geht höchstens einmal in 24 Stunden hinaus. Gotify-Meldungen werden 5 Minuten gesammelt; kommt nichts Neues dazu, gehen sie als eine Nachricht („Backup Sentinel: N Meldungen“) mit der höchsten enthaltenen Priorität hinaus. E-Mail wird nur für Sync-Ausfälle über 24 Stunden, den monatlichen PDF-Bericht und den Wochenbericht genutzt.
+
+**Überfällige Restore-Tests** -- Im Gotify-Block lässt sich *Warnung bei überfälligen Restore-Tests senden* einschalten (Standard: aus). Dann meldet jeder Sync VMs, deren letzter Restore-Test älter als ihr Intervall ist, einmal pro VM und Tag mit der Zahl der überfälligen Tage. Nie getestete VMs („offen“) lösen keine Warnung aus.
+
+**Wochenbericht** -- Ist E-Mail aktiv und der Schalter *Wochenbericht* gesetzt (Standard), kommt jeden Montag ab 7 Uhr eine gestaltete HTML-Mail (mit Textversion für Mail-Programme ohne HTML): im Kopf Logo und Schriftzug wie in der Web-Oberfläche, oben das Urteil der Woche („Alles im grünen Bereich“ oder „N Punkte brauchen Aufmerksamkeit“), die Kennzahlen und je Cluster eine Zeile mit VMs, Nodes, Verschlüsselung und dem, was Aufmerksamkeit braucht (kritisch, Warnungen, fehlgeschlagene Backups, fällige Restore-Tests, Sync-Fehler), darunter die Probleme -- Backups, Verifies, fast volle Datastores (mit Füllstand) -- und als Info die Voll-Läufe der Woche und VMs mit nur einem Backup-Standort, zum Schluss der Stand der Restore-Tests. VM-Namen verlinken auf ihren Cluster (dafür muss `APP_URL` gesetzt sein). Der Button **Wochenbericht-Vorschau** zeigt den Bericht so, wie er jetzt verschickt würde. War der Server montags aus, wird der Bericht im Lauf der Woche nachgeholt.
+
+### Erscheinungsbild
+
+Der Tab **Erscheinungsbild** legt die Farben der Oberfläche fest:
+
+- **Vorlage:** *smile eyes* (Standard) oder *Neutral*.
+- **Vier Grundfarben:** Primärfarbe, Akzent (Hauptaktion), Hintergrund und laufende Backups. Alle übrigen Töne, auch der Dark Mode, werden daraus berechnet. Eine Vorschau zeigt die Wirkung vor dem Speichern.
+- **Kontrastprüfung:** Beim Speichern wird nach WCAG geprüft (Text ≥ 4,5:1, laufende Backups ≥ 3:1). Bei schlechter Lesbarkeit erscheint eine Warnung mit dem gemessenen Wert; gespeichert wird trotzdem.
+- **Auf Vorlage zurücksetzen** entfernt die eigenen Farben.
+
+Änderungen landen im Einstellungs-Audit. Der PDF-Report übernimmt Primär-, Akzent- und Laufend-Farbe.
 
 ### Governance-Panel
 
@@ -213,10 +261,6 @@ Ein Seitenbereich fasst die NIST-CSF-2.0-Ausrichtung zusammen:
 - **Protect** -- Verschlüsselungs-Monitoring, Backup-Policy-Durchsetzung.
 - **Detect** -- Automatische Alarmierung bei Fehlern und Anomalien.
 - **Recover** -- Dokumentierte Restore-Tests mit Compliance-Tracking.
-
-**Überfällige Restore-Tests** -- Im Gotify-Block lässt sich *Warnung bei überfälligen Restore-Tests senden* einschalten (Standard: aus). Dann meldet jeder Sync VMs, deren letzter Restore-Test älter als ihr Intervall ist, einmal pro VM und Tag mit der Zahl der überfälligen Tage. Nie getestete VMs („offen“) lösen keine Warnung aus.
-
-**Wochenbericht** -- Ist E-Mail aktiv und der Schalter *Wochenbericht* gesetzt (Standard), kommt jeden Montag ab 7 Uhr eine gestaltete HTML-Mail (mit Textversion für Mail-Programme ohne HTML): im Kopf Logo und Schriftzug wie in der Web-Oberfläche, oben das Urteil der Woche („Alles im grünen Bereich“ oder „N Punkte brauchen Aufmerksamkeit“), die Kennzahlen und je Cluster eine Zeile mit VMs, Nodes, Verschlüsselung und dem, was Aufmerksamkeit braucht (kritisch, Warnungen, fehlgeschlagene Backups, fällige Restore-Tests, Sync-Fehler), darunter die Probleme -- Backups, Verifies, fast volle Datastores (mit Füllstand) -- und als Info die Voll-Läufe der Woche und VMs mit nur einem Backup-Standort, zum Schluss der Stand der Restore-Tests. VM-Namen verlinken auf ihren Cluster (dafür muss `APP_URL` gesetzt sein). Der Button **Wochenbericht-Vorschau** zeigt den Bericht so, wie er jetzt verschickt würde. War der Server montags aus, wird der Bericht im Lauf der Woche nachgeholt.
 
 ### Einstellungs-Auditlog
 
@@ -228,16 +272,16 @@ Ein Seitenbereich fasst die NIST-CSF-2.0-Ausrichtung zusammen:
 
 ### Design umschalten
 
-Backup Sentinel unterstützt drei Design-Modi, erreichbar über die Kopfzeile:
+Backup Sentinel unterstützt drei Design-Modi. Der Umschalter in der Kopfzeile wechselt reihum:
 
 - **Hell** -- Heller Hintergrund mit dunklem Text.
 - **Dunkel** -- Dunkler Hintergrund mit hellem Text.
 - **Automatisch** -- Folgt der Betriebssystem-Einstellung (`prefers-color-scheme`).
 
-Die Auswahl wird in einem Browser-Cookie gespeichert und bleibt sitzungsübergreifend erhalten.
+Die Auswahl wird im lokalen Speicher des Browsers (`bsentinel-theme`) abgelegt und bleibt sitzungsübergreifend erhalten. Sie gilt nur für diesen Browser.
 
 ### Sprache umschalten
 
-Die Anwendung ist vollständig zweisprachig (Deutsch und Englisch). Wechseln Sie die Sprache über das Kopfzeilen-Menu. Die Auswahl wird im Cookie `bsentinel-lang` gespeichert.
+Die Anwendung ist vollständig zweisprachig (Deutsch und Englisch). Der Sprach-Button in der Kopfzeile (DE / EN) wechselt sie. Die Auswahl wird je Browser im Cookie `bsentinel-lang` gespeichert und gilt für alle Beschriftungen der Oberfläche.
 
-Alle UI-Beschriftungen, Benachrichtigungen und generierten Berichte berücksichtigen die gewählte Sprache.
+Alles, was auf dem Server entsteht -- PDF-Berichte, Gotify- und E-Mail-Benachrichtigungen, der Wochenbericht und Sync-Logs --, verwendet die vom Administrator eingestellte Serversprache (`BSENTINEL_REPORT_LANGUAGE`, Standard Deutsch), unabhängig von der Sprache der Oberfläche.

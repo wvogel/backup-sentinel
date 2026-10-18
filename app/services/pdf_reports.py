@@ -124,7 +124,6 @@ _PDF_LABELS_DE: dict[str, str] = {
     "size": "Größe",
     "encrypted": "Verschlüsselt",
     "encrypted_short": "Verschl.",
-    "verified": "Verifiziert",
     "verify_short": "Verif.",
     "status": "Status",
     "node": "Node",
@@ -176,7 +175,6 @@ _PDF_LABELS_EN: dict[str, str] = {
     "size": "Size",
     "encrypted": "Encrypted",
     "encrypted_short": "Encrypted",
-    "verified": "Verified",
     "verify_short": "Verify",
     "status": "Status",
     "node": "Node",
@@ -817,7 +815,7 @@ def _write_backup_period_pdf(report: dict, target: Path, notifications: list[dic
         Spacer(1, 4 * mm),
     ]
 
-    # Feature 8: Month-over-month comparison
+    # Month-over-month comparison
     comparison = report.get("comparison")
     if comparison and comparison.get("has_previous"):
         story += _comparison_section(comparison, st, L, lang)

@@ -100,19 +100,23 @@ def theme_css() -> str:
         return ""
 
 
-def common_context(request: Request) -> dict:
-    user_name = (
+def _forwarded_user(request: Request) -> str:
+    """The signed-in user as oauth2-proxy passes it on; empty without a proxy."""
+    return (
         request.headers.get("x-forwarded-email")
         or request.headers.get("x-auth-request-email")
         or request.headers.get("x-forwarded-user")
-        or t("common.logged_in")
+        or ""
     )
+
+
+def common_context(request: Request) -> dict:
     return {
         "request": request,
         "logout_url": LOGOUT_URL,
         "brand_logo_light_url": BRAND_LOGO_LIGHT_URL,
         "brand_logo_dark_url": BRAND_LOGO_DARK_URL,
-        "current_user": user_name,
+        "current_user": _forwarded_user(request) or t("common.logged_in"),
         "app_version": APP_VERSION,
         "footer_links": _footer_links,
         "copyright_text": COPYRIGHT_TEXT,
@@ -122,12 +126,7 @@ def common_context(request: Request) -> dict:
 
 
 def settings_actor(request: Request) -> str:
-    return (
-        request.headers.get("x-forwarded-email")
-        or request.headers.get("x-auth-request-email")
-        or request.headers.get("x-forwarded-user")
-        or t("common.unknown_user")
-    )
+    return _forwarded_user(request) or t("common.unknown_user")
 
 
 def mask_setting_value(key: str, value: str) -> str:

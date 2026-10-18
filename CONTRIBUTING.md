@@ -101,7 +101,7 @@ backup-sentinel/
 3. Run `ruff check` and `ruff format --check` — both should be clean.
 4. Run `pytest` — all tests should pass.
 5. Update documentation in `docs/` if you change user-visible behavior.
-6. Update `CHANGELOG.md` under `[Unreleased]`.
+6. Add an entry to `CHANGELOG.md` under a new version heading (`## [vX.Y.Z] — YYYY-MM-DD`, as in the existing entries).
 7. Open a PR with a clear description of what and why.
 
 ## Adding a Translation

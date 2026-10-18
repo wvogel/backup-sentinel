@@ -431,9 +431,9 @@ def cleanup_stale_inprogress_backups(cluster_id: int, max_age_hours: int = 48) -
          36 hours, delete the stub — it's the same successful job.
          This also repairs rows that an earlier buggy version of this
          function marked as `status='failed'`.
-      2. Only truly orphaned stubs — no newer OK row AND started >48h ago —
-         are marked as failed. 48h safely covers even the longest real
-         backup jobs while still catching genuinely abandoned runs.
+      2. Only truly orphaned stubs — no newer OK row AND older than
+         `max_age_hours` — are marked as failed. The sync passes 6 h; the
+         dashboard asks PVE live, so longer backups still show as running.
 
     Returns the total number of rows affected (deleted + marked failed).
     """

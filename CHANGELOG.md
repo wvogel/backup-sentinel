@@ -5,6 +5,22 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.13] — 2026-10-18
+
+### Fixed
+
+- **Restore tests "this month" counted the same month of earlier years** too; now only the current month of the current year.
+- **Report archive showed "adhoc"** as the mode of reports made with "PDF snapshot"; they now say "manual" (older entries too).
+- **Delete-cluster dialog** nested the cluster name in two bold tags.
+- **Confirm dialog** had no background (it used colour variables that don't exist); it now uses the card colours.
+- **PBS sync log** no longer starts with a raw "DEBUG:" line of PBS JSON.
+- **Gotify description in the settings** now lists everything that is sent, not only syncs, critical backups and anomalies.
+
+### Changed
+
+- **Cleanup.** Removed the unused `/api/connection-status` endpoint, five unused texts, an unused PDF label and unused data on the overview. Manual and monthly reports are written by one shared function instead of two copies. The header links and toggles take their colours from the theme, so custom header colours reach them. The stylesheet lost about 90 lines of duplicate, dead and overridden rules and needless `!important`s and got tokens for pill radius and monospace font — the pages look the same, checked by pixel comparison.
+- **Documentation brought in line with the code**, in German and English: CI/CD (webhook deploy, no SSH), the rights the bootstrap scripts really grant (PBS: Admin), the routes without login, all environment variables with their real defaults, the external Docker networks, which alerts go by Gotify and which by email, quiet hours, the notifications page, the report archive, appearance settings, theme and language, `backup.sh`, the Prometheus metrics and the dev setup. `.env.example` no longer suggests an invalid secret key.
+
 ## [v2.41.12] — 2026-10-18
 
 ### Fixed

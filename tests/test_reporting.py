@@ -41,6 +41,14 @@ class ReportingTests(unittest.TestCase):
         self.assertEqual(summary["restore_critical"], 1)
         self.assertGreaterEqual(summary["tested_this_month"], 1)
 
+    def test_tests_from_the_same_month_last_year_do_not_count(self) -> None:
+        now = datetime.now(UTC)
+        restore_tests = [{"tested_at": now}, {"tested_at": now.replace(year=now.year - 1, day=1)}]
+
+        summary = build_compliance_summary([], restore_tests)
+
+        self.assertEqual(summary["tested_this_month"], 1)
+
     def test_filter_reportable_backup_events_keeps_recent_removed(self) -> None:
         reference = datetime(2026, 3, 29, 12, 0, tzinfo=UTC)
         events = [

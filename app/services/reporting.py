@@ -125,9 +125,12 @@ def build_month_comparison(
 
 
 def build_compliance_summary(governance_rows: list[dict], restore_tests: list[dict]) -> dict:
+    now = datetime.now(UTC)
     return {
         "restore_required": sum(1 for row in governance_rows if row["restore_required"]),
         "restore_overdue": sum(1 for row in governance_rows if row["restore_due_status"] in RESTORE_DUE_STATUSES),
         "restore_critical": sum(1 for row in governance_rows if row["restore_due_status"] == "critical"),
-        "tested_this_month": sum(1 for row in restore_tests if row["tested_at"].month == datetime.now(UTC).month),
+        "tested_this_month": sum(
+            1 for row in restore_tests if (row["tested_at"].year, row["tested_at"].month) == (now.year, now.month)
+        ),
     }
