@@ -1,113 +1,76 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 410">
-  <!-- Background -->
-  <rect width="900" height="410" rx="12" fill="#0d1220"/>
-
-  <!-- Title -->
-  <text x="450" y="28" text-anchor="middle" fill="#e2e8f0" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="16" font-weight="700" letter-spacing=".5">Backup Sentinel  —  Architecture</text>
-
-  <!-- ── Admin ─────────────────────────────────────────────────────── -->
-  <rect x="30" y="100" width="110" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="85" y="127" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10">Admin</text>
-  <text x="85" y="143" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Browser</text>
-
-  <!-- ── OAuth2-Proxy ──────────────────────────────────────────────── -->
-  <rect x="190" y="100" width="120" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="250" y="127" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">OAuth2-Proxy</text>
-  <text x="250" y="143" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">OIDC / Entra ID</text>
-
-  <!-- ── App (FastAPI) ─────────────────────────────────────────────── -->
-  <rect x="370" y="75" width="160" height="110" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <rect x="370" y="75" width="160" height="28" rx="8" fill="#d4650f"/>
-  <rect x="370" y="93" width="160" height="10" fill="#d4650f"/>
-  <text x="450" y="94" text-anchor="middle" fill="#fff" font-family="Inter,system-ui,sans-serif" font-size="11" font-weight="700">App (FastAPI)</text>
-  <text x="450" y="125" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Jinja2 Templates</text>
-  <text x="450" y="140" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Sync &amp; Reporting</text>
-  <text x="450" y="155" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="9">Notifications</text>
-  <text x="450" y="170" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">:80 / Uvicorn</text>
-
-  <!-- ── PostgreSQL 18 ─────────────────────────────────────────────── -->
-  <rect x="370" y="245" width="160" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="450" y="272" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PostgreSQL 18</text>
-  <text x="450" y="288" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Clusters, VMs, Events, Reports</text>
-
-  <!-- ── PVE API ───────────────────────────────────────────────────── -->
-  <rect x="620" y="45" width="140" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="690" y="71" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PVE API</text>
-  <text x="690" y="88" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Cluster, Nodes, VMs, Backups</text>
-
-  <!-- ── PBS API ───────────────────────────────────────────────────── -->
-  <rect x="620" y="125" width="140" height="60" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="690" y="151" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">PBS API</text>
-  <text x="690" y="168" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Snapshots, Verify, Encryption</text>
-
-  <!-- ── Gotify ────────────────────────────────────────────────────── -->
-  <rect x="620" y="210" width="140" height="50" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="690" y="233" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">Gotify</text>
-  <text x="690" y="248" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">Push Notifications</text>
-
-  <!-- ── SMTP ──────────────────────────────────────────────────────── -->
-  <rect x="620" y="280" width="140" height="50" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="690" y="303" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">SMTP</text>
-  <text x="690" y="318" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">E-Mail Alerts &amp; Reports</text>
-
-  <!-- ── Reports Volume ────────────────────────────────────────────── -->
-  <rect x="370" y="345" width="160" height="50" rx="8" fill="#152036" stroke="#334155" stroke-width="1"/>
-  <text x="450" y="368" text-anchor="middle" fill="#94a3b8" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600">Reports &amp; Audit</text>
-  <text x="450" y="383" text-anchor="middle" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8">PDF / JSON  (/reports)</text>
-
-  <!-- ── Auto-Sync Loop ────────────────────────────────────────────── -->
-  <rect x="810" y="100" width="70" height="46" rx="20" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3"/>
-  <text x="845" y="120" text-anchor="middle" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="9" font-weight="600">Auto</text>
-  <text x="845" y="134" text-anchor="middle" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="9" font-weight="600">Sync</text>
-
-  <!-- ═══ Arrows ════════════════════════════════════════════════════ -->
-
-  <!-- Admin → OAuth2-Proxy -->
-  <line x1="140" y1="130" x2="183" y2="130" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="188,130 180,126 180,134" fill="#60a5fa"/>
-  <text x="164" y="123" text-anchor="middle" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">HTTPS</text>
-
-  <!-- OAuth2-Proxy → App -->
-  <line x1="310" y1="130" x2="363" y2="130" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="368,130 360,126 360,134" fill="#60a5fa"/>
-  <text x="339" y="123" text-anchor="middle" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">Auth</text>
-
-  <!-- App → PostgreSQL -->
-  <line x1="450" y1="185" x2="450" y2="238" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="450,243 446,235 454,235" fill="#60a5fa"/>
-  <text x="463" y="216" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">SQL</text>
-
-  <!-- App → PVE API -->
-  <line x1="530" y1="100" x2="610" y2="78" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,75 609,74 611,82" fill="#60a5fa"/>
-  <text x="570" y="82" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">API</text>
-
-  <!-- App → PBS API -->
-  <line x1="530" y1="130" x2="610" y2="148" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,150 609,152 611,144" fill="#60a5fa"/>
-  <text x="570" y="135" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">API</text>
-
-  <!-- App → Gotify -->
-  <line x1="530" y1="155" x2="611" y2="227" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,233 608,231 614,225" fill="#60a5fa"/>
-  <text x="566" y="187" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">Push</text>
-
-  <!-- App → SMTP -->
-  <line x1="530" y1="165" x2="611" y2="296" stroke="#60a5fa" stroke-width="1.4"/>
-  <polygon points="618,302 608,299 614,293" fill="#60a5fa"/>
-  <text x="558" y="240" fill="#60a5fa" font-family="Inter,system-ui,sans-serif" font-size="8">E-Mail</text>
-
-  <!-- App → Reports -->
-  <line x1="450" y1="185" x2="450" y2="338" stroke="#60a5fa" stroke-width="1.4" stroke-dasharray="4 3"/>
-  <polygon points="450,343 446,335 454,335" fill="#60a5fa"/>
-  <text x="433" y="330" fill="#64748b" font-family="Inter,system-ui,sans-serif" font-size="8" text-anchor="end">Volume</text>
-
-  <!-- Auto-Sync → PVE -->
-  <path d="M810,118 Q785,75 767,75" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3"/>
-  <polygon points="762,75 769,71 769,79" fill="#f59e0b"/>
-
-  <!-- Auto-Sync → PBS -->
-  <path d="M810,128 Q785,155 767,155" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4 3"/>
-  <polygon points="762,155 769,151 769,159" fill="#f59e0b"/>
-  <text x="800" y="68" text-anchor="end" fill="#f59e0b" font-family="Inter,system-ui,sans-serif" font-size="7">every 60 min</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 470">
+<rect width="960" height="470" rx="12" fill="#131325"/>
+<text x="480.0" y="36" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="17" font-weight="700">Backup Sentinel — Architecture</text>
+<rect x="30" y="140" width="130" height="64" rx="8" fill="#1b1b34" stroke="#363668" stroke-width="1.2"/>
+<text x="95.0" y="169.5" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="12" font-weight="600">Browser</text>
+<text x="95.0" y="185.5" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">Admins, auditors</text>
+<rect x="200" y="140" width="140" height="64" rx="8" fill="#1b1b34" stroke="#363668" stroke-width="1.2"/>
+<text x="270.0" y="169.5" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="12" font-weight="600">OAuth2-Proxy</text>
+<text x="270.0" y="185.5" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">OIDC (Entra ID, Keycloak …)</text>
+<rect x="200" y="330" width="140" height="64" rx="8" fill="#1b1b34" stroke="#363668" stroke-width="1.2"/>
+<text x="270.0" y="359.5" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="12" font-weight="600">Prometheus</text>
+<text x="270.0" y="375.5" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">Metrics scraper</text>
+<rect x="380" y="70" width="280" height="210" rx="8" fill="#1b1b34" stroke="#e8e87d" stroke-width="1.4"/>
+<text x="520.0" y="98" text-anchor="middle" fill="#e8e87d" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="14" font-weight="700">Backup Sentinel</text>
+<text x="520.0" y="115" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">FastAPI · Uvicorn :80</text>
+<text x="520.0" y="148" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="11" font-weight="400">Web UI (Jinja2)</text>
+<text x="520.0" y="172" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="11" font-weight="400">Sync worker</text>
+<text x="520.0" y="196" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="11" font-weight="400">Live progress</text>
+<text x="520.0" y="220" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="11" font-weight="400">Topology diagram</text>
+<text x="520.0" y="244" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="11" font-weight="400">Reports &amp; notifications</text>
+<rect x="380" y="330" width="135" height="74" rx="8" fill="#1b1b34" stroke="#363668" stroke-width="1.2"/>
+<text x="447.5" y="358.0" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="12" font-weight="600">PostgreSQL 18</text>
+<text x="447.5" y="374.0" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">Clusters, VMs, backups,</text>
+<text x="447.5" y="387.0" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">topology, settings</text>
+<rect x="525" y="330" width="135" height="74" rx="8" fill="#1b1b34" stroke="#363668" stroke-width="1.2"/>
+<text x="592.5" y="358.0" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="12" font-weight="600">Reports</text>
+<text x="592.5" y="374.0" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">PDF / JSON</text>
+<text x="592.5" y="387.0" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">/reports volume</text>
+<rect x="720" y="60" width="210" height="60" rx="8" fill="#1b1b34" stroke="#8dd3b0" stroke-width="1.2"/>
+<text x="825.0" y="87.5" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="12" font-weight="600">Proxmox VE API</text>
+<text x="825.0" y="103.5" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">Nodes, VMs, backup jobs, task logs</text>
+<rect x="720" y="140" width="210" height="60" rx="8" fill="#1b1b34" stroke="#8dd3b0" stroke-width="1.2"/>
+<text x="825.0" y="167.5" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="12" font-weight="600">Proxmox Backup Server API</text>
+<text x="825.0" y="183.5" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">Snapshots, verify, datastores, sync jobs</text>
+<rect x="720" y="245" width="210" height="50" rx="8" fill="#1b1b34" stroke="#363668" stroke-width="1.2"/>
+<text x="825.0" y="267.5" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="12" font-weight="600">Gotify</text>
+<text x="825.0" y="283.5" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">Push alerts</text>
+<rect x="720" y="310" width="210" height="50" rx="8" fill="#1b1b34" stroke="#363668" stroke-width="1.2"/>
+<text x="825.0" y="332.5" text-anchor="middle" fill="#eeeef1" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="12" font-weight="600">SMTP</text>
+<text x="825.0" y="348.5" text-anchor="middle" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9.5" font-weight="400">Alerts, weekly report</text>
+<path d="M160,172 L198,172" fill="none" stroke="#89abcf" stroke-width="1.5"/>
+<polygon points="198,172 190.0,176.0 190.0,168.0" fill="#89abcf"/>
+<text x="179" y="165" text-anchor="middle" fill="#89abcf" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9" font-weight="500">HTTPS</text>
+<path d="M340,172 L378,172" fill="none" stroke="#89abcf" stroke-width="1.5"/>
+<polygon points="378,172 370.0,176.0 370.0,168.0" fill="#89abcf"/>
+<text x="359" y="165" text-anchor="middle" fill="#89abcf" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9" font-weight="500">Auth</text>
+<path d="M340,362 L360,362 L360,250 L378,250" fill="none" stroke="#89abcf" stroke-width="1.5"/>
+<polygon points="378,250 370.0,254.0 370.0,246.0" fill="#89abcf"/>
+<text x="354" y="325" text-anchor="end" fill="#89abcf" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9" font-weight="500">GET /metrics</text>
+<path d="M447,280 L447,328" fill="none" stroke="#89abcf" stroke-width="1.5"/>
+<polygon points="447,328 443.0,320.0 451.0,320.0" fill="#89abcf"/>
+<text x="454" y="308" text-anchor="start" fill="#89abcf" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9" font-weight="500">SQL</text>
+<path d="M592,280 L592,328" fill="none" stroke="#89abcf" stroke-width="1.5"/>
+<polygon points="592,328 588.0,320.0 596.0,320.0" fill="#89abcf"/>
+<text x="599" y="308" text-anchor="start" fill="#89abcf" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9" font-weight="500">PDF</text>
+<path d="M660,86 L718,86" fill="none" stroke="#89abcf" stroke-width="1.5"/>
+<polygon points="718,86 710.0,90.0 710.0,82.0" fill="#89abcf"/>
+<path d="M660,100 L718,100" fill="none" stroke="#89abcf" stroke-width="1.5" stroke-dasharray="5 4"/>
+<polygon points="718,100 710.0,104.0 710.0,96.0" fill="#89abcf"/>
+<path d="M660,166 L718,166" fill="none" stroke="#89abcf" stroke-width="1.5"/>
+<polygon points="718,166 710.0,170.0 710.0,162.0" fill="#89abcf"/>
+<path d="M660,180 L718,180" fill="none" stroke="#89abcf" stroke-width="1.5" stroke-dasharray="5 4"/>
+<polygon points="718,180 710.0,184.0 710.0,176.0" fill="#89abcf"/>
+<path d="M660,255 L684,255 L684,270 L718,270" fill="none" stroke="#89abcf" stroke-width="1.5"/>
+<polygon points="718,270 710.0,274.0 710.0,266.0" fill="#89abcf"/>
+<text x="702" y="264" text-anchor="middle" fill="#89abcf" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9" font-weight="500">Push</text>
+<path d="M660,268 L674,268 L674,335 L718,335" fill="none" stroke="#89abcf" stroke-width="1.5"/>
+<polygon points="718,335 710.0,339.0 710.0,331.0" fill="#89abcf"/>
+<text x="697" y="329" text-anchor="middle" fill="#89abcf" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="9" font-weight="500">E-Mail</text>
+<path d="M380,438 L414,438" fill="none" stroke="#89abcf" stroke-width="1.5"/>
+<polygon points="414,438 406.0,442.0 406.0,434.0" fill="#89abcf"/>
+<text x="422" y="441.5" text-anchor="start" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="10" font-weight="400">Sync: every 60 min (configurable) and on demand</text>
+<path d="M380,456 L414,456" fill="none" stroke="#89abcf" stroke-width="1.5" stroke-dasharray="5 4"/>
+<polygon points="414,456 406.0,460.0 406.0,452.0" fill="#89abcf"/>
+<text x="422" y="459.5" text-anchor="start" fill="#aeaec2" font-family="Inter,Segoe UI,system-ui,sans-serif" font-size="10" font-weight="400">Live: every 30 s while backups or replications run</text>
 </svg>

@@ -1,6 +1,6 @@
 # Backup Sentinel -- Benutzerhandbuch
 
-![Screenshot](screenshot-overview.png)
+![Übersicht](screenshot-overview-de.png)
 
 ## Inhaltsverzeichnis
 
@@ -16,39 +16,24 @@
 
 Das Dashboard (`/`) bietet eine Gesamt-Übersicht über alle überwachten Proxmox-Cluster.
 
-### Gesundheitsleiste (Health Bar)
-
-Am oberen Seitenrand zeigt eine farbige Leiste jeden Cluster als Segment an:
-
-| Farbe  | Bedeutung                                         |
-|--------|---------------------------------------------------|
-| Grün  | Alle Backups OK, keine Warnungen                  |
-| Gelb   | Mindestens eine Warnung (z. B. veralteter Sync)   |
-| Rot    | Kritische Probleme (fehlgeschlagene Backups, Sync-Fehler) |
-| Grau   | Nie synchronisiert / unbekannter Status           |
-
-Ein **stale**-Badge erscheint, wenn Syncs über längere Zeit fehlschlagen. Klicken Sie auf ein Segment, um zur Cluster-Detailseite zu gelangen.
-
 ### KPI-Karten
 
-Unterhalb der Gesundheitsleiste werden vier Zusammenfassungskarten angezeigt:
+Oben stehen vier Kennzahlen zu den Restore-Tests:
 
-- **Restore-Abdeckung** -- Ein Ringdiagramm mit dem Prozentsatz der VMs, die einen dokumentierten Restore-Test haben (z. B. 85 %). Die Farbe wechselt von Grün (>= 80 %) über Gelb (>= 50 %) zu Rot (< 50 %).
-- **Restore überfällig** -- Anzahl der VMs, deren Restore-Test-Intervall abgelaufen ist.
-- **Restore kritisch** -- Anzahl der VMs im kritischen Restore-Test-Status.
-- **Diesen Monat getestet** -- Anzahl der im laufenden Kalendermonat dokumentierten Restore-Tests.
+- **Restore-Abdeckung** -- Ein Ring mit dem Anteil der VMs, die einen dokumentierten Restore-Test haben (z. B. „12/83“). Die Farbe wechselt von Grün (>= 80 %) über Gelb (>= 50 %) zu Rot (< 50 %).
+- **Restore-Tests fällig** -- VMs, deren Restore-Test-Intervall abgelaufen ist oder bald abläuft.
+- **Restore kritisch überfällig** -- VMs, deren Restore-Test deutlich überfällig ist.
+- **Restore-Tests im Monat** -- Im laufenden Kalendermonat dokumentierte Restore-Tests.
 
-### Cluster-Karten
+### Cluster-Zeilen
 
-Jeder Cluster wird als Karte dargestellt mit:
+Darunter folgt je Cluster eine Zeile, alle gleich hoch:
 
-- Clustername mit Gesamtstatus-Badge (OK / Warnung / Kritisch).
-- Punkt vor dem Clusternamen: wie aktuell die Daten sind. Grün = letzter Sync erfolgreich und höchstens zwei Sync-Intervalle her (ein ausgelassener Lauf ist in Ordnung), gelb = länger her oder der letzte Versuch schlug fehl, rot = seit über 24 Stunden kein erfolgreicher Sync. Der Tooltip nennt den letzten erfolgreichen Sync und ggf. „Fehler seit“.
-- Anzahl der Nodes, VMs und eine Aufschlüsselung der Backup-Status. Hat der Cluster ein Quorum-Device (QDevice), steht in der Nodes-Kachel ein kleines „+Q“ neben der Zahl (Tooltip: Zustand und QNetd-Host); ist es nicht verbunden, wird die Kachel gelb.
-- PBS-Verbindungsstatus (sofern konfiguriert).
-- Aktuelle Restore-Test-Ergebnisse als kompakte Icons.
+- **Name** des Clusters, darunter die **Sync-Symbole**: ein Server-Symbol für PVE und ein Datenbank-Symbol je PBS. Ihre Farbe zeigt, wie aktuell die Daten sind: grün = letzter Sync erfolgreich und höchstens zwei Sync-Intervalle her (ein ausgelassener Lauf ist in Ordnung), gelb = länger her oder der letzte Versuch schlug fehl, rot = seit über 24 Stunden kein erfolgreicher Sync bzw. letzter PBS-Sync fehlgeschlagen, grau = PBS noch nie synchronisiert. Ein gemeinsamer Tooltip nennt für PVE den Zustand, den letzten erfolgreichen Sync und ggf. „Fehlerzustand seit“, für jeden PBS den letzten Sync und sein Ergebnis.
+- Neben dem Namen, was **gerade läuft**: „1 Backup“, „2 Backups“, „1 Replikation“ mit drehendem Symbol (Tooltip: die VMs bzw. Quelle → Ziel). Ist wenig Platz, rutschen sie neben die Symbole; die Zeile wird dadurch nicht höher.
+- Rechts die **Kacheln**: Nodes, VMs, kritisch, Warnungen, verschlüsselt, Restore fällig. Kacheln mit Handlungsbedarf sind farbig umrandet. Hat der Cluster ein Quorum-Device (QDevice), steht in der Nodes-Kachel ein kleines „+Q“ neben der Zahl (Tooltip: Zustand und QNetd-Host); ist es nicht verbunden, wird die Kachel gelb.
 
-Klicken Sie auf eine Cluster-Karte, um zur Detailseite zu navigieren.
+Klicken Sie auf eine Cluster-Zeile, um zur Detailseite zu navigieren.
 
 ---
 
@@ -56,13 +41,15 @@ Klicken Sie auf eine Cluster-Karte, um zur Detailseite zu navigieren.
 
 Die Cluster-Detailseite (`/clusters/<slug>`) bietet einen detaillierten Einblick in einen einzelnen Proxmox-Cluster.
 
+![Cluster-Detailseite](screenshot-cluster-de.png)
+
 ### Sync-Status
 
 Im oberen Bereich zeigt die Hero-Sektion:
 
 - **Sync-Button** -- Löst eine sofortige Neusynchronisation des Clusters aus.
-- **PVE-Sync-Status** -- Ein farbiger Punkt (grün = Erfolg, rot = Fehler, grau = nie synchronisiert) mit dem letzten Sync-Zeitstempel. Klicken Sie auf den Punkt, um das vollständige Sync-Log anzuzeigen.
-- **PBS-Sync-Status** -- Eine Zeile pro verbundenem PBS mit demselben Punkt + Zeitstempel-Muster.
+- **Sync-Status** -- Im Schaubild (siehe *Backup-Ziele und Replikation*) ist das Server-Symbol des Clusters (PVE) und das Datenbank-Symbol jedes PBS farbig wie auf der Übersicht; der Tooltip nennt Zustand und letzten Sync. Ohne Schaubild stehen die Symbole in der Kopfzeile.
+- **Sync-Log** -- Ein Klick auf ein Sync-Symbol öffnet das Log in einem Fenster über der Seite, ans Ende gescrollt. Das Kopier-Symbol oben rechts kopiert das ganze Log (ein Haken bestätigt es); ×, Esc oder ein Klick daneben schließen es. Läuft gerade ein Sync, erscheint dort das Live-Log. Dasselbe Fenster zeigt auch die Notiz eines Restore-Tests.
 
 ### Statistik-Kacheln
 
@@ -103,11 +90,11 @@ Die Zeilen sind abwechselnd hinterlegt. **Ein Klick auf eine Zeile** (erkennbar 
 
 **Zweitkopie und Verify** -- Die Pill in der Spalte Schutz zeigt, auf wie vielen Servern die Backups der letzten 7 Tage liegen (z. B. **×2**), und den Verify-Status des PBS: **✓** verifiziert, **?** seit über 30 Tagen nicht verifiziert, **✗** Verify fehlgeschlagen. Grün = mindestens 2 Server und verifiziert; blau = ein Server und verifiziert (in Ordnung, nur ohne Zweitkopie); gelb = nicht verifiziert; rot = Verify fehlgeschlagen (dazu kommt eine Benachrichtigung). Ein PBS zählt als ein Server, auch wenn er in PVE unter einem anderen Storage-Namen, per IP oder ohne Fingerabdruck (z. B. mit ACME-Zertifikat) eingetragen ist: Backup Sentinel ordnet den PVE-Storage der registrierten PBS-Verbindung zu (Fingerabdruck, Hostname, Kurzname oder aufgelöste IP) und zeigt im Tooltip die Servernamen. Als aktuell zählt eine Kopie, wenn ihr letztes Backup höchstens 7 Tage alt ist; wird der Server von einem wöchentlichen Sync-Job beliefert, 9 Tage (eine Woche zwischen den Kopien plus Backup-Tag und Puffer). Der Tooltip nennt je Server die letzte Kopie und markiert zu alte mit „zählt nicht“. Ziel-Namespaces von Sync-Jobs, die Backups dieses Clusters kopieren, liest Backup Sentinel automatisch mit.
 
-**Backup-Ziele und Replikation** -- Rechts im Cluster-Kopf zeigt ein Schaubild, wohin die Backups gehen: vom Cluster (PVE) zu den Datastores, in die PVE direkt sichert (laut PBS-Storages in der PVE-Konfiguration), und von dort über die Sync-Jobs der PBS weiter zu ihren Kopien (Pull, Push und lokale Syncs; gestrichelte Linie, blau = letzter Lauf OK, gelb = mit Warnungen, rot = fehlgeschlagen, grau = noch nie gelaufen). Direkte Verbindungen sind breite Leitungen mit gefüllter Pfeilspitze in Datenrichtung, Replikationen bestehen aus Blöcken; Linien, die außen herum laufen, sind dünn. In Ruhe sind die Leitungen gedämpft und stehen still. Läuft ein Backup oder ein Sync, leuchtet seine Leitung auf, ein weicher Lichtstreifen läuft wie in einer laufenden VM-Zeile hindurch und die Blöcke einer Replikation bewegen sich (bei Backups die Linie zu den Storages, in die die Backup-Jobs der VM schreiben). Alle Animationen laufen im Takt der Uhr: Das Nachladen alle 30 Sekunden oder ein Neuladen der Seite setzt sie nicht zurück, sie laufen nahtlos weiter. „PVE · n VMs“ zählt nur direkte Backups laut den Backup-Jobs von PVE (Auswahl nach VMIDs, alle mit Ausschlüssen, Pool, Node); Kopien, die ein Sync-Job in denselben Datastore holt, zählen nicht. Ein in PVE eingetragener Storage ohne Backup-Job bekommt keine PVE-Linie. Daneben zeigt „Sync · n VMs“ bei einem Datastore, in den Sync-Jobs kopieren, wie viele Gäste dieses Clusters dort eine aktuelle Kopie liegen haben, ohne die direkt dorthin gesicherten (Stand des letzten Syncs). Aktuell heißt wie in der Schutz-Spalte: höchstens 7 Tage alt, bei wöchentlichen Sync-Jobs 9. Gäste, von denen dort nur ältere Kopien liegen – der Sync bringt sie nicht mehr –, stehen gelb als „n veraltet“ dahinter; der Tooltip nennt sie mit dem Datum ihrer letzten Kopie. Ein laufender Sync zeigt am Ziel-Datastore denselben drehenden Ring wie ein laufendes Backup mit seinem Fortschritt (aus dem Task-Log des PBS, alle 30 Sekunden nachgeladen) und „läuft seit 22:47“. Zwischen zwei Kästen gibt es immer genau eine waagerechte Verbindung, auch wenn mehrere Datastores oder Jobs dazwischen liegen; sie zeigt den auffälligsten Zustand (läuft vor fehlgeschlagen, Warnung, OK). Ein PBS kann dabei für einen Datastore Primärziel und für einen anderen Kopie sein; sichern sich zwei PBS gegenseitig, gibt es Pfeile in beide Richtungen. Kopien werden je Namespace verfolgt, sodass ein Datastore mit den Kopien mehrerer Cluster nur die eigenen zeigt. Der Sync-Status steht als Punkt im Cluster-Kasten (PVE) und in der Kopfzeile jedes PBS-Kastens (grün = OK, rot = Fehler, grau = noch nie); der Tooltip zeigt die Zeit, ein Klick öffnet das Sync-Log. Das Schaubild wird bei jedem Sync vorberechnet, damit die Seite schnell lädt. Unter jeder Kopie stehen Quelle und letzter Lauf, im Tooltip Zeitplan, Namespaces und nächster Lauf. PBS, die nicht in Backup Sentinel registriert sind, erscheinen gestrichelt mit dem Namen aus der Remote-Konfiguration und ohne Belegung.
+**Backup-Ziele und Replikation** -- Rechts im Cluster-Kopf zeigt ein Schaubild, wohin die Backups gehen: vom Cluster (PVE) zu den Datastores, in die PVE direkt sichert (laut PBS-Storages in der PVE-Konfiguration), und von dort über die Sync-Jobs der PBS weiter zu ihren Kopien (Pull, Push und lokale Syncs; gestrichelte Linie, blau = letzter Lauf OK, gelb = mit Warnungen, rot = fehlgeschlagen, grau = noch nie gelaufen). Direkte Verbindungen sind breite Leitungen mit gefüllter Pfeilspitze in Datenrichtung, Replikationen bestehen aus Blöcken; Linien, die außen herum laufen, sind dünn. In Ruhe sind die Leitungen gedämpft und stehen still. Läuft ein Backup oder ein Sync, leuchtet seine Leitung auf, ein weicher Lichtstreifen läuft wie in einer laufenden VM-Zeile hindurch und die Blöcke einer Replikation bewegen sich (bei Backups die Linie zu den Storages, in die die Backup-Jobs der VM schreiben). Alle Animationen laufen im Takt der Uhr: Das Nachladen alle 30 Sekunden oder ein Neuladen der Seite setzt sie nicht zurück, sie laufen nahtlos weiter. „PVE · n VMs“ zählt nur direkte Backups laut den Backup-Jobs von PVE (Auswahl nach VMIDs, alle mit Ausschlüssen, Pool, Node); Kopien, die ein Sync-Job in denselben Datastore holt, zählen nicht. Ein in PVE eingetragener Storage ohne Backup-Job bekommt keine PVE-Linie. Daneben zeigt „Sync · n VMs“ bei einem Datastore, in den Sync-Jobs kopieren, wie viele Gäste dieses Clusters dort eine aktuelle Kopie liegen haben, ohne die direkt dorthin gesicherten (Stand des letzten Syncs). Aktuell heißt wie in der Schutz-Spalte: höchstens 7 Tage alt, bei wöchentlichen Sync-Jobs 9. Gäste, von denen dort nur ältere Kopien liegen – der Sync bringt sie nicht mehr –, stehen gelb als „n veraltet“ dahinter; der Tooltip nennt sie mit dem Datum ihrer letzten Kopie. Ein laufender Sync zeigt in seiner eigenen Zeile unter dem Ziel-Datastore einen kleinen drehenden Ring mit seinem Fortschritt (aus dem Task-Log des PBS, alle 30 Sekunden nachgeladen); laufen mehrere Syncs in denselben Datastore, steht jeder mit seinem Ring untereinander. „Läuft seit“ steht im Tooltip des Rings. Ist der Sync fertig, zeigt die Zeile wieder Haken und „gerade fertig“. Zwischen zwei Kästen gibt es immer genau eine waagerechte Verbindung, auch wenn mehrere Datastores oder Jobs dazwischen liegen; sie zeigt den auffälligsten Zustand (läuft vor fehlgeschlagen, Warnung, OK). Ein PBS kann dabei für einen Datastore Primärziel und für einen anderen Kopie sein; sichern sich zwei PBS gegenseitig, gibt es Pfeile in beide Richtungen. Kopien werden je Namespace verfolgt, sodass ein Datastore mit den Kopien mehrerer Cluster nur die eigenen zeigt. Der Sync-Status steckt im Symbol vor dem Cluster-Namen (PVE) und vor dem Namen jedes PBS (Farben wie auf der Übersicht); der Tooltip zeigt Zustand und Zeit, ein Klick öffnet das Sync-Log. Das Schaubild wird bei jedem Sync vorberechnet, damit die Seite schnell lädt. Unter jeder Kopie stehen Quelle (mit Namespace, falls gesetzt) und letzter Lauf, im Tooltip Zeitplan, Namespaces und nächster Lauf. PBS, die nicht in Backup Sentinel registriert sind, erscheinen gestrichelt mit dem Namen aus der Remote-Konfiguration und ohne Belegung.
 
 **PBS-Speicherplatz** -- Jeder Datastore im Schaubild ist ein Ring mit seiner Belegung und, falls er voll läuft, der Prognose des PBS („voll ca. 04/27“). Gelb ab 80 % oder voll in ≤ 60 Tagen, rot ab 90 % oder voll in ≤ 14 Tagen (dann auch als Benachrichtigung). Läuft ein Datastore laut Prognose in den nächsten 30 Tagen voll, steht ein Warndreieck neben dem Namen (gelb, rot ab ≤ 14 Tagen; Tooltip: Tage und Datum). Eine Prognose in der Vergangenheit (sinkende Belegung) wird ignoriert.
 
-**Laufende Backups** -- Über der Tabelle erscheint für jedes gerade laufende Backup eine Kachel mit Fortschrittsring, geschriebener Datenmenge, voraussichtlichem Ende und Durchsatz (↓ Lesen, ↑ Schreiben, ⇅ wenn beides gleich ist); der ganze Ring dreht sich langsam und pulsiert, sodass auch ein Bogen von wenigen Prozent sichtbar wandert. Läuft ein Backup deutlich länger als üblich, steht „langsam, sonst 40 min“ darunter. Ein Klick springt zur VM. In der Tabelle ist die Zeile bis zum aktuellen Prozentwert eingefärbt und links blau markiert; der Hinweis zeigt Start, ETA und Datenmenge. Die Anzeige aktualisiert sich alle 30 Sekunden, ohne die Seite neu zu laden; die Seite selbst wartet nie auf PVE, sondern holt den Fortschritt direkt nach dem Laden nach. Auf der Übersicht zeigt jede Cluster-Karte, wie viele Backups laufen, und „Replikation läuft“, solange ein Sync-Job eines PBS in die Datastores des Clusters kopiert (Tooltip: Quelle → Ziel).
+**Laufende Backups** -- Über der Tabelle erscheint für jedes gerade laufende Backup eine Kachel mit Fortschrittsring, geschriebener Datenmenge, voraussichtlichem Ende und Durchsatz (↓ Lesen, ↑ Schreiben, ⇅ wenn beides gleich ist); der ganze Ring dreht sich langsam und pulsiert, sodass auch ein Bogen von wenigen Prozent sichtbar wandert. Läuft ein Backup deutlich länger als üblich, steht „langsam, sonst 40 min“ darunter. Ein Klick springt zur VM. In der Tabelle ist die Zeile bis zum aktuellen Prozentwert eingefärbt und links blau markiert; der Hinweis zeigt Start, ETA und Datenmenge. Die Anzeige aktualisiert sich alle 30 Sekunden, ohne die Seite neu zu laden; die Seite selbst wartet nie auf PVE, sondern holt den Fortschritt direkt nach dem Laden nach. Auf der Übersicht zeigt jede Cluster-Zeile, wie viele Backups laufen, und „1 Replikation“, solange ein Sync-Job eines PBS in die Datastores des Clusters kopiert (Tooltip: Quelle → Ziel).
 
 **Gelöschte VMs** -- VMs, die im Proxmox-Cluster nicht mehr existieren, erscheinen ausgegraut mit dem Badge **gelöscht** (Tooltip: seit wann), solange noch Backups von ihnen vorhanden sind. Sie lösen keine Backup- oder Restore-Warnungen aus. Sobald keine Backups mehr existieren, wird die VM beim nächsten Sync samt Restore-Test-Historie aus der Datenbank entfernt -- allerdings nur, wenn in diesem Sync alle PVE-Nodes, -Speicher und PBS-Datastores erreichbar waren.
 
@@ -183,8 +170,7 @@ Jeder registrierte Cluster wird als Karte angezeigt mit:
 - **Clustername-Link** -- Navigiert zur Cluster-Detailseite.
 - **Umbenennen-Button** -- Ändert den Anzeigenamen.
 - **Löschen-Button** -- Entfernt den Cluster und alle zugehörigen Daten.
-- **PVE-URL** -- Der konfigurierte API-Endpunkt.
-- **Letzte Sync** -- Zeitstempel der letzten erfolgreichen Synchronisation.
+- **PVE-URL** -- Der konfigurierte API-Endpunkt, davor das PVE-Sync-Symbol (Farben wie auf der Übersicht, Tooltip mit dem letzten Sync, Klick öffnet das Log).
 
 ### PBS-Verbindungen
 
@@ -193,7 +179,7 @@ Jede Cluster-Karte hat einen "PBS hinzufügen"-Bereich, um einen Proxmox Backup 
 1. **PBS-Name** eingeben (Anzeige-Label).
 2. **PBS-API-URL** eingeben.
 3. Ein Bootstrap-Skript wird angezeigt, das auf dem PBS-Host ausgeführt werden muss.
-4. Nach der Verbindung erscheint der PBS unter dem Cluster mit eigenem Sync-Status.
+4. Nach der Verbindung erscheint der PBS unter dem Cluster mit eigenem Sync-Symbol (Klick öffnet sein Log).
 
 PBS-Verbindungen können einzeln entfernt werden.
 

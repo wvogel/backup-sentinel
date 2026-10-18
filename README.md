@@ -14,20 +14,26 @@
 
 Compliance-focused monitoring for Proxmox backup infrastructure. Track backup status, encryption, verification, and document restore tests across PVE clusters and PBS instances — aligned with NIST CSF 2.0 and NIS2 requirements.
 
-![Screenshot](docs/screenshot-overview.png)
+![Overview](docs/screenshot-overview.png)
+
+![Cluster detail](docs/screenshot-cluster.png)
 
 ![Architecture](docs/architecture-en.svg)
 
 ## Features
 
-- **Dashboard** — Health bar, KPI cards (restore coverage, overdue tests), cluster overview with sync status
-- **Cluster Detail** — Per-VM backup status with 30-day sparklines, backup policy overrides, encryption audit
-- **Restore Test Documentation** — Record and track recovery tests (full, partial, file-based) for compliance evidence
-- **Monthly Reports** — Auto-generated PDF/JSON reports with per-cluster and per-VM breakdown, archive for audit
-- **Notifications** — Gotify push and SMTP email alerts for failed syncs, critical backups, and anomalies
-- **Multi-cluster** — Monitor multiple PVE clusters and PBS instances from a single dashboard
-- **Governance** — NIST CSF 2.0 / NIS2 mapping (Identify, Protect, Detect, Recover)
-- **Internationalization** — Full German and English UI with one-click language switching
+- **Overview** — Restore-test KPIs and one row per cluster: PVE and PBS sync state as colored symbols, running backups and replications, tiles for nodes, VMs, critical, warnings, encryption and restore tests due
+- **Cluster detail** — Per-VM backup status with 30-day history bars, protection (PBS copies, offsite), backup policy overrides, encryption audit
+- **Backup topology** — Diagram of where backups go: PVE → PBS datastores → replicas (pull, push, local sync jobs), with datastore usage, fill-up forecast, per-namespace copy counts and live animation while data moves
+- **Live progress** — Running backups (percent, ETA, throughput, "slow" hint) and running PBS replications, refreshed every 30 s without reloading
+- **Logs** — Sync logs and restore-test notes open in a dialog with one-click copy
+- **Restore test documentation** — Record and track recovery tests (full, partial, file-based) for compliance evidence
+- **Reports** — Monthly PDF/JSON reports with per-cluster and per-VM breakdown, archive for audit; weekly HTML email summary
+- **Notifications** — Gotify push and SMTP email for failed syncs, critical backups, slow backups, datastores filling up, and anomalies
+- **Multi-cluster** — Monitor multiple PVE clusters and PBS instances from one place
+- **Monitoring** — `/healthz` and Prometheus metrics at `/metrics`
+- **Governance** — NIST CSF 2.0 / NIS2 mapping (Identify, Protect, Detect, Recover), settings audit log
+- **Internationalization** — German and English UI with one-click switching
 - **Theme** — Light, dark, and auto (system) modes
 
 ## Requirements
@@ -95,11 +101,12 @@ All application secrets (`DB_PASSWORD`, `BSENTINEL_SECRET_KEY`, OAuth2 credentia
 backup-sentinel/
 ├── app/                  # FastAPI application
 │   ├── i18n/             # Translations (en.json, de.json)
+│   ├── services/         # PVE/PBS clients, sync, topology, reports, notifications
 │   ├── web/              # Route handlers
 │   └── ...
 ├── templates/            # Jinja2 HTML templates
 ├── static/               # CSS, JS, favicon
-├── scripts/              # Bootstrap shell scripts
+├── scripts/              # Bootstrap shell scripts, local dev harness (dev.sh)
 ├── docs/                 # Documentation and architecture diagrams
 ├── docker-compose.yml    # Container orchestration
 ├── Dockerfile            # Application container

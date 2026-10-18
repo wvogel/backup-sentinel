@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Documentation brought up to date.** README features list (topology diagram, live progress, log dialog, weekly report, Prometheus metrics); user guides in German and English (overview rows with sync symbols, KPI names, cluster page sync symbols and log dialog, replication progress per sync line); admin guides (version format). New screenshots of the overview and the cluster page in English and German, from neutral demo data. A new architecture diagram in both languages: sync worker and live progress against the PVE and PBS APIs, Prometheus, reports volume — no line crossing a box any more.
+- **Reproducible doc assets:** `scripts/architecture_diagram.py` generates the diagram, `scripts/docs_demo_data.sql` and `scripts/docs_screenshot.mjs` produce the screenshots (see `docs/dev-local.md`).
+
 ## [v2.41.10] — 2026-10-18
 
 ### Changed
