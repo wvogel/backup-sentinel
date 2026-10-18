@@ -1,7 +1,7 @@
 """Weekly summary email: what needs attention, in one message instead of many alerts.
 
-`collect()` gathers the week once; `build()` turns it into the plain-text part and
-`render_html()` into the HTML part of the same email.
+`collect()` gathers the week once; `subject()` and `text()` turn it into the subject
+and plain-text part, `render_html()` into the HTML part of the same email.
 """
 
 from __future__ import annotations

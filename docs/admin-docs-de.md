@@ -36,9 +36,9 @@ Backup Sentinel wird gegen folgende Proxmox-Versionen getestet:
 
 Ältere Versionen funktionieren möglicherweise, werden aber nicht regelmäßig getestet. Falls Sie Backup Sentinel gegen eine ältere Version einsetzen, öffnen Sie gerne ein Issue mit Ihren Ergebnissen.
 
-API-Tokens benötigen:
-- PVE: `Sys.Audit` auf `/` und `VM.Audit` auf `/vms` (Read-Only-Inventory) sowie `Datastore.Audit` für Backup-Storage-Erkennung
-- PBS: `Datastore.Audit` auf die zu überwachenden Datastores; für das Replikations-Schaubild zusätzlich Lesen der Sync-Jobs und Remotes (`Datastore.Audit` auf `/datastore`, `Remote.Audit` auf `/remote`). Fehlen diese Rechte, bleibt der PBS-Sync grün, das Sync-Log nennt den Grund.
+API-Tokens (die Bootstrap-Skripte richten sie ein, siehe [Cluster-Onboarding](#cluster-onboarding)):
+- PVE: Benutzer `backup-reports@pve`, Token `<cluster-slug>-collector`, Rolle `PVEAuditor` auf `/` und `PVEDatastoreAdmin` auf `/storage`. Das ist nicht rein lesend: PVE listet Backup-Volumes im Inhalt eines Storages nur mit `Datastore.Allocate` auf diesem Storage, und das fehlt `PVEAuditor`. Backup Sentinel selbst sendet nur lesende Anfragen.
+- PBS: Benutzer `backup-reports@pbs`, Token `<cluster-slug>-collector`, Rolle `Admin` auf `/` für Benutzer und Token (PBS-Privilege-Separation: wirksam ist die Schnittmenge aus beiden). Das lässt sich später einschränken; mindestens nötig ist `Datastore.Audit` auf die zu überwachenden Datastores, für das Replikations-Schaubild zusätzlich Lesen der Sync-Jobs und Remotes (`Datastore.Audit` auf `/datastore`, `Remote.Audit` auf `/remote`). Fehlen letztere, bleibt der PBS-Sync grün, das Sync-Log nennt den Grund.
 - PBS-Verbindung, Felder in Einstellungen → Cluster: **Namespace** beschränkt die Verbindung auf einen Namespace samt Unter-Namespaces (z. B. das Ziel eines Pull-Syncs; leer = nur Root). **Aliase** sind weitere Hostnamen oder IPs, unter denen PVE oder ein Sync-Remote diesen PBS kennt. Normalerweise erkennt Backup Sentinel einen PBS selbst (Fingerprint, Name, DNS, Zertifikat per TLS); Aliase braucht es nur, wenn er unter dem anderen Namen nicht erreichbar ist, etwa in einem getrennten Backup-Netz.
 
 ---
@@ -47,7 +47,7 @@ API-Tokens benötigen:
 
 ```bash
 # 1. Repository klonen
-git clone https://git.example.com/infra/backup-sentinel.git
+git clone https://github.com/wvogel/backup-sentinel.git
 cd backup-sentinel
 
 # 2. Konfigurationsdateien erstellen
@@ -91,23 +91,24 @@ Ihr Reverse Proxy sollte den Traffic an den OAuth2-Proxy-Container auf Port **41
 | `APP_URL` | `https://backup-sentinel.example.com` | Öffentliche URL der Anwendung. Wird in E-Mail-Benachrichtigungen und Bootstrap-Skripten verwendet. |
 | `DB_NAME` | `backup_reports` | PostgreSQL-Datenbankname. |
 | `DB_USER` | `backup_reports` | PostgreSQL-Benutzer. |
-| `DB_PASSWORD` | `backup_reports` | PostgreSQL-Passwort. **In Produktion ändern.** |
-| `BSENTINEL_DATABASE_URL` | *(abgeleitet von DB_*)* | Vollständiger PostgreSQL-Connection-String. Überschreiben für externe Datenbank. |
-| `BSENTINEL_SECRET_KEY` | *(keiner)* | **Pflicht.** Fernet-Schlüssel für die Verschlüsselung von Secrets (SMTP-Passwort, Gotify-Token) in der Datenbank. Generieren mit: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `DB_PASSWORD` | `backup_reports` | PostgreSQL-Passwort. **In Produktion ändern** -- und `BSENTINEL_DATABASE_URL` mit anpassen. |
+| `BSENTINEL_DATABASE_URL` | `postgresql://backup_reports:backup_reports@postgres:5432/backup_reports` | Vollständiger PostgreSQL-Connection-String. Wird **nicht** aus `DB_*` abgeleitet: Wer `DB_NAME`, `DB_USER` oder `DB_PASSWORD` ändert, muss ihn passend setzen. Auch für eine externe Datenbank. |
+| `BSENTINEL_SECRET_KEY` | *(leer)* | **Dringend empfohlen** – ohne ihn werden Secrets unverschlüsselt gespeichert. Fernet-Schlüssel für die Verschlüsselung von Secrets (SMTP-Passwort, Gotify-Token) in der Datenbank. Generieren mit: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `BSENTINEL_DEFAULT_TIMEZONE` | `Europe/Berlin` | Zeitzone für Anzeigeformatierung und Ruhezeiten-Berechnung. |
 | `BSENTINEL_SYNC_INTERVAL_MINUTES` | `60` | Intervall in Minuten für die automatische Hintergrund-Synchronisation. |
 | `BSENTINEL_API_TIMEOUT` | `60` | Timeout in Sekunden für Proxmox/PBS-API-Anfragen. |
 | `BSENTINEL_DEBUG` | `false` | Debug-Logging aktivieren (`true` / `false`). |
 | `BSENTINEL_INSECURE_SSL` | `false` | SSL-Zertifikatsprüfung für Proxmox/PBS-APIs deaktivieren. Auf `true` setzen bei selbstsignierten Zertifikaten. |
-| `BSENTINEL_BRAND_LOGO_LIGHT_URL` | `/static/logo.svg` | Logo-URL für helles Design. Erscheint auch im Kopf des Wochenberichts (SVG wird dafür in PNG umgewandelt und eingebettet; relative URLs außerhalb von `/static/` brauchen `APP_URL`). |
-| `BSENTINEL_BRAND_LOGO_DARK_URL` | `/static/logo.svg` | Logo-URL für dunkles Design. |
+| `BSENTINEL_BRAND_LOGO_LIGHT_URL` | *(leer = kein Logo)* | Logo-URL für helles Design. Erscheint auch im Kopf des Wochenberichts (SVG wird dafür in PNG umgewandelt und eingebettet; relative URLs außerhalb von `/static/` brauchen `APP_URL`). |
+| `BSENTINEL_BRAND_LOGO_DARK_URL` | *(leer = kein Logo)* | Logo-URL für dunkles Design. |
 | `BSENTINEL_LOGOUT_URL` | `/oauth2/sign_out` | Logout-Weiterleitungs-URL. |
 | `FOOTER_LINKS` | *(leer)* | Footer-Links. Format: `Label1\|URL1,Label2\|URL2` |
 | `COPYRIGHT_TEXT` | *(leer)* | Copyright-Text in der Fußzeile (z.B. `© 2026 Ihre Firma`). |
-| `BSENTINEL_DATA_DIR` | `/data` | Pfad für persistente Anwendungsdaten. |
 | `BSENTINEL_REPORT_DIR` | `/reports` | Pfad für generierte PDF/JSON-Berichte. |
 | `BSENTINEL_REPORT_LANGUAGE` | `de` | Serverseitige Sprache (`de` oder `en`) für alles, was ohne Browser entsteht: PDF-Berichte, Gotify-/E-Mail-Benachrichtigungen und Sync-Logs. Die Weboberfläche folgt stattdessen der Sprachwahl des jeweiligen Nutzers. Andere Werte fallen auf `de` zurück. |
 | `BSENTINEL_BACKUP_DAY_OFFSET_HOURS` | `12` | Verschiebung der "Backup-Tag"-Grenze in der Sparkline. Lange Jobs, deren letzte VMs erst am nächsten Morgen fertig werden, zählen für den Abend, an dem der Job startete. `0` = echter Mitternachtswechsel. |
+
+`BSENTINEL_DATA_DIR` (im `Dockerfile` auf `/data` gesetzt) wird von der Anwendung nicht gelesen; `./data` wird eingebunden, derzeit aber nicht genutzt.
 
 ### OAuth2-Proxy (`oauth2-proxy.env`)
 
@@ -167,14 +168,11 @@ OAUTH2_PROXY_REDIS_CONNECTION_URL=redis://valkey:6379/0
 
 ### Ausgenommene Routen
 
-Bootstrap-Endpunkte sind von der Authentifizierung ausgenommen, damit Proxmox-Nodes ohne Session zurückrufen können:
+Diese Routen sind von der Authentifizierung ausgenommen (`OAUTH2_PROXY_SKIP_AUTH_ROUTES` in `docker-compose.yml` und `oauth2-proxy.env.example`):
 
-- `GET /bootstrap/proxmox-agent.sh`
-- `GET /bootstrap/pbs-agent.sh`
-- `POST /api/bootstrap/finalize`
-- `POST /api/bootstrap/pbs-finalize`
-
-Diese Routen sind stattdessen durch ein einmaliges Enrollment-Secret gesichert.
+- `GET /healthz` und `GET /metrics` -- für das Monitoring (siehe [Monitoring](#monitoring)); bei Bedarf am Reverse Proxy einschränken.
+- `GET /bootstrap/proxmox-agent.sh` und `GET /bootstrap/pbs-agent.sh` -- die Bootstrap-Skripte.
+- `POST /api/bootstrap/finalize` und `GET /api/bootstrap/pbs-finalize` -- damit Proxmox-Nodes ohne Session zurückrufen können. Diese Aufrufe werden stattdessen gegen das Enrollment-Secret des Clusters geprüft.
 
 ---
 
@@ -194,8 +192,8 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/proxmox-agent.sh
 ```
 
 Das Skript wird:
-- Einen dedizierten PVE-API-Token erstellen (`backup-sentinel@pve!backup-sentinel`).
-- Minimale Leserechte zuweisen.
+- Den Benutzer `backup-reports@pve` (falls nicht vorhanden) und den API-Token `<cluster-slug>-collector` anlegen (ein vorhandener wird ersetzt).
+- Die Rollen `PVEAuditor` auf `/` und `PVEDatastoreAdmin` auf `/storage` zuweisen (Begründung unter [Voraussetzungen](#voraussetzungen)).
 - Den Token an die Backup-Sentinel-API zurücksenden, um die Registrierung abzuschließen.
 
 4. Nach Abschluss des Bootstraps erscheint der Cluster in der Oberfläche und die erste Synchronisation startet automatisch.
@@ -203,8 +201,8 @@ Das Skript wird:
 ### PBS-Verbindung
 
 1. Suchen Sie auf der Einstellungsseite den Cluster und klicken Sie auf **PBS hinzufügen**.
-2. Geben Sie einen Namen und die PBS-API-URL ein.
-3. Führen Sie den angezeigten Bootstrap-Befehl auf dem PBS-Host aus:
+2. Kopieren Sie den angezeigten Bootstrap-Befehl. Einzugeben ist nichts: Name und API-URL ermittelt das Skript selbst.
+3. Führen Sie ihn auf dem PBS-Host als root aus:
 
 ```bash
 bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/pbs-agent.sh) \
@@ -213,7 +211,10 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/pbs-agent.sh) \
   --enrollment-secret <einmal-secret>
 ```
 
-Das Skript erstellt einen PBS-API-Token mit Audit/Lese-Berechtigungen und registriert die Verbindung.
+Das Skript legt den Benutzer `backup-reports@pbs` und den API-Token `<cluster-slug>-collector` an, gibt beiden `Admin` auf `/` (lässt sich später einschränken, siehe [Voraussetzungen](#voraussetzungen)) und registriert die Verbindung. Als PBS-Name dient der kurze Hostname, als API-URL `https://<fqdn>:8007`. Optionale Parameter:
+
+- `--api-url URL` -- diese API-URL statt `https://<fqdn>:8007` verwenden, z. B. wenn Backup Sentinel den PBS unter einem anderen Namen erreicht.
+- `--namespace NS` -- die Verbindung auf diesen Namespace samt Unter-Namespaces beschränken (z. B. das Ziel eines Pull-Syncs); ohne ihn wird nur der Root-Namespace gelesen. Ein erneuter Lauf ohne `--namespace` behält den in der Oberfläche gesetzten Namespace.
 
 ---
 
@@ -243,6 +244,8 @@ Die PostgreSQL-Daten liegen im Volume `./postgres`. Für ein logisches Backup:
 ```bash
 docker compose exec postgres pg_dump -U backup_reports backup_reports > backup_$(date +%Y%m%d).sql
 ```
+
+Alternativ `./backup.sh` im Repository-Hauptverzeichnis ausführen (z. B. täglich per Cron). Es liest `DB_USER` aus der `.env`, schreibt einen `pg_dumpall` der gesamten PostgreSQL-Instanz nach `./backup/<JJJJ-MM-TT>.gz` und behält die drei jüngsten Dumps. Als `pg_dumpall` enthält er alle Datenbanken und Rollen; zurückspielen in eine frische Instanz (siehe [Zurücksetzen](#zurücksetzen), Anwendung gestoppt) mit `gunzip -c backup/<datum>.gz | docker compose exec -T postgres psql -U backup_reports postgres`.
 
 ### Wiederherstellung
 
@@ -332,27 +335,33 @@ OAuth2-Proxy setzt `OAUTH2_PROXY_REVERSE_PROXY=true`, sodass es `X-Forwarded-*`-
 
 ## GitLab-CI/CD-Deployment
 
-Das Repository enthält eine `.gitlab-ci.yml`, die bei jedem Push auf `main` auf einen Server deployed.
+Das Repository enthält eine `.gitlab-ci.yml` mit drei Stages.
 
-### Benötigte CI/CD-Variablen
+### Pipeline-Stages
 
-Konfigurieren Sie diese drei Variablen unter **GitLab > Settings > CI/CD > Variables**:
+| Stage | Job |
+|-------|-----|
+| `lint` | `ruff check` und `ruff format --check` auf `app`, `tests` und `scripts`. |
+| `test` | `pytest tests/` gegen einen `postgres:18`-Service. `BSENTINEL_DB_TESTS=1` ist gesetzt, daher laufen auch die Datenbank-Tests (die Tabellen leeren). |
+| `deploy` | Nur auf `main`: sendet einen `POST` an die URL jeder CI/CD-Variable, deren Name mit `DEPLOY_WEBHOOK` beginnt. |
+
+### CI/CD-Variablen
+
+Hinterlegen Sie eine oder mehrere Webhook-URLs unter **GitLab > Settings > CI/CD > Variables**:
 
 | Variable | Beschreibung |
 |----------|--------------|
-| `SSH_KEY` | Privater SSH-Schlüssel (ed25519) für den Deployment-Benutzer. Typ: **File** oder **Variable**. |
-| `DEPLOY_HOST` | Zielserver-Hostname oder IP. |
-| `DEPLOY_PATH` | Absoluter Pfad zum Projekt auf dem Server (z. B. `/root/backup-sentinel`). |
+| `DEPLOY_WEBHOOK` (oder `DEPLOY_WEBHOOK_<NAME>`) | URL, die das Deployment auf einem Server auslöst. Jede Variable wird einmal aufgerufen; schlägt ein Aufruf fehl, schlägt der Job fehl. |
 
-### Pipeline-Verhalten
+Es gibt keine SSH-Verbindung und kein `SSH_KEY`, `DEPLOY_USER` oder `DEPLOY_HOST`. Was der Webhook auf dem Server tut, legen Sie selbst fest; typischerweise ruft er `deploy.sh` auf (siehe [Aktualisierung](#aktualisierung)).
 
-Bei jedem Push auf `main` führt die Pipeline folgende Schritte aus:
+### Version
 
-1. Verbindung zum Server per SSH.
-2. Neuesten Code mit `git pull` holen.
-3. `docker compose down && docker compose up -d --build` ausführen.
+Die Version steht fest in `APP_VERSION` in `app/config.py` (Format `vMAJOR.MINOR.PATCH`, z. B. `v2.41.12`) und entspricht `CHANGELOG.md` und den Git-Tags. Sie wird nicht aus dem Commit abgeleitet.
 
-Die Build-Version wird aus dem Git-Commit-SHA abgeleitet (Format: `1.2.<short-sha>`).
+### GitHub Actions
+
+Auf GitHub liegen in `.github/workflows/` `ci.yml` (Lint und Tests bei Push und Pull Requests auf `main`), `codeql.yml` (Code-Scanning) und `release.yml` (legt beim Push eines `v*.*.*`-Tags ein GitHub-Release mit den Notizen aus `CHANGELOG.md` an).
 
 ---
 
@@ -368,7 +377,7 @@ curl -s https://backup-sentinel.example.com/healthz
 
 **Antworten:**
 
-- `200 OK` mit `{"status": "ok", "version": "v2.4.7"}` -- Anwendung und Datenbank sind gesund; `version` ist das laufende Release (praktisch, um einen Deploy zu prüfen).
+- `200 OK` mit `{"status": "ok", "version": "v2.41.12"}` -- Anwendung und Datenbank sind gesund; `version` ist das laufende Release (praktisch, um einen Deploy zu prüfen).
 - `503 Service Unavailable` mit `{"status": "degraded", "version": "…", "database": "<fehler>"}` -- Datenbank nicht erreichbar.
 
 ### Docker Health Check
@@ -377,13 +386,13 @@ Der `backup-sentinel`-Container hat einen eingebauten Health Check, der `/health
 
 ### Prometheus-Metriken
 
-Backup Sentinel stellt Prometheus-kompatible Metriken unter `/metrics` bereit (keine Authentifizierung erforderlich).
+Backup Sentinel stellt Prometheus-kompatible Metriken unter `/metrics` bereit (keine Authentifizierung erforderlich). Die Sync-Metriken betreffen nur den PVE-Sync; PBS-Syncs sind nicht enthalten.
 
 Verfügbare Metriken:
 
 - `backup_sentinel_cluster_sync_ok{cluster="..."}` -- Ob die letzte Synchronisation erfolgreich war (1/0)
 - `backup_sentinel_cluster_sync_age_seconds{cluster="..."}` -- Sekunden seit der letzten Synchronisation
-- `backup_sentinel_cluster_sync_failures_total{cluster="..."}` -- Aufeinanderfolgende Sync-Fehlschläge
+- `backup_sentinel_cluster_sync_failures_total{cluster="..."}` -- Aufeinanderfolgende fehlgeschlagene PVE-Syncs; beim nächsten erfolgreichen Sync wieder 0 (trotz des Namens kein stetig steigender Zähler)
 - `backup_sentinel_vm_backup_severity_count{cluster="...",severity="..."}` -- VMs pro Schweregrad
 - `backup_sentinel_unencrypted_backups_count{cluster="..."}` -- VMs mit unverschlüsselten Backups
 - `backup_sentinel_restore_overdue_count{cluster="..."}` -- VMs mit überfälligen Restore-Tests
@@ -420,11 +429,13 @@ git pull
 docker compose up -d --build
 ```
 
-Oder verwenden Sie das mitgelieferte Deploy-Skript:
+Oder verwenden Sie das mitgelieferte Deploy-Skript (als root):
 
 ```bash
-./deploy.sh
+DEPLOY_PATH=/pfad/zu/backup-sentinel ./deploy.sh
 ```
+
+`DEPLOY_PATH` muss gesetzt sein. Das Skript führt `git fetch` und `git reset --hard origin/main` aus -- **lokale Änderungen an versionierten Dateien gehen verloren** --, danach `docker compose down`, `docker compose build --no-cache` und `docker compose up -d`. Von Git ignorierte Dateien wie `.env` bleiben erhalten.
 
 Das Skript übergibt außerdem `data/` und `reports/` an den Benutzer, unter dem die Anwendung im Container läuft (UID/GID aus dem gebauten Image). Ohne diese Rechte kann z. B. der Monatsbericht nicht geschrieben werden („Permission denied“). Dafür muss es als root laufen; sonst gibt es eine Warnung aus. Wer manuell aktualisiert, gleicht die Rechte einmal selbst an: `chown -R 1000:1000 data reports`.
 

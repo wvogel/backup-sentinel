@@ -35,14 +35,6 @@ def dashboard(request: Request) -> HTMLResponse:
     all_clusters = db.list_clusters()
     vm_rows = db.vm_governance_rows()
     clusters = db.cluster_summaries(all_clusters, vm_rows)
-    vm_rows.sort(
-        key=lambda row: (
-            row["backup_severity"],
-            row["restore_due_status"],
-            row["cluster_name"],
-            row["vm_name"],
-        )
-    )
     restore_tests = db.recent_restore_tests()
     compliance_summary = build_compliance_summary(vm_rows, restore_tests)
 
@@ -68,8 +60,6 @@ def dashboard(request: Request) -> HTMLResponse:
     for summary in clusters:
         if summary["cluster_slug"] in running_by_slug:
             summary["running_vms"] = running_by_slug[summary["cluster_slug"]]
-        # Replication (PBS sync jobs) running into this cluster's datastores,
-        # from the precomputed diagram: one stored row per cluster, no PBS call.
         summary["sync_freshness"] = sync_freshness(
             summary["last_pve_sync_success_at"], summary["last_pve_sync_ok"], now, SYNC_INTERVAL_MINUTES
         )
@@ -83,12 +73,12 @@ def dashboard(request: Request) -> HTMLResponse:
             }
             for conn in pbs_by_cluster.get(cid, [])
         ]
+        # Replication (PBS sync jobs) running into this cluster's datastores,
+        # from the precomputed diagram: one stored row per cluster, no PBS call.
         summary["running_syncs"] = sync_progress.running_syncs(cid) if cid is not None else []
 
     context = {
         "clusters": clusters,
-        "vm_rows": vm_rows,
-        "generated_at": datetime.now(UTC),
         "restore_tests": restore_tests[:10],
         "compliance_summary": compliance_summary,
         "encryption": _encryption_total(clusters),

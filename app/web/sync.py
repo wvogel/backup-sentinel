@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import threading
 import time
@@ -16,8 +15,6 @@ from app.config import (
     APP_BASE_URL,
     APP_VERSION,
     DEFAULT_TIMEZONE,
-    REPORT_DIR,
-    REPORT_LANGUAGE,
     SYNC_INTERVAL_MINUTES,
 )
 from app.i18n import ts
@@ -46,10 +43,9 @@ from app.services.pbs import (
     fetch_pbs_cert_fingerprints,
     fetch_pbs_sync_jobs,
 )
-from app.services.pdf_reports import write_backup_period_pdf
 from app.services.proxmox import fetch_cluster_inventory, fetch_finished_backup_tasks
 from app.services.proxmox_progress import running_backup_progress_cached
-from app.services.reporting import build_backup_period_report, serialize_report_payload
+from app.services.report_archive import generate_archived_report
 from app.services.theme_store import active_theme
 
 logger = logging.getLogger(__name__)
@@ -503,50 +499,25 @@ def sync_all_clusters() -> None:
 
 
 def auto_generate_monthly_report() -> None:
-    from datetime import timedelta
-
-    from app.services.reporting import build_month_comparison
-
     now = datetime.now(tz=ZoneInfo(DEFAULT_TIMEZONE))
     first_of_current = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     last_month = (first_of_current - timedelta(days=1)).replace(day=1).date()
     existing = db.get_monthly_report_for_month(last_month)
     if existing:
         return
-    logger.info("Auto-Report: Generiere Report für %s", last_month)
+    logger.info("Auto report: generating the report for %s", last_month)
     try:
-        events = db.list_all_report_backup_events()
-        report = build_backup_period_report(datetime.min.replace(tzinfo=UTC), now, events)
-        report["period_label"] = ts("report.monthly_period", month=last_month.strftime("%m/%Y"))
-        try:
-            cur_month_events = db.backup_events_for_month(last_month.year, last_month.month)
-            prev_month = (last_month.replace(day=1) - timedelta(days=1)).replace(day=1)
-            prev_month_events = db.backup_events_for_month(prev_month.year, prev_month.month)
-            report["comparison"] = build_month_comparison(cur_month_events, prev_month_events, now)
-        except Exception as exc:
-            logger.warning("Auto-Report: Monatsvergleich fehlgeschlagen: %s", exc)
-        snapshot = serialize_report_payload(report)
-        month_slug = last_month.strftime("%Y-%m")
-        timestamp_slug = report["generated_at"].strftime("%Y%m%d-%H%M%S")
-        pdf_path = REPORT_DIR / f"backup-report-{month_slug}-{timestamp_slug}.pdf"
-        json_path = REPORT_DIR / f"backup-report-{month_slug}-{timestamp_slug}.json"
-        try:
-            from app.db_notifications import list_notification_logs_for_period
-
-            period_start = datetime(last_month.year, last_month.month, 1, tzinfo=UTC)
-            period_end = first_of_current.astimezone(UTC)
-            notifs = list_notification_logs_for_period(period_start, period_end)
-        except Exception:
-            notifs = []
-        write_backup_period_pdf(
-            report, pdf_path, notifications=notifs, lang=REPORT_LANGUAGE, theme_colors=active_theme()[1]
+        pdf_path = generate_archived_report(
+            last_month,
+            ts("report.monthly_period", month=last_month.strftime("%m/%Y")),
+            first_of_current.astimezone(UTC),
+            "auto",
+            now,
         )
-        json_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
-        db.archive_monthly_report(last_month, "auto", pdf_path, json_path, report)
-        logger.info("Auto-Report: PDF erstellt: %s", pdf_path)
+        logger.info("Auto report: PDF written: %s", pdf_path)
         send_monthly_report_email(pdf_path, last_month.strftime("%m/%Y"))
     except Exception as exc:
-        logger.error("Auto-Report fehlgeschlagen: %s", exc)
+        logger.error("Auto report failed: %s", exc)
 
 
 def notify_overdue_cluster_syncs() -> None:

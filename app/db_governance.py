@@ -474,8 +474,8 @@ def vm_backup_sparkline_data(cluster_id: int, days: int = 31) -> dict[int, list[
     vzdump log details of the day's latest successful backup: "duration_seconds",
     "throughput_bps", "reused_pct", "full_backup"} — all for the tooltip.
 
-    The "backup day" boundary is shifted by BACKUP_DAY_OFFSET_HOURS (default: 6h)
-    so a job that finishes at 00:30 still counts for the previous evening's run.
+    The "backup day" boundary is shifted by BACKUP_DAY_OFFSET_HOURS (default: 12 h, noon
+    to noon) so a job that finishes at 00:30 still counts for the previous evening's run.
     Timestamps are evaluated in DEFAULT_TIMEZONE so the day boundary matches
     the operator's wall clock, not UTC.
     """

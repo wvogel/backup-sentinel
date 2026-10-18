@@ -266,8 +266,7 @@ def fetch_all_pbs_backups(
     """
     log_lines: list[str] = []
 
-    datastores, debug_info, complete = fetch_pbs_datastores(conn)
-    log_lines.append(f"DEBUG: {debug_info}")
+    datastores, _debug_info, complete = fetch_pbs_datastores(conn)
     if not datastores:
         log_lines.append(ts("synclog.pbs_no_datastores"))
         return [], log_lines, complete

@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse
 
 from app import db
 from app.models import BootstrapFinalize, BootstrapPayload, ClusterCreate
 from app.services.bootstrap import build_enrollment_bundle, slugify_cluster
-from app.services.pbs import test_pbs_connection
-from app.services.proxmox import test_proxmox_connection
 from app.web.common import settings_actor
 from app.web.sync import background_sync, sync_executor, syncing_clusters
 
@@ -138,48 +134,3 @@ def pbs_bootstrap_finalize(request: Request) -> JSONResponse:
             syncing_clusters.add(cluster["id"])
             sync_executor.submit(background_sync, cluster)
     return JSONResponse({"status": "ok", "cluster": cluster["name"]})
-
-
-@router.get("/api/connection-status")
-def connection_status() -> JSONResponse:
-    clusters = db.list_clusters()
-    result: dict[str, dict] = {}
-
-    def check_pve(cluster: dict) -> dict:
-        if not cluster.get("api_user") or not cluster.get("token_id") or not cluster.get("token_secret"):
-            return {"ok": False, "msg": "Nicht registriert"}
-        try:
-            test_proxmox_connection(cluster, timeout=5.0)
-            return {"ok": True, "msg": "Verbindung OK"}
-        except Exception as exc:
-            return {"ok": False, "msg": str(exc)[:120]}
-
-    def check_pbs(conn: dict) -> dict:
-        try:
-            test_pbs_connection(conn, timeout=5.0)
-            return {"ok": True, "msg": "Verbindung OK"}
-        except Exception as exc:
-            return {"ok": False, "msg": str(exc)[:120]}
-
-    with ThreadPoolExecutor(max_workers=12) as executor:
-        futures: dict[str, Any] = {}
-        for cluster in clusters:
-            futures[f"pve_{cluster['id']}"] = executor.submit(check_pve, cluster)
-            for pbs in db.list_pbs_connections(cluster["id"]):
-                futures[f"pbs_{pbs['id']}"] = executor.submit(check_pbs, pbs)
-        for key, future in futures.items():
-            try:
-                result[key] = future.result(timeout=6)
-            except Exception as exc:
-                result[key] = {"ok": False, "msg": str(exc)[:120]}
-    return JSONResponse(result)
-
-
-@router.get("/bootstrap/proxmox-agent.sh", response_class=PlainTextResponse)
-def proxmox_bootstrap_script() -> PlainTextResponse:
-    return PlainTextResponse(db.bootstrap_script(), media_type="text/x-shellscript")
-
-
-@router.get("/bootstrap/pbs-agent.sh", response_class=PlainTextResponse)
-def pbs_bootstrap_script() -> PlainTextResponse:
-    return PlainTextResponse(db.pbs_bootstrap_script(), media_type="text/x-shellscript")

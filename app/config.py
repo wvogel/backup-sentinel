@@ -13,7 +13,7 @@ DATABASE_URL = os.getenv(
 _raw_app_url = os.getenv("APP_URL", "")
 APP_BASE_URL = _raw_app_url.replace("http://", "https://", 1) if _raw_app_url.startswith("http://") else _raw_app_url
 DEFAULT_TIMEZONE = os.getenv("BSENTINEL_DEFAULT_TIMEZONE", "Europe/Berlin")
-APP_VERSION = "v2.41.12"
+APP_VERSION = "v2.41.13"
 LOGOUT_URL = os.getenv("BSENTINEL_LOGOUT_URL", "/oauth2/sign_out")
 BRAND_LOGO_LIGHT_URL = os.getenv("BSENTINEL_BRAND_LOGO_LIGHT_URL") or ""
 BRAND_LOGO_DARK_URL = os.getenv("BSENTINEL_BRAND_LOGO_DARK_URL") or ""
@@ -24,8 +24,8 @@ INSECURE_SSL = os.getenv("BSENTINEL_INSECURE_SSL", "").lower() in ("1", "true", 
 SYNC_INTERVAL_MINUTES = int(os.getenv("BSENTINEL_SYNC_INTERVAL_MINUTES", "60"))
 API_TIMEOUT = float(os.getenv("BSENTINEL_API_TIMEOUT", "60"))
 DEBUG = os.getenv("BSENTINEL_DEBUG", "").lower() in ("1", "true", "yes", "on")
-# BSENTINEL_SECRET_KEY: Fernet-Key für verschlüsselte Secrets in der DB.
-# Generieren mit: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# BSENTINEL_SECRET_KEY: Fernet key for the secrets stored encrypted in the DB.
+# Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 SECRET_KEY = os.getenv("BSENTINEL_SECRET_KEY", "")
 
 # PDF report language (de / en). Falls back to "de" for any other value.

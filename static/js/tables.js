@@ -148,7 +148,7 @@ for (const list of document.querySelectorAll(".js-node-filter-list")) {
 
 for (const tileGroup of document.querySelectorAll(".js-stat-filter-tiles")) {
   const targetId = tileGroup.dataset.filterTarget;
-  const table = targetId ? document.querySelector(targetId) : tileGroup.closest("section")?.querySelector(".js-stat-filter-table");
+  const table = targetId ? document.querySelector(targetId) : null;
   const tbody = table?.tBodies?.[0];
   if (!tbody) {
     continue;

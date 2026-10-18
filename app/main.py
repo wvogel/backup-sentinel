@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os as _os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -12,7 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from app import db
-from app.config import APP_VERSION, SECRET_KEY
+from app.config import APP_VERSION, DEBUG, SECRET_KEY
 from app.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, set_language
 from app.web.csrf import OriginCheckMiddleware
 from app.web.routes_bootstrap import router as bootstrap_router
@@ -25,7 +24,7 @@ from app.web.routes_settings import router as settings_router
 from app.web.sync import auto_sync_loop, sync_executor
 
 logging.basicConfig(
-    level=logging.DEBUG if _os.getenv("BSENTINEL_DEBUG", "").lower() in ("1", "true", "yes", "on") else logging.INFO,
+    level=logging.DEBUG if DEBUG else logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 

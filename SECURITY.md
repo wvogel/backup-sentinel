@@ -53,7 +53,8 @@ Out of scope:
 
 Backup Sentinel follows these practices:
 
-- **Authentication** is delegated entirely to OAuth2-Proxy — the app trusts `X-Forwarded-Email` / `X-Forwarded-User` headers only
+- **Authentication** is delegated entirely to OAuth2-Proxy — the app trusts the `X-Forwarded-Email`, `X-Auth-Request-Email` and `X-Forwarded-User` headers it sets
+- **CSRF protection** by origin check (`app/web/csrf.py`): a state-changing request whose `Origin` / `Referer` names another site is rejected; requests without either header (non-browser clients such as the bootstrap scripts) pass
 - **Secrets** (Gotify token, SMTP password) are encrypted at rest using Fernet (AES-128-CBC + HMAC-SHA256)
 - **Security headers** (CSP, X-Frame-Options, Referrer-Policy, etc.) are applied by middleware on every response
 - **Dependencies** are pinned to exact versions in `requirements.txt`
@@ -65,4 +66,4 @@ Backup Sentinel follows these practices:
 
 - The app is designed to be deployed **behind OAuth2-Proxy**. Running it directly exposed to the internet is not supported and will allow unauthenticated access.
 - `/healthz` and `/metrics` are intentionally unauthenticated. Restrict them at the reverse proxy level if needed.
-- The bootstrap endpoints (`/bootstrap/proxmox-agent.sh`, `/api/bootstrap/finalize`) are unauthenticated by design — they use per-cluster enrollment secrets for authentication.
+- The bootstrap endpoints (`/bootstrap/proxmox-agent.sh`, `/bootstrap/pbs-agent.sh`, `/api/bootstrap/finalize`, `/api/bootstrap/pbs-finalize`) are unauthenticated by design — the scripts are public, and the finalize calls are checked against the per-cluster enrollment secret.
