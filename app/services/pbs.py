@@ -53,7 +53,9 @@ def _is_encrypted(files: list[dict[str, Any]] | None) -> bool | None:
     ]
     if not data_files:
         return None
-    modes = {str(f.get("crypt-mode") or "none") for f in data_files}
+    # A running backup has no manifest yet: PBS lists its files without
+    # crypt-mode. That is "not known yet", not "unencrypted".
+    modes = {str(f.get("crypt-mode") or "") for f in data_files}
     if "encrypt" in modes:
         return True
     if modes <= {"none", "sign-only"}:

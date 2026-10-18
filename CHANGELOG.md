@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.12] — 2026-10-18
+
+### Fixed
+
+- **Running backups no longer count as unencrypted.** While a backup runs, PBS has no manifest for it yet and lists its files without an encryption mode. That was read as "unencrypted", so every running backup lowered the encryption tile and raised the "unencrypted backups" warning and notification. A missing encryption mode now means "not known yet"; the state is filled in once the backup has finished.
+
 ## [v2.41.11] — 2026-10-18
 
 ### Changed

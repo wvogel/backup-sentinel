@@ -308,3 +308,15 @@ class SyncTargetNamespaceTests(unittest.TestCase):
     def test_missing_sync_target_on_this_datastore(self) -> None:
         with mock.patch.object(pbs, "_pbs_get_json", return_value=[{"ns": ""}]):
             self.assertEqual(pbs.fetch_pbs_namespaces(CONN, "nas-b1", ["mar-lej"]), [""])
+
+
+class IsEncryptedTests(unittest.TestCase):
+    def test_running_backup_without_crypt_mode_is_unknown(self) -> None:
+        # While a backup runs, PBS has no manifest yet and lists the files without crypt-mode.
+        files = [{"filename": "drive-scsi0.img.fidx"}, {"filename": "qemu-server.conf.blob"}]
+        self.assertIsNone(pbs._is_encrypted(files))
+
+    def test_encrypted_and_plain_snapshots(self) -> None:
+        self.assertTrue(pbs._is_encrypted([{"filename": "drive-scsi0.img.fidx", "crypt-mode": "encrypt"}]))
+        self.assertFalse(pbs._is_encrypted([{"filename": "drive-scsi0.img.fidx", "crypt-mode": "none"}]))
+        self.assertFalse(pbs._is_encrypted([{"filename": "drive-scsi0.img.fidx", "crypt-mode": "sign-only"}]))
