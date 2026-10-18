@@ -37,8 +37,9 @@ Backup Sentinel is tested against the following Proxmox versions:
 Earlier versions may work but are not regularly tested. If you deploy Backup Sentinel against an older version, open an issue with your results.
 
 API tokens used by Backup Sentinel (the bootstrap scripts set them up, see [Cluster Onboarding](#cluster-onboarding)):
-- On PVE: user `backup-reports@pve`, token `<cluster-slug>-collector`, role `PVEAuditor` on `/` and `PVEDatastoreAdmin` on `/storage`. This is not purely read-only: PVE only lists backup volumes in a storage's content with `Datastore.Allocate` on that storage, which `PVEAuditor` lacks. Backup Sentinel itself only sends read requests.
-- On PBS: user `backup-reports@pbs`, token `<cluster-slug>-collector`, role `Admin` on `/` for both user and token (PBS privilege separation: the effective rights are the intersection of both). This can be tightened later; the minimum is `Datastore.Audit` on the datastore(s) to be monitored, and for the replication diagram also reading sync jobs and remotes (`Datastore.Audit` on `/datastore`, `Remote.Audit` on `/remote`). Without the latter the PBS sync stays green and the sync log names the reason.
+- On PVE: user `backup-reports@pve`, token `<cluster-slug>-collector` (no privilege separation), role `PVEAuditor` on `/` plus the custom role `BackupSentinelBackupList` (`Datastore.AllocateSpace`, `VM.Backup`) on `/`. PVE has no read-only way to list backup volumes: a storage's content shows a backup only with `Datastore.Allocate` on the storage, or `Datastore.AllocateSpace` plus `VM.Backup` on the VM. The custom role takes the narrower second way — it cannot change the storage configuration or delete VM disks or ISOs, but it could start or delete backups. Backup Sentinel itself only sends read requests.
+- On PBS: user `backup-reports@pbs`, token `<cluster-slug>-collector`, role `Audit` on `/` for both user and token (PBS privilege separation: the effective rights are the intersection of both). `Audit` is read-only and covers everything Backup Sentinel reads: datastores, namespaces, snapshots, usage, sync jobs, remotes and task logs. The certificate fingerprint is read from the TLS connection, not from the certificates API (that one needs `Sys.Modify`).
+- Installations bootstrapped before v2.41.14 still have `PVEDatastoreAdmin` on `/storage` (PVE) or `Admin` on `/` (PBS). Run the bootstrap command from the settings again — once per cluster on a PVE node and once per PBS connection; it grants the roles above and takes the old ones back. The PBS user is shared by all clusters, so one run per PBS removes `Admin` for all of its tokens.
 - PBS connection fields under Settings → Cluster: **Namespace** limits the connection to one namespace and its children (e.g. the target of a pull sync; empty = root only). **Aliases** are other host names or IPs PVE or a sync remote uses for this PBS. Backup Sentinel usually recognises a PBS itself (fingerprint, name, DNS, certificate over TLS); aliases are only needed when it cannot reach it under the other name, e.g. in a separate backup network.
 
 ---
@@ -193,7 +194,7 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/proxmox-agent.sh
 
 The script will:
 - Create the user `backup-reports@pve` (if missing) and the API token `<cluster-slug>-collector` (an existing one is replaced).
-- Assign the roles `PVEAuditor` on `/` and `PVEDatastoreAdmin` on `/storage` (see [Requirements](#requirements) for why).
+- Assign the role `PVEAuditor` on `/` and the custom role `BackupSentinelBackupList` (`Datastore.AllocateSpace`, `VM.Backup`) on `/` (see [Requirements](#requirements) for why).
 - Send the token back to the Backup Sentinel API to complete registration.
 
 4. Once the bootstrap completes, the cluster appears in the UI and the first sync begins automatically.
@@ -211,7 +212,7 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/pbs-agent.sh) \
   --enrollment-secret <one-time-secret>
 ```
 
-The script creates the user `backup-reports@pbs` and the API token `<cluster-slug>-collector`, grants both `Admin` on `/` (can be tightened later, see [Requirements](#requirements)) and registers the connection. The PBS name is the short host name, the API URL `https://<fqdn>:8007`. Optional flags:
+The script creates the user `backup-reports@pbs` and the API token `<cluster-slug>-collector`, grants both the read-only role `Audit` on `/` (see [Requirements](#requirements)) and registers the connection. The PBS name is the short host name, the API URL `https://<fqdn>:8007`. Optional flags:
 
 - `--api-url URL` -- use this API URL instead of `https://<fqdn>:8007`, e.g. when Backup Sentinel reaches the PBS under another name.
 - `--namespace NS` -- limit the connection to this namespace and its children (e.g. the target of a pull sync); without it only the root namespace is read. A re-run without `--namespace` keeps the namespace set in the UI.

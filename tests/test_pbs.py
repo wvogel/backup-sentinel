@@ -1,3 +1,4 @@
+import hashlib
 import unittest
 from datetime import UTC, datetime, timedelta
 from unittest import mock
@@ -227,14 +228,24 @@ class SyncJobTests(unittest.TestCase):
 
 
 class CertFingerprintTests(unittest.TestCase):
-    def test_fingerprints_of_the_pbs_certificates(self) -> None:
-        rows = [
-            {"filename": "proxy.pem", "fingerprint": "ab:cd:ef"},
-            {"filename": "proxy.pem", "fingerprint": ""},
-        ]
-        with mock.patch.object(pbs, "_pbs_get_json", return_value=rows) as get:
-            self.assertEqual(pbs.fetch_pbs_cert_fingerprints(CONN), ["ab:cd:ef"])
-        self.assertEqual(get.call_args.args[1], "/api2/json/nodes/localhost/certificates/info")
+    def test_fingerprint_of_the_certificate_the_pbs_serves(self) -> None:
+        # Read from the TLS handshake: the certificates API needs Sys.Modify.
+        der = b"certificate"
+        expected = ":".join(f"{b:02X}" for b in hashlib.sha256(der).digest())
+        with (
+            mock.patch.object(pbs.ssl, "get_server_certificate", return_value="PEM") as get,
+            mock.patch.object(pbs.ssl, "PEM_cert_to_DER_cert", return_value=der),
+        ):
+            self.assertEqual(pbs.fetch_pbs_cert_fingerprints(CONN), [expected])
+        self.assertEqual(get.call_args.args[0], ("pbs", 8007))
+
+    def test_port_from_the_api_url(self) -> None:
+        with (
+            mock.patch.object(pbs.ssl, "get_server_certificate", return_value="PEM") as get,
+            mock.patch.object(pbs.ssl, "PEM_cert_to_DER_cert", return_value=b"x"),
+        ):
+            pbs.fetch_pbs_cert_fingerprints({**CONN, "api_url": "https://pbs.example:9443/"})
+        self.assertEqual(get.call_args.args[0], ("pbs.example", 9443))
 
 
 class SyncProgressTests(unittest.TestCase):

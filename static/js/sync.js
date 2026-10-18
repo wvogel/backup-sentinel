@@ -57,62 +57,85 @@ if (logDialog) {
   });
 }
 
-// ── Async Sync mit Spinner + Live-Log ───────────────────────────────────────
+// ── Sync with spinner + live log ────────────────────────────────────────────
+// While a sync runs, its log is buffered in window._liveSync* (the log dialog
+// shows it for sync symbols); when it ends, a lightbox shows and the page reloads.
+function syncStatusUrl(slug, since) {
+  return `/api/clusters/${encodeURIComponent(slug)}/sync-status?since=${since}`;
+}
+
+function setSyncing(btn, syncing) {
+  if (!btn) return;
+  btn.classList.toggle("syncing", syncing);
+  btn.title = T(syncing ? "js.syncing" : "cluster.sync_now");
+}
+
+function appendLiveLog(lines) {
+  if (!lines || lines.length === 0) return;
+  window._liveSyncLog += lines.join("\n") + "\n";
+  const logContent = document.getElementById("sync-log-content");
+  if (logDialog && logContent && logDialog.open && window._liveSyncActive) {
+    logContent.textContent = window._liveSyncLog;
+    logContent.scrollTop = logContent.scrollHeight;
+  }
+}
+
+function finishSync(btn) {
+  window._liveSyncActive = false;
+  setSyncing(btn, false);
+  const logStatus = document.getElementById("sync-log-status");
+  if (logStatus && logDialog && logDialog.open) {
+    logStatus.textContent = "✓ " + T("js.sync_complete");
+    logStatus.classList.remove("muted");
+    logStatus.classList.add("ok-text");
+  }
+  window.showSuccessLightbox(T("js.sync_complete"), T("js.data_updating"));
+  setTimeout(() => location.reload(), 2500);
+}
+
+// Follow a running sync of `slug` until it ends. `initial` is a sync-status
+// answer already fetched (its log seeds the buffer).
+function watchSync(slug, btn, initial) {
+  setSyncing(btn, true);
+  window._liveSyncLog = "";
+  window._liveSyncOffset = 0;
+  window._liveSyncActive = true;
+  if (initial) {
+    appendLiveLog(initial.log);
+    window._liveSyncOffset = initial.offset || 0;
+  }
+  const poll = setInterval(async () => {
+    try {
+      const resp = await fetch(syncStatusUrl(slug, window._liveSyncOffset));
+      if (!resp.ok) return;
+      const data = await resp.json();
+      appendLiveLog(data.log);
+      window._liveSyncOffset = data.offset || window._liveSyncOffset;
+      if (!data.syncing) {
+        clearInterval(poll);
+        finishSync(btn);
+      }
+    } catch { /* ignore */ }
+  }, 2000);
+}
+
 for (const form of document.querySelectorAll(".js-sync-form")) {
+  const slug = form.dataset.clusterSlug;
+  const btn = form.querySelector(".js-sync-btn");
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const slug = form.dataset.clusterSlug;
-    const btn = form.querySelector(".js-sync-btn");
     if (!btn || btn.classList.contains("syncing")) return;
-
-    btn.classList.add("syncing");
-    btn.title = T('js.syncing');
-
-    const panel = document.getElementById("sync-log-panel");
-    const logContent = document.getElementById("sync-log-content");
-    const logStatus = document.getElementById("sync-log-status");
-
-    // Init live log buffer
-    window._liveSyncLog = "";
-    window._liveSyncOffset = 0;
-    window._liveSyncActive = true;
-
-    fetch(form.action, { method: "POST", body: new FormData(form) })
-      .catch(() => {});
-
-    // Poll sync status + buffer log (panel updates only if visible)
-    const poll = setInterval(async () => {
-      try {
-        const resp = await fetch(
-          `/api/clusters/${encodeURIComponent(slug)}/sync-status?since=${window._liveSyncOffset}`
-        );
-        if (!resp.ok) return;
-        const data = await resp.json();
-
-        if (data.log && data.log.length > 0) {
-          window._liveSyncLog += data.log.join("\n") + "\n";
-          // Update panel if it's open
-          if (panel && logContent && panel.open && window._liveSyncActive) {
-            logContent.textContent = window._liveSyncLog;
-            logContent.scrollTop = logContent.scrollHeight;
-          }
-        }
-        window._liveSyncOffset = data.offset || window._liveSyncOffset;
-
-        if (!data.syncing) {
-          clearInterval(poll);
-          window._liveSyncActive = false;
-          btn.classList.remove("syncing");
-          btn.title = T('cluster.sync_now');
-          if (logStatus && panel && panel.open) {
-            logStatus.textContent = "✓ " + T('js.sync_complete');
-            logStatus.classList.remove("muted");
-            logStatus.classList.add("ok-text");
-          }
-          window.showSuccessLightbox(T('js.sync_complete'), T('js.data_updating'));
-          setTimeout(() => location.reload(), 2500);
-        }
-      } catch { /* ignore */ }
-    }, 2000);
+    fetch(form.action, { method: "POST", body: new FormData(form) }).catch(() => {});
+    watchSync(slug, btn);
   });
+  // data-sync-watch: also follow a sync that already runs when the page loads
+  // (auto-sync or one started elsewhere).
+  if ("syncWatch" in form.dataset) {
+    fetch(syncStatusUrl(slug, 0))
+      .then((resp) => (resp.ok ? resp.json() : null))
+      .then((data) => {
+        if (data && data.syncing && !(btn && btn.classList.contains("syncing"))) watchSync(slug, btn, data);
+      })
+      .catch(() => {});
+  }
 }

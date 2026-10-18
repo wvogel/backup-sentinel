@@ -457,7 +457,7 @@ def _smtp_login(smtp: smtplib.SMTP, user: str, password: str) -> None:
         smtp.login(user, password)
         return
     except UnicodeEncodeError:
-        logger.info("SMTP-Login enthält Nicht-ASCII-Zeichen, verwende UTF-8-AUTH-Fallback")
+        logger.info("SMTP login contains non-ASCII characters, using UTF-8 AUTH fallback")
 
     smtp.ehlo_or_helo_if_needed()
     authlist = smtp.esmtp_features.get("auth", "").upper().split()
@@ -511,7 +511,7 @@ def _send_email_raw(
     recipients = cfg.get("email_recipients", "")
     sender = cfg.get("email_from", "")
     if not host or not recipients or not sender:
-        logger.info("E-Mail nicht konfiguriert, überspringe Versand")
+        logger.info("E-mail not configured, skipping send")
         return False
 
     port = int(cfg.get("email_port", "465"))
@@ -564,7 +564,7 @@ def _send_email_raw(
         logger.info("E-Mail gesendet an %s: %s", recipients, subject)
         return True
     except Exception as exc:
-        logger.error("E-Mail-Versand fehlgeschlagen: %s", exc)
+        logger.error("Sending e-mail failed: %s", exc)
         return False
 
 

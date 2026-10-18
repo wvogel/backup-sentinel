@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 
 from app.config import DEFAULT_TIMEZONE
 from app.i18n import t
+from app.services.human_format import short_number
 from app.services.proxmox import (
     ProxmoxSyncError,
     _pve_get_dict,
@@ -25,6 +26,7 @@ from app.services.proxmox import (
     _pve_get_payload,
     build_token_header,
 )
+from app.services.vzdump_log import PBS_ARCHIVE_RE, START_RE, STARTED_AT_RE, parse_size
 
 logger = logging.getLogger(__name__)
 
@@ -42,49 +44,17 @@ _DIRTY_RE = re.compile(
     r"using fast incremental mode .*?,\s*(?P<dirty>[\d.]+\s+[KMGTPE]?i?B)\s+dirty\s+of\s+(?P<full>[\d.]+\s+[KMGTPE]?i?B)\s+total",
     re.IGNORECASE,
 )
-_START_RE = re.compile(r"Starting Backup of (?:VM|CT)\s+(?P<vmid>\d+)", re.IGNORECASE)
-# Start of the current VM's backup. The PBS archive name carries it in UTC;
-# "Backup started at" is the node's local time (assumed to be the app zone).
-_PBS_ARCHIVE_RE = re.compile(r"archive '(?:vm|ct)/\d+/(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z'")
-_BACKUP_STARTED_RE = re.compile(r"Backup started at (?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 _VMID_RE = re.compile(r"\b(?:VM|CT)\s+(?P<vmid>\d+)\b|\b(?:qemu|lxc)[/-](?P<vmid2>\d+)\b", re.IGNORECASE)
-
-
-def _parse_size_to_bytes(value: str | None) -> int | None:
-    if not value:
-        return None
-    match = re.search(r"(?P<num>[\d.]+)\s*(?P<unit>[KMGTPE]?i?B|B)", value.strip(), re.IGNORECASE)
-    if not match:
-        return None
-    number = float(match.group("num"))
-    unit = match.group("unit").upper()
-    factors = {
-        "B": 1,
-        "KIB": 1024,
-        "MIB": 1024**2,
-        "GIB": 1024**3,
-        "TIB": 1024**4,
-        "PIB": 1024**5,
-        "EIB": 1024**6,
-        "KB": 1000,
-        "MB": 1000**2,
-        "GB": 1000**3,
-        "TB": 1000**4,
-        "PB": 1000**5,
-        "EB": 1000**6,
-    }
-    return int(number * factors[unit]) if unit in factors else None
 
 
 def _round_rate(label: str) -> str:
     """Throughput without noise: "187.7 MiB/s" → "188 MiB/s" (one decimal
     stays below 10, e.g. "1.6 GiB/s")."""
-    match = re.match(r"\s*([\d.]+)\s*(\S+)", label)
+    match = re.match(r"\s*(\d+(?:\.\d+)?)\s*(\S+)", label)
     if not match:
         return label
-    value = float(match.group(1))
-    number = f"{value:.1f}".rstrip("0").rstrip(".") if value < 10 else str(int(value + 0.5))
-    return f"{number} {match.group(2)}"
+    # No thousands separator: the label is cached for every UI language.
+    return f"{short_number(float(match.group(1)), grouping=False)} {match.group(2)}"
 
 
 def _parse_elapsed_to_seconds(value: str | None) -> int | None:
@@ -126,7 +96,7 @@ def _current_vm_log(log_lines: list[str]) -> list[str]:
     to the running one. Logs without a "Starting Backup" line are returned as is.
     """
     for i in range(len(log_lines) - 1, -1, -1):
-        if _START_RE.search(log_lines[i]):
+        if START_RE.search(log_lines[i]):
             return log_lines[i:]
     return log_lines
 
@@ -135,7 +105,7 @@ def _extract_vmid_from_task(task: dict[str, Any], log_lines: list[str]) -> int |
     # The last "Starting Backup" line names the VM that is running right now —
     # earlier ones belong to VMs of the same job that are already done.
     for line in reversed(log_lines):
-        match = _START_RE.search(line)
+        match = START_RE.search(line)
         if match:
             return int(match.group("vmid"))
     for key in ("id", "upid", "worker_id"):
@@ -175,12 +145,14 @@ def _fmt_short(value: datetime, now: datetime | None = None) -> str:
 
 
 def _vm_started_at(log_lines: list[str]) -> datetime | None:
+    """Start of the current VM's backup: the PBS archive name (UTC), else
+    "Backup started at" (node local time, assumed to be the app zone)."""
     for line in log_lines:
-        match = _PBS_ARCHIVE_RE.search(line)
+        match = PBS_ARCHIVE_RE.search(line)
         if match:
             return datetime.fromisoformat(match.group("ts")).replace(tzinfo=UTC)
     for line in log_lines:
-        match = _BACKUP_STARTED_RE.search(line)
+        match = STARTED_AT_RE.search(line)
         if match:
             return datetime.fromisoformat(match.group("ts")).replace(tzinfo=APP_TIMEZONE)
     return None
@@ -222,8 +194,8 @@ def _parse_progress_data(task: dict[str, Any], log_lines: list[str]) -> dict[str
     for line in log_lines:
         dirty_match = _DIRTY_RE.search(line)
         if dirty_match:
-            progress["delta_bytes"] = _parse_size_to_bytes(dirty_match.group("dirty"))
-            progress["full_bytes"] = _parse_size_to_bytes(dirty_match.group("full"))
+            progress["delta_bytes"] = parse_size(dirty_match.group("dirty"))
+            progress["full_bytes"] = parse_size(dirty_match.group("full"))
             progress["delta_label"] = dirty_match.group("dirty")
             progress["full_label"] = dirty_match.group("full")
 
@@ -240,8 +212,8 @@ def _parse_progress_data(task: dict[str, Any], log_lines: list[str]) -> dict[str
             if rate_match:
                 progress["read_label"] = _round_rate(rate_match.group("read"))
                 progress["write_label"] = _round_rate(rate_match.group("write"))
-            progress["written_bytes"] = _parse_size_to_bytes(written_label)
-            progress["target_bytes"] = _parse_size_to_bytes(target_label)
+            progress["written_bytes"] = parse_size(written_label)
+            progress["target_bytes"] = parse_size(target_label)
             progress["written_label"] = written_label
             progress["target_label"] = target_label
             # "elapsed" counts from the VM's start, not from when the line was
@@ -272,7 +244,7 @@ class _TaskLog:
 
 def _with_lines(state: _TaskLog, lines: list[str], read: int) -> _TaskLog:
     for i in range(len(lines) - 1, -1, -1):
-        if _START_RE.search(lines[i]):
+        if START_RE.search(lines[i]):
             return _TaskLog(read, lines[i:])
     return _TaskLog(read, state.section + lines)
 
@@ -305,7 +277,7 @@ def _read_task_log(get_page: Callable[[int, int], tuple[list[str], int | None]],
         page, _ = get_page(start, end - start)
         tail = page + tail
         end = start
-        if any(_START_RE.search(line) for line in page):
+        if any(START_RE.search(line) for line in page):
             return _with_lines(state, tail, total)
     return _with_lines(state, lines + tail, total)
 

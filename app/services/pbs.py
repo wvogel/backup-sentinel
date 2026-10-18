@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
+import ssl
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 from urllib import parse
 
 from app.i18n import ts
-from app.services.api_client import APIError, api_get_json, api_get_payload, api_test_connection
+from app.services.api_client import APIError, api_get_json, api_get_payload
 from app.services.backup_location import connection_location
 from app.services.vzdump_log import guest_name_from_notes
 
@@ -61,23 +63,6 @@ def _is_encrypted(files: list[dict[str, Any]] | None) -> bool | None:
     if modes <= {"none", "sign-only"}:
         return False
     return None
-
-
-def test_pbs_connection(conn: dict[str, Any], timeout: float = 5.0) -> None:
-    """Test PBS connectivity. Raises PBSSyncError on failure."""
-    base_url = conn["api_url"].rstrip("/")
-    token_id = conn["api_token_id"]
-    token_secret = conn["api_token_secret"]
-    auth_header = f"PBSAPIToken={token_id}:{token_secret}"
-    try:
-        api_test_connection(
-            f"{base_url}/api2/json/status/datastore-usage",
-            auth_header,
-            timeout=timeout,
-            label="PBS",
-        )
-    except APIError as exc:
-        raise PBSSyncError(str(exc)) from exc
 
 
 def fetch_pbs_datastores(conn: dict[str, Any]) -> tuple[list[str], str, bool]:
@@ -401,16 +386,17 @@ def fetch_pbs_sync_jobs(conn: dict[str, Any], retries: int = 2) -> list[dict[str
     return result
 
 
-def fetch_pbs_cert_fingerprints(conn: dict[str, Any]) -> list[str]:
-    """Fingerprints of the certificates this PBS serves, to recognise it when
-    PVE or another PBS knows it under a different name or address."""
-    rows = _pbs_get_json(
-        conn["api_url"].rstrip("/"),
-        "/api2/json/nodes/localhost/certificates/info",
-        conn["api_token_id"],
-        conn["api_token_secret"],
-    )
-    return [str(row["fingerprint"]) for row in rows if row.get("fingerprint")]
+def fetch_pbs_cert_fingerprints(conn: dict[str, Any], timeout: float = 10.0) -> list[str]:
+    """Fingerprint of the certificate this PBS serves, to recognise it when
+    PVE or another PBS knows it under a different name or address.
+
+    Read from the TLS handshake: PBS's certificates API needs Sys.Modify,
+    which a read-only token does not have.
+    """
+    parts = parse.urlsplit(conn["api_url"])
+    pem = ssl.get_server_certificate((parts.hostname or "", parts.port or 8007), timeout=timeout)
+    digest = hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).digest()
+    return [":".join(f"{b:02X}" for b in digest)]
 
 
 def fetch_datastore_usage(conn: dict[str, Any]) -> list[dict[str, Any]]:

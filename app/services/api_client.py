@@ -10,7 +10,7 @@ import ssl
 import threading
 import time
 from typing import Any
-from urllib import error, parse, request
+from urllib import error, parse
 
 from app.config import API_TIMEOUT, INSECURE_SSL
 
@@ -162,7 +162,7 @@ def api_get_payload(
             if attempt < retries and not is_ssl_error:
                 delay = _RETRY_BACKOFF * (2**attempt)
                 logger.warning(
-                    "← %s %s%s → FEHLER (%.1fs): %s, retry in %.1fs",
+                    "← %s %s%s → ERROR (%.1fs): %s, retry in %.1fs",
                     label,
                     short_path,
                     qs_short,
@@ -173,7 +173,7 @@ def api_get_payload(
                 time.sleep(delay)
                 last_exc = exc
                 continue
-            logger.warning("← %s %s%s → FEHLER (%.1fs): %s", label, short_path, qs_short, elapsed, exc.reason)
+            logger.warning("← %s %s%s → ERROR (%.1fs): %s", label, short_path, qs_short, elapsed, exc.reason)
             raise APIError(f"{label} API request failed for {path}: {exc.reason}") from exc
 
     # Should be unreachable, but satisfy type checker
@@ -212,26 +212,3 @@ def api_get_dict(
     if not isinstance(data, dict):
         raise APIError(f"Unexpected {label} response for {path}")
     return data
-
-
-def api_test_connection(
-    url: str,
-    auth_header: str,
-    *,
-    timeout: float = 5.0,
-    label: str = "API",
-) -> None:
-    """Test connectivity. Raises APIError on failure."""
-    req = request.Request(
-        url,
-        headers={"Authorization": auth_header, "Accept": "application/json"},
-        method="GET",
-    )
-    context = _get_ssl_context()
-    try:
-        with request.urlopen(req, timeout=timeout, context=context):
-            pass
-    except error.HTTPError as exc:
-        raise APIError(f"HTTP {exc.code}") from exc
-    except error.URLError as exc:
-        raise APIError(f"Verbindungsfehler: {exc.reason}") from exc

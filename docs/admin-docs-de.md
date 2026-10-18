@@ -37,8 +37,9 @@ Backup Sentinel wird gegen folgende Proxmox-Versionen getestet:
 Ältere Versionen funktionieren möglicherweise, werden aber nicht regelmäßig getestet. Falls Sie Backup Sentinel gegen eine ältere Version einsetzen, öffnen Sie gerne ein Issue mit Ihren Ergebnissen.
 
 API-Tokens (die Bootstrap-Skripte richten sie ein, siehe [Cluster-Onboarding](#cluster-onboarding)):
-- PVE: Benutzer `backup-reports@pve`, Token `<cluster-slug>-collector`, Rolle `PVEAuditor` auf `/` und `PVEDatastoreAdmin` auf `/storage`. Das ist nicht rein lesend: PVE listet Backup-Volumes im Inhalt eines Storages nur mit `Datastore.Allocate` auf diesem Storage, und das fehlt `PVEAuditor`. Backup Sentinel selbst sendet nur lesende Anfragen.
-- PBS: Benutzer `backup-reports@pbs`, Token `<cluster-slug>-collector`, Rolle `Admin` auf `/` für Benutzer und Token (PBS-Privilege-Separation: wirksam ist die Schnittmenge aus beiden). Das lässt sich später einschränken; mindestens nötig ist `Datastore.Audit` auf die zu überwachenden Datastores, für das Replikations-Schaubild zusätzlich Lesen der Sync-Jobs und Remotes (`Datastore.Audit` auf `/datastore`, `Remote.Audit` auf `/remote`). Fehlen letztere, bleibt der PBS-Sync grün, das Sync-Log nennt den Grund.
+- PVE: Benutzer `backup-reports@pve`, Token `<cluster-slug>-collector` (ohne Privilege-Separation), Rolle `PVEAuditor` auf `/` und die eigene Rolle `BackupSentinelBackupList` (`Datastore.AllocateSpace`, `VM.Backup`) auf `/`. PVE kennt keinen rein lesenden Weg, Backup-Volumes aufzulisten: Im Inhalt eines Storages erscheint ein Backup nur mit `Datastore.Allocate` auf dem Storage oder mit `Datastore.AllocateSpace` plus `VM.Backup` auf der VM. Die eigene Rolle nimmt den engeren zweiten Weg – sie kann weder die Storage-Konfiguration ändern noch VM-Disks oder ISOs löschen, könnte aber Backups starten oder löschen. Backup Sentinel selbst sendet nur lesende Anfragen.
+- PBS: Benutzer `backup-reports@pbs`, Token `<cluster-slug>-collector`, Rolle `Audit` auf `/` für Benutzer und Token (PBS-Privilege-Separation: wirksam ist die Schnittmenge aus beiden). `Audit` ist rein lesend und deckt alles ab, was Backup Sentinel liest: Datastores, Namespaces, Snapshots, Belegung, Sync-Jobs, Remotes und Task-Logs. Den Zertifikats-Fingerabdruck liest die Anwendung aus der TLS-Verbindung, nicht über die Zertifikats-API (die bräuchte `Sys.Modify`).
+- Vor v2.41.14 angebundene Installationen haben noch `PVEDatastoreAdmin` auf `/storage` (PVE) bzw. `Admin` auf `/` (PBS). Den Bootstrap-Befehl aus den Einstellungen erneut ausführen – je Cluster einmal auf einem PVE-Node und je PBS-Verbindung einmal; er vergibt die Rollen oben und nimmt die alten zurück. Der PBS-Benutzer ist für alle Cluster derselbe, ein Lauf je PBS entzieht `Admin` also allen seinen Tokens.
 - PBS-Verbindung, Felder in Einstellungen → Cluster: **Namespace** beschränkt die Verbindung auf einen Namespace samt Unter-Namespaces (z. B. das Ziel eines Pull-Syncs; leer = nur Root). **Aliase** sind weitere Hostnamen oder IPs, unter denen PVE oder ein Sync-Remote diesen PBS kennt. Normalerweise erkennt Backup Sentinel einen PBS selbst (Fingerprint, Name, DNS, Zertifikat per TLS); Aliase braucht es nur, wenn er unter dem anderen Namen nicht erreichbar ist, etwa in einem getrennten Backup-Netz.
 
 ---
@@ -193,7 +194,7 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/proxmox-agent.sh
 
 Das Skript wird:
 - Den Benutzer `backup-reports@pve` (falls nicht vorhanden) und den API-Token `<cluster-slug>-collector` anlegen (ein vorhandener wird ersetzt).
-- Die Rollen `PVEAuditor` auf `/` und `PVEDatastoreAdmin` auf `/storage` zuweisen (Begründung unter [Voraussetzungen](#voraussetzungen)).
+- Die Rolle `PVEAuditor` auf `/` und die eigene Rolle `BackupSentinelBackupList` (`Datastore.AllocateSpace`, `VM.Backup`) auf `/` zuweisen (Begründung unter [Voraussetzungen](#voraussetzungen)).
 - Den Token an die Backup-Sentinel-API zurücksenden, um die Registrierung abzuschließen.
 
 4. Nach Abschluss des Bootstraps erscheint der Cluster in der Oberfläche und die erste Synchronisation startet automatisch.
@@ -211,7 +212,7 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/pbs-agent.sh) \
   --enrollment-secret <einmal-secret>
 ```
 
-Das Skript legt den Benutzer `backup-reports@pbs` und den API-Token `<cluster-slug>-collector` an, gibt beiden `Admin` auf `/` (lässt sich später einschränken, siehe [Voraussetzungen](#voraussetzungen)) und registriert die Verbindung. Als PBS-Name dient der kurze Hostname, als API-URL `https://<fqdn>:8007`. Optionale Parameter:
+Das Skript legt den Benutzer `backup-reports@pbs` und den API-Token `<cluster-slug>-collector` an, gibt beiden die rein lesende Rolle `Audit` auf `/` (siehe [Voraussetzungen](#voraussetzungen)) und registriert die Verbindung. Als PBS-Name dient der kurze Hostname, als API-URL `https://<fqdn>:8007`. Optionale Parameter:
 
 - `--api-url URL` -- diese API-URL statt `https://<fqdn>:8007` verwenden, z. B. wenn Backup Sentinel den PBS unter einem anderen Namen erreicht.
 - `--namespace NS` -- die Verbindung auf diesen Namespace samt Unter-Namespaces beschränken (z. B. das Ziel eines Pull-Syncs); ohne ihn wird nur der Root-Namespace gelesen. Ein erneuter Lauf ohne `--namespace` behält den in der Oberfläche gesetzten Namespace.

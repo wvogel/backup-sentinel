@@ -1,7 +1,7 @@
 import unittest
 
 from app.i18n import set_language
-from app.services.human_format import format_count, format_rate, format_size
+from app.services.human_format import format_count, format_rate, format_size, short_number
 
 GIB = 1024**3
 TIB = 1024**4
@@ -53,6 +53,18 @@ class FormatRateTests(unittest.TestCase):
         self.assertEqual(format_rate(1.6 * GIB, "de"), "1,6 GiB/s")
         self.assertEqual(format_rate(1.6 * GIB, "en"), "1.6 GiB/s")
         self.assertEqual(format_rate(None, "de"), "–")
+
+
+class ShortNumberTests(unittest.TestCase):
+    def test_one_decimal_below_ten(self) -> None:
+        self.assertEqual(short_number(5.25), "5.2")
+        self.assertEqual(short_number(9.0), "9")
+        self.assertEqual(short_number(9.96), "10")
+        self.assertEqual(short_number(187.7), "188")
+
+    def test_grouping(self) -> None:
+        self.assertEqual(short_number(1234.4), "1,234")
+        self.assertEqual(short_number(1234.4, grouping=False), "1234")
 
 
 class FormatCountTests(unittest.TestCase):

@@ -512,5 +512,8 @@
   "weekly.verify_critical": "Verify fehlgeschlagen",
   "weekly.verify_warning": "seit über 30 Tagen nicht verifiziert",
   "weekly.full_at": "voll ca. {date}",
-  "weekly.restore": "Restore-Tests: {expired} abgelaufen · {open} offen · {tested} diese Woche getestet"
+  "weekly.restore": "Restore-Tests: {expired} abgelaufen · {open} offen · {tested} diese Woche getestet",
+  "errors.invalid_date": "Ungültiges Datum",
+  "errors.cluster_name_exists": "Ein Cluster mit diesem Namen existiert bereits.",
+  "errors.cluster_already_registered": "Cluster bereits registriert. Neues Enrollment-Secret in den Einstellungen generieren."
 }

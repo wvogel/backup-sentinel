@@ -2,7 +2,7 @@ import unittest
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from app.services.vzdump_log import guest_name_from_notes, parse_vzdump_log
+from app.services.vzdump_log import START_RE, guest_name_from_notes, parse_size, parse_vzdump_log
 
 BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -109,6 +109,35 @@ class ParseVzdumpLogTests(unittest.TestCase):
         self.assertEqual(run.started_at, datetime(2026, 10, 9, 20, 15, tzinfo=UTC))
         self.assertEqual(run.throughput_bps, 32 * 1024**3 // 128)
         self.assertIsNone(run.full_backup)
+
+
+class ParseSizeTests(unittest.TestCase):
+    def test_binary_and_decimal_units(self) -> None:
+        self.assertEqual(parse_size("12.5 GiB"), int(12.5 * 1024**3))
+        self.assertEqual(parse_size("3 GB"), 3 * 1000**3)
+        self.assertEqual(parse_size("512 B"), 512)
+        self.assertEqual(parse_size("2 EiB"), 2 * 1024**6)
+        self.assertEqual(parse_size("2 EB"), 2 * 1000**6)
+
+    def test_tolerant_spelling(self) -> None:
+        # Rates, missing space, any case and surrounding text are accepted.
+        self.assertEqual(parse_size("187.5 MiB/s"), int(187.5 * 1024**2))
+        self.assertEqual(parse_size("1.5GiB"), int(1.5 * 1024**3))
+        self.assertEqual(parse_size("4 kib"), 4096)
+        self.assertEqual(parse_size("4 KB"), 4000)
+        self.assertEqual(parse_size("(17.6 TiB of 37.3 TiB)"), int(17.6 * 1024**4))
+
+    def test_no_size(self) -> None:
+        for value in (None, "", "abc", "12", "12 apples", "1.2.3"):
+            self.assertIsNone(parse_size(value), value)
+
+    def test_start_line_allows_extra_spaces(self) -> None:
+        for line in ("INFO: Starting Backup of VM 100 (qemu)", "INFO: Starting Backup of CT  205 (lxc)"):
+            self.assertIsNotNone(START_RE.search(line), line)
+        runs = parse_vzdump_log(
+            ["INFO: Starting Backup of VM  100 (qemu)", "INFO: Finished Backup of VM 100 (00:00:09)"], BERLIN
+        )
+        self.assertEqual([(r.vmid, r.duration_seconds) for r in runs], [(100, 9)])
 
 
 class GuestNameTests(unittest.TestCase):

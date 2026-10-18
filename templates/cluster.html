@@ -13,7 +13,7 @@
   <div class="cluster-hero-main">
     <h2>
       <form action="/clusters/{{ cluster.slug }}/sync" method="post" class="inline-form js-sync-form"
-            data-cluster-slug="{{ cluster.slug }}">
+            data-cluster-slug="{{ cluster.slug }}" data-sync-watch>
         <button type="submit" class="icon-button js-sync-btn" title="{{ t('cluster.sync_now') }}">
           <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
         </button>
@@ -319,62 +319,6 @@ document.addEventListener('DOMContentLoaded', function () {
     sessionStorage.removeItem(key);
     window.scrollTo(0, parseInt(saved, 10));
   }
-
-  var panel = document.getElementById('sync-log-panel');
-  var content = document.getElementById('sync-log-content');
-
-  // Check if a sync is already running (auto-sync or triggered before page load)
-  var slug = '{{ cluster.slug }}';
-  function checkRunningSync() {
-    fetch('/api/clusters/' + encodeURIComponent(slug) + '/sync-status?since=0')
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (data.syncing) {
-          var btn = document.querySelector('.js-sync-btn');
-          if (btn) {
-            btn.classList.add('syncing');
-            btn.title = T('js.syncing');
-          }
-          // Store log data so a sync symbol click shows the live log
-          window._liveSyncLog = data.log.join('\n') + (data.log.length ? '\n' : '');
-          window._liveSyncOffset = data.offset || 0;
-          window._liveSyncActive = true;
-          // Poll in background (spinner + log buffer only, no panel)
-          var poll = setInterval(function() {
-            fetch('/api/clusters/' + encodeURIComponent(slug) + '/sync-status?since=' + window._liveSyncOffset)
-              .then(function(r) { return r.json(); })
-              .then(function(d) {
-                if (d.log && d.log.length > 0) {
-                  window._liveSyncLog += d.log.join('\n') + '\n';
-                  // Update panel content if it's visible
-                  if (panel.open && window._liveSyncActive) {
-                    content.textContent = window._liveSyncLog;
-                    content.scrollTop = content.scrollHeight;
-                  }
-                }
-                window._liveSyncOffset = d.offset || window._liveSyncOffset;
-                if (!d.syncing) {
-                  clearInterval(poll);
-                  window._liveSyncActive = false;
-                  if (btn) {
-                    btn.classList.remove('syncing');
-                    btn.title = T('cluster.sync_now');
-                  }
-                  var logStatus = document.getElementById('sync-log-status');
-                  if (logStatus && panel.open) {
-                    logStatus.textContent = T('js.sync_complete');
-                    logStatus.classList.remove('muted');
-                    logStatus.classList.add('ok-text');
-                  }
-                  showSuccessLightbox(T('js.sync_complete'), T('js.data_updating'));
-                  setTimeout(function() { location.reload(); }, 2500);
-                }
-              }).catch(function() {});
-          }, 2000);
-        }
-      }).catch(function() {});
-  }
-  checkRunningSync();
 });
 </script>
 {% endblock %}

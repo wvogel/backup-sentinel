@@ -59,8 +59,19 @@ if [[ -n "$USER_ADD_OUTPUT" ]] && [[ "$USER_ADD_OUTPUT" != *"already exists"* ]]
   exit 1
 fi
 
+# Read access everywhere. Listing backup volumes is not covered by it: PVE shows
+# a backup only with Datastore.Allocate on the storage, or Datastore.AllocateSpace
+# plus VM.Backup on the VM (check_volume_access in pve-storage). The custom role
+# takes the narrower second way: no storage config changes, no deleting VM disks.
+ROLE="BackupSentinelBackupList"
+ROLE_PRIVS="Datastore.AllocateSpace,VM.Backup"
+if ! pveum role add "$ROLE" --privs "$ROLE_PRIVS" >/dev/null 2>&1; then
+  pveum role modify "$ROLE" --privs "$ROLE_PRIVS"
+fi
 pveum aclmod / -user "$API_USER" -role PVEAuditor
-pveum aclmod /storage -user "$API_USER" -role PVEDatastoreAdmin
+pveum aclmod / -user "$API_USER" -role "$ROLE"
+# Earlier versions granted PVEDatastoreAdmin on /storage; a re-run takes it back.
+pveum acldel /storage -user "$API_USER" -role PVEDatastoreAdmin >/dev/null 2>&1 || true
 
 TOKEN_REMOVE_OUTPUT="$(pveum user token remove "$API_USER" "$TOKEN_NAME" 2>&1 || true)"
 if [[ -n "$TOKEN_REMOVE_OUTPUT" ]] && [[ "$TOKEN_REMOVE_OUTPUT" != *"does not exist"* ]] && [[ "$TOKEN_REMOVE_OUTPUT" != *"not exist"* ]] && [[ "$TOKEN_REMOVE_OUTPUT" != *"no such token"* ]]; then

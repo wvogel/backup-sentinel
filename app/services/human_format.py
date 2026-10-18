@@ -22,12 +22,15 @@ def _localize(text: str, lang: str | None) -> str:
     return text.translate(str.maketrans({",": ".", ".": ","}))
 
 
-def _short(value: float) -> str:
-    """ "5.3", "10", "188" — one decimal only while it carries information."""
+def short_number(value: float, *, grouping: bool = True) -> str:
+    """ "5.3", "10", "188" — one decimal only while it carries information.
+    `grouping` adds the thousands separator ("1,234"); unlocalized labels
+    that are shown in every language leave it out."""
     if value < 9.95:
         text = f"{value:.1f}"
         return text[:-2] if text.endswith(".0") else text
-    return f"{int(value + 0.5):,}"
+    rounded = int(value + 0.5)
+    return f"{rounded:,}" if grouping else str(rounded)
 
 
 def format_size(value: object, lang: str | None = None) -> str:
@@ -44,7 +47,7 @@ def format_size(value: object, lang: str | None = None) -> str:
     while unit < len(_SIZE_UNITS) - 1 and v >= 999.5:
         v /= 1024
         unit += 1
-    number = f"{int(v + 0.5):,}" if unit == 0 else _short(v)
+    number = f"{int(v + 0.5):,}" if unit == 0 else short_number(v)
     return f"{sign}{_localize(number, lang)} {_SIZE_UNITS[unit]}"
 
 

@@ -587,6 +587,21 @@ class ClusterPageTests(DbTestCase):
         self.assertIn('class="sync-dots"', html)
         self.assertNotIn("data-topology", html)
 
+    def test_running_sync_is_followed_by_sync_js(self) -> None:
+        # sync.js polls a sync already running on page load (data-sync-watch);
+        # the page carries no poll loop of its own.
+        html = self.page()
+        self.assertRegex(html, r'class="inline-form js-sync-form"\s+data-cluster-slug="test" data-sync-watch>')
+        self.assertNotIn("sync-status", html)
+        # The completion lightbox sync.js shows is part of every page.
+        self.assertIn('id="success-lightbox"', html)
+
+    def test_invalid_restore_test_date_is_translated(self) -> None:
+        form = {"vm_id": "1", "tested_at": "kein Datum", "result": "success", "recovery_type": "full"}
+        response = self.client.post("/clusters/test/restore-tests", data={**form, "duration_minutes": "5"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Ungültiges Datum")
+
     def test_logs_open_in_a_dialog_with_copy_and_close(self) -> None:
         html = self.page()
         self.assertIn('<dialog class="log-dialog" id="sync-log-panel"', html)
