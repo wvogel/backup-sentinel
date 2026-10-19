@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.16] — 2026-10-19
+
+### Fixed
+
+- **A failed verify no longer stays red after a later backup verified OK.** Any failed verify in the last 7 days used to mark the VM critical, even when a newer backup had been verified successfully since. Now a failure counts only until a later backup verifies OK. A newer backup that is not verified yet does not clear it — it shares most chunks with the failed one — and the tooltip now says so ("No later backup verified yet").
+
 ## [v2.41.15] — 2026-10-18
 
 ### Fixed

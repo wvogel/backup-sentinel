@@ -285,7 +285,10 @@ def _protection_status(row: dict[str, Any], now: datetime) -> tuple[str | None, 
         copy_status = "ok" if row["copy_count"] >= 2 else "single"
     verify_status = None
     if row["has_pbs"]:
-        if row["verify_failed_at"]:
+        failed_at, verified_at = row["verify_failed_at"], row["last_verified_at"]
+        # A failure counts until a later backup verifies OK: the newer backups
+        # share most chunks with the failed one, so "backed up" alone says nothing.
+        if failed_at and (not verified_at or failed_at >= verified_at):
             verify_status = "critical"
         elif not row["last_verified_at"] or now - row["last_verified_at"] > timedelta(days=VERIFY_MAX_AGE_DAYS):
             verify_status = "warning"

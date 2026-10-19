@@ -445,6 +445,7 @@
   "cluster.verify_ok_tooltip": "Last verified successfully: {date}",
   "cluster.verify_stale_tooltip": "Not verified for over 30 days (last: {date})",
   "cluster.verify_failed_tooltip": "Verify failed: backup of {date}",
+  "cluster.verify_failed_pending": "No later backup verified yet — green once one is",
   "notify.verify_failed_title": "Verify failed: {vm}",
   "notify.verify_failed_message": "The PBS could not verify the backup of {date}.",
   "notifications.type_verify_failed": "Verify failed",
