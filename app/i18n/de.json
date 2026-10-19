@@ -445,6 +445,7 @@
   "cluster.verify_ok_tooltip": "Zuletzt erfolgreich verifiziert: {date}",
   "cluster.verify_stale_tooltip": "Seit über 30 Tagen nicht verifiziert (zuletzt: {date})",
   "cluster.verify_failed_tooltip": "Verify fehlgeschlagen: Backup vom {date}",
+  "cluster.verify_failed_pending": "Seitdem noch kein Backup verifiziert – grün, sobald eines verifiziert ist",
   "notify.verify_failed_title": "Verify fehlgeschlagen: {vm}",
   "notify.verify_failed_message": "Der PBS konnte das Backup vom {date} nicht verifizieren.",
   "notifications.type_verify_failed": "Verify fehlgeschlagen",
