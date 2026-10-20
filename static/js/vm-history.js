@@ -97,6 +97,7 @@
     row.setAttribute("aria-expanded", "true");
     try {
       const resp = await fetch(`/api/clusters/${encodeURIComponent(slug)}/vms/${row.dataset.vmId}/history`);
+      if (!resp.ok) throw new Error(resp.status);
       const data = await resp.json();
       box.replaceChildren();
       box.classList.remove("muted");
@@ -107,7 +108,7 @@
       for (const spec of CHARTS) box.append(chart(data.events, spec));
       box.append(legend(data.events));
     } catch {
-      box.textContent = T("cluster.history_empty");
+      box.textContent = T("cluster.history_error");
     }
   }
 
