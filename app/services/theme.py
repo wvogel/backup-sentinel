@@ -75,6 +75,7 @@ class Preset:
     base: BaseColors
     line: str  # borders / dividers (not overridable)
     sage: str  # calm info surfaces (not overridable)
+    dark_surfaces: dict[str, str] | None = None  # overrides for dark-mode surfaces
 
 
 PRESETS: dict[str, Preset] = {
@@ -82,6 +83,16 @@ PRESETS: dict[str, Preset] = {
         base=BaseColors(primary="#141450", accent="#ffff00", background="#f8f5f2", running="#4a7eb5"),
         line="#efe7db",
         sage="#d8ddce",
+        dark_surfaces={
+            "--bg": "#0b0f1a",
+            "--panel": "#131a2b",
+            "--panel-alt": "#0e1525",
+            "--line": "#1e2d44",
+            "--chip": "#162032",
+            "--chip-border": "#2a3a52",
+            "--header-bg": "#0e1525",
+            "--header-border": rgba("#d4e4f0", 0.18),
+        },
     ),
     "neutral": Preset(
         base=BaseColors(primary="#141450", accent="#141450", background="#f2f5fa", running="#1f5fbf"),
@@ -172,6 +183,8 @@ def derive_tokens(preset: Preset, base: BaseColors) -> dict[str, dict[str, str]]
         "--sage": mix(preset.sage, dark_panel, 0.80),
         "--sage-ink": mix(preset.sage, WHITE, 0.30),
     }
+    if preset.dark_surfaces:
+        dark.update(preset.dark_surfaces)
     return {"light": light, "dark": dark}
 
 
