@@ -7,7 +7,7 @@ The PNG copies (docs/architecture-*.png) are 2x renders of these SVGs.
 import sys
 from html import escape
 
-BG, PANEL, LINE, INK, MUTED = "#131325", "#1b1b34", "#363668", "#eeeef1", "#aeaec2"
+BG, PANEL, LINE, INK, MUTED = "#0b0f1a", "#131a2b", "#2a3a52", "#eeeef1", "#aeaec2"
 BLUE, YELLOW, GREEN = "#89abcf", "#e8e87d", "#8dd3b0"
 FONT = 'font-family="Inter,Segoe UI,system-ui,sans-serif"'
 
