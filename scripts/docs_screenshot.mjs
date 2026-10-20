@@ -1,17 +1,18 @@
 // Documentation screenshots: headless Chrome (macOS path), dark mode, 2x, demo user.
-// Usage: node scripts/docs_screenshot.mjs <url> <out.png> <width> <height> [en|de]
+// Usage: node scripts/docs_screenshot.mjs <url> <out.png> <width> <height> [en|de] [dark|light]
 import { spawn } from "node:child_process";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-const [url, out, width, height, lang = "en"] = process.argv.slice(2);  // height: px, "full", or a CSS selector to end below
+const [url, out, width, height, lang = "en", scheme = "dark"] = process.argv.slice(2);  // height: px, "full", or a CSS selector to end below
+const PORT = 9300 + Math.floor(Math.random() * 600); // a fresh port: an old instance may still be exiting
 const chrome = spawn("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  ["--headless=new", "--remote-debugging-port=9333", "--no-first-run", "--hide-scrollbars",
+  ["--headless=new", `--remote-debugging-port=${PORT}`, "--no-first-run", "--hide-scrollbars",
    `--user-data-dir=${mkdtempSync(tmpdir() + "/bs-shot-")}`, "about:blank"], { stdio: "ignore" });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let target;
 for (let i = 0; i < 50 && !target; i++) {
   await sleep(200);
-  try { target = (await (await fetch("http://127.0.0.1:9333/json")).json()).find((t) => t.type === "page"); } catch {}
+  try { target = (await (await fetch(`http://127.0.0.1:${PORT}/json`)).json()).find((t) => t.type === "page"); } catch {}
 }
 const ws = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((r) => ws.addEventListener("open", r));
@@ -20,7 +21,7 @@ ws.addEventListener("message", (e) => { const m = JSON.parse(e.data); if (m.id &
 const send = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
 const w = Number(width);
 await send("Emulation.setDeviceMetricsOverride", { width: w, height: 900, deviceScaleFactor: 2, mobile: false });
-await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] });
+await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] });
 await send("Network.enable");
 await send("Network.setExtraHTTPHeaders", { headers: { "X-Forwarded-Email": "admin@example.com" } });
 await send("Network.setCookie", { name: "bsentinel-lang", value: lang, url });
@@ -35,6 +36,7 @@ const h = Number(metrics.result.result.value);
 await send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 2, mobile: false });
 await sleep(1500);
 const shot = await send("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: w, height: h, scale: 1 } });
+if (!shot.result) { console.error("capture failed:", JSON.stringify(shot.error), "height", h); chrome.kill(); process.exit(1); }
 writeFileSync(out, Buffer.from(shot.result.data, "base64"));
 ws.close(); chrome.kill();
 console.log("saved", out, w, h);
