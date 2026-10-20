@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.18] — 2026-10-20
+
+### Fixed
+
+- **"Keine Backups in den letzten 30 Tagen" appeared after a failed API fetch.** When the history endpoint was unreachable (e.g. briefly after a deploy), the catch block showed the empty-state message instead of an error. Now it says "Verlauf konnte nicht geladen werden" / "Could not load history", and non-ok HTTP responses (502 etc.) are caught explicitly.
+
 ## [v2.41.17] — 2026-10-20
 
 ### Fixed
