@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.17] — 2026-10-20
+
+### Fixed
+
+- **Architecture diagram uses the updated dark mode palette.** Surface colors (BG, panel, line) now match the deep-blue tones from v2.41.16's dark_surfaces preset.
+- **Screenshot script improvements**: random CDP port avoids collisions, configurable color scheme parameter, better error handling.
+
 ## [v2.41.16] — 2026-10-19
 
 ### Fixed
