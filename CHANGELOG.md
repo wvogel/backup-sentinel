@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.23] — 2026-10-23
+
+### Changed
+
+- **`fetch_origin` column in `backup_events`.** Each PBS event now records where it was fetched from: `'pbs'` (direct PBS API) or `'pve'` (PVE storage content API proxying a PBS storage). Dedup and cleanup are based on this definitive origin, not heuristics like size comparison. Migration 7 retroactively labels and removes existing PVE-via-PBS duplicates.
+
 ## [v2.41.22] — 2026-10-23
 
 ### Fixed

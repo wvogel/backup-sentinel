@@ -190,6 +190,7 @@ def sync_cluster_backups(cluster: dict) -> None:
             for event in inventory.backup_events:
                 if event.get("source") == "pbs":
                     event["_from_pve"] = True
+                    event["fetch_origin"] = "pve"
                     all_pbs_events.append(event)
             pve_log.append(ts("synclog.pve_events", count=len(inventory.backup_events)))
         else:
@@ -247,6 +248,7 @@ def sync_cluster_backups(cluster: dict) -> None:
                     pbs_log.extend(ds_logs)
                     for event in events:
                         event["source"] = "pbs"
+                        event["fetch_origin"] = "pbs"
                     all_pbs_events.extend(events)
                     with step(ts("synclog.step_pbs_usage", name=conn.get("name"))):
                         record_datastore_usage(cluster, conn, pbs_log)

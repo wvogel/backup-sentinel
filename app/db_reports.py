@@ -164,6 +164,7 @@ def sync_backup_events_for_source(
                     event.get("upid", ""),
                     source,
                     event.get("guest_name"),
+                    event.get("fetch_origin"),
                 )
             )
         # One batch instead of a round trip per snapshot (in order, so the
@@ -172,8 +173,8 @@ def sync_backup_events_for_source(
             cur.executemany(
                 """
                 INSERT INTO backup_events
-                    (vm_id, started_at, finished_at, duration_seconds, size_bytes, encrypted, verify_state, status, upid, source, guest_name)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (vm_id, started_at, finished_at, duration_seconds, size_bytes, encrypted, verify_state, status, upid, source, guest_name, fetch_origin)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (vm_id, started_at) DO UPDATE SET
                     size_bytes    = COALESCE(EXCLUDED.size_bytes, backup_events.size_bytes),
                     encrypted     = COALESCE(EXCLUDED.encrypted, backup_events.encrypted),
@@ -181,6 +182,8 @@ def sync_backup_events_for_source(
                     guest_name    = COALESCE(EXCLUDED.guest_name, backup_events.guest_name),
                     source        = CASE WHEN backup_events.source = 'pbs' AND EXCLUDED.source = 'pve' THEN 'pbs'
                                          ELSE COALESCE(EXCLUDED.source, backup_events.source) END,
+                    fetch_origin  = CASE WHEN EXCLUDED.fetch_origin = 'pbs' THEN 'pbs'
+                                         ELSE COALESCE(backup_events.fetch_origin, EXCLUDED.fetch_origin) END,
                     -- A real backup with size > 1 byte is the source of truth — even if an
                     -- earlier sync (or stale-stub cleanup) flagged the row as failed.
                     -- Only preserve `failed` when no real size has been reported yet.

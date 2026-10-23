@@ -77,23 +77,29 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
     (
         6,
         "Remove inflated PVE-via-PBS duplicate backup events",
-        # PVE ctime and PBS backup-time can differ by 30+ minutes.
-        # PVE-via-PBS reports inflated chunk-reference size (~10x real).
-        # Any PBS row whose size is >5x another for the same VM within
-        # 2 hours is the inflated duplicate.  Also clear stale removed_at.
+        # Superseded by migration 7 (fetch_origin column approach).
+        [],
+    ),
+    (
+        7,
+        "Add fetch_origin column; delete PVE-via-PBS duplicates by origin",
         [
+            "ALTER TABLE backup_events ADD COLUMN IF NOT EXISTS fetch_origin TEXT",
+            "UPDATE backup_events SET fetch_origin = 'pbs' WHERE source = 'pbs' AND fetch_origin IS NULL",
             """
-            DELETE FROM backup_events
-            WHERE id IN (
-                SELECT a.id
-                FROM backup_events a
-                JOIN backup_events b ON a.vm_id = b.vm_id
-                    AND a.id <> b.id
-                    AND a.source = 'pbs' AND b.source = 'pbs'
-                    AND a.size_bytes > b.size_bytes * 5
-                    AND ABS(EXTRACT(EPOCH FROM a.started_at - b.started_at)) <= 7200
-            )
+            UPDATE backup_events SET fetch_origin = 'pve'
+            WHERE source = 'pbs'
+              AND removed_at IS NOT NULL
+              AND EXISTS (
+                  SELECT 1 FROM backup_events b
+                  WHERE b.vm_id = backup_events.vm_id
+                    AND b.id <> backup_events.id
+                    AND b.source = 'pbs'
+                    AND b.removed_at IS NULL
+                    AND ABS(EXTRACT(EPOCH FROM b.started_at - backup_events.started_at)) <= 7200
+              )
             """,
+            "DELETE FROM backup_events WHERE fetch_origin = 'pve'",
             "UPDATE backup_events SET removed_at = NULL WHERE source = 'pbs' AND removed_at IS NOT NULL",
         ],
     ),
