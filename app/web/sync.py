@@ -106,6 +106,37 @@ class _StepTimes:
         return ts("synclog.timings", steps=" · ".join(f"{label} {secs:.1f}s" for label, secs in steps))
 
 
+def _dedup_pbs_events(events: list[dict]) -> list[dict]:
+    """Remove duplicate PBS events that the PVE proxy and direct PBS fetch both report.
+
+    When PVE proxies a PBS storage, the same snapshot appears twice — once from
+    PVE's storage content API (``ctime``) and once from the direct PBS query
+    (``backup-time``).  The timestamps often differ by a few seconds, which after
+    minute-rounding may land on different minutes, creating two DB rows for one
+    backup.  Direct-PBS events carry a ``location`` and more accurate metadata
+    (size, verify_state), so they win; PVE-via-PBS duplicates are dropped.
+    """
+    # Index direct-PBS events (have a location) by (vmid, minute).
+    direct: dict[tuple[int, int], dict] = {}
+    for event in events:
+        if event.get("location"):
+            key = (event["vmid"], int(event["started_at"].timestamp()) // 60)
+            direct[key] = event
+
+    deduped: list[dict] = []
+    for event in events:
+        if event.get("location"):
+            deduped.append(event)
+            continue
+        minute = int(event["started_at"].timestamp()) // 60
+        vmid = event["vmid"]
+        # Drop if a direct-PBS event exists within ±1 minute.
+        if (vmid, minute) in direct or (vmid, minute - 1) in direct or (vmid, minute + 1) in direct:
+            continue
+        deduped.append(event)
+    return deduped
+
+
 def sync_cluster_backups(cluster: dict) -> None:
     """Fetch backup events from PBS direct connections (preferred) and PVE proxy."""
     cutoff = None
@@ -232,8 +263,12 @@ def sync_cluster_backups(cluster: dict) -> None:
                     prune_blockers.append(ts("synclog.pbs_failed", name=conn.get("name")))
 
         with step(ts("synclog.step_database")):
-            # A PBS that could not be read keeps its snapshots: PVE no longer
-            # lists them as a fallback (read_directly).
+            # PVE's storage content API and the direct PBS fetch both return the
+            # same snapshots; timestamps may differ by up to a minute (PVE uses
+            # ctime, PBS backup-time) and sizes can differ (PVE sometimes reports
+            # the total referenced chunk size instead of the snapshot size).
+            # Deduplicate: direct-PBS events (have a "location") win.
+            all_pbs_events = _dedup_pbs_events(all_pbs_events)
             db.sync_backup_events_for_source(cluster["id"], "pbs", all_pbs_events, mark_removed=pbs_all_ok)
             db.update_backup_event_storages(cluster["id"], pve_events + all_pbs_events)
 
