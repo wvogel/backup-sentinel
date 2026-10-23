@@ -49,6 +49,30 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         # the next sync parses the logs again (as far as PVE still keeps them).
         ["UPDATE backup_events SET full_backup = NULL WHERE full_backup", "DELETE FROM processed_backup_tasks"],
     ),
+    (
+        3,
+        "Mark duplicate PBS backup events caused by PVE-proxy double-reporting",
+        # PVE's storage content API and the direct PBS query both produced an
+        # event for the same snapshot.  When their timestamps differed by up to
+        # a minute after rounding, the UPSERT created two rows.  Mark the
+        # duplicate (higher id) as removed so it no longer shows in the UI.
+        # The next sync's dedup logic prevents new duplicates.
+        [
+            """
+            UPDATE backup_events SET removed_at = NOW()
+            WHERE id IN (
+                SELECT b.id
+                FROM backup_events a
+                JOIN backup_events b ON a.vm_id = b.vm_id
+                    AND a.id < b.id
+                    AND a.source = 'pbs' AND b.source = 'pbs'
+                    AND ABS(EXTRACT(EPOCH FROM a.started_at - b.started_at)) <= 90
+                    AND a.status = b.status
+                    AND a.removed_at IS NULL AND b.removed_at IS NULL
+            )
+            """
+        ],
+    ),
 ]
 
 

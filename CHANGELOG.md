@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.19] — 2026-10-23
+
+### Fixed
+
+- **Duplicate backup events from PVE-via-PBS and direct PBS fetch.** PVE's storage content API and the direct PBS query both returned the same snapshots. When their timestamps differed by up to a minute (PVE uses `ctime`, PBS `backup-time`), the UPSERT created two rows instead of one — showing "2 Backups" on days that only had one, and sometimes inflated sizes (PVE can report the total referenced chunk size instead of the snapshot size). Events are now deduplicated before the DB sync; a migration marks existing duplicates as removed.
+
 ## [v2.41.18] — 2026-10-20
 
 ### Fixed
