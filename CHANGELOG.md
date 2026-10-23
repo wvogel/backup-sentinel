@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.21] — 2026-10-23
+
+### Fixed
+
+- **Duplicate PBS events: keep the correct (smaller) size.** Migrations 3 and 4 deleted the row with the higher DB id — which was the direct-PBS event with the correct snapshot size. The PVE-via-PBS event (lower id, inserted first) carried the inflated chunk-reference size, so the wrong value survived. Migration 5 now keeps the row with the smaller `size_bytes` and widens the match window from 90 s to 120 s.
+
 ## [v2.41.20] — 2026-10-23
 
 ### Fixed
