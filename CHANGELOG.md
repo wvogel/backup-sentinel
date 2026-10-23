@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.20] — 2026-10-23
+
+### Fixed
+
+- **Duplicate backup events now physically deleted instead of marked as removed.** Migration 3 used `removed_at` to hide duplicates, but `removed_at` means "deleted by retention" — causing the sparkline to show false deletions and the history query to still count them. Migration 4 replaces this with a DELETE.
+
 ## [v2.41.19] — 2026-10-23
 
 ### Fixed
