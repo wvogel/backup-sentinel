@@ -59,24 +59,36 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
     (
         4,
         "Delete duplicate PBS backup events from PVE-proxy double-reporting",
-        # PVE's storage content API and the direct PBS query both produced an
-        # event for the same snapshot.  When their timestamps differed by up to
-        # a minute after rounding, the UPSERT created two rows.  removed_at is
-        # semantically wrong here (it means "deleted by retention"), so we
-        # physically remove the duplicate.  Also clean up any rows migration 3
-        # may have marked.
+        # Superseded by migration 5.
+        [],
+    ),
+    (
+        5,
+        "Delete duplicate PBS events, keep the row with the smaller size",
+        # PVE-via-PBS reports the total referenced chunk size (inflated);
+        # direct-PBS reports the actual snapshot size (correct, smaller).
+        # PVE events are inserted first (lower id), so the earlier migrations
+        # that kept the lower id kept the WRONG row.  Now: keep the smaller
+        # size; if equal, keep the lower id.  Window widened to 120 s
+        # (minute-rounding can produce up to 119 s difference).
+        # Also undo migration 3's removed_at on any surviving rows.
         [
             """
             DELETE FROM backup_events
             WHERE id IN (
-                SELECT b.id
+                SELECT CASE
+                    WHEN COALESCE(a.size_bytes, 0) > COALESCE(b.size_bytes, 0) THEN a.id
+                    WHEN COALESCE(b.size_bytes, 0) > COALESCE(a.size_bytes, 0) THEN b.id
+                    ELSE b.id
+                END
                 FROM backup_events a
                 JOIN backup_events b ON a.vm_id = b.vm_id
                     AND a.id < b.id
                     AND a.source = 'pbs' AND b.source = 'pbs'
-                    AND ABS(EXTRACT(EPOCH FROM a.started_at - b.started_at)) <= 90
+                    AND ABS(EXTRACT(EPOCH FROM a.started_at - b.started_at)) <= 120
             )
-            """
+            """,
+            "UPDATE backup_events SET removed_at = NULL WHERE removed_at IS NOT NULL AND source = 'pbs' AND EXISTS (SELECT 1 FROM backup_events b WHERE b.vm_id = backup_events.vm_id AND b.id <> backup_events.id AND b.source = 'pbs' AND ABS(EXTRACT(EPOCH FROM b.started_at - backup_events.started_at)) <= 120)",
         ],
     ),
 ]
