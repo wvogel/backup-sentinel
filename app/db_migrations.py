@@ -52,14 +52,22 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
     (
         3,
         "Mark duplicate PBS backup events caused by PVE-proxy double-reporting",
+        # Superseded by migration 4 (DELETE instead of removed_at).
+        # Kept as a no-op so the version number is not reused.
+        [],
+    ),
+    (
+        4,
+        "Delete duplicate PBS backup events from PVE-proxy double-reporting",
         # PVE's storage content API and the direct PBS query both produced an
         # event for the same snapshot.  When their timestamps differed by up to
-        # a minute after rounding, the UPSERT created two rows.  Mark the
-        # duplicate (higher id) as removed so it no longer shows in the UI.
-        # The next sync's dedup logic prevents new duplicates.
+        # a minute after rounding, the UPSERT created two rows.  removed_at is
+        # semantically wrong here (it means "deleted by retention"), so we
+        # physically remove the duplicate.  Also clean up any rows migration 3
+        # may have marked.
         [
             """
-            UPDATE backup_events SET removed_at = NOW()
+            DELETE FROM backup_events
             WHERE id IN (
                 SELECT b.id
                 FROM backup_events a
@@ -67,8 +75,6 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
                     AND a.id < b.id
                     AND a.source = 'pbs' AND b.source = 'pbs'
                     AND ABS(EXTRACT(EPOCH FROM a.started_at - b.started_at)) <= 90
-                    AND a.status = b.status
-                    AND a.removed_at IS NULL AND b.removed_at IS NULL
             )
             """
         ],
