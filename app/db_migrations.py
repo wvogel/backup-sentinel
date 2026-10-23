@@ -71,24 +71,30 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         # that kept the lower id kept the WRONG row.  Now: keep the smaller
         # size; if equal, keep the lower id.  Window widened to 120 s
         # (minute-rounding can produce up to 119 s difference).
-        # Also undo migration 3's removed_at on any surviving rows.
+        # Superseded by migration 6.
+        [],
+    ),
+    (
+        6,
+        "Remove inflated PVE-via-PBS duplicate backup events",
+        # PVE ctime and PBS backup-time can differ by 30+ minutes.
+        # PVE-via-PBS reports inflated chunk-reference size (~10x real).
+        # Any PBS row whose size is >5x another for the same VM within
+        # 2 hours is the inflated duplicate.  Also clear stale removed_at.
         [
             """
             DELETE FROM backup_events
             WHERE id IN (
-                SELECT CASE
-                    WHEN COALESCE(a.size_bytes, 0) > COALESCE(b.size_bytes, 0) THEN a.id
-                    WHEN COALESCE(b.size_bytes, 0) > COALESCE(a.size_bytes, 0) THEN b.id
-                    ELSE b.id
-                END
+                SELECT a.id
                 FROM backup_events a
                 JOIN backup_events b ON a.vm_id = b.vm_id
-                    AND a.id < b.id
+                    AND a.id <> b.id
                     AND a.source = 'pbs' AND b.source = 'pbs'
-                    AND ABS(EXTRACT(EPOCH FROM a.started_at - b.started_at)) <= 120
+                    AND a.size_bytes > b.size_bytes * 5
+                    AND ABS(EXTRACT(EPOCH FROM a.started_at - b.started_at)) <= 7200
             )
             """,
-            "UPDATE backup_events SET removed_at = NULL WHERE removed_at IS NOT NULL AND source = 'pbs' AND EXISTS (SELECT 1 FROM backup_events b WHERE b.vm_id = backup_events.vm_id AND b.id <> backup_events.id AND b.source = 'pbs' AND ABS(EXTRACT(EPOCH FROM b.started_at - backup_events.started_at)) <= 120)",
+            "UPDATE backup_events SET removed_at = NULL WHERE source = 'pbs' AND removed_at IS NOT NULL",
         ],
     ),
 ]

@@ -107,31 +107,33 @@ class _StepTimes:
 
 
 def _dedup_pbs_events(events: list[dict]) -> list[dict]:
-    """Remove duplicate PBS events that the PVE proxy and direct PBS fetch both report.
+    """Remove PVE-via-PBS duplicates from a combined list of PBS backup events.
 
-    When PVE proxies a PBS storage, the same snapshot appears twice — once from
-    PVE's storage content API (``ctime``) and once from the direct PBS query
-    (``backup-time``).  The timestamps often differ by a few seconds, which after
-    minute-rounding may land on different minutes, creating two DB rows for one
-    backup.  Direct-PBS events carry a ``location`` and more accurate metadata
-    (size, verify_state), so they win; PVE-via-PBS duplicates are dropped.
+    PVE's storage content API and the direct PBS query both return snapshots
+    for PBS-type storages.  PVE uses ``ctime`` (job creation time), PBS uses
+    ``backup-time`` (actual snapshot start) — these can differ by 30+ minutes
+    for VMs that wait in a sequential backup job.  PVE also reports an inflated
+    chunk-reference size instead of the real snapshot size.
+
+    PVE-via-PBS events are tagged ``_from_pve=True`` in ``sync_cluster_backups``
+    before being added to the combined list.  When a direct-PBS event exists
+    within ±1 hour bucket of a PVE-via-PBS event for the same VMID, the
+    PVE-via-PBS event is dropped.
     """
-    # Index direct-PBS events (have a location) by (vmid, minute).
     direct: dict[tuple[int, int], dict] = {}
     for event in events:
-        if event.get("location"):
-            key = (event["vmid"], int(event["started_at"].timestamp()) // 60)
-            direct[key] = event
+        if not event.get("_from_pve"):
+            hour = int(event["started_at"].timestamp()) // 3600
+            direct[(event["vmid"], hour)] = event
 
     deduped: list[dict] = []
     for event in events:
-        if event.get("location"):
+        if not event.get("_from_pve"):
             deduped.append(event)
             continue
-        minute = int(event["started_at"].timestamp()) // 60
+        hour = int(event["started_at"].timestamp()) // 3600
         vmid = event["vmid"]
-        # Drop if a direct-PBS event exists within ±1 minute.
-        if (vmid, minute) in direct or (vmid, minute - 1) in direct or (vmid, minute + 1) in direct:
+        if (vmid, hour) in direct or (vmid, hour - 1) in direct or (vmid, hour + 1) in direct:
             continue
         deduped.append(event)
     return deduped
@@ -185,7 +187,10 @@ def sync_cluster_backups(cluster: dict) -> None:
             for event in inventory.backup_events:
                 event["source"] = "pbs" if event.get("storage_type") == "pbs" else "pve"
             pve_events = [event for event in inventory.backup_events if event.get("source") == "pve"]
-            all_pbs_events.extend(event for event in inventory.backup_events if event.get("source") == "pbs")
+            for event in inventory.backup_events:
+                if event.get("source") == "pbs":
+                    event["_from_pve"] = True
+                    all_pbs_events.append(event)
             pve_log.append(ts("synclog.pve_events", count=len(inventory.backup_events)))
         else:
             pve_log.append(ts("synclog.pve_events", count=0))

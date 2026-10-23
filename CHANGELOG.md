@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.41.22] — 2026-10-23
+
+### Fixed
+
+- **PVE-via-PBS duplicate events: correct root cause.** PVE's `ctime` and PBS's `backup-time` differ by 30+ minutes (VMs wait in a sequential job), so the 90–120 s dedup window never matched. PVE also reports the total chunk-reference size (~10x the real snapshot size), making it look like the VM uses terabytes. Fixed: (1) tag PVE-via-PBS events with `_from_pve` so the dedup function can distinguish them from direct-PBS events (both had `location`), (2) use hour-buckets instead of minute-buckets for matching, (3) migration 6 deletes existing inflated duplicates (size >5x within 2 hours).
+
 ## [v2.41.21] — 2026-10-23
 
 ### Fixed
