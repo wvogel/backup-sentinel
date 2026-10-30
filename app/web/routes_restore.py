@@ -33,12 +33,6 @@ def _target_storages_from_rows(names: list[str], classes: list[str], used: set[s
 @router.post("/settings/restore-server")
 def save_restore_server(
     request: Request,
-    name: str = Form(...),
-    api_url: str = Form(...),
-    api_user: str = Form(...),
-    token_id: str = Form(...),
-    token_secret: str = Form(default=""),
-    fingerprint: str = Form(default=""),
     ssh_host: str = Form(...),
     ssh_port: int = Form(default=22),
     ssh_user: str = Form(default="root"),
@@ -58,14 +52,18 @@ def save_restore_server(
     mgmt_netmask: str = Form(...),
     mgmt_ip_from: str = Form(...),
     mgmt_ip_to: str = Form(...),
+    reprovision: str = Form(default=""),
 ) -> RedirectResponse:
+    # No API fields: everything the API needs is obtained over SSH. We derive the
+    # API URL from the SSH host and provision the token via SSH.
+    ssh_host = ssh_host.strip()
+    existing = restore_config.load() or {}
     payload = {
-        "name": name,
-        "api_url": api_url,
-        "api_user": api_user,
-        "token_id": token_id,
-        "token_secret": token_secret,
-        "fingerprint": fingerprint,
+        "name": ssh_host or "PVE-Restore",
+        "api_url": f"https://{ssh_host}:8006",
+        "api_user": existing.get("api_user", "root@pam"),
+        "token_id": existing.get("token_id", ""),
+        "token_secret": "",  # kept from existing unless (re)provisioned below
         "ssh_host": ssh_host,
         "ssh_port": ssh_port,
         "ssh_user": ssh_user,
@@ -85,10 +83,29 @@ def save_restore_server(
         "mgmt_ip_to": mgmt_ip_to,
     }
     try:
+        # Provision the API token over SSH on first setup, or when asked to renew.
+        if reprovision == "1" or not existing.get("token_secret"):
+            key = ssh_private_key or existing.get("ssh_private_key", "")
+            if not ssh_host or not key:
+                raise ValueError("SSH host and key are required")
+            sshcfg = restore_orchestrator.ensure_host_key_pinned(
+                {
+                    "ssh_host": ssh_host,
+                    "ssh_port": ssh_port,
+                    "ssh_user": ssh_user,
+                    "ssh_private_key": key,
+                    "ssh_host_key": ssh_host_key or existing.get("ssh_host_key", ""),
+                }
+            )
+            payload["ssh_host_key"] = sshcfg.get("ssh_host_key", payload["ssh_host_key"])
+            tok = restore_orchestrator.build_server(sshcfg).create_api_token()
+            payload["api_user"] = tok["api_user"]
+            payload["token_id"] = tok["token_id"]
+            payload["token_secret"] = tok["token_secret"]
         restore_config.save(payload)
         query = "restore=saved"
     except Exception as exc:
-        logger.warning("restore-server config save failed: %s", exc)
+        logger.warning("restore-server config save/provision failed: %s", exc)
         query = "restore_error=1"
     return RedirectResponse(f"/settings?{query}#restore", status_code=status.HTTP_303_SEE_OTHER)
 

@@ -588,7 +588,7 @@
   "restore.primary_ip": "Primäre IP (Override)",
   "restore.save_policy": "Übernehmen",
   "restore.storage_save_first": "Zuerst API-Zugang speichern — danach liest die App die verfügbaren Storages aus.",
-  "restore.storage_none": "Keine Storages gefunden (Host nicht erreichbar oder keine Image-Storages).",
+  "restore.storage_none": "Keine Storages gemeldet (Host nicht erreichbar oder nichts konfiguriert).",
   "restore.storage_order_hint": "Reihenfolge = Zeilenreihenfolge der ausgewählten Storages.",
   "restore.st_use": "Ziel",
   "restore.st_name": "Storage",
@@ -608,5 +608,9 @@
   "restore.hostkey_clear": "Pinning aufheben",
   "restore.hostkey_auto": "wird beim ersten Verbindungstest automatisch gepinnt",
   "restore.not_tested": "noch nicht getestet",
-  "restore.storage_error": "Storages konnten nicht gelesen werden"
+  "restore.storage_error": "Storages konnten nicht gelesen werden",
+  "restore.storage_only_pbs": "Es wurden nur PBS-Quell-Datastores gemeldet, keine regulären Ziel-Storages. Das Log zeigt pro Zeile, welche Storages der Host zurückgibt.",
+  "restore.ssh_only_hint": "Es wird nur der SSH-Zugang benötigt. Die App leitet die API-URL vom Host ab und legt den API-Token automatisch per SSH an.",
+  "restore.reprovision_token": "Token neu erzeugen",
+  "restore.api_auto_hint": "wird beim Speichern automatisch per SSH angelegt"
 }

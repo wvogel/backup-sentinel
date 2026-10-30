@@ -363,12 +363,19 @@ def ui_target_storages() -> dict[str, Any]:
     error is surfaced so the UI can say why nothing fresh was found."""
     config = restore_config.load()
     if config is None:
-        return {"rows": [], "error": None}
+        return {"rows": [], "error": None, "note": None}
     saved = {s["storage"]: s for s in config.get("target_storages", [])}
     discovered: list[dict[str, Any]] = []
     error: str | None = None
+    note: str | None = None
     try:
-        discovered = build_server(config).list_target_storages()
+        result = build_server(config).list_target_storages()
+        discovered = result["targets"]
+        if not discovered and result["pbs"] > 0 and result["total"] == result["pbs"]:
+            # Every storage returned is a PBS source datastore — no regular
+            # (target) storage is visible. Almost always a missing Datastore.Audit
+            # permission for the target storages on the API token.
+            note = "only_pbs"
     except Exception as exc:
         logger.warning("target storage enumeration failed: %s", exc)
         error = str(exc)[:200]
@@ -403,7 +410,7 @@ def ui_target_storages() -> dict[str, Any]:
                 }
             )
     rows.sort(key=lambda r: (not r["use"], r["order"], r["storage"]))
-    return {"rows": rows, "error": error}
+    return {"rows": rows, "error": error, "note": note}
 
 
 def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
