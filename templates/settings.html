@@ -213,16 +213,30 @@
 <section class="settings-cluster-section" id="restore">
   {% set _api = restore_test.get('api') if restore_test else None %}
   {% set _ssh = restore_test.get('ssh') if restore_test else None %}
-  <div class="section-head"><div><p class="eyebrow">
+  {% set _host = restore_test.get('host') if restore_test else None %}
+  {%- set _ok = restore_test.ok and not restore_test.get('error') if restore_test else False %}
+  <div class="section-head">
+    <div><p class="eyebrow">
     <span class="ampel ampel-{{ 'ok' if _api and _api.ok else ('bad' if _api else 'off') }}" data-tooltip="API: {{ _api.msg if _api else t('restore.not_tested') }}">●</span>
     <span class="ampel ampel-{{ 'ok' if _ssh and _ssh.ok else ('bad' if _ssh else 'off') }}" data-tooltip="SSH: {{ _ssh.msg if _ssh else t('restore.not_tested') }}">●</span>
-    {{ t('restore.server_config') }} <span class="help-dot" data-tooltip="{{ t('restore.server_hint') }}">?</span></p></div></div>
+    <span class="ampel ampel-{{ 'ok' if _host and _host.ok else ('bad' if _host else 'off') }}" data-tooltip="{{ t('restore.test_host') }}: {{ _host.msg if _host else t('restore.not_tested') }}">●</span>
+    {{ t('restore.server_config') }} <span class="help-dot" data-tooltip="{{ t('restore.server_hint') }}">?</span></p></div>
+    {% if rc %}
+    <form action="/settings/restore-server/test" method="post" class="restore-test-form">
+      <button type="submit" class="button-secondary">{{ t('restore.test_connection') }}</button>
+      {% if restore_test %}
+        {%- set _tip %}{% if _ok %}{{ t('restore.test_ok') }} · {{ restore_test.at }}{% else %}{% if restore_test.get('error') %}{{ restore_test.error }}{% endif %}{% for k in ['api', 'ssh', 'host'] %}{% set c = restore_test.get(k) %}{% if c and not c.ok %}{{ t('restore.test_' ~ k) }}: {{ c.msg }} · {% endif %}{% endfor %}{{ restore_test.at }}{% endif %}{% endset %}
+        <span class="test-result-icon {{ 'result-ok' if _ok else 'result-bad' }}" data-tooltip="{{ _tip|trim }}">{{ '✓' if _ok else '✗' }}</span>
+      {% endif %}
+    </form>
+    {% endif %}
+  </div>
   <form action="/settings/restore-server" method="post" class="stack restore-config-form">
     <div class="restore-net-row">
       <fieldset class="settings-cluster-card restore-net-fieldset">
         <legend>{{ t('restore.grp_api') }}</legend>
         <label><span>{{ t('restore.f_name') }}</span><input name="name" required value="{{ rc.name if rc else '' }}"></label>
-        <label><span>API URL</span><input name="api_url" required placeholder="https://restore:8006" value="{{ rc.api_url if rc else '' }}"></label>
+        <label class="full"><span>API URL</span><input name="api_url" required placeholder="https://restore:8006" value="{{ rc.api_url if rc else '' }}"></label>
         <label><span>{{ t('restore.f_api_user') }}</span><input name="api_user" required value="{{ rc.api_user if rc else 'root@pam' }}"></label>
         <label><span>Token ID <span class="help-dot" data-tooltip="{{ t('restore.token_id_hint') }}">?</span></span><input name="token_id" required value="{{ rc.token_id if rc else '' }}"></label>
         <label><span>Token Secret</span><input name="token_secret" type="password" placeholder="{{ '••••••' if rc and rc.has_token_secret else '' }}"></label>
@@ -230,9 +244,9 @@
       </fieldset>
       <fieldset class="settings-cluster-card restore-net-fieldset">
         <legend>{{ t('restore.grp_ssh') }}</legend>
-        <label><span>SSH Host</span><input name="ssh_host" required value="{{ rc.ssh_host if rc else '' }}"></label>
-        <label><span>SSH Port</span><input name="ssh_port" type="number" value="{{ rc.ssh_port if rc else 22 }}"></label>
+        <label class="full"><span>SSH Host</span><input name="ssh_host" required value="{{ rc.ssh_host if rc else '' }}"></label>
         <label><span>SSH User</span><input name="ssh_user" value="{{ rc.ssh_user if rc else 'root' }}"></label>
+        <label><span>SSH Port</span><input name="ssh_port" type="number" value="{{ rc.ssh_port if rc else 22 }}"></label>
         <label class="full"><span>{{ t('restore.f_ssh_key') }}</span><textarea name="ssh_private_key" rows="3" placeholder="{{ '••••••' if rc and rc.has_ssh_private_key else '-----BEGIN OPENSSH PRIVATE KEY-----' }}"></textarea></label>
         <div class="full ssh-hostkey-status">
           <span>{{ t('restore.f_ssh_host_key') }}:</span>
@@ -296,30 +310,12 @@
         <label><span>{{ t('restore.f_mgmt_to') }}</span><input name="mgmt_ip_to" required value="{{ rc.mgmt_ip_to if rc else '' }}"></label>
       </fieldset>
     </div>
-    <button type="submit" class="button-secondary">{{ t('restore.save') }}</button>
-    {% if restore_saved %}<p class="ok-text">{{ t('restore.saved') }}</p>{% endif %}
-    {% if restore_error %}<p class="critical-text">{{ restore_error }}</p>{% endif %}
+    <div class="restore-save-row">
+      {% if restore_saved %}<span class="ok-text">{{ t('restore.saved') }}</span>{% endif %}
+      {% if restore_error %}<span class="critical-text">{{ restore_error }}</span>{% endif %}
+      <button type="submit" class="button-primary">{{ t('restore.save') }}</button>
+    </div>
   </form>
-  {% if rc %}
-  <form action="/settings/restore-server/test" method="post" class="restore-test-form">
-    <button type="submit" class="button-secondary">{{ t('restore.test_connection') }}</button>
-  </form>
-  {% if restore_test %}
-  <div class="restore-test-result">
-    {% if restore_test.get('error') %}
-      <p class="critical-text">{{ t('restore.test_fail') }}: {{ restore_test.error }}</p>
-    {% else %}
-      <p class="{{ 'ok-text' if restore_test.ok else 'critical-text' }}">
-        {{ t('restore.test_ok') if restore_test.ok else t('restore.test_fail') }} · {{ restore_test.at }}</p>
-      <ul class="restore-test-list">
-        {% for key in ['api', 'ssh', 'host'] %}{% set c = restore_test.get(key) %}{% if c %}
-        <li>{{ '✓' if c.ok else '✗' }} {{ t('restore.test_' ~ key) }}: {{ c.msg }}</li>
-        {% endif %}{% endfor %}
-      </ul>
-    {% endif %}
-  </div>
-  {% endif %}
-  {% endif %}
 </section>
 </div>
 

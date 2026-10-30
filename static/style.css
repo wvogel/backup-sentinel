@@ -1590,11 +1590,31 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 
 .restore-test-form {
   margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.restore-test-list {
-  margin: 6px 0 0;
-  padding-left: 18px;
+.test-result-icon {
+  font-weight: 700;
+  font-size: 1.15em;
+  cursor: help;
+}
+
+.test-result-icon.result-ok { color: var(--ok); }
+.test-result-icon.result-bad { color: var(--critical); }
+
+/* Save button bottom-right of the restore config form. */
+.restore-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* "Verbindung testen" sits top-right in the section head. */
+.section-head .restore-test-form {
+  margin-top: 0;
 }
 
 .held-env {
