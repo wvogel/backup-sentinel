@@ -65,10 +65,13 @@ class RestoreServerPayload(BaseModel):
     ``app.services.restore_config``; this model only validates shape/ranges.
     """
 
-    name: str = Field(min_length=1, max_length=120)
-    api_url: str = Field(min_length=8, max_length=255)
-    api_user: str = Field(min_length=1, max_length=120)
-    token_id: str = Field(min_length=1, max_length=120)
+    # API access is not entered by hand: the app derives api_url from the SSH
+    # host and provisions the token over SSH. These are filled by the save
+    # handler, so they are optional here.
+    name: str = Field(default="", max_length=120)
+    api_url: str = Field(default="", max_length=255)
+    api_user: str = Field(default="root@pam", max_length=120)
+    token_id: str = Field(default="", max_length=120)
     token_secret: str = Field(default="", max_length=400)
     fingerprint: str = Field(default="", max_length=200)
 

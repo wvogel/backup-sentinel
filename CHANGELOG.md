@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.10] — 2026-10-31
+
+### Changed
+
+- **No more API fields — SSH is all you enter.** The restore server is configured with SSH access only; the app derives the API URL from the host and **provisions the API token itself over SSH** (`pveum user token add … --privsep 0`, so the token has full access and all target storages are visible). The provisioned token + derived URL are shown read-only with a "Renew token" button. Settings now place SSH-Zugang and Ziel-Storage side by side.
+
+### Fixed
+
+- **Target-storage listing.** Queries both the node storage status and the datacenter `/storage`, surfaces the real error when all sources fail, and distinguishes "only PBS source datastores visible" from a genuine empty list. A per-storage log line shows exactly what the host returns.
+
 ## [v3.0.9] — 2026-10-31
 
 ### Fixed

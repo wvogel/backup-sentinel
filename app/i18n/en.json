@@ -588,7 +588,7 @@
   "restore.primary_ip": "Primary IP (override)",
   "restore.save_policy": "Apply",
   "restore.storage_save_first": "Save the API access first — then the app reads the available storages.",
-  "restore.storage_none": "No storages found (host unreachable or no image storages).",
+  "restore.storage_none": "No storages reported (host unreachable or nothing configured).",
   "restore.storage_order_hint": "Order = the row order of the selected storages.",
   "restore.st_use": "Target",
   "restore.st_name": "Storage",
@@ -608,5 +608,9 @@
   "restore.hostkey_clear": "clear pinning",
   "restore.hostkey_auto": "auto-pinned on the first connection test",
   "restore.not_tested": "not tested yet",
-  "restore.storage_error": "could not read storages"
+  "restore.storage_error": "could not read storages",
+  "restore.storage_only_pbs": "Only PBS source datastores were reported, no regular target storages. The log lists which storages the host returns.",
+  "restore.ssh_only_hint": "Only SSH access is needed. The app derives the API URL from the host and provisions the API token automatically over SSH.",
+  "restore.reprovision_token": "Renew token",
+  "restore.api_auto_hint": "created automatically over SSH on save"
 }

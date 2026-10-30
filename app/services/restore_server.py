@@ -184,13 +184,16 @@ class RestoreServer:
             )
         return out
 
-    def list_target_storages(self) -> list[dict[str, Any]]:
-        """All non-PBS storages (name + PVE type + content). We do not pre-filter
-        by the 'images' content flag — the operator picks the targets. Queries
+    def list_target_storages(self) -> dict[str, Any]:
+        """Enumerate storages and split out the non-PBS restore targets. Queries
         both the node storage status and the datacenter storage config and merges
-        them, so a storage the node status omits (inactive on that node, or audit
-        perms) still shows up. PBS storages are the restore *source*, excluded."""
+        them. Returns ``{"targets": [...], "total": int, "pbs": int}`` so the
+        caller can tell apart "no storages at all / unreachable" from "only PBS
+        source datastores are visible" (the token lacks Datastore.Audit on the
+        regular target storages — the usual cause of an empty target list)."""
         seen: dict[str, dict[str, Any]] = {}
+        all_names: set[str] = set()
+        pbs = 0
         errors: list[str] = []
         paths = ["/storage"]
         try:
@@ -203,9 +206,21 @@ class RestoreServer:
             except Exception as exc:
                 errors.append(f"{path}: {str(exc)[:120]}")
                 continue
+            logger.info(
+                "restore-server %s → %d storage(s): %s",
+                path,
+                len(rows),
+                ", ".join(f"{s.get('storage')}({s.get('type')})" for s in rows) or "(none)",
+            )
             for s in rows:
                 name = s.get("storage")
-                if not name or name in seen or s.get("type") == "pbs":
+                if not name:
+                    continue
+                all_names.add(name)
+                if s.get("type") == "pbs":
+                    pbs += 1
+                    continue
+                if name in seen:
                     continue
                 content = s.get("content", "") or ""
                 seen[name] = {
@@ -215,10 +230,10 @@ class RestoreServer:
                     "images": "images" in content,
                 }
         # Nothing readable AND every source errored → surface it (don't masquerade
-        # as "no storages found"). A genuine empty (no non-PBS storages) returns [].
-        if not seen and errors:
+        # as "no storages found").
+        if not all_names and errors:
             raise RuntimeError("; ".join(errors))
-        return list(seen.values())
+        return {"targets": list(seen.values()), "total": len(all_names), "pbs": pbs}
 
     # sandbox network --------------------------------------------------------
 
@@ -304,6 +319,28 @@ class RestoreServer:
             if stall_exceeded(now() - last_progress_at, last_percent, now() - start, factor):
                 raise RestoreTaskError("restore task stalled (no progress; adaptive backstop exceeded)")
             sleep(poll_interval)
+
+    def create_api_token(self, user: str = "root@pam", token_id: str = "bsentinel-restore") -> dict[str, str]:
+        """Create (or recreate) a PVE API token over SSH and return its
+        credentials. Uses ``--privsep 0`` so the token inherits the user's full
+        permissions — no separate ACLs to maintain, and all storages are visible.
+        Safe because we already hold root SSH on this dedicated host."""
+        import json as _json
+
+        # Remove any existing token of this name so we get a fresh, known secret.
+        try:
+            self.ssh.run(f"pveum user token remove {user} {token_id}")
+        except Exception as exc:
+            logger.debug("token remove (ignored): %s", exc)
+        out = self.ssh.run(f"pveum user token add {user} {token_id} --privsep 0 --output-format json")
+        try:
+            data = _json.loads(out)
+        except ValueError as exc:
+            raise RuntimeError(f"unexpected 'pveum token add' output: {out[:200]}") from exc
+        secret = data.get("value") or (data.get("info") or {}).get("value")
+        if not secret:
+            raise RuntimeError(f"token created but no secret in output: {out[:200]}")
+        return {"api_user": user, "token_id": token_id, "token_secret": secret}
 
     def rewrite_nics(self, vmid: int, vlan_tag: int) -> None:
         """Re-point every NIC to the sandbox bridge + this env's VLAN tag,
