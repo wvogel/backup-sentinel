@@ -39,6 +39,15 @@ def assess_backup_status(
 
 # Restore classes: test interval in days; "none" = no restore test required.
 RESTORE_CLASS_INTERVALS = {"high": 90, "medium": 180, "low": 365}
+# Automated-restore cadence (spec §8): per-VM test frequency, default half-year.
+RESTORE_CADENCE_DAYS = {"month": 30, "quarter": 91, "half_year": 182, "year": 365}
+
+
+def cadence_days(cadence: str) -> int:
+    """Days between automated restore tests for a cadence (default half_year)."""
+    return RESTORE_CADENCE_DAYS.get(cadence, RESTORE_CADENCE_DAYS["half_year"])
+
+
 RESTORE_CLASSES = (*RESTORE_CLASS_INTERVALS, "none")
 # Restore statuses that count as "due" ("open" = never tested yet).
 RESTORE_DUE_STATUSES = frozenset({"open", "warning", "critical"})
