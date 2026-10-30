@@ -1,0 +1,194 @@
+"""Worker pipeline tests: pure helpers always; branching logic DB-gated with a
+fake RestoreServer."""
+
+import os
+import unittest
+
+from app.services.restore_worker import fits_disk
+
+
+class FitsDiskTest(unittest.TestCase):
+    def test_unknown_sizes_fit(self):
+        self.assertTrue(fits_disk(None, 10))
+        self.assertTrue(fits_disk(10, None))
+
+    def test_fit_with_safety_margin(self):
+        self.assertTrue(fits_disk(130, 100))  # 100*1.2 = 120 <= 130
+        self.assertFalse(fits_disk(110, 100))  # 120 > 110
+
+
+if os.environ.get("BSENTINEL_DB_TESTS") != "1":
+    raise unittest.SkipTest("set BSENTINEL_DB_TESTS=1 to run database tests (they truncate all tables)")
+
+from app import db, db_restore
+from app.services.restore_worker import RunPlan, execute, promote_held, reconcile_on_startup
+
+
+def setUpModule() -> None:
+    db.init_db()
+
+
+class FakeServer:
+    def __init__(self):
+        self.calls = []
+
+    def __getattr__(self, name):
+        def rec(*a, **k):
+            self.calls.append(name)
+            if name == "restore" and "on_progress" in k and k["on_progress"]:
+                k["on_progress"]({"percent": 100, "bytes_done": 5, "bytes_total": 5})
+
+        return rec
+
+
+def _plan(vm_id, **over):
+    base = dict(
+        vm_id=vm_id,
+        restore_vmid=9000,
+        helper_vmid=9001,
+        vlan_tag=901,
+        mgmt_ip="10.9.0.10",
+        source={"storage": "pbs", "src_vmid": 100, "pbs": "pbs-a", "datastore": "ds", "namespace": "ns"},
+        snapshot_id="snap",
+        target_storage="zfs",
+        reservations=[{"mac": "aa", "ip": "10.0.0.50", "prefix": 24}],
+        probe_targets=[{"ip": "10.0.0.50", "ports": [443]}],
+        primary_ip="10.0.0.50",
+        require_icmp=True,
+        tcp_ports=[443],
+        retry_days=7,
+        first_delay=0,
+        interval=0,
+        window=0,
+    )
+    base.update(over)
+    return RunPlan(**base)
+
+
+class WorkerTest(unittest.TestCase):
+    def setUp(self):
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("TRUNCATE clusters RESTART IDENTITY CASCADE")
+            conn.commit()
+        db.create_cluster("Test", "test", "https://pve.example:8006", "secret")
+        self.cid = db.get_cluster_by_slug("test")["id"]
+        db.sync_cluster_inventory(
+            self.cid,
+            [{"name": "pve1", "status": "online"}],
+            [{"node_name": "pve1", "vmid": 100, "name": "web", "backup_kind": "daily", "last_backup_at": None}],
+        )
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT id FROM vms WHERE vmid = 100")
+            self.vm_id = cur.fetchone()["id"]
+            cur.execute(
+                "INSERT INTO vm_policies (vm_id, owner_name, criticality, rpo_hours, auto_restore_enabled) "
+                "VALUES (%s, 'x', 'medium', 24, TRUE)",
+                (self.vm_id,),
+            )
+            conn.commit()
+
+    def _run(self, **over):
+        return db_restore.create_run(self.vm_id)
+
+    def _restore_test_count(self):
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS n FROM restore_tests WHERE vm_id = %s", (self.vm_id,))
+            return cur.fetchone()["n"]
+
+    def _next_run(self):
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT next_run_at FROM vm_policies WHERE vm_id = %s", (self.vm_id,))
+            return cur.fetchone()["next_run_at"]
+
+    def test_passed_writes_test_row_and_tears_down(self):
+        run_id = self._run()
+        srv = FakeServer()
+        res = execute(
+            run_id,
+            _plan(self.vm_id),
+            srv,
+            production_hosts=set(),
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": True, "ports": {"443": True}}},
+        )
+        self.assertEqual(res, "passed")
+        self.assertEqual(self._restore_test_count(), 1)
+        self.assertIn("destroy", srv.calls)
+        self.assertIsNone(self._next_run())
+
+    def test_failed_with_hold_keeps_env_no_row(self):
+        run_id = self._run()
+        srv = FakeServer()
+        res = execute(
+            run_id,
+            _plan(self.vm_id, hold_on_failure=True),
+            srv,
+            production_hosts=set(),
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": False, "ports": {"443": False}}},
+        )
+        self.assertEqual(res, "held")
+        self.assertEqual(self._restore_test_count(), 0)
+        self.assertNotIn("destroy", srv.calls)  # environment kept
+        self.assertEqual(db_restore.get_run(run_id)["status"], "held")
+
+    def test_failed_without_hold_tears_down_and_schedules_retry(self):
+        run_id = self._run()
+        srv = FakeServer()
+        res = execute(
+            run_id,
+            _plan(self.vm_id, hold_on_failure=False),
+            srv,
+            production_hosts=set(),
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": False, "ports": {"443": False}}},
+        )
+        self.assertEqual(res, "failed")
+        self.assertEqual(self._restore_test_count(), 0)
+        self.assertIn("destroy", srv.calls)
+        self.assertIsNotNone(self._next_run())  # retry armed
+
+    def test_limited_when_no_primary_ip(self):
+        run_id = self._run()
+        srv = FakeServer()
+        res = execute(
+            run_id,
+            _plan(self.vm_id, primary_ip=None),
+            srv,
+            production_hosts=set(),
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {},
+        )
+        self.assertEqual(res, "limited")
+        self.assertEqual(self._restore_test_count(), 1)
+
+    def test_host_identity_failure_is_error(self):
+        run_id = self._run()
+        srv = FakeServer()
+
+        def boom(hosts):
+            raise RuntimeError("overlap")
+
+        srv.verify_host_identity = boom
+        res = execute(run_id, _plan(self.vm_id), srv, production_hosts={"x"}, now=lambda: 0.0, sleep=lambda s: None)
+        self.assertEqual(res, "error")
+        self.assertEqual(self._restore_test_count(), 0)
+
+    def test_promote_held_writes_passed_and_reaps(self):
+        run_id = self._run()
+        db_restore.update_run(run_id, status="held", result="failed", restore_vmid=9000, helper_vmid=9001)
+        srv = FakeServer()
+        promote_held(run_id, _plan(self.vm_id), srv)
+        self.assertEqual(self._restore_test_count(), 1)
+        self.assertEqual(db_restore.get_run(run_id)["result"], "passed")
+        self.assertIn("destroy", srv.calls)
+
+    def test_reconcile_marks_running_as_error(self):
+        run_id = self._run()
+        db_restore.update_run(run_id, status="running")
+        reconcile_on_startup()
+        self.assertEqual(db_restore.get_run(run_id)["status"], "error")
