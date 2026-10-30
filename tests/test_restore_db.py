@@ -65,8 +65,14 @@ class RestoreDbTestCase(unittest.TestCase):
             self.vm_id,
             [
                 {"nic_index": 1, "mac": "bb:bb", "ip_addresses": ["10.0.0.2"], "prefix": 24, "source": "agent"},
-                {"nic_index": 0, "mac": "aa:aa", "ip_addresses": ["10.0.0.1"], "prefix": 24, "is_primary": True,
-                 "source": "agent"},
+                {
+                    "nic_index": 0,
+                    "mac": "aa:aa",
+                    "ip_addresses": ["10.0.0.1"],
+                    "prefix": 24,
+                    "is_primary": True,
+                    "source": "agent",
+                },
             ],
         )
         nics = db_restore.get_network_interfaces(self.vm_id)
