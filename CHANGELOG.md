@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.2] — 2026-10-30
+
+### Changed
+
+- **Restore-server target storages are now enumerated by the app** from the scratch host (name + PVE type); the operator only ticks which to use and assigns each a disk type (enterprise-ssd / standard-ssd / sas-hdd / sata-hdd) — no more typing storage names. Falls back to the saved assignment when the host is unreachable.
+- **Restore-server settings use one uniform field grid** and lost the redundant outer card box (matching the cluster tab).
+
+### Added
+
+- **"Test connection" button** for the restore server: a read-only check of the API token (list nodes), the SSH key, and the host-identity interlock, with per-check results shown in Settings.
+
 ## [v3.0.1] — 2026-10-30
 
 ### Added

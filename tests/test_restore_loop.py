@@ -214,3 +214,17 @@ class DrainSkipTest(unittest.TestCase):
         orch.drain(CONFIG, server)
         self.assertEqual(db_restore.get_run(big)["status"], "queued")  # skipped, still queued
         self.assertNotEqual(db_restore.get_run(small)["status"], "queued")  # executed
+
+
+def test_target_storages_from_rows():
+    from app.web.routes_restore import _target_storages_from_rows
+
+    rows = _target_storages_from_rows(
+        names=["zfs", "nfs", "dir"],
+        classes=["enterprise-ssd", "sata-hdd", "standard-ssd"],
+        used={"zfs", "dir"},
+    )
+    assert rows == [
+        {"storage": "zfs", "disk_class": "enterprise-ssd", "order": 0},
+        {"storage": "dir", "disk_class": "standard-ssd", "order": 1},
+    ]
