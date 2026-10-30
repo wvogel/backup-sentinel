@@ -263,24 +263,26 @@
       <p class="muted">{{ t('restore.storage_order_hint') }}</p>
       {% endif %}
     </fieldset>
-    <fieldset class="settings-cluster-card">
-      <legend>{{ t('restore.grp_sandbox') }}</legend>
-      <label><span>{{ t('restore.f_sandbox_bridge') }}</span><input name="sandbox_bridge" value="{{ rc.sandbox_bridge if rc else 'vmbr9' }}"></label>
-      <label><span>{{ t('restore.f_vlan_from') }}</span><input name="sandbox_vlan_from" type="number" value="{{ rc.sandbox_vlan_from if rc else 900 }}"></label>
-      <label><span>{{ t('restore.f_vlan_to') }}</span><input name="sandbox_vlan_to" type="number" value="{{ rc.sandbox_vlan_to if rc else 999 }}"></label>
-      <label><span>{{ t('restore.f_vmid_from') }}</span><input name="restore_vmid_from" type="number" value="{{ rc.restore_vmid_from if rc else 9000 }}"></label>
-      <label><span>{{ t('restore.f_vmid_to') }}</span><input name="restore_vmid_to" type="number" value="{{ rc.restore_vmid_to if rc else 9100 }}"></label>
-    </fieldset>
-    <fieldset class="settings-cluster-card">
-      <legend>{{ t('restore.grp_mgmt') }}</legend>
-      <p class="muted">{{ t('restore.mgmt_hint') }}</p>
-      <label><span>{{ t('restore.f_mgmt_iface') }}</span><input name="mgmt_iface" required value="{{ rc.mgmt_iface if rc else 'vmbr0' }}"></label>
-      <label><span>{{ t('restore.f_mgmt_vlan') }}</span><input name="mgmt_vlan" type="number" value="{{ rc.mgmt_vlan if rc and rc.mgmt_vlan else '' }}"></label>
-      <label><span>{{ t('restore.f_mgmt_gateway') }}</span><input name="mgmt_gateway" value="{{ rc.mgmt_gateway if rc else '' }}"></label>
-      <label><span>{{ t('restore.f_mgmt_netmask') }}</span><input name="mgmt_netmask" required value="{{ rc.mgmt_netmask if rc else '255.255.255.0' }}"></label>
-      <label><span>{{ t('restore.f_mgmt_from') }}</span><input name="mgmt_ip_from" required value="{{ rc.mgmt_ip_from if rc else '' }}"></label>
-      <label><span>{{ t('restore.f_mgmt_to') }}</span><input name="mgmt_ip_to" required value="{{ rc.mgmt_ip_to if rc else '' }}"></label>
-    </fieldset>
+    <div class="restore-net-row">
+      <fieldset class="settings-cluster-card restore-net-fieldset">
+        <legend>{{ t('restore.grp_sandbox') }}</legend>
+        <label class="full"><span>{{ t('restore.f_sandbox_bridge') }}</span><input name="sandbox_bridge" value="{{ rc.sandbox_bridge if rc else 'vmbr9' }}"></label>
+        <label><span>{{ t('restore.f_vlan_from') }}</span><input name="sandbox_vlan_from" type="number" value="{{ rc.sandbox_vlan_from if rc else 900 }}"></label>
+        <label><span>{{ t('restore.f_vlan_to') }}</span><input name="sandbox_vlan_to" type="number" value="{{ rc.sandbox_vlan_to if rc else 999 }}"></label>
+        <label><span>{{ t('restore.f_vmid_from') }}</span><input name="restore_vmid_from" type="number" value="{{ rc.restore_vmid_from if rc else 9000 }}"></label>
+        <label><span>{{ t('restore.f_vmid_to') }}</span><input name="restore_vmid_to" type="number" value="{{ rc.restore_vmid_to if rc else 9100 }}"></label>
+      </fieldset>
+      <fieldset class="settings-cluster-card restore-net-fieldset">
+        <legend>{{ t('restore.grp_mgmt') }}</legend>
+        <p class="muted">{{ t('restore.mgmt_hint') }}</p>
+        <label><span>{{ t('restore.f_mgmt_iface') }}</span><input name="mgmt_iface" required value="{{ rc.mgmt_iface if rc else 'vmbr0' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_vlan') }}</span><input name="mgmt_vlan" type="number" value="{{ rc.mgmt_vlan if rc and rc.mgmt_vlan else '' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_gateway') }}</span><input name="mgmt_gateway" value="{{ rc.mgmt_gateway if rc else '' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_netmask') }}</span><input name="mgmt_netmask" required value="{{ rc.mgmt_netmask if rc else '255.255.255.0' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_from') }}</span><input name="mgmt_ip_from" required value="{{ rc.mgmt_ip_from if rc else '' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_to') }}</span><input name="mgmt_ip_to" required value="{{ rc.mgmt_ip_to if rc else '' }}"></label>
+      </fieldset>
+    </div>
     <button type="submit" class="button-secondary">{{ t('restore.save') }}</button>
     {% if restore_saved %}<p class="ok-text">{{ t('restore.saved') }}</p>{% endif %}
     {% if restore_error %}<p class="critical-text">{{ restore_error }}</p>{% endif %}
