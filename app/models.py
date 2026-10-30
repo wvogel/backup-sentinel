@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 RestoreResult = Literal["passed", "failed", "limited"]
 
@@ -38,3 +38,81 @@ class RestoreTestCreate(BaseModel):
     recovery_type: str = Field(min_length=3, max_length=80)
     duration_minutes: int = Field(ge=0, le=10080)
     evidence_note: str = Field(default="", max_length=50000)
+
+
+DISK_CLASSES = ("enterprise-ssd", "standard-ssd", "sas-hdd", "sata-hdd")
+RESTORE_CADENCES = ("month", "quarter", "half_year", "year")
+
+
+class TargetStorage(BaseModel):
+    storage: str = Field(min_length=1, max_length=120)
+    type: str = Field(default="", max_length=40)  # PVE storage type, display-only
+    disk_class: str = Field(default="standard-ssd")
+    order: int = Field(default=0, ge=0)
+
+    @field_validator("disk_class")
+    @classmethod
+    def _known_class(cls, v: str) -> str:
+        if v not in DISK_CLASSES:
+            raise ValueError(f"disk_class must be one of {DISK_CLASSES}")
+        return v
+
+
+class RestoreServerPayload(BaseModel):
+    """Validated restore-server (PVE-Restore) configuration.
+
+    Secrets (``token_secret``, ``ssh_private_key``) are encrypted at rest by
+    ``app.services.restore_config``; this model only validates shape/ranges.
+    """
+
+    name: str = Field(min_length=1, max_length=120)
+    api_url: str = Field(min_length=8, max_length=255)
+    api_user: str = Field(min_length=1, max_length=120)
+    token_id: str = Field(min_length=1, max_length=120)
+    token_secret: str = Field(default="", max_length=400)
+    fingerprint: str = Field(default="", max_length=200)
+
+    ssh_host: str = Field(min_length=1, max_length=255)
+    ssh_port: int = Field(default=22, ge=1, le=65535)
+    ssh_user: str = Field(default="root", min_length=1, max_length=64)
+    ssh_private_key: str = Field(default="", max_length=20000)
+
+    target_storages: list[TargetStorage] = Field(default_factory=list)
+
+    sandbox_bridge: str = Field(default="vmbr9", min_length=1, max_length=15)
+    sandbox_vlan_from: int = Field(default=900, ge=1, le=4094)
+    sandbox_vlan_to: int = Field(default=999, ge=1, le=4094)
+
+    mgmt_iface: str = Field(min_length=1, max_length=15)
+    mgmt_vlan: int | None = Field(default=None, ge=1, le=4094)
+    mgmt_gateway: str = Field(default="", max_length=45)
+    mgmt_netmask: str = Field(min_length=7, max_length=45)
+    mgmt_ip_from: str = Field(min_length=7, max_length=45)
+    mgmt_ip_to: str = Field(min_length=7, max_length=45)
+
+    restore_vmid_from: int = Field(default=9000, ge=100, le=999999999)
+    restore_vmid_to: int = Field(default=9100, ge=100, le=999999999)
+    probe_offset: int = Field(default=254, ge=1, le=254)
+
+    probe_window_seconds: int = Field(default=300, ge=30, le=86400)
+    probe_first_delay_seconds: int = Field(default=30, ge=0, le=3600)
+    probe_interval_seconds: int = Field(default=30, ge=5, le=3600)
+    stall_backstop_factor: float = Field(default=6.0, ge=1.0, le=100.0)
+    hard_cap_seconds: int | None = Field(default=None, ge=60)
+
+    @model_validator(mode="after")
+    def _check_ranges(self) -> RestoreServerPayload:
+        import ipaddress
+
+        if self.sandbox_vlan_to < self.sandbox_vlan_from:
+            raise ValueError("sandbox VLAN range: to < from")
+        if self.restore_vmid_to < self.restore_vmid_from:
+            raise ValueError("restore VMID range: to < from")
+        try:
+            lo = int(ipaddress.IPv4Address(self.mgmt_ip_from))
+            hi = int(ipaddress.IPv4Address(self.mgmt_ip_to))
+        except ipaddress.AddressValueError as exc:
+            raise ValueError(f"invalid management IP: {exc}") from exc
+        if hi < lo:
+            raise ValueError("management IP range: to < from")
+        return self
