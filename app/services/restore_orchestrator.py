@@ -155,6 +155,8 @@ def enqueue_due(server: RestoreServer, config: dict[str, Any]) -> int:
 def drain(config: dict[str, Any], server: RestoreServer) -> None:
     """Run queued runs one at a time until none is runnable (resource wait) or
     the queue is empty. The caller guarantees a single drainer (spec §15)."""
+    if restore_config.queue_paused():
+        return
     prod = production_endpoints()
     while True:
         if db_restore.has_active_run():
@@ -261,6 +263,42 @@ def collect_cluster_ips(cluster: dict[str, Any], inventory_vms: list[dict[str, A
             db_restore.set_network_interfaces(row["id"], nics)
     except Exception as exc:
         logger.debug("cluster IP collection skipped for %s: %s", cluster.get("name"), exc)
+
+
+def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
+    """Reconstruct a RunPlan from a stored (held) run for reap/retest/promote."""
+    cand = _candidate_for_vm(run["vm_id"]) or {}
+    nics = [dict(n) for n in db_restore.get_network_interfaces(run["vm_id"])]
+    ports = list(cand.get("probe_tcp_ports") or [])
+    targets = [{"ip": nic["ip_addresses"][0], "ports": ports} for nic in nics if nic["ip_addresses"]]
+    primary = restore_ip_collect.primary_ip(nics, cand.get("probe_primary_ip"))
+    tgt = (run.get("target_storages") or [""])[0]
+    return RunPlan(
+        vm_id=run["vm_id"],
+        restore_vmid=run.get("restore_vmid") or 0,
+        helper_vmid=run.get("helper_vmid") or 0,
+        vlan_tag=run.get("vlan_tag") or 0,
+        mgmt_ip=run.get("mgmt_ip") or "",
+        source={
+            "storage": "",
+            "src_vmid": cand.get("vmid"),
+            "pbs": run.get("source_pbs"),
+            "datastore": run.get("source_datastore"),
+            "namespace": run.get("source_namespace"),
+        },
+        snapshot_id=run.get("snapshot_id") or "",
+        target_storage=tgt,
+        reservations=_reservations(nics),
+        probe_targets=targets,
+        primary_ip=primary,
+        require_icmp=cand.get("probe_require_icmp", True),
+        tcp_ports=ports,
+        hold_on_failure=cand.get("hold_on_failure", False),
+        retry_days=cand.get("restore_retry_days", 7),
+        first_delay=cand.get("probe_first_delay_seconds") or config.get("probe_first_delay_seconds", 30),
+        interval=cand.get("probe_interval_seconds") or config.get("probe_interval_seconds", 30),
+        window=cand.get("probe_window_seconds") or config.get("probe_window_seconds", 300),
+    )
 
 
 def run_restore_queue() -> None:

@@ -59,6 +59,17 @@ def load() -> dict[str, Any] | None:
     return cfg
 
 
+_PAUSED_KEY = "restore_server.queue_paused"
+
+
+def queue_paused() -> bool:
+    return get_settings_dict(_PAUSED_KEY).get(_PAUSED_KEY) == "1"
+
+
+def set_queue_paused(paused: bool) -> None:
+    save_settings({_PAUSED_KEY: "1" if paused else "0"})
+
+
 def public_config() -> dict[str, Any] | None:
     """Config for templates: secrets stripped, replaced by booleans."""
     cfg = load()
