@@ -5,6 +5,29 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.0] — 2026-10-30
+
+### Added
+
+- **Automated restore testing.** A dedicated PVE-Restore scratch server now restores each enabled VM's latest *complete* backup on a per-VM schedule (month / quarter / half-year / year; default half-year), boots it in a fully isolated sandbox, verifies it comes up on its real IP(s), then tears everything down — turning the manual restore-test record into a verifiable, automated one. Highlights:
+  - **Exact matching** of a VM's backups to the scratch host's local PBS datastores on the 3-tuple `(PBS name, datastore, namespace)`; VMs with no local (offsite) copy are shown as *not auto-restorable* and never queued.
+  - **Isolated sandbox** per environment: a portless, VLAN-aware bridge with one VLAN tag per environment and a dual-homed helper LXC running dnsmasq (hands the guest its angestammte IP by MAC) + a probe agent, reachable by the worker over a separate static management network (no DHCP). The helper never routes between legs, so the restored VM cannot escape the sandbox.
+  - **Verification** from inside the sandbox: ICMP by default, plus optional per-VM TCP port checks; result `passed` / `limited` / `failed`.
+  - **Live progress** (percent, ETA, throughput) with no fixed restore timeout — abort only on a task error or a genuine stall (adaptive backstop), so a 36 TB restore is never mistaken for a hang.
+  - **Single-slot queue** (never two active tests at once) with resource-aware skipping (RAM/disk) and management-IP-exhaustion waiting; `failed`/`error` do not reset the due clock and re-queue on a retry cadence (default 1 week) with a notification.
+  - **Hold on failure**: keep a failed environment up for manual inspection (coexisting, bounded by host RAM/disk), re-test after a fix, then promote to a documented success or reap it — each from the new `/restore` page.
+  - **Hard reaper**: the scratch host is purged of anything not owned by a running/held run, on startup and around every test.
+  - New Settings tab to configure the restore server (API token + SSH key, target storages with disk-class labels, sandbox bridge/VLAN pool, management IP range), per-VM controls on the cluster page, and the `/restore` runs/held/host-capacity view.
+- Guest IP collection in the production sync (best-effort, for auto-restore-enabled VMs; needs `VM.GuestAgent.Audit` on the cluster token).
+
+### Fixed
+
+- **Settings → Clusters layout**: removed the redundant outer card that boxed the whole cluster list in another card (box-in-a-box).
+
+### Notes
+
+- New dependency: `paramiko` (SSH to the scratch host). New DB tables `restore_runs`, `vm_network_interfaces` and additional `vm_policies` columns are created additively on startup.
+
 ## [v2.41.23] — 2026-10-23
 
 ### Changed
