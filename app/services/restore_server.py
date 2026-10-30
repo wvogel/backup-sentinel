@@ -476,6 +476,25 @@ class PveApi:
         return api_send("DELETE", self.base, path, self.auth, label="PVE-Restore")
 
 
+def scan_host_key(host: str, port: int = 22, timeout: float = 10.0) -> str:
+    """Read the host's SSH public key once (trust-on-first-use) and return it as
+    a known_hosts-style line '<host> <type> <base64>'. The caller pins the result
+    so later connections verify against it (RejectPolicy) and a changed key is
+    rejected — safer than accepting an unknown key on every connect."""
+    import socket
+
+    import paramiko
+
+    sock = socket.create_connection((host, port), timeout=timeout)
+    transport = paramiko.Transport(sock)
+    try:
+        transport.start_client(timeout=timeout)
+        key = transport.get_remote_server_key()
+        return f"{host} {key.get_name()} {key.get_base64()}"
+    finally:
+        transport.close()
+
+
 def load_private_key(key_str: str) -> Any:
     """Parse an SSH private key of any common type (Ed25519, ECDSA, RSA; PEM or
     the newer OpenSSH format). Paramiko's per-class loaders raise obscure errors

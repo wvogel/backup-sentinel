@@ -602,5 +602,5 @@
   "restore.test_ssh": "SSH-Zugang",
   "restore.test_host": "Host-Identität",
   "restore.f_ssh_host_key": "SSH Host-Key (Pinning)",
-  "restore.ssh_host_key_hint": "aus ssh-keyscan <host>; leer = System-known_hosts"
+  "restore.ssh_host_key_hint": "wird beim ersten Test automatisch gepinnt; manuell überschreibbar (ssh-keyscan)"
 }

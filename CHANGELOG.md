@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.4] — 2026-10-31
+
+### Fixed
+
+- **SSH host key is now pinned automatically (trust-on-first-use).** The first connection scans the scratch host's key, stores it, and verifies against it from then on (`RejectPolicy` stays in force, so a later key change is rejected) — no more "Server not found in known_hosts" and no manual host-key entry needed. The host-key field remains for pre-seeding or overriding.
+- **Saving the restore-server config kept you on it.** The panel lacked the `id="restore"` anchor the tab logic uses, so the `#restore` redirect fell back to the Clusters tab; it now stays on the Restore-Server tab.
+
 ## [v3.0.3] — 2026-10-30
 
 ### Fixed
