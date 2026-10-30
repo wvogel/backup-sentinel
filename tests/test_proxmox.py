@@ -231,6 +231,19 @@ class IncrementalTaskLogTests(unittest.TestCase):
     CLUSTER = _CLUSTER
 
     def setUp(self) -> None:
+        # Drain any background fetch a prior test left in flight before this test
+        # patches _fetch_running_backup_progress — otherwise a not-yet-started
+        # lingering fetch (e.g. for another cluster id) would call THIS test's
+        # patched fetch and pollute `calls`. A no-op patch during the drain keeps
+        # such a late fetch off the network so it finishes and clears itself.
+        import threading as _threading
+
+        with mock.patch.object(proxmox_progress, "_fetch_running_backup_progress", return_value=({}, True)):
+            for _ in range(250):
+                if not proxmox_progress._inflight:
+                    break
+                _threading.Event().wait(0.02)
+        proxmox_progress._inflight.clear()
         proxmox_progress._cache.clear()
         proxmox_progress._task_logs.clear()
 
