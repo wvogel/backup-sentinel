@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.5] — 2026-10-31
+
+### Changed
+
+- **Restore-server settings layout.** Sandbox-Netz and Management-Netz now sit side by side, each a fixed two-column grid so the VLAN and IP "von/bis" pairs always stay on one line (no wrapping); the sandbox bridge is on its own line above the ranges.
+
 ## [v3.0.4] — 2026-10-31
 
 ### Fixed

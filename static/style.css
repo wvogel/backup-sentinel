@@ -1513,6 +1513,20 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   grid-column: 1 / -1;
 }
 
+/* Sandbox-Netz and Management-Netz sit side by side; each is a fixed two-column
+   grid so the von/bis pairs stay together. Sandbox-Bridge spans both (break
+   after it). Stacks on narrow screens. */
+.restore-net-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.restore-config-form .restore-net-fieldset {
+  grid-template-columns: 1fr 1fr;
+}
+
 .restore-config-form label {
   display: grid;
   gap: 4px;
