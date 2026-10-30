@@ -10,3 +10,4 @@ reports/
 backup/
 .env
 oauth2-proxy.env
+.venv-test/
