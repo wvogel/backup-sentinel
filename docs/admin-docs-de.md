@@ -455,3 +455,21 @@ docker compose up -d --build  # mit der alten Version neu bauen
 ### Versionsprüfung
 
 Die aktuelle Build-Version wird in der Fußzeile der Oberfläche angezeigt und kann auch über den Health-Endpunkt oder die Container-Logs beim Start geprüft werden. Das Format ist `vMAJOR.MINOR.PATCH` (z. B. `v2.41.10`), wie in `CHANGELOG.md` und den Git-Tags; `/healthz` liefert sie als `version`.
+
+
+## Automatisierte Restore-Tests
+
+Backup Sentinel kann einen Restore **nachweisen**, nicht nur dokumentieren. Dazu steuert es einen **dedizierten PVE-Restore-Scratch-Host** (Einstellungen → Restore-Server), der die Produktions-PBS-Datastores lokal vorhält (per Pull-Sync, je Datastore+Namespace).
+
+### Voraussetzungen
+
+- **Dedizierter, leerer PVE-Host.** Auf dem Host und seinem Ziel-Storage darf **nichts** anderes leben — ein harter Reaper löscht beim Start, vor und nach jedem Test alles, was nicht zu einem laufenden, bekannten Vorgang gehört.
+- **Nur lokale PBS-Datastores**, die die Quelle exakt spiegeln. Das Matching erfolgt über das exakte 3-Tupel `(PBS-Name, Datastore, Namespace)`. Was der Host nicht „bei sich" sieht, gilt als *nicht auto-restaurierbar* (kein Offsite-Backup) und wird nie eingereiht.
+- **API-Token und SSH-Key** für den Restore-Host (SSH für Bridge, LXC/dnsmasq, Reaper).
+- **Guest-Agent-Audit** (`VM.GuestAgent.Audit` bzw. `VM.Monitor`) auf den Produktions-Cluster-Tokens, damit IPs erfasst werden; fehlt das, trägt man die primäre IP je VM manuell ein.
+- **Management-Netz** (statisch, kein DHCP): Interface/Bridge, optionale VLAN-ID, Gateway, Maske und ein IP-Bereich (von–bis). Je Helfer eine IP; sind alle belegt, wartet die Queue.
+- **Sandbox-Bridge**: eine portlose, VLAN-aware Bridge (Default `vmbr9`), die die App idempotent per SSH anlegt — der Traffic verlässt den Host nie.
+
+### Betrieb
+
+Eine globale Single-Slot-Queue arbeitet fällige, aktivierte VMs nacheinander ab (nie zwei aktive Tests gleichzeitig). Restore-Phase ohne festes Timeout: Abbruch nur bei Task-Fehler oder echtem Hänger (adaptiver Backstop). Ergebnis `passed`/`limited` setzt die Fälligkeits-Uhr zurück, `failed`/`error` nicht (Retry-Kadenz, Default 1 Woche) und löst eine Benachrichtigung aus. Optional bleibt eine fehlgeschlagene Umgebung **gehalten** zum manuellen Testen; mehrere Holds koexistieren (durch RAM/Disk begrenzt). Live-Fortschritt (Prozent, ETA, Durchsatz) und die Host-Kapazität (freier RAM, freier Disk je Store) stehen unter `/restore`.

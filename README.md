@@ -28,6 +28,7 @@ Compliance-focused monitoring for Proxmox backup infrastructure. Track backup st
 - **Live progress** — Running backups (percent, ETA, throughput, "slow" hint) and running PBS replications, refreshed every 30 s without reloading
 - **Logs** — Sync logs and restore-test notes open in a dialog with one-click copy
 - **Restore test documentation** — Record and track recovery tests (full, partial, file-based) for compliance evidence
+- **Automated restore testing** — A dedicated PVE-Restore scratch server restores each VM's latest complete backup on a per-VM schedule (month / quarter / half-year / year), boots it in a fully isolated sandbox, verifies it comes up on its real IP(s) (ICMP + optional TCP ports), then tears everything down — the full log and result land in the same restore-test data store. See [Automated restore testing](#automated-restore-testing)
 - **Reports** — Monthly PDF/JSON reports with per-cluster and per-VM breakdown, archive for audit; weekly HTML email summary
 - **Notifications** — Gotify push for failed syncs, critical backups, slow backups, failed verifies, datastores filling up and anomalies (bundled, deduplicated, held back during quiet hours); SMTP email for sync outages over 24 h, the monthly PDF report and the weekly report; history with CSV export at `/notifications`
 - **Multi-cluster** — Monitor multiple PVE clusters and PBS instances from one place
@@ -85,6 +86,19 @@ For OAuth2-Proxy configuration, see [`oauth2-proxy.env.example`](oauth2-proxy.en
 - [User Guide (English)](docs/user-docs-en.md) · [Benutzerhandbuch (Deutsch)](docs/user-docs-de.md)
 - [Admin Guide (English)](docs/admin-docs-en.md) · [Admin-Handbuch (Deutsch)](docs/admin-docs-de.md)
 - [Architecture (English)](docs/architecture-en.svg) · [Architektur (Deutsch)](docs/architecture-de.svg)
+
+## Automated restore testing
+
+Backup Sentinel can *prove* a backup restores, not just record that someone tried. It drives a **dedicated PVE-Restore scratch host** (configured under **Settings → Restore server**) that holds the production PBS datastores locally (pull-synced, per datastore+namespace). For each VM you enable it on, a global single-slot queue:
+
+1. Restores the latest **complete** snapshot onto a configurable target storage (multiple storages with disk-class labels; large VMs spill across them), tracking live progress + ETA — no fixed timeout, abort only on a genuine stall.
+2. Boots it in a **fully isolated sandbox**: a portless, VLAN-aware bridge (one VLAN tag per environment) with a dual-homed helper container that runs DHCP (handing the guest its angestammte IP by MAC) and the probe agent, reachable by the worker over a separate static management network.
+3. Verifies reachability from inside the sandbox — **ICMP** by default, plus optional per-VM **TCP ports** (3389, 445, 443, 80, …).
+4. Tears the environment down and **wipes** the scratch storage; a hard reaper guarantees nothing unknown is ever left behind.
+
+Results (`passed` / `limited` / `failed`) and the complete log go into the existing restore-test store, so coverage, dashboards and reports keep working. A failed test does **not** reset the due clock and re-queues on a retry cadence (default 1 week). Optionally a failed environment is **held** for manual inspection (re-test after a fix, then promote to a documented success); multiple holds coexist, bounded by host RAM/disk.
+
+**Operator prerequisites:** a dedicated, empty scratch PVE host (nothing else may live on it or its target storage); local-only PBS datastores mirroring production (names/namespaces must match exactly); an API token **and** an SSH key for the scratch host; the production cluster API tokens need `VM.GuestAgent.Audit` (or `VM.Monitor`) for IP discovery (otherwise set the primary IP manually per VM); a reachable management IP range for the helpers. The design and operational details are in [the design doc](docs/superpowers/specs/2026-10-30-automated-restore-testing-design.md).
 
 ## Deployment
 
