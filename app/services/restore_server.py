@@ -249,8 +249,15 @@ class RestoreServer:
         seen_log_lines = 0
         factor = float(self.config.get("stall_backstop_factor") or 6.0)
         while True:
-            status = self.pve.get(f"/nodes/{node}/tasks/{upid}/status") or {}
-            log = self.pve.get(f"/nodes/{node}/tasks/{upid}/log") or []
+            try:
+                status = self.pve.get(f"/nodes/{node}/tasks/{upid}/status") or {}
+                log = self.pve.get(f"/nodes/{node}/tasks/{upid}/log") or []
+            except Exception as exc:
+                logger.warning("task poll blip (continuing): %s", exc)
+                sleep(poll_interval)
+                if stall_exceeded(now() - last_progress_at, last_percent, now() - start, factor):
+                    raise RestoreTaskError("restore task unreachable past the adaptive backstop") from exc
+                continue
             for entry in log[seen_log_lines:]:
                 prog = parse_task_progress(entry.get("t", "") if isinstance(entry, dict) else str(entry))
                 if prog:
@@ -453,7 +460,9 @@ class PveApi:
     def get(self, path: str) -> Any:
         from app.services.api_client import api_get
 
-        return api_get(self.base, path, self.auth, label="PVE-Restore")
+        # Fail fast: a single scratch host, and the long-poll loop handles
+        # transient blips itself (no API-layer retries stacking delays on the UI).
+        return api_get(self.base, path, self.auth, label="PVE-Restore", retries=0)
 
     def post(self, path: str, data: dict[str, Any]) -> Any:
         from app.services.api_client import api_send

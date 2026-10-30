@@ -221,6 +221,29 @@
                     </select>
                   </label>
                 </form>
+                <form action="/restore/vm/{{ row.id }}/policy" method="post" class="auto-restore-form">
+                  <input type="hidden" name="redirect" value="/clusters/{{ cluster.slug }}">
+                  <label class="checkbox-label"><input type="checkbox" name="auto_restore_enabled" value="1" {% if row.auto_restore_enabled %}checked{% endif %}> {{ t('restore.auto_enable') }}</label>
+                  <label><span>{{ t('restore.cadence') }}</span>
+                    <select name="restore_cadence">
+                      {% for cad in ['month', 'quarter', 'half_year', 'year'] %}
+                      <option value="{{ cad }}" {% if row.restore_cadence == cad %}selected{% endif %}>{{ t('restore.cadence_' ~ cad) }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <label><span>{{ t('restore.tcp_ports') }}</span><input name="probe_tcp_ports" value="{{ row.probe_tcp_ports|join(', ') if row.probe_tcp_ports else '' }}" placeholder="443, 445"></label>
+                  <label><span>{{ t('restore.primary_ip') }}</span><input name="probe_primary_ip" value="{{ row.probe_primary_ip or '' }}"></label>
+                  <label class="checkbox-label"><input type="checkbox" name="probe_require_icmp" value="1" {% if row.probe_require_icmp %}checked{% endif %}> {{ t('restore.require_icmp') }}</label>
+                  <label class="checkbox-label"><input type="checkbox" name="hold_on_failure" value="1" {% if row.hold_on_failure %}checked{% endif %}> {{ t('restore.hold_on_failure') }}</label>
+                  <label><span>{{ t('restore.retry_days') }}</span><input name="restore_retry_days" type="number" value="{{ row.restore_retry_days or 7 }}"></label>
+                  <div class="auto-restore-actions">
+                    <button type="submit" class="button-secondary">{{ t('restore.save_policy') }}</button>
+                  </div>
+                </form>
+                <form action="/restore/vm/{{ row.id }}/test" method="post">
+                  <button type="submit" class="button-secondary">{{ t('restore.test_now') }}</button>
+                </form>
+                {% if row.last_restore_result %}<p class="muted">{{ t('restore.last_result') }}: {{ row.last_restore_result }}</p>{% endif %}
               </div>
             </template>
             {%- endif %}

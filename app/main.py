@@ -20,6 +20,7 @@ from app.web.routes_dashboard import router as dashboard_router
 from app.web.routes_metrics import router as metrics_router
 from app.web.routes_notifications import router as notifications_router
 from app.web.routes_reports import router as reports_router
+from app.web.routes_restore import router as restore_router
 from app.web.routes_settings import router as settings_router
 from app.web.sync import auto_sync_loop, restore_executor, sync_executor
 
@@ -129,6 +130,7 @@ app.include_router(dashboard_router)
 app.include_router(settings_router)
 app.include_router(clusters_router)
 app.include_router(reports_router)
+app.include_router(restore_router)
 app.include_router(notifications_router)
 app.include_router(bootstrap_router)
 app.include_router(metrics_router)

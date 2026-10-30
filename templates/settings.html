@@ -5,13 +5,14 @@
 {# Tabs: the active one is the URL hash, so redirects after saving land on it. #}
 <div class="node-filter-bar settings-tabs" role="tablist" aria-label="{{ t('header.settings') }}">
   <button type="button" class="node-filter-button" role="tab" id="tab-cluster" data-tab="cluster" aria-controls="panel-cluster">{{ t('settings.tab_clusters') }}</button>
+  <button type="button" class="node-filter-button" role="tab" id="tab-restore" data-tab="restore" aria-controls="panel-restore">{{ t('restore.tab') }}</button>
   <button type="button" class="node-filter-button" role="tab" id="tab-benachrichtigungen" data-tab="benachrichtigungen" aria-controls="panel-benachrichtigungen">{{ t('settings.notifications') }}</button>
   <button type="button" class="node-filter-button" role="tab" id="tab-appearance" data-tab="appearance" aria-controls="panel-appearance">{{ t('settings.appearance') }}</button>
   <button type="button" class="node-filter-button" role="tab" id="tab-audit" data-tab="audit" aria-controls="panel-audit">{{ t('settings.tab_audit') }}</button>
 </div>
 
 <div class="settings-tab-panel" id="panel-cluster" role="tabpanel" aria-labelledby="tab-cluster">
-<section class="table-card" id="cluster">
+<section class="settings-cluster-section" id="cluster">
   <div class="section-head">
     <div>
       <p class="eyebrow">{{ t('settings.cluster_overview') }}</p>
@@ -205,6 +206,68 @@
       </form>
     </div>
   </div>
+</div>
+
+<div class="settings-tab-panel" id="panel-restore" role="tabpanel" aria-labelledby="tab-restore">
+{# ── PVE-Restore server (automated restore testing) ───────────────── #}
+<section class="table-card">
+  <div class="section-head"><div><p class="eyebrow">{{ t('restore.server_config') }}</p></div></div>
+  <p class="muted">{{ t('restore.server_hint') }}</p>
+  <form action="/settings/restore-server" method="post" class="stack restore-config-form">
+    <fieldset class="settings-cluster-card">
+      <legend>{{ t('restore.grp_api') }}</legend>
+      <label><span>{{ t('restore.f_name') }}</span><input name="name" required value="{{ rc.name if rc else '' }}"></label>
+      <label><span>API URL</span><input name="api_url" required placeholder="https://restore:8006" value="{{ rc.api_url if rc else '' }}"></label>
+      <label><span>{{ t('restore.f_api_user') }}</span><input name="api_user" required value="{{ rc.api_user if rc else 'root@pam' }}"></label>
+      <label><span>Token ID</span><input name="token_id" required value="{{ rc.token_id if rc else '' }}"></label>
+      <label><span>Token Secret</span><input name="token_secret" type="password" placeholder="{{ '••••••' if rc and rc.has_token_secret else '' }}"></label>
+      <label><span>{{ t('restore.f_fingerprint') }}</span><input name="fingerprint" value="{{ rc.fingerprint if rc else '' }}"></label>
+    </fieldset>
+    <fieldset class="settings-cluster-card">
+      <legend>{{ t('restore.grp_ssh') }}</legend>
+      <label><span>SSH Host</span><input name="ssh_host" required value="{{ rc.ssh_host if rc else '' }}"></label>
+      <label><span>SSH Port</span><input name="ssh_port" type="number" value="{{ rc.ssh_port if rc else 22 }}"></label>
+      <label><span>SSH User</span><input name="ssh_user" value="{{ rc.ssh_user if rc else 'root' }}"></label>
+      <label><span>{{ t('restore.f_ssh_key') }}</span><textarea name="ssh_private_key" rows="3" placeholder="{{ '••••••' if rc and rc.has_ssh_private_key else '-----BEGIN OPENSSH PRIVATE KEY-----' }}"></textarea></label>
+    </fieldset>
+    <fieldset class="settings-cluster-card">
+      <legend>{{ t('restore.grp_storage') }}</legend>
+      <p class="muted">{{ t('restore.storage_hint') }}</p>
+      <label><span>{{ t('restore.f_target_storages') }}</span>
+        <textarea name="target_storages" rows="3" placeholder="zfs-fast enterprise-ssd&#10;sata-pool sata-hdd">{% if rc %}{% for s in rc.target_storages %}{{ s.storage }} {{ s.disk_class }}
+{% endfor %}{% endif %}</textarea></label>
+    </fieldset>
+    <fieldset class="settings-cluster-card">
+      <legend>{{ t('restore.grp_sandbox') }}</legend>
+      <label><span>{{ t('restore.f_sandbox_bridge') }}</span><input name="sandbox_bridge" value="{{ rc.sandbox_bridge if rc else 'vmbr9' }}"></label>
+      <div class="field-row">
+        <label><span>{{ t('restore.f_vlan_from') }}</span><input name="sandbox_vlan_from" type="number" value="{{ rc.sandbox_vlan_from if rc else 900 }}"></label>
+        <label><span>{{ t('restore.f_vlan_to') }}</span><input name="sandbox_vlan_to" type="number" value="{{ rc.sandbox_vlan_to if rc else 999 }}"></label>
+      </div>
+      <div class="field-row">
+        <label><span>{{ t('restore.f_vmid_from') }}</span><input name="restore_vmid_from" type="number" value="{{ rc.restore_vmid_from if rc else 9000 }}"></label>
+        <label><span>{{ t('restore.f_vmid_to') }}</span><input name="restore_vmid_to" type="number" value="{{ rc.restore_vmid_to if rc else 9100 }}"></label>
+      </div>
+    </fieldset>
+    <fieldset class="settings-cluster-card">
+      <legend>{{ t('restore.grp_mgmt') }}</legend>
+      <p class="muted">{{ t('restore.mgmt_hint') }}</p>
+      <label><span>{{ t('restore.f_mgmt_iface') }}</span><input name="mgmt_iface" required value="{{ rc.mgmt_iface if rc else 'vmbr0' }}"></label>
+      <label><span>{{ t('restore.f_mgmt_vlan') }}</span><input name="mgmt_vlan" type="number" value="{{ rc.mgmt_vlan if rc and rc.mgmt_vlan else '' }}"></label>
+      <div class="field-row">
+        <label><span>{{ t('restore.f_mgmt_gateway') }}</span><input name="mgmt_gateway" value="{{ rc.mgmt_gateway if rc else '' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_netmask') }}</span><input name="mgmt_netmask" required value="{{ rc.mgmt_netmask if rc else '255.255.255.0' }}"></label>
+      </div>
+      <div class="field-row">
+        <label><span>{{ t('restore.f_mgmt_from') }}</span><input name="mgmt_ip_from" required value="{{ rc.mgmt_ip_from if rc else '' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_to') }}</span><input name="mgmt_ip_to" required value="{{ rc.mgmt_ip_to if rc else '' }}"></label>
+      </div>
+    </fieldset>
+    <button type="submit" class="button-secondary">{{ t('restore.save') }}</button>
+    {% if restore_saved %}<p class="ok-text">{{ t('restore.saved') }}</p>{% endif %}
+    {% if restore_error %}<p class="critical-text">{{ restore_error }}</p>{% endif %}
+  </form>
+</section>
 </div>
 
 <div class="settings-tab-panel" id="panel-benachrichtigungen" role="tabpanel" aria-labelledby="tab-benachrichtigungen">

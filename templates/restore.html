@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}{{ t('restore.nav') }}{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ t('restore.nav') }}</h1>
+
+{% if not configured %}
+<section class="table-card">
+  <p class="muted">{{ t('restore.not_configured') }}</p>
+  <a class="button-secondary" href="/settings#restore">{{ t('restore.configure') }}</a>
+</section>
+{% else %}
+
+{# Host capacity panel #}
+<section class="table-card">
+  <div class="section-head"><div><p class="eyebrow">{{ t('restore.host_capacity') }}</p></div>
+    <form action="/restore/queue/pause" method="post" class="inline-form">
+      <input type="hidden" name="paused" value="{{ '0' if queue_paused else '1' }}">
+      <button type="submit" class="button-secondary">{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}</button>
+    </form>
+  </div>
+  {% if queue_paused %}<p class="warn-text">{{ t('restore.queue_paused') }}</p>{% endif %}
+  {% if host %}
+  <p>{{ t('restore.ram_free') }}: <strong>{{ (host.ram_free / 1073741824)|round(1) if host.ram_free else '?' }} GiB</strong>
+     / {{ (host.ram_total / 1073741824)|round(1) if host.ram_total else '?' }} GiB</p>
+  <table class="data-table">
+    <thead><tr><th>{{ t('restore.store') }}</th><th>{{ t('restore.free') }}</th><th>{{ t('restore.total') }}</th></tr></thead>
+    <tbody>
+    {% for name, s in host.stores.items() %}
+      <tr><td>{{ name }}</td>
+          <td>{{ (s.avail / 1073741824)|round(1) if s.avail else '?' }} GiB</td>
+          <td>{{ (s.total / 1073741824)|round(1) if s.total else '?' }} GiB</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">{{ t('restore.host_unreachable') }}</p>
+  {% endif %}
+</section>
+
+{# Held environments #}
+{% if held %}
+<section class="table-card">
+  <div class="section-head"><div><p class="eyebrow">{{ t('restore.held_title') }}</p></div></div>
+  <p class="muted">{{ t('restore.held_hint') }}</p>
+  {% for run in held %}
+  <div class="held-env">
+    <div class="held-env-info">
+      <strong>VM {{ run.vm_id }}</strong>
+      <span class="muted">VMID {{ run.restore_vmid }} · VLAN {{ run.vlan_tag }} · {{ run.mgmt_ip }}</span>
+      <span class="status-badge status-{{ run.result }}">{{ run.result }}</span>
+    </div>
+    <div class="held-env-actions">
+      <form action="/restore/runs/{{ run.id }}/retest" method="post" class="inline-form">
+        <button type="submit" class="button-secondary">{{ t('restore.retest') }}</button></form>
+      <form action="/restore/runs/{{ run.id }}/promote" method="post" class="inline-form">
+        <button type="submit" class="button-secondary" title="{{ t('restore.promote_hint') }}">{{ t('restore.promote') }}</button></form>
+      <form action="/restore/runs/{{ run.id }}/reap" method="post" class="inline-form">
+        <button type="submit" class="button-danger">{{ t('restore.reap') }}</button></form>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# Runs list #}
+<section class="table-card">
+  <div class="section-head"><div><p class="eyebrow">{{ t('restore.runs_title') }}</p></div></div>
+  {% if not runs %}
+  <p class="muted">{{ t('restore.no_runs') }}</p>
+  {% else %}
+  <table class="data-table">
+    <thead><tr>
+      <th>VM</th><th>{{ t('restore.col_status') }}</th><th>{{ t('restore.col_progress') }}</th>
+      <th>{{ t('restore.col_trigger') }}</th><th>{{ t('restore.col_queued') }}</th><th>{{ t('restore.col_duration') }}</th>
+    </tr></thead>
+    <tbody>
+    {% for run in runs %}
+      <tr>
+        <td>VM {{ run.vm_id }}</td>
+        <td><span class="status-badge status-{{ run.status }}">{{ run.status }}</span></td>
+        <td>
+          {% if run.status == 'running' %}
+            {{ run.percent or 0 }}%{% if run.eta %} · ETA {{ run.eta|datetime_local }}{% endif %}
+            {% if run.throughput_bps %} · {{ (run.throughput_bps / 1048576)|round(1) }} MiB/s{% endif %}
+          {% elif run.result %}{{ run.result }}{% else %}–{% endif %}
+        </td>
+        <td>{{ run.trigger }}</td>
+        <td>{{ run.queued_at|datetime_local }}</td>
+        <td>{% if run.duration_seconds %}{{ (run.duration_seconds // 60) }}m {{ run.duration_seconds % 60 }}s{% else %}–{% endif %}</td>
+      </tr>
+      {% if run.log %}
+      <tr class="run-log-row"><td colspan="6"><details><summary>{{ t('restore.show_log') }}</summary><pre class="run-log">{{ run.log }}</pre></details></td></tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

@@ -1480,9 +1480,87 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 .log-dialog-btn.is-copied .icon-copied { display: block; }
 .log-dialog-btn.is-copied { color: var(--ok); }
 
+/* No outer card box around the cluster list: each cluster is its own card,
+   so wrapping them in another .table-card was a redundant box-in-a-box. */
+.settings-cluster-section {
+  margin-bottom: var(--gap);
+}
+
 .settings-cluster-list {
   display: grid;
   gap: 14px;
+}
+
+/* Restore testing UI */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.restore-config-form .settings-cluster-card {
+  margin-bottom: 14px;
+}
+
+.held-env {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.held-env-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.held-env-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.85em;
+  border: 1px solid var(--chip-border);
+  background: var(--chip);
+}
+
+.status-passed { color: var(--ok); }
+.status-failed, .status-error { color: var(--critical); }
+.status-held, .status-limited { color: var(--warn); }
+.status-running { color: var(--running); }
+
+.run-log {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 0.85em;
+  background: var(--panel-alt, var(--chip));
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.auto-restore-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .settings-cluster-head {

@@ -26,11 +26,16 @@ def settings(request: Request) -> HTMLResponse:
     all_settings = db.get_settings_dict()
     all_settings["gotify_token"] = ""
     all_settings["email_password"] = ""
+    from app.services import restore_config
+
     context = {
         "clusters": clusters,
         "app_base_url": APP_BASE_URL.rstrip("/"),
         "app_settings": all_settings,
         "settings_audit": db.list_settings_audit_entries(50),
+        "rc": restore_config.public_config(),
+        "restore_saved": request.query_params.get("restore") == "saved",
+        "restore_error": "Invalid configuration" if request.query_params.get("restore_error") else "",
         **_appearance_context(request),
     }
     return templates.TemplateResponse(request, "settings.html", common_context(request) | context)
