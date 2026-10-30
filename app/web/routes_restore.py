@@ -98,8 +98,10 @@ def test_restore_server(request: Request) -> RedirectResponse:
     import json
     from datetime import UTC, datetime
 
+    from app.web.common import datetime_local
+
     result = restore_orchestrator.test_connection()
-    result["at"] = datetime.now(UTC).isoformat(timespec="seconds")
+    result["at"] = datetime_local(datetime.now(UTC))  # human, local tz (e.g. 31.10.2026 01:31)
     db.save_settings({"restore_server.last_test": json.dumps(result)})
     return RedirectResponse("/settings#restore", status_code=status.HTTP_303_SEE_OTHER)
 
