@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.8] — 2026-10-31
+
+### Changed
+
+- **Restore-server settings, tidier still.** "Verbindung testen" moved to the top-right of the panel; its outcome is now a single ✓/✗ icon beside it (hover shows the timestamp, or the failed checks). Three traffic-light dots (API, SSH, host-identity) sit at the headline — the verbose check list is gone. "Speichern" moved to the bottom-right. API URL spans its own full-width row; SSH Host spans full width with User/Port beneath it.
+
+### Fixed
+
+- **Target storages failing silently.** The listing now queries both the node storage status and the datacenter `/storage` config (so storages one source omits still show), and — crucially — if every source errors it surfaces the real error instead of a misleading "no storages found".
+
 ## [v3.0.7] — 2026-10-31
 
 ### Changed

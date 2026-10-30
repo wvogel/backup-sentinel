@@ -185,25 +185,40 @@ class RestoreServer:
         return out
 
     def list_target_storages(self) -> list[dict[str, Any]]:
-        """All non-PBS storages on the host (name + PVE type + content). We do
-        not pre-filter by the 'images' content flag: the operator picks the
-        targets, and a storage not yet enabled for images simply shows its
-        content so they can tell. PBS storages are the restore *source*, so
-        they're excluded here."""
-        node = self.node()
-        out = []
-        for s in self.pve.get(f"/nodes/{node}/storage") or []:
-            if s.get("type") == "pbs":
+        """All non-PBS storages (name + PVE type + content). We do not pre-filter
+        by the 'images' content flag — the operator picks the targets. Queries
+        both the node storage status and the datacenter storage config and merges
+        them, so a storage the node status omits (inactive on that node, or audit
+        perms) still shows up. PBS storages are the restore *source*, excluded."""
+        seen: dict[str, dict[str, Any]] = {}
+        errors: list[str] = []
+        paths = ["/storage"]
+        try:
+            paths.insert(0, f"/nodes/{self.node()}/storage")
+        except Exception as exc:
+            errors.append(f"/nodes: {exc}")
+        for path in paths:
+            try:
+                rows = self.pve.get(path) or []
+            except Exception as exc:
+                errors.append(f"{path}: {str(exc)[:120]}")
                 continue
-            out.append(
-                {
-                    "storage": s["storage"],
+            for s in rows:
+                name = s.get("storage")
+                if not name or name in seen or s.get("type") == "pbs":
+                    continue
+                content = s.get("content", "") or ""
+                seen[name] = {
+                    "storage": name,
                     "type": s.get("type", ""),
-                    "content": s.get("content", ""),
-                    "images": "images" in (s.get("content", "") or ""),
+                    "content": content,
+                    "images": "images" in content,
                 }
-            )
-        return out
+        # Nothing readable AND every source errored → surface it (don't masquerade
+        # as "no storages found"). A genuine empty (no non-PBS storages) returns [].
+        if not seen and errors:
+            raise RuntimeError("; ".join(errors))
+        return list(seen.values())
 
     # sandbox network --------------------------------------------------------
 
