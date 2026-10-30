@@ -19,7 +19,7 @@ RestoreResult = Literal["passed", "limited", "failed"]
 # (BusyBox/Python3 stdlib) so it runs in a tiny image. It reads a JSON request
 # {"targets": [{"ip": "...", "ports": [..]}]} and prints one JSON result object:
 # {"<ip>": {"icmp": bool, "ports": {"<port>": bool}, "latency_ms": float|None, "ts": epoch}}.
-PROBE_AGENT_SCRIPT = r'''#!/usr/bin/env python3
+PROBE_AGENT_SCRIPT = r"""#!/usr/bin/env python3
 import json, socket, subprocess, sys, time
 
 def icmp(ip):
@@ -53,7 +53,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
+"""
 
 
 def classify(

@@ -143,13 +143,25 @@ def init_db() -> None:
             cur.execute("ALTER TABLE vm_policies ALTER COLUMN restore_interval_days DROP NOT NULL")
             cur.execute("UPDATE vm_policies SET restore_interval_days = NULL WHERE restore_interval_days = 90")
             # Automated restore testing (see docs/.../automated-restore-testing-design.md §8).
-            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS auto_restore_enabled BOOLEAN NOT NULL DEFAULT FALSE")
-            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS restore_cadence TEXT NOT NULL DEFAULT 'half_year'")
+            cur.execute(
+                "ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS auto_restore_enabled BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+            cur.execute(
+                "ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS restore_cadence TEXT NOT NULL DEFAULT 'half_year'"
+            )
             cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_primary_ip TEXT")
-            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_tcp_ports INTEGER[] NOT NULL DEFAULT '{}'")
-            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_require_icmp BOOLEAN NOT NULL DEFAULT TRUE")
-            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS hold_on_failure BOOLEAN NOT NULL DEFAULT FALSE")
-            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS restore_retry_days INTEGER NOT NULL DEFAULT 7")
+            cur.execute(
+                "ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_tcp_ports INTEGER[] NOT NULL DEFAULT '{}'"
+            )
+            cur.execute(
+                "ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_require_icmp BOOLEAN NOT NULL DEFAULT TRUE"
+            )
+            cur.execute(
+                "ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS hold_on_failure BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+            cur.execute(
+                "ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS restore_retry_days INTEGER NOT NULL DEFAULT 7"
+            )
             cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ")
             cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_window_seconds INTEGER")
             cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_first_delay_seconds INTEGER")
