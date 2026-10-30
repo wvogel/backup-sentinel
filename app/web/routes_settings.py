@@ -26,7 +26,8 @@ def settings(request: Request) -> HTMLResponse:
     all_settings = db.get_settings_dict()
     all_settings["gotify_token"] = ""
     all_settings["email_password"] = ""
-    from app.services import restore_config
+    from app.models import DISK_CLASSES
+    from app.services import restore_config, restore_orchestrator
 
     context = {
         "clusters": clusters,
@@ -34,11 +35,24 @@ def settings(request: Request) -> HTMLResponse:
         "app_settings": all_settings,
         "settings_audit": db.list_settings_audit_entries(50),
         "rc": restore_config.public_config(),
+        "restore_storages": restore_orchestrator.ui_target_storages() if restore_config.is_configured() else [],
+        "disk_classes": DISK_CLASSES,
+        "restore_test": _load_restore_test(all_settings),
         "restore_saved": request.query_params.get("restore") == "saved",
         "restore_error": "Invalid configuration" if request.query_params.get("restore_error") else "",
         **_appearance_context(request),
     }
     return templates.TemplateResponse(request, "settings.html", common_context(request) | context)
+
+
+def _load_restore_test(all_settings: dict[str, str]) -> dict | None:
+    raw = all_settings.get("restore_server.last_test")
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return None
 
 
 def save_appearance(form: dict[str, str], actor: str) -> tuple[list[str], list[theme.ContrastWarning]]:

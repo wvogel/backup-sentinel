@@ -292,6 +292,90 @@ def collect_cluster_ips(cluster: dict[str, Any], inventory_vms: list[dict[str, A
         logger.debug("cluster IP collection skipped for %s: %s", cluster.get("name"), exc)
 
 
+def test_connection() -> dict[str, Any]:
+    """Read-only credential check for the Settings 'test' button: API token
+    (list nodes), SSH key (echo), and the host-identity interlock. Returns a
+    structured result; never raises."""
+    config = restore_config.load()
+    if config is None:
+        return {"configured": False}
+    checks: dict[str, Any] = {}
+    try:
+        server = build_server(config)
+    except Exception as exc:
+        return {"configured": True, "ok": False, "error": str(exc)[:200]}
+
+    try:
+        server.verify_host_identity(production_endpoints())
+        checks["host"] = {"ok": True, "msg": "kein Produktions-Host / not a production host"}
+    except Exception as exc:
+        checks["host"] = {"ok": False, "msg": str(exc)[:200]}
+    try:
+        nodes = server.pve.get("/nodes") or []
+        checks["api"] = {"ok": True, "msg": f"{len(nodes)} Node(s)"}
+    except Exception as exc:
+        checks["api"] = {"ok": False, "msg": str(exc)[:200]}
+    try:
+        out = server.ssh.run("echo bsentinel-ok").strip()
+        ok = "bsentinel-ok" in out
+        checks["ssh"] = {"ok": ok, "msg": "SSH ok" if ok else f"unexpected: {out[:80]}"}
+    except Exception as exc:
+        checks["ssh"] = {"ok": False, "msg": str(exc)[:200]}
+
+    checks["configured"] = True
+    checks["ok"] = all(c.get("ok") for c in checks.values() if isinstance(c, dict))
+    return checks
+
+
+def ui_target_storages() -> list[dict[str, Any]]:
+    """Storages for the Settings UI: the scratch host's own storages enumerated
+    live (name + PVE type), each merged with the operator's saved disk-class and
+    selection. The operator only assigns the disk type / picks targets — never
+    types storage names. Best-effort: if the host is unreachable, fall back to
+    the saved assignments so nothing is lost."""
+    config = restore_config.load()
+    if config is None:
+        return []
+    saved = {s["storage"]: s for s in config.get("target_storages", [])}
+    discovered: list[dict[str, Any]] = []
+    try:
+        discovered = build_server(config).list_target_storages()
+    except Exception as exc:
+        logger.debug("target storage enumeration failed: %s", exc)
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for d in discovered:
+        name = d["storage"]
+        seen.add(name)
+        s = saved.get(name)
+        rows.append(
+            {
+                "storage": name,
+                "type": d.get("type", ""),
+                "disk_class": (s or {}).get("disk_class", "standard-ssd"),
+                "use": s is not None,
+                "order": (s or {}).get("order", 999),
+            }
+        )
+    # Saved storages the host did not return (temporarily missing): keep them so
+    # the assignment is not silently dropped.
+    for name, s in saved.items():
+        if name not in seen:
+            rows.append(
+                {
+                    "storage": name,
+                    "type": s.get("type", ""),
+                    "disk_class": s.get("disk_class", "standard-ssd"),
+                    "use": True,
+                    "order": s.get("order", 999),
+                    "missing": True,
+                }
+            )
+    rows.sort(key=lambda r: (not r["use"], r["order"], r["storage"]))
+    return rows
+
+
 def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
     """Reconstruct a RunPlan from a stored (held) run for reap/retest/promote."""
     cand = _candidate_for_vm(run["vm_id"]) or {}

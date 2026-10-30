@@ -17,13 +17,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _parse_target_storages(text: str) -> list[dict]:
+def _target_storages_from_rows(names: list[str], classes: list[str], used: set[str]) -> list[dict]:
+    """Build the target-storage list from the Settings table: the app enumerated
+    the storages, the operator only ticked which to use and assigned a disk
+    class. Order follows table (selection) order."""
     out = []
-    for i, line in enumerate(text.splitlines()):
-        parts = line.split()
-        if not parts:
-            continue
-        out.append({"storage": parts[0], "disk_class": parts[1] if len(parts) > 1 else "standard-ssd", "order": i})
+    order = 0
+    for name, cls in zip(names, classes, strict=False):
+        if name in used:
+            out.append({"storage": name, "disk_class": cls or "standard-ssd", "order": order})
+            order += 1
     return out
 
 
@@ -40,7 +43,9 @@ def save_restore_server(
     ssh_port: int = Form(default=22),
     ssh_user: str = Form(default="root"),
     ssh_private_key: str = Form(default=""),
-    target_storages: str = Form(default=""),
+    ts_name: list[str] = Form(default=[]),
+    ts_class: list[str] = Form(default=[]),
+    ts_use: list[str] = Form(default=[]),
     sandbox_bridge: str = Form(default="vmbr9"),
     sandbox_vlan_from: int = Form(default=900),
     sandbox_vlan_to: int = Form(default=999),
@@ -64,7 +69,7 @@ def save_restore_server(
         "ssh_port": ssh_port,
         "ssh_user": ssh_user,
         "ssh_private_key": ssh_private_key,
-        "target_storages": _parse_target_storages(target_storages),
+        "target_storages": _target_storages_from_rows(ts_name, ts_class, set(ts_use)),
         "sandbox_bridge": sandbox_bridge,
         "sandbox_vlan_from": sandbox_vlan_from,
         "sandbox_vlan_to": sandbox_vlan_to,
@@ -84,6 +89,17 @@ def save_restore_server(
         logger.warning("restore-server config save failed: %s", exc)
         query = "restore_error=1"
     return RedirectResponse(f"/settings?{query}#restore", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/settings/restore-server/test")
+def test_restore_server(request: Request) -> RedirectResponse:
+    import json
+    from datetime import UTC, datetime
+
+    result = restore_orchestrator.test_connection()
+    result["at"] = datetime.now(UTC).isoformat(timespec="seconds")
+    db.save_settings({"restore_server.last_test": json.dumps(result)})
+    return RedirectResponse("/settings#restore", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/restore", response_class=HTMLResponse)

@@ -210,7 +210,7 @@
 
 <div class="settings-tab-panel" id="panel-restore" role="tabpanel" aria-labelledby="tab-restore">
 {# ── PVE-Restore server (automated restore testing) ───────────────── #}
-<section class="table-card">
+<section class="settings-cluster-section">
   <div class="section-head"><div><p class="eyebrow">{{ t('restore.server_config') }}</p></div></div>
   <p class="muted">{{ t('restore.server_hint') }}</p>
   <form action="/settings/restore-server" method="post" class="stack restore-config-form">
@@ -228,45 +228,81 @@
       <label><span>SSH Host</span><input name="ssh_host" required value="{{ rc.ssh_host if rc else '' }}"></label>
       <label><span>SSH Port</span><input name="ssh_port" type="number" value="{{ rc.ssh_port if rc else 22 }}"></label>
       <label><span>SSH User</span><input name="ssh_user" value="{{ rc.ssh_user if rc else 'root' }}"></label>
-      <label><span>{{ t('restore.f_ssh_key') }}</span><textarea name="ssh_private_key" rows="3" placeholder="{{ '••••••' if rc and rc.has_ssh_private_key else '-----BEGIN OPENSSH PRIVATE KEY-----' }}"></textarea></label>
+      <label class="full"><span>{{ t('restore.f_ssh_key') }}</span><textarea name="ssh_private_key" rows="3" placeholder="{{ '••••••' if rc and rc.has_ssh_private_key else '-----BEGIN OPENSSH PRIVATE KEY-----' }}"></textarea></label>
     </fieldset>
     <fieldset class="settings-cluster-card">
       <legend>{{ t('restore.grp_storage') }}</legend>
       <p class="muted">{{ t('restore.storage_hint') }}</p>
-      <label><span>{{ t('restore.f_target_storages') }}</span>
-        <textarea name="target_storages" rows="3" placeholder="zfs-fast enterprise-ssd&#10;sata-pool sata-hdd">{% if rc %}{% for s in rc.target_storages %}{{ s.storage }} {{ s.disk_class }}
-{% endfor %}{% endif %}</textarea></label>
+      {% if not rc %}
+      <p class="muted">{{ t('restore.storage_save_first') }}</p>
+      {% elif not restore_storages %}
+      <p class="warn-text">{{ t('restore.storage_none') }}</p>
+      {% else %}
+      <table class="data-table restore-storage-table">
+        <thead><tr>
+          <th>{{ t('restore.st_use') }}</th><th>{{ t('restore.st_name') }}</th>
+          <th>{{ t('restore.st_type') }}</th><th>{{ t('restore.st_class') }}</th>
+        </tr></thead>
+        <tbody>
+        {% for s in restore_storages %}
+          <tr>
+            <td><input type="checkbox" name="ts_use" value="{{ s.storage }}" {% if s.use %}checked{% endif %}></td>
+            <td>{{ s.storage }}<input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</td>
+            <td class="muted">{{ s.type or '–' }}</td>
+            <td>
+              <select name="ts_class">
+                {% for cls in disk_classes %}<option value="{{ cls }}" {% if s.disk_class == cls %}selected{% endif %}>{{ cls }}</option>{% endfor %}
+              </select>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p class="muted">{{ t('restore.storage_order_hint') }}</p>
+      {% endif %}
     </fieldset>
     <fieldset class="settings-cluster-card">
       <legend>{{ t('restore.grp_sandbox') }}</legend>
       <label><span>{{ t('restore.f_sandbox_bridge') }}</span><input name="sandbox_bridge" value="{{ rc.sandbox_bridge if rc else 'vmbr9' }}"></label>
-      <div class="field-row">
-        <label><span>{{ t('restore.f_vlan_from') }}</span><input name="sandbox_vlan_from" type="number" value="{{ rc.sandbox_vlan_from if rc else 900 }}"></label>
-        <label><span>{{ t('restore.f_vlan_to') }}</span><input name="sandbox_vlan_to" type="number" value="{{ rc.sandbox_vlan_to if rc else 999 }}"></label>
-      </div>
-      <div class="field-row">
-        <label><span>{{ t('restore.f_vmid_from') }}</span><input name="restore_vmid_from" type="number" value="{{ rc.restore_vmid_from if rc else 9000 }}"></label>
-        <label><span>{{ t('restore.f_vmid_to') }}</span><input name="restore_vmid_to" type="number" value="{{ rc.restore_vmid_to if rc else 9100 }}"></label>
-      </div>
+      <label><span>{{ t('restore.f_vlan_from') }}</span><input name="sandbox_vlan_from" type="number" value="{{ rc.sandbox_vlan_from if rc else 900 }}"></label>
+      <label><span>{{ t('restore.f_vlan_to') }}</span><input name="sandbox_vlan_to" type="number" value="{{ rc.sandbox_vlan_to if rc else 999 }}"></label>
+      <label><span>{{ t('restore.f_vmid_from') }}</span><input name="restore_vmid_from" type="number" value="{{ rc.restore_vmid_from if rc else 9000 }}"></label>
+      <label><span>{{ t('restore.f_vmid_to') }}</span><input name="restore_vmid_to" type="number" value="{{ rc.restore_vmid_to if rc else 9100 }}"></label>
     </fieldset>
     <fieldset class="settings-cluster-card">
       <legend>{{ t('restore.grp_mgmt') }}</legend>
       <p class="muted">{{ t('restore.mgmt_hint') }}</p>
       <label><span>{{ t('restore.f_mgmt_iface') }}</span><input name="mgmt_iface" required value="{{ rc.mgmt_iface if rc else 'vmbr0' }}"></label>
       <label><span>{{ t('restore.f_mgmt_vlan') }}</span><input name="mgmt_vlan" type="number" value="{{ rc.mgmt_vlan if rc and rc.mgmt_vlan else '' }}"></label>
-      <div class="field-row">
-        <label><span>{{ t('restore.f_mgmt_gateway') }}</span><input name="mgmt_gateway" value="{{ rc.mgmt_gateway if rc else '' }}"></label>
-        <label><span>{{ t('restore.f_mgmt_netmask') }}</span><input name="mgmt_netmask" required value="{{ rc.mgmt_netmask if rc else '255.255.255.0' }}"></label>
-      </div>
-      <div class="field-row">
-        <label><span>{{ t('restore.f_mgmt_from') }}</span><input name="mgmt_ip_from" required value="{{ rc.mgmt_ip_from if rc else '' }}"></label>
-        <label><span>{{ t('restore.f_mgmt_to') }}</span><input name="mgmt_ip_to" required value="{{ rc.mgmt_ip_to if rc else '' }}"></label>
-      </div>
+      <label><span>{{ t('restore.f_mgmt_gateway') }}</span><input name="mgmt_gateway" value="{{ rc.mgmt_gateway if rc else '' }}"></label>
+      <label><span>{{ t('restore.f_mgmt_netmask') }}</span><input name="mgmt_netmask" required value="{{ rc.mgmt_netmask if rc else '255.255.255.0' }}"></label>
+      <label><span>{{ t('restore.f_mgmt_from') }}</span><input name="mgmt_ip_from" required value="{{ rc.mgmt_ip_from if rc else '' }}"></label>
+      <label><span>{{ t('restore.f_mgmt_to') }}</span><input name="mgmt_ip_to" required value="{{ rc.mgmt_ip_to if rc else '' }}"></label>
     </fieldset>
     <button type="submit" class="button-secondary">{{ t('restore.save') }}</button>
     {% if restore_saved %}<p class="ok-text">{{ t('restore.saved') }}</p>{% endif %}
     {% if restore_error %}<p class="critical-text">{{ restore_error }}</p>{% endif %}
   </form>
+  {% if rc %}
+  <form action="/settings/restore-server/test" method="post" class="restore-test-form">
+    <button type="submit" class="button-secondary">{{ t('restore.test_connection') }}</button>
+  </form>
+  {% if restore_test %}
+  <div class="restore-test-result">
+    {% if restore_test.get('error') %}
+      <p class="critical-text">{{ t('restore.test_fail') }}: {{ restore_test.error }}</p>
+    {% else %}
+      <p class="{{ 'ok-text' if restore_test.ok else 'critical-text' }}">
+        {{ t('restore.test_ok') if restore_test.ok else t('restore.test_fail') }} · {{ restore_test.at }}</p>
+      <ul class="restore-test-list">
+        {% for key in ['api', 'ssh', 'host'] %}{% set c = restore_test.get(key) %}{% if c %}
+        <li>{{ '✓' if c.ok else '✗' }} {{ t('restore.test_' ~ key) }}: {{ c.msg }}</li>
+        {% endif %}{% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% endif %}
 </section>
 </div>
 
