@@ -21,7 +21,7 @@ from app.web.routes_metrics import router as metrics_router
 from app.web.routes_notifications import router as notifications_router
 from app.web.routes_reports import router as reports_router
 from app.web.routes_settings import router as settings_router
-from app.web.sync import auto_sync_loop, sync_executor
+from app.web.sync import auto_sync_loop, restore_executor, sync_executor
 
 logging.basicConfig(
     level=logging.DEBUG if DEBUG else logging.INFO,
@@ -49,6 +49,14 @@ _validate_config()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await asyncio.get_event_loop().run_in_executor(None, db.init_db)
+    # A crash can leave a restore run as 'running'; mark such runs as error on
+    # startup (held environments are preserved). Best-effort.
+    try:
+        from app.services.restore_worker import reconcile_on_startup
+
+        await asyncio.get_event_loop().run_in_executor(None, reconcile_on_startup)
+    except Exception as exc:
+        logging.getLogger(__name__).error("restore reconcile on startup failed: %s", exc)
     sync_task = asyncio.create_task(auto_sync_loop())
     yield
     sync_task.cancel()
@@ -57,6 +65,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
     sync_executor.shutdown(wait=True)
+    restore_executor.shutdown(wait=False)
 
 
 class LanguageMiddleware(BaseHTTPMiddleware):

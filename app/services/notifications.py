@@ -333,6 +333,37 @@ def notify_restore_overdue(cluster_name: str, vm_name: str, vmid: int, days_over
     )
 
 
+def notify_restore_failed(cluster_name: str, vm_name: str, vmid: int, result: str, detail: str = "") -> None:
+    """Automated restore test did not pass (failed/error). One alert per run."""
+    key = f"restore-failed:{cluster_name}:{vmid}:{detail[:40]}"
+    if not restore_alerts_enabled() or not _should_send(key):
+        return
+    send_gotify(
+        title=f"Restore-Test fehlgeschlagen: {vm_name}",
+        message=f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\nErgebnis: {result}\n{detail}".strip(),
+        priority=7,
+        notification_type="restore_failed",
+        cluster_name=cluster_name,
+    )
+
+
+def notify_restore_held(cluster_name: str, vm_name: str, vmid: int) -> None:
+    """A failed restore environment is held for manual inspection (spec §15)."""
+    key = f"restore-held:{cluster_name}:{vmid}"
+    if not restore_alerts_enabled() or not _should_send(key):
+        return
+    send_gotify(
+        title=f"Restore-Umgebung angehalten: {vm_name}",
+        message=(
+            f"Cluster: {cluster_name}\nVM: {vm_name} (VMID {vmid})\n"
+            "Die Umgebung bleibt zum manuellen Testen bestehen und muss abgeräumt werden."
+        ),
+        priority=6,
+        notification_type="restore_held",
+        cluster_name=cluster_name,
+    )
+
+
 def notify_backup_slow(
     cluster_name: str, vm_name: str, vmid: int, typical_seconds: int, projected_seconds: int, started_at: datetime
 ) -> None:
