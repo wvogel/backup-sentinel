@@ -129,3 +129,88 @@ class OrchestratorTest(unittest.TestCase):
         n = orch.enqueue_due(self._server(), CONFIG)
         self.assertEqual(n, 1)
         self.assertEqual(db_restore.next_queued_run()["vm_id"], self.vm_id)
+
+
+class _DrainServer:
+    """Fake server: real matching/snapshot/free-space answers, no-op pipeline."""
+
+    def __init__(self, avail, size_by_vmid):
+        self._avail = avail
+        self._size = size_by_vmid
+
+    def list_pbs_storages(self):
+        return [{"storage": "local-pbs", "pbs": "pbs-a", "datastore": "ds1", "namespace": "prod"}]
+
+    def list_snapshots(self, storage, vmid):
+        return [
+            {
+                "snapshot_id": f"local-pbs:backup/vm/{vmid}/snap",
+                "backup_time": 10,
+                "size": self._size[vmid],
+                "complete": True,
+            }
+        ]
+
+    def free_resources(self):
+        return {"ram_free": 10**12, "stores": {"zfs": {"avail": self._avail, "total": 10**13}}}
+
+    def __getattr__(self, name):
+        return lambda *a, **k: None
+
+
+class DrainSkipTest(unittest.TestCase):
+    def setUp(self):
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("TRUNCATE clusters RESTART IDENTITY CASCADE")
+            cur.execute("TRUNCATE app_settings")
+            conn.commit()
+        db.create_cluster("Prod", "prod", "https://pve.prod.example:8006", "secret")
+        self.cid = db.get_cluster_by_slug("prod")["id"]
+        db.sync_cluster_inventory(
+            self.cid,
+            [{"name": "pve1", "status": "online"}],
+            [
+                {"node_name": "pve1", "vmid": 100, "name": "big", "backup_kind": "daily", "last_backup_at": None},
+                {"node_name": "pve1", "vmid": 101, "name": "small", "backup_kind": "daily", "last_backup_at": None},
+            ],
+        )
+        self.ids = {}
+        with db.connect() as conn, conn.cursor() as cur:
+            for vmid in (100, 101):
+                cur.execute("SELECT id FROM vms WHERE vmid = %s", (vmid,))
+                vid = cur.fetchone()["id"]
+                self.ids[vmid] = vid
+                cur.execute(
+                    "INSERT INTO vm_policies (vm_id, owner_name, criticality, rpo_hours, auto_restore_enabled) "
+                    "VALUES (%s, 'x', 'medium', 24, TRUE)",
+                    (vid,),
+                )
+            cur.execute(
+                "INSERT INTO pve_pbs_targets (cluster_id, storage_id, server, fingerprint, datastore, namespace)"
+                " VALUES (%s, 'pbs-store', 'pbs-a', '', 'ds1', 'prod')",
+                (self.cid,),
+            )
+            conn.commit()
+        for vmid in (100, 101):
+            db_restore.set_network_interfaces(
+                self.ids[vmid],
+                [
+                    {
+                        "nic_index": 0,
+                        "mac": "aa:bb",
+                        "ip_addresses": [f"10.0.0.{vmid}"],
+                        "prefix": 24,
+                        "is_primary": True,
+                        "source": "agent",
+                    }
+                ],
+            )
+
+    def test_too_big_run_is_skipped_small_one_runs(self):
+        # avail 100: big (size 200 → needs 240) does NOT fit, small (50 → 60) fits.
+        server = _DrainServer(avail=100, size_by_vmid={100: 200, 101: 50})
+        big = db_restore.create_run(self.ids[100])  # queued first (FIFO)
+        small = db_restore.create_run(self.ids[101])
+        orch.drain(CONFIG, server)
+        self.assertEqual(db_restore.get_run(big)["status"], "queued")  # skipped, still queued
+        self.assertNotEqual(db_restore.get_run(small)["status"], "queued")  # executed

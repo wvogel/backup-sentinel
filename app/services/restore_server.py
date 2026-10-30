@@ -178,6 +178,7 @@ class RestoreServer:
                 {
                     "snapshot_id": vol.get("volid", ""),
                     "backup_time": vol.get("ctime", 0),
+                    "size": vol.get("size"),
                     "complete": True,
                 }
             )

@@ -40,6 +40,7 @@ class RunPlan:
     first_delay: int = 30
     interval: int = 30
     window: int = 300
+    needed_bytes: int | None = None  # estimated restore footprint, for the disk-fit skip
 
 
 def owned_vmids() -> set[int]:
