@@ -142,6 +142,19 @@ def init_db() -> None:
             cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS backup_policy_override TEXT")
             cur.execute("ALTER TABLE vm_policies ALTER COLUMN restore_interval_days DROP NOT NULL")
             cur.execute("UPDATE vm_policies SET restore_interval_days = NULL WHERE restore_interval_days = 90")
+            # Automated restore testing (see docs/.../automated-restore-testing-design.md §8).
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS auto_restore_enabled BOOLEAN NOT NULL DEFAULT FALSE")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS restore_cadence TEXT NOT NULL DEFAULT 'half_year'")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_primary_ip TEXT")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_tcp_ports INTEGER[] NOT NULL DEFAULT '{}'")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_require_icmp BOOLEAN NOT NULL DEFAULT TRUE")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS hold_on_failure BOOLEAN NOT NULL DEFAULT FALSE")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS restore_retry_days INTEGER NOT NULL DEFAULT 7")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_window_seconds INTEGER")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_first_delay_seconds INTEGER")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_interval_seconds INTEGER")
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS stall_backstop_factor REAL")
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS restore_tests (
@@ -153,6 +166,57 @@ def init_db() -> None:
                     duration_minutes INTEGER NOT NULL,
                     evidence_note TEXT NOT NULL DEFAULT '',
                     created_at TIMESTAMPTZ NOT NULL
+                );
+                """
+            )
+            # Automated restore testing: operational record per run (spec §14).
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS restore_runs (
+                    id BIGSERIAL PRIMARY KEY,
+                    vm_id BIGINT NOT NULL REFERENCES vms(id) ON DELETE CASCADE,
+                    trigger TEXT NOT NULL DEFAULT 'scheduled',
+                    status TEXT NOT NULL DEFAULT 'queued',
+                    restore_vmid INTEGER,
+                    helper_vmid INTEGER,
+                    vlan_tag INTEGER,
+                    mgmt_ip TEXT,
+                    source_pbs TEXT,
+                    source_datastore TEXT,
+                    source_namespace TEXT,
+                    snapshot_id TEXT,
+                    target_storages TEXT[] NOT NULL DEFAULT '{}',
+                    bytes_total BIGINT,
+                    bytes_done BIGINT,
+                    percent SMALLINT,
+                    throughput_bps BIGINT,
+                    eta TIMESTAMPTZ,
+                    result TEXT,
+                    restore_test_id BIGINT REFERENCES restore_tests(id) ON DELETE SET NULL,
+                    log TEXT NOT NULL DEFAULT '',
+                    checks JSONB,
+                    queued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    started_at TIMESTAMPTZ,
+                    finished_at TIMESTAMPTZ,
+                    duration_seconds INTEGER
+                );
+                """
+            )
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_restore_runs_status ON restore_runs(status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_restore_runs_vm ON restore_runs(vm_id, queued_at DESC)")
+            # Guest network interfaces collected from production (spec §9).
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS vm_network_interfaces (
+                    vm_id BIGINT NOT NULL REFERENCES vms(id) ON DELETE CASCADE,
+                    nic_index INTEGER NOT NULL,
+                    mac TEXT NOT NULL,
+                    ip_addresses TEXT[] NOT NULL DEFAULT '{}',
+                    prefix INTEGER,
+                    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+                    source TEXT NOT NULL DEFAULT '',
+                    seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (vm_id, nic_index)
                 );
                 """
             )

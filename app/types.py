@@ -74,6 +74,46 @@ class RestoreTestRow(TypedDict):
     created_at: datetime
 
 
+class RestoreRunRow(TypedDict):
+    id: int
+    vm_id: int
+    trigger: str
+    status: str
+    restore_vmid: int | None
+    helper_vmid: int | None
+    vlan_tag: int | None
+    mgmt_ip: str | None
+    source_pbs: str | None
+    source_datastore: str | None
+    source_namespace: str | None
+    snapshot_id: str | None
+    target_storages: list[str]
+    bytes_total: int | None
+    bytes_done: int | None
+    percent: int | None
+    throughput_bps: int | None
+    eta: datetime | None
+    result: str | None
+    restore_test_id: int | None
+    log: str
+    checks: dict[str, Any] | None
+    queued_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    duration_seconds: int | None
+
+
+class VMNetworkInterfaceRow(TypedDict):
+    vm_id: int
+    nic_index: int
+    mac: str
+    ip_addresses: list[str]
+    prefix: int | None
+    is_primary: bool
+    source: str
+    seen_at: datetime
+
+
 class MonthlyReportRow(TypedDict):
     id: int
     report_month: date
