@@ -1,0 +1,449 @@
+"""Active PVE-Restore client: PVE API (write) + SSH (Paramiko).
+
+This is the first *active* Proxmox integration (everything else stays
+read-only). All destructive/SSH actions target only the configured scratch
+host, gated by ``verify_host_identity`` and the target-storage interlock.
+
+The PVE and SSH transports are injected (``PveClient`` / ``SshClient``
+protocols) so the orchestration is unit-testable with fakes; the real
+transports live at the bottom and import ``paramiko`` lazily. Pure decision
+helpers (NIC rewrite, reaper selection, stall backstop, progress parsing) are
+module functions and carry their own tests.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import time
+from collections.abc import Callable
+from typing import Any, Protocol
+
+logger = logging.getLogger(__name__)
+
+OWNED_TAG = "bsentinel-restore"
+
+
+class PveClient(Protocol):
+    def get(self, path: str) -> Any: ...
+    def post(self, path: str, data: dict[str, Any]) -> Any: ...
+    def delete(self, path: str) -> Any: ...
+
+
+class SshClient(Protocol):
+    def run(self, command: str) -> str: ...
+
+
+# --- pure helpers ------------------------------------------------------------
+
+
+def rewrite_net_line(net_line: str, bridge: str, tag: int | None) -> str:
+    """Rewrite a PVE ``netN`` config value to a new bridge (+ optional VLAN tag)
+    while **preserving the MAC address and model** and dropping any old tag.
+
+    ``virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,tag=5`` → ``...,bridge=vmbr9,tag=901``
+    """
+    parts = [p for p in net_line.split(",") if p]
+    kept = [p for p in parts if not p.startswith(("bridge=", "tag="))]
+    kept.append(f"bridge={bridge}")
+    if tag is not None:
+        kept.append(f"tag={tag}")
+    return ",".join(kept)
+
+
+def select_reaper_targets(guests: list[dict[str, Any]], owned_vmids: set[int]) -> list[dict[str, Any]]:
+    """Guests to destroy: everything on the scratch host that is NOT owned by a
+    live (active/held) run. With no owned vmids, that is everything."""
+    return [g for g in guests if g["vmid"] not in owned_vmids]
+
+
+_PROGRESS_RE = re.compile(r"\bprogress\s+(\d+)%")
+_BYTES_RE = re.compile(r"\((\d+(?:\.\d+)?)\s*([KMGT]i?B)\s*(?:of|/)\s*(\d+(?:\.\d+)?)\s*([KMGT]i?B)\)")
+_UNIT = {
+    "B": 1,
+    "KiB": 1024,
+    "MiB": 1024**2,
+    "GiB": 1024**3,
+    "TiB": 1024**4,
+    "KB": 1000,
+    "MB": 1000**2,
+    "GB": 1000**3,
+    "TB": 1000**4,
+}
+
+
+def parse_task_progress(line: str) -> dict[str, Any] | None:
+    """Extract ``{percent, bytes_done, bytes_total}`` from a restore task log
+    line, or None if the line carries no progress."""
+    pct = _PROGRESS_RE.search(line)
+    out: dict[str, Any] = {}
+    if pct:
+        out["percent"] = int(pct.group(1))
+    b = _BYTES_RE.search(line)
+    if b:
+        out["bytes_done"] = int(float(b.group(1)) * _UNIT.get(b.group(2), 1))
+        out["bytes_total"] = int(float(b.group(3)) * _UNIT.get(b.group(4), 1))
+    return out or None
+
+
+def stall_exceeded(
+    seconds_since_progress: float,
+    percent_done: int,
+    elapsed_seconds: float,
+    factor: float,
+    floor_seconds: float = 900.0,
+) -> bool:
+    """Adaptive stall backstop (spec §6): a quiet period only counts as a stall
+    if it exceeds ``factor`` × the *expected time per 1%* (derived from progress
+    so far), with a high floor. On a 36 TB guest where 1% legitimately takes
+    >1 h, the allowed quiet time scales up accordingly, so a healthy slow restore
+    is never aborted."""
+    if percent_done <= 0:
+        # No progress yet: allow at least the floor before suspecting a hang.
+        return seconds_since_progress > max(floor_seconds, elapsed_seconds * factor)
+    expected_per_pct = elapsed_seconds / percent_done
+    allowed = max(floor_seconds, expected_per_pct * factor)
+    return seconds_since_progress > allowed
+
+
+# --- the active client -------------------------------------------------------
+
+
+class HostIdentityError(RuntimeError):
+    """The configured scratch host matches a known production endpoint."""
+
+
+class RestoreServer:
+    def __init__(self, config: dict[str, Any], pve: PveClient, ssh: SshClient) -> None:
+        self.config = config
+        self.pve = pve
+        self.ssh = ssh
+        self._node: str | None = None
+
+    # host identity / safety -------------------------------------------------
+
+    def verify_host_identity(self, production_hosts: set[str]) -> None:
+        """Refuse to operate if the scratch host resolves to any known
+        production cluster/PBS endpoint (spec §6 interlock)."""
+        ours = {self.config.get("ssh_host", "").lower(), _host_of(self.config.get("api_url", ""))}
+        clash = ours & {h.lower() for h in production_hosts}
+        if clash:
+            raise HostIdentityError(f"restore host overlaps production endpoint(s): {sorted(clash)}")
+
+    def node(self) -> str:
+        if self._node is None:
+            nodes = self.pve.get("/nodes") or []
+            online = [n for n in nodes if n.get("status") == "online"] or nodes
+            self._node = online[0]["node"]
+        return self._node
+
+    # capacity ---------------------------------------------------------------
+
+    def free_resources(self) -> dict[str, Any]:
+        node = self.node()
+        status = self.pve.get(f"/nodes/{node}/status") or {}
+        mem = status.get("memory", {})
+        stores = self.pve.get(f"/nodes/{node}/storage") or []
+        return {
+            "ram_free": mem.get("free"),
+            "ram_total": mem.get("total"),
+            "stores": {s["storage"]: {"avail": s.get("avail"), "total": s.get("total")} for s in stores},
+        }
+
+    def list_pbs_storages(self) -> list[dict[str, Any]]:
+        """Local PBS datastores on the scratch host, as matchable tuples."""
+        node = self.node()
+        out = []
+        for s in self.pve.get(f"/nodes/{node}/storage") or []:
+            if s.get("type") == "pbs":
+                out.append(
+                    {
+                        "storage": s["storage"],
+                        "pbs": s.get("server", s["storage"]),
+                        "datastore": s.get("datastore", ""),
+                        "namespace": s.get("namespace", ""),
+                    }
+                )
+        return out
+
+    def list_target_storages(self) -> list[dict[str, Any]]:
+        node = self.node()
+        return [
+            {"storage": s["storage"], "type": s.get("type", "")}
+            for s in (self.pve.get(f"/nodes/{node}/storage") or [])
+            if s.get("type") != "pbs" and "images" in (s.get("content", "") or "")
+        ]
+
+    # sandbox network --------------------------------------------------------
+
+    def ensure_sandbox_bridge(self) -> None:
+        """Idempotently ensure a VLAN-aware, portless bridge exists (spec §6)."""
+        bridge = self.config["sandbox_bridge"]
+        script = (
+            f"grep -q 'iface {bridge}' /etc/network/interfaces /etc/network/interfaces.d/* 2>/dev/null || "
+            f"(printf 'auto {bridge}\\niface {bridge} inet manual\\n\\tbridge-ports none\\n"
+            f"\\tbridge-stp off\\n\\tbridge-fd 0\\n\\tbridge-vlan-aware yes\\n\\tbridge-vids 2-4094\\n' "
+            f">> /etc/network/interfaces.d/{bridge}.cfg && ifup {bridge})"
+        )
+        self.ssh.run(script)
+
+    # restore pipeline -------------------------------------------------------
+
+    def restore(
+        self,
+        restore_vmid: int,
+        source: dict[str, Any],
+        snapshot_id: str,
+        target_storage: str,
+        on_progress: Callable[[dict[str, Any]], None] | None = None,
+        *,
+        poll_interval: float = 5.0,
+        now: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        """Restore a snapshot to ``restore_vmid`` on the target storage, tracking
+        live progress. Liveness is the task status; abort only on task error or
+        an adaptive stall (spec §6, §11)."""
+        node = self.node()
+        archive = f"{source['storage']}:backup/vm/{source['src_vmid']}/{snapshot_id}"
+        upid = self.pve.post(
+            f"/nodes/{node}/qemu",
+            {"vmid": restore_vmid, "archive": archive, "storage": target_storage, "live-restore": 0},
+        )
+        self._poll_task(node, upid, on_progress, poll_interval=poll_interval, now=now, sleep=sleep)
+
+    def _poll_task(
+        self,
+        node: str,
+        upid: str,
+        on_progress: Callable[[dict[str, Any]], None] | None,
+        *,
+        poll_interval: float,
+        now: Callable[[], float],
+        sleep: Callable[[float], None],
+    ) -> None:
+        start = now()
+        last_progress_at = start
+        last_percent = 0
+        seen_log_lines = 0
+        factor = float(self.config.get("stall_backstop_factor") or 6.0)
+        while True:
+            status = self.pve.get(f"/nodes/{node}/tasks/{upid}/status") or {}
+            log = self.pve.get(f"/nodes/{node}/tasks/{upid}/log") or []
+            for entry in log[seen_log_lines:]:
+                prog = parse_task_progress(entry.get("t", "") if isinstance(entry, dict) else str(entry))
+                if prog:
+                    last_progress_at = now()
+                    last_percent = prog.get("percent", last_percent)
+                    if on_progress:
+                        on_progress(prog)
+            seen_log_lines = len(log)
+
+            if status.get("status") == "stopped":
+                if status.get("exitstatus") not in (None, "OK"):
+                    raise RestoreTaskError(f"restore task failed: {status.get('exitstatus')}")
+                return
+
+            if stall_exceeded(now() - last_progress_at, last_percent, now() - start, factor):
+                raise RestoreTaskError("restore task stalled (no progress; adaptive backstop exceeded)")
+            sleep(poll_interval)
+
+    def rewrite_nics(self, vmid: int, vlan_tag: int) -> None:
+        """Re-point every NIC to the sandbox bridge + this env's VLAN tag,
+        keeping MACs (spec §10)."""
+        node = self.node()
+        config = self.pve.get(f"/nodes/{node}/qemu/{vmid}/config") or {}
+        bridge = self.config["sandbox_bridge"]
+        changes = {}
+        for key, value in config.items():
+            if re.fullmatch(r"net\d+", key) and isinstance(value, str):
+                changes[key] = rewrite_net_line(value, bridge, vlan_tag)
+        if changes:
+            self.pve.post(f"/nodes/{node}/qemu/{vmid}/config", changes)
+
+    def start(self, vmid: int) -> None:
+        self.pve.post(f"/nodes/{self.node()}/qemu/{vmid}/status/start", {})
+
+    def shutdown(self, vmid: int, *, force_after: bool = True) -> None:
+        node = self.node()
+        try:
+            self.pve.post(f"/nodes/{node}/qemu/{vmid}/status/shutdown", {"timeout": 60})
+        except Exception:
+            if force_after:
+                self.pve.post(f"/nodes/{node}/qemu/{vmid}/status/stop", {})
+
+    def destroy(self, vmid: int, *, is_lxc: bool = False) -> None:
+        kind = "lxc" if is_lxc else "qemu"
+        self.pve.delete(f"/nodes/{self.node()}/{kind}/{vmid}?purge=1&destroy-unreferenced-disks=1")
+
+    # reaper -----------------------------------------------------------------
+
+    def provision_helper(
+        self,
+        helper_vmid: int,
+        vlan_tag: int,
+        mgmt_ip: str,
+        reservations: list[dict[str, Any]],
+    ) -> None:
+        """Create + start the dual-homed helper LXC: sandbox leg (this env's VLAN
+        tag) running dnsmasq, management leg (static mgmt IP) for reachability.
+        The helper never forwards between legs (spec §10)."""
+        import json
+
+        node = self.node()
+        cfg = self.config
+        bridge = cfg["sandbox_bridge"]
+        mgmt_net = f"name=mgmt,bridge={cfg['mgmt_iface']},ip={mgmt_ip}/{_prefix_from_netmask(cfg['mgmt_netmask'])}"
+        if cfg.get("mgmt_gateway"):
+            mgmt_net += f",gw={cfg['mgmt_gateway']}"
+        if cfg.get("mgmt_vlan"):
+            mgmt_net += f",tag={cfg['mgmt_vlan']}"
+        sandbox_aliases = helper_subnet_addrs(reservations, int(cfg.get("probe_offset", 254)))
+        first = sandbox_aliases[0] if sandbox_aliases else {"ip": "0.0.0.0", "prefix": 24}
+        sandbox_net = f"name=sbx,bridge={bridge},tag={vlan_tag},ip={first['ip']}/{first['prefix']}"
+        self.pve.post(
+            f"/nodes/{node}/lxc",
+            {
+                "vmid": helper_vmid,
+                "ostemplate": cfg.get("helper_template", ""),
+                "hostname": f"{OWNED_TAG}-helper-{helper_vmid}",
+                "memory": 256,
+                "cores": 1,
+                "net0": sandbox_net,
+                "net1": mgmt_net,
+                "tags": OWNED_TAG,
+                "start": 0,
+            },
+        )
+        self.start_lxc(helper_vmid)
+        # No forwarding between legs; load dnsmasq + probe agent.
+        self.ssh.run(f"pct exec {helper_vmid} -- sysctl -w net.ipv4.ip_forward=0")
+        from app.services.restore_probe import PROBE_AGENT_SCRIPT
+
+        conf = dnsmasq_config(reservations, int(cfg.get("probe_offset", 254)))
+        self._write_file(helper_vmid, "/etc/dnsmasq.d/restore.conf", conf)
+        self._write_file(helper_vmid, "/opt/probe.py", PROBE_AGENT_SCRIPT)
+        for extra in sandbox_aliases[1:]:
+            self.ssh.run(f"pct exec {helper_vmid} -- ip addr add {extra['ip']}/{extra['prefix']} dev sbx")
+        self.ssh.run(
+            f"pct exec {helper_vmid} -- rc-service dnsmasq restart || pct exec {helper_vmid} -- "
+            f"systemctl restart dnsmasq"
+        )
+        _ = json  # reserved for future structured push
+
+    def start_lxc(self, vmid: int) -> None:
+        self.pve.post(f"/nodes/{self.node()}/lxc/{vmid}/status/start", {})
+
+    def _write_file(self, helper_vmid: int, path: str, content: str) -> None:
+        import base64
+
+        b64 = base64.b64encode(content.encode()).decode()
+        self.ssh.run(f"pct exec {helper_vmid} -- sh -c 'echo {b64} | base64 -d > {path}'")
+
+    def probe(self, helper_vmid: int, targets: list[dict[str, Any]]) -> dict[str, Any]:
+        """Run the probe agent inside the helper (host-mediated via pct exec) and
+        return its structured JSON result."""
+        import json
+
+        req = json.dumps({"targets": targets})
+        b64 = __import__("base64").b64encode(req.encode()).decode()
+        out = self.ssh.run(f"echo {b64} | base64 -d | pct exec {helper_vmid} -- python3 /opt/probe.py")
+        return json.loads(out) if out.strip() else {}
+
+    def reap(self, owned_vmids: set[int]) -> list[int]:
+        """Destroy every guest on the scratch host not owned by a live run
+        (spec §12). Returns the destroyed vmids."""
+        node = self.node()
+        destroyed = []
+        for kind in ("qemu", "lxc"):
+            guests = self.pve.get(f"/nodes/{node}/{kind}") or []
+            for g in select_reaper_targets(guests, owned_vmids):
+                self.destroy(g["vmid"], is_lxc=(kind == "lxc"))
+                destroyed.append(g["vmid"])
+        return destroyed
+
+
+class RestoreTaskError(RuntimeError):
+    pass
+
+
+def _host_of(url: str) -> str:
+    m = re.search(r"https?://([^:/]+)", url or "")
+    return m.group(1).lower() if m else ""
+
+
+def _prefix_from_netmask(netmask: str) -> int:
+    import ipaddress
+
+    try:
+        return ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
+    except (ipaddress.AddressValueError, ipaddress.NetmaskValueError, ValueError):
+        return 24
+
+
+def dnsmasq_config(reservations: list[dict[str, Any]], probe_offset: int) -> str:
+    """Build a dnsmasq config that hands each VM NIC its angestammte IP by MAC
+    and serves one dhcp-range per distinct subnet (spec §10). ``reservations``
+    are ``{mac, ip, prefix}``; the helper's own address in each subnet is the
+    ``probe_offset`` host number (collision-checked against the VM's IPs)."""
+    import ipaddress
+
+    lines = ["# generated by backup-sentinel restore helper", "bind-interfaces", "except-interface=lo", "no-resolv"]
+    subnets: dict[str, int] = {}
+    for r in reservations:
+        net = ipaddress.ip_network(f"{r['ip']}/{r['prefix']}", strict=False)
+        subnets[str(net)] = r["prefix"]
+        lines.append(f"dhcp-host={r['mac']},{r['ip']},infinite")
+    for cidr in subnets:
+        net = ipaddress.ip_network(cidr)
+        helper_ip = str(net.network_address + probe_offset)
+        # Static range = just the helper's own address; all guests use reservations.
+        lines.append(f"dhcp-range={helper_ip},{helper_ip},static,infinite")
+    return "\n".join(lines) + "\n"
+
+
+def helper_subnet_addrs(reservations: list[dict[str, Any]], probe_offset: int) -> list[dict[str, Any]]:
+    """The helper's own IP (offset host) in each distinct VM subnet, for aliasing
+    its sandbox leg so it can probe every subnet."""
+    import ipaddress
+
+    seen: dict[str, dict[str, Any]] = {}
+    for r in reservations:
+        net = ipaddress.ip_network(f"{r['ip']}/{r['prefix']}", strict=False)
+        helper_ip = str(net.network_address + probe_offset)
+        if helper_ip in {x["ip"] for x in seen.values()} or helper_ip in {rr["ip"] for rr in reservations}:
+            helper_ip = str(net.network_address + max(1, probe_offset - 1))
+        seen[str(net)] = {"ip": helper_ip, "prefix": r["prefix"]}
+    return list(seen.values())
+
+
+# --- real transports (paramiko imported lazily) ------------------------------
+
+
+class ParamikoSsh:
+    def __init__(self, host: str, port: int, user: str, private_key: str) -> None:
+        self._args = (host, port, user, private_key)
+        self._client: Any = None
+
+    def _connect(self) -> Any:
+        import io
+
+        import paramiko
+
+        host, port, user, key_str = self._args
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.RejectPolicy())
+        client.load_system_host_keys()
+        pkey = paramiko.RSAKey.from_private_key(io.StringIO(key_str))
+        client.connect(host, port=port, username=user, pkey=pkey, timeout=15)
+        return client
+
+    def run(self, command: str) -> str:
+        if self._client is None:
+            self._client = self._connect()
+        _stdin, stdout, stderr = self._client.exec_command(command, timeout=120)
+        out = stdout.read().decode()
+        err = stderr.read().decode()
+        if stdout.channel.recv_exit_status() != 0:
+            raise RuntimeError(f"ssh command failed: {err.strip() or out.strip()}")
+        return out

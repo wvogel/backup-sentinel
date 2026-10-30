@@ -13,3 +13,5 @@ python-multipart==0.0.26
 cryptography==46.0.7
 # SVG brand logo → PNG for HTML emails (prebuilt wheels, no system libraries).
 resvg-py==0.5.0
+# SSH to the PVE-Restore scratch host for active restore orchestration.
+paramiko==3.5.1
