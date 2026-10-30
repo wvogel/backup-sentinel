@@ -476,21 +476,60 @@ class PveApi:
         return api_send("DELETE", self.base, path, self.auth, label="PVE-Restore")
 
 
+def load_private_key(key_str: str) -> Any:
+    """Parse an SSH private key of any common type (Ed25519, ECDSA, RSA; PEM or
+    the newer OpenSSH format). Paramiko's per-class loaders raise obscure errors
+    like 'unpack requires a buffer of 4 bytes' when handed the wrong type, so we
+    try each in turn."""
+    import io
+
+    import paramiko
+
+    errors = []
+    for cls in (paramiko.Ed25519Key, paramiko.ECDSAKey, paramiko.RSAKey):
+        try:
+            return cls.from_private_key(io.StringIO(key_str))
+        except Exception as exc:
+            errors.append(f"{cls.__name__}: {exc}")
+    raise ValueError("unsupported or invalid SSH private key (" + "; ".join(errors) + ")")
+
+
+def add_host_key(client: Any, host: str, host_key_line: str) -> None:
+    """Pin the scratch host's SSH host key from a configured known_hosts-style
+    line (e.g. from `ssh-keyscan`: '<host> ssh-ed25519 AAAA...'), so RejectPolicy
+    can verify it without a system known_hosts file."""
+    import base64
+
+    import paramiko
+
+    parts = host_key_line.split()
+    # Accept either "<host> <type> <base64>" or just "<type> <base64>".
+    if len(parts) >= 3:
+        key_type, b64 = parts[1], parts[2]
+    elif len(parts) == 2:
+        key_type, b64 = parts[0], parts[1]
+    else:
+        raise ValueError("SSH host key must be a 'ssh-... AAAA...' line")
+    key = paramiko.PKey.from_type_string(key_type, base64.b64decode(b64))
+    client.get_host_keys().add(host, key_type, key)
+
+
 class ParamikoSsh:
-    def __init__(self, host: str, port: int, user: str, private_key: str) -> None:
+    def __init__(self, host: str, port: int, user: str, private_key: str, host_key: str = "") -> None:
         self._args = (host, port, user, private_key)
+        self._host_key = host_key
         self._client: Any = None
 
     def _connect(self) -> Any:
-        import io
-
         import paramiko
 
         host, port, user, key_str = self._args
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.RejectPolicy())
         client.load_system_host_keys()
-        pkey = paramiko.RSAKey.from_private_key(io.StringIO(key_str))
+        if self._host_key.strip():
+            add_host_key(client, host, self._host_key.strip())
+        pkey = load_private_key(key_str)
         client.connect(host, port=port, username=user, pkey=pkey, timeout=15)
         return client
 

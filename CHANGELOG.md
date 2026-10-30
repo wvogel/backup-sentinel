@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.3] — 2026-10-30
+
+### Fixed
+
+- **Restore-server SSH key parsing.** The connection used an RSA-only loader, so Ed25519/ECDSA or OpenSSH-format keys failed with "unpack requires a buffer of 4 bytes". It now tries Ed25519, ECDSA and RSA (PEM or OpenSSH).
+- **Spurious HTTP 401 on the API token.** Credential/endpoint fields are now trimmed of stray whitespace/newlines (common when pasting a token secret), which otherwise produced an invalid `PVEAPIToken=…=SECRET\n` header. The SSH private key is left untouched.
+
+### Added
+
+- **SSH host-key pinning** for the restore server: an optional field for the host's public key (e.g. from `ssh-keyscan`) so the connection verifies the host without relying on a system `known_hosts` — `RejectPolicy` stays in force. The "Test connection" result now shows the token principal (secret redacted) so a wrong realm/ID is easy to spot.
+
 ## [v3.0.2] — 2026-10-30
 
 ### Changed
