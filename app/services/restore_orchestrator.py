@@ -28,6 +28,7 @@ def build_server(config: dict[str, Any]) -> RestoreServer:
         config.get("ssh_port", 22),
         config.get("ssh_user", "root"),
         config.get("ssh_private_key", ""),
+        config.get("ssh_host_key", ""),
     )
     return RestoreServer(config, pve, ssh)
 
@@ -310,11 +311,12 @@ def test_connection() -> dict[str, Any]:
         checks["host"] = {"ok": True, "msg": "kein Produktions-Host / not a production host"}
     except Exception as exc:
         checks["host"] = {"ok": False, "msg": str(exc)[:200]}
+    principal = f"PVEAPIToken={config.get('api_user', '')}!{config.get('token_id', '')}"
     try:
         nodes = server.pve.get("/nodes") or []
-        checks["api"] = {"ok": True, "msg": f"{len(nodes)} Node(s)"}
+        checks["api"] = {"ok": True, "msg": f"{principal} · {len(nodes)} Node(s)"}
     except Exception as exc:
-        checks["api"] = {"ok": False, "msg": str(exc)[:200]}
+        checks["api"] = {"ok": False, "msg": f"{principal} · {str(exc)[:160]}"}
     try:
         out = server.ssh.run("echo bsentinel-ok").strip()
         ok = "bsentinel-ok" in out

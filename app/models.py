@@ -76,6 +76,31 @@ class RestoreServerPayload(BaseModel):
     ssh_port: int = Field(default=22, ge=1, le=65535)
     ssh_user: str = Field(default="root", min_length=1, max_length=64)
     ssh_private_key: str = Field(default="", max_length=20000)
+    ssh_host_key: str = Field(default="", max_length=4000)
+
+    @field_validator(
+        "api_url",
+        "api_user",
+        "token_id",
+        "token_secret",
+        "fingerprint",
+        "ssh_host",
+        "ssh_user",
+        "ssh_host_key",
+        "mgmt_iface",
+        "mgmt_gateway",
+        "mgmt_netmask",
+        "mgmt_ip_from",
+        "mgmt_ip_to",
+        "sandbox_bridge",
+        mode="before",
+    )
+    @classmethod
+    def _strip(cls, v: object) -> object:
+        # Stray whitespace/newlines (common when pasting a token secret) make a
+        # PVE token header '...=SECRET\\n' → HTTP 401. Trim credential/text fields.
+        # ssh_private_key is deliberately NOT stripped (its newlines matter).
+        return v.strip() if isinstance(v, str) else v
 
     target_storages: list[TargetStorage] = Field(default_factory=list)
 

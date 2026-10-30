@@ -229,6 +229,7 @@
       <label><span>SSH Port</span><input name="ssh_port" type="number" value="{{ rc.ssh_port if rc else 22 }}"></label>
       <label><span>SSH User</span><input name="ssh_user" value="{{ rc.ssh_user if rc else 'root' }}"></label>
       <label class="full"><span>{{ t('restore.f_ssh_key') }}</span><textarea name="ssh_private_key" rows="3" placeholder="{{ '••••••' if rc and rc.has_ssh_private_key else '-----BEGIN OPENSSH PRIVATE KEY-----' }}"></textarea></label>
+      <label class="full"><span>{{ t('restore.f_ssh_host_key') }}</span><textarea name="ssh_host_key" rows="2" placeholder="ssh-ed25519 AAAA…  ({{ t('restore.ssh_host_key_hint') }})">{{ rc.ssh_host_key if rc else '' }}</textarea></label>
     </fieldset>
     <fieldset class="settings-cluster-card">
       <legend>{{ t('restore.grp_storage') }}</legend>

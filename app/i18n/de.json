@@ -600,5 +600,7 @@
   "restore.test_fail": "Prüfung fehlgeschlagen",
   "restore.test_api": "API-Token",
   "restore.test_ssh": "SSH-Zugang",
-  "restore.test_host": "Host-Identität"
+  "restore.test_host": "Host-Identität",
+  "restore.f_ssh_host_key": "SSH Host-Key (Pinning)",
+  "restore.ssh_host_key_hint": "aus ssh-keyscan <host>; leer = System-known_hosts"
 }
