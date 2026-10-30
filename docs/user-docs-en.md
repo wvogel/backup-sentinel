@@ -285,3 +285,10 @@ The selection is stored in the browser's local storage (`bsentinel-theme`) and p
 The application is fully bilingual (English and German). The language button in the header (EN / DE) switches it. The selection is stored per browser in the `bsentinel-lang` cookie and applies to all UI labels.
 
 Everything generated on the server -- PDF reports, Gotify and email notifications, the weekly report and sync logs -- uses the server language set by the administrator (`BSENTINEL_REPORT_LANGUAGE`, default German), regardless of the UI language.
+
+
+## Automated restore tests
+
+Configure the dedicated PVE-Restore host once under **Settings → Restore server**. Then enable the test **per VM** (in the VM settings panel on the cluster page): pick a cadence (month/quarter/half-year/year, default half-year), optional TCP ports (e.g. 3389, 445) and whether to hold on failure. **Test now** queues a run immediately.
+
+The **Restore tests** page (`/restore`) shows running runs with percent and ETA, host capacity, and — after a failure with hold — the held environments. There you can **re-test** after a fix, **document as successful** on success (which reaps it), or **reap** it. The queue can be paused/resumed manually.

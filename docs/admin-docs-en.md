@@ -455,3 +455,21 @@ docker compose up -d --build  # rebuild with the old version
 ### Version Check
 
 The current build version is shown in the UI footer and can also be checked via the health endpoint response or container logs at startup. The format is `vMAJOR.MINOR.PATCH` (e.g. `v2.41.10`), as in `CHANGELOG.md` and the git tags; `/healthz` returns it as `version`.
+
+
+## Automated restore tests
+
+Backup Sentinel can *prove* a restore, not just document it, by driving a **dedicated PVE-Restore scratch host** (Settings → Restore server) that holds the production PBS datastores locally (pull-synced, per datastore+namespace).
+
+### Prerequisites
+
+- **Dedicated, empty PVE host.** Nothing else may live on the host or its target storage — a hard reaper destroys, on startup and before/after every test, anything not owned by a running, known operation.
+- **Local-only PBS datastores** that mirror the source exactly. Matching uses the exact 3-tuple `(PBS name, datastore, namespace)`. Anything the host does not see locally is *not auto-restorable* (no offsite backup) and is never queued.
+- **API token and SSH key** for the restore host (SSH drives the bridge, LXC/dnsmasq, reaper).
+- **Guest-agent audit** (`VM.GuestAgent.Audit` or `VM.Monitor`) on the production cluster tokens for IP discovery; otherwise set the primary IP per VM manually.
+- **Management network** (static, no DHCP): interface/bridge, optional VLAN id, gateway, netmask and an IP range (from–to). One IP per helper; when exhausted the queue waits.
+- **Sandbox bridge**: a portless, VLAN-aware bridge (default `vmbr9`) the app ensures idempotently over SSH — traffic never leaves the host.
+
+### Operation
+
+A global single-slot queue drains due, enabled VMs one at a time (never two active tests at once). The restore phase has no fixed timeout: it aborts only on a task error or a genuine stall (adaptive backstop). A `passed`/`limited` result resets the due clock, `failed`/`error` does not (retry cadence, default 1 week) and raises a notification. Optionally a failed environment is **held** for manual testing; multiple holds coexist (bounded by host RAM/disk). Live progress (percent, ETA, throughput) and host capacity (free RAM, free disk per store) are shown at `/restore`.
