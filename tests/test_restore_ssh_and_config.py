@@ -93,3 +93,19 @@ def test_ssh_private_key_is_not_stripped():
     key = "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----\n"
     p = RestoreServerPayload.model_validate(_payload(ssh_private_key=key))
     assert p.ssh_private_key == key  # newlines preserved
+
+
+def test_ensure_host_key_pinned_keeps_existing():
+    from app.services import restore_orchestrator as orch
+
+    cfg = {"ssh_host": "10.0.0.9", "ssh_host_key": "10.0.0.9 ssh-ed25519 AAAA"}
+    assert orch.ensure_host_key_pinned(cfg) is cfg  # unchanged, no scan
+
+
+def test_ensure_host_key_pinned_scan_failure_returns_unchanged():
+    from app.services import restore_orchestrator as orch
+
+    # Refused connection → scan fails fast → config returned unchanged (no raise).
+    cfg = {"ssh_host": "127.0.0.1", "ssh_port": 1, "ssh_host_key": ""}
+    out = orch.ensure_host_key_pinned(cfg)
+    assert out.get("ssh_host_key", "") == ""

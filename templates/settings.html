@@ -210,7 +210,8 @@
 
 <div class="settings-tab-panel" id="panel-restore" role="tabpanel" aria-labelledby="tab-restore">
 {# ── PVE-Restore server (automated restore testing) ───────────────── #}
-<section class="settings-cluster-section">
+{# id="restore" so the #restore hash (redirect after saving / tab link) opens this panel. #}
+<section class="settings-cluster-section" id="restore">
   <div class="section-head"><div><p class="eyebrow">{{ t('restore.server_config') }}</p></div></div>
   <p class="muted">{{ t('restore.server_hint') }}</p>
   <form action="/settings/restore-server" method="post" class="stack restore-config-form">

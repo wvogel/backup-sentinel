@@ -33,6 +33,30 @@ def build_server(config: dict[str, Any]) -> RestoreServer:
     return RestoreServer(config, pve, ssh)
 
 
+def ensure_host_key_pinned(config: dict[str, Any]) -> dict[str, Any]:
+    """Trust-on-first-use: if no SSH host key is pinned yet, scan the scratch
+    host once and persist it, so every later connection verifies against it
+    (RejectPolicy). Returns the config with ``ssh_host_key`` populated. On a scan
+    failure the config is returned unchanged (the SSH check then reports it)."""
+    if config.get("ssh_host_key", "").strip():
+        return config
+    try:
+        from app.services.restore_server import scan_host_key
+
+        line = scan_host_key(config["ssh_host"], int(config.get("ssh_port", 22)))
+    except Exception as exc:
+        logger.warning("SSH host-key scan failed for %s: %s", config.get("ssh_host"), exc)
+        return config
+    updated = dict(config)
+    updated["ssh_host_key"] = line
+    try:
+        restore_config.save(updated)
+        logger.info("Pinned SSH host key for %s", config.get("ssh_host"))
+    except Exception as exc:
+        logger.warning("could not persist pinned host key: %s", exc)
+    return updated
+
+
 def production_endpoints() -> set[str]:
     """Hosts of all known production PVE clusters and PBS servers — the restore
     host must not be one of them (spec §6 interlock)."""
@@ -300,6 +324,7 @@ def test_connection() -> dict[str, Any]:
     config = restore_config.load()
     if config is None:
         return {"configured": False}
+    config = ensure_host_key_pinned(config)  # trust-on-first-use, then verify
     checks: dict[str, Any] = {}
     try:
         server = build_server(config)
@@ -420,6 +445,7 @@ def run_restore_queue() -> None:
         config = restore_config.load()
         if config is None:
             return
+        config = ensure_host_key_pinned(config)
         server = build_server(config)
         enqueue_due(server, config)
         drain(config, server)
