@@ -646,7 +646,7 @@ tbody tr:last-child td {
   min-width: 0; /* a fieldset is min-content wide by default: long URLs would push it out */
   border: 1px solid var(--line);
   border-radius: var(--radius-box);
-  padding: var(--pad-card);
+  padding: 12px 14px;
   margin: 0;
 }
 .settings-form legend,
@@ -1488,7 +1488,7 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 
 .settings-cluster-list {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 /* Restore testing UI */
@@ -1525,6 +1525,58 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 
 .restore-config-form .restore-net-fieldset {
   grid-template-columns: 1fr 1fr;
+}
+
+/* Force a field onto a new grid row (leaving the preceding cell's partner
+   empty), e.g. the VLAN von/bis pair starts fresh below the sandbox bridge. */
+.restore-config-form label.row-break {
+  grid-column: 1;
+}
+
+/* Traffic-light reachability dots before the restore-server headline. */
+.ampel {
+  font-size: 0.9em;
+  vertical-align: middle;
+  margin-right: 2px;
+  cursor: help;
+}
+
+.ampel-ok { color: var(--ok); }
+.ampel-bad { color: var(--critical); }
+.ampel-off { color: var(--muted); opacity: 0.5; }
+
+/* SSH host key: auto-pinned status + clear button (no manual text entry). */
+.ssh-hostkey-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hostkey-val {
+  font-size: 0.8em;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+/* Inline "?" help marker with an instant tooltip (static/js/common.js). */
+.help-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15em;
+  height: 1.15em;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--chip);
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: 600;
+  cursor: help;
+  vertical-align: middle;
 }
 
 .restore-config-form label {
@@ -1601,18 +1653,36 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   border-radius: 8px;
 }
 
+/* Per-VM auto-restore controls inside the VM settings panel: a compact
+   horizontal flow (matching the rest of the panel), not a sparse column. */
 .auto-restore-form {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  flex-basis: 100%;
   margin-top: 8px;
-  padding-top: 8px;
+  padding-top: 10px;
   border-top: 1px dashed var(--line);
 }
 
+.auto-restore-form label { white-space: nowrap; }
+
+.auto-restore-form input {
+  width: auto;
+  max-width: 150px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+}
+
+.auto-restore-form input[type="checkbox"] { width: auto; }
+
+.auto-restore-actions { margin-left: auto; }
+
 .checkbox-label {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .settings-cluster-head {
@@ -1620,7 +1690,7 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 
 .settings-cluster-title {
@@ -1630,16 +1700,19 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   min-width: 0;
 }
 
+/* Compact meta: label and value on one line, both ranges side by side. */
 .settings-cluster-meta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(220px, 1fr));
-  gap: 12px 18px;
-  margin-bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin-bottom: 8px;
 }
 
 .settings-cluster-meta-item {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
 .settings-cluster-meta-label {
@@ -1660,7 +1733,7 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 .settings-cluster-sublist {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--gap);
+  gap: 8px;
 }
 
 .settings-subcard {
@@ -1668,7 +1741,7 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: var(--pad-box);
+  padding: 8px 12px;
   background: var(--panel-alt);
   border: 1px solid var(--line);
   border-radius: var(--radius-box);
@@ -1676,7 +1749,7 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 
 .settings-subcard-main {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -1688,20 +1761,25 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   flex-wrap: wrap;
 }
 
-.pbs-namespace-form,
+.settings-subcard-meta { font-size: 0.85rem; }
+
+/* Namespace + aliases + save on one compact row. */
+.pbs-namespace-form {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
 .pbs-namespace-form label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.pbs-namespace-form {
-  margin-top: 6px;
+  gap: 6px;
 }
 
 .pbs-namespace-form input {
-  width: min(14rem, 100%);
+  width: min(12rem, 100%);
   padding: 4px 8px;
 }
 

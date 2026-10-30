@@ -185,12 +185,25 @@ class RestoreServer:
         return out
 
     def list_target_storages(self) -> list[dict[str, Any]]:
+        """All non-PBS storages on the host (name + PVE type + content). We do
+        not pre-filter by the 'images' content flag: the operator picks the
+        targets, and a storage not yet enabled for images simply shows its
+        content so they can tell. PBS storages are the restore *source*, so
+        they're excluded here."""
         node = self.node()
-        return [
-            {"storage": s["storage"], "type": s.get("type", "")}
-            for s in (self.pve.get(f"/nodes/{node}/storage") or [])
-            if s.get("type") != "pbs" and "images" in (s.get("content", "") or "")
-        ]
+        out = []
+        for s in self.pve.get(f"/nodes/{node}/storage") or []:
+            if s.get("type") == "pbs":
+                continue
+            out.append(
+                {
+                    "storage": s["storage"],
+                    "type": s.get("type", ""),
+                    "content": s.get("content", ""),
+                    "images": "images" in (s.get("content", "") or ""),
+                }
+            )
+        return out
 
     # sandbox network --------------------------------------------------------
 
