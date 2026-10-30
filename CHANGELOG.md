@@ -5,6 +5,24 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.6] — 2026-10-31
+
+### Changed
+
+- **Restore-server settings, compact & tidy.** API-Zugang/SSH-Zugang sit side by side, as do Sandbox-Netz/Management-Netz; each is a uniform two-column grid so VLAN and IP von/bis pairs stay on one line (sandbox bridge on its own line). Long hints (server, management, storage) and the Token-ID note moved into instant **(?) tooltips** at their headlines.
+- **SSH host key** is no longer a text field: it is auto-pinned on the first connection test, shown with a green check, and cleared with a single button.
+- **Cluster settings page, compact.** Dropped the redundant per-cluster title, put PVE URL / registration on one line, and tightened the PBS sub-cards (namespace + aliases + save on one row).
+- **Per-VM auto-restore controls** in the cluster view now flow compactly instead of a sparse column.
+
+### Added
+
+- **API/SSH reachability traffic-light dots** before the restore-server headline, reflecting the last connection test.
+
+### Fixed
+
+- **Target storages not listed though API/SSH work.** The enumeration no longer pre-filters by the "images" content flag (all non-PBS storages are offered) and surfaces the real error instead of a blanket "none found".
+- **Stale CSS after a deploy.** HTML pages are now sent `no-cache`, so the browser always picks up the current asset cache-buster — no manual reload needed.
+
 ## [v3.0.5] — 2026-10-31
 
 ### Changed

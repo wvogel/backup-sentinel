@@ -29,13 +29,15 @@ def settings(request: Request) -> HTMLResponse:
     from app.models import DISK_CLASSES
     from app.services import restore_config, restore_orchestrator
 
+    _rs = restore_orchestrator.ui_target_storages() if restore_config.is_configured() else {"rows": [], "error": None}
     context = {
         "clusters": clusters,
         "app_base_url": APP_BASE_URL.rstrip("/"),
         "app_settings": all_settings,
         "settings_audit": db.list_settings_audit_entries(50),
         "rc": restore_config.public_config(),
-        "restore_storages": restore_orchestrator.ui_target_storages() if restore_config.is_configured() else [],
+        "restore_storages": _rs.get("rows", []),
+        "restore_storage_error": _rs.get("error"),
         "disk_classes": DISK_CLASSES,
         "restore_test": _load_restore_test(all_settings),
         "restore_saved": request.query_params.get("restore") == "saved",

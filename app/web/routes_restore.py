@@ -104,6 +104,12 @@ def test_restore_server(request: Request) -> RedirectResponse:
     return RedirectResponse("/settings#restore", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/settings/restore-server/clear-host-key")
+def clear_host_key(request: Request) -> RedirectResponse:
+    restore_config.set_host_key("")
+    return RedirectResponse("/settings#restore", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.get("/restore", response_class=HTMLResponse)
 def restore_runs(request: Request) -> HTMLResponse:
     runs = db_restore.list_runs(limit=50)

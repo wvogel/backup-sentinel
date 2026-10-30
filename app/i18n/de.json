@@ -602,5 +602,11 @@
   "restore.test_ssh": "SSH-Zugang",
   "restore.test_host": "Host-Identität",
   "restore.f_ssh_host_key": "SSH Host-Key (Pinning)",
-  "restore.ssh_host_key_hint": "wird beim ersten Test automatisch gepinnt; manuell überschreibbar (ssh-keyscan)"
+  "restore.ssh_host_key_hint": "wird beim ersten Test automatisch gepinnt; manuell überschreibbar (ssh-keyscan)",
+  "restore.token_id_hint": "nur die Token-ID, ohne Account",
+  "restore.hostkey_pinned": "Host-Key gepinnt",
+  "restore.hostkey_clear": "Pinning aufheben",
+  "restore.hostkey_auto": "wird beim ersten Verbindungstest automatisch gepinnt",
+  "restore.not_tested": "noch nicht getestet",
+  "restore.storage_error": "Storages konnten nicht gelesen werden"
 }

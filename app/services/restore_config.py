@@ -25,26 +25,44 @@ def is_configured() -> bool:
     return bool(get_settings_dict(_CONFIG_KEY).get(_CONFIG_KEY))
 
 
-def save(payload: dict[str, Any]) -> dict[str, Any]:
-    """Validate + persist. Returns the normalized config (with secrets). An empty
-    secret in the payload keeps the previously stored one (so the UI need not
-    re-send it)."""
-    cfg = RestoreServerPayload.model_validate(payload).model_dump()
+# Fields the form may omit (sent empty) without clearing the stored value:
+# the two secrets, and the SSH host key (managed automatically — pinned on first
+# connect, cleared only via the explicit button).
+_KEEP_IF_EMPTY = (*_SECRET_FIELDS, "ssh_host_key")
 
-    existing = load() or {}
-    for field in _SECRET_FIELDS:
-        if not cfg.get(field):
-            cfg[field] = existing.get(field, "")
 
+def _persist(cfg: dict[str, Any]) -> None:
     non_secret = {k: v for k, v in cfg.items() if k not in _SECRET_FIELDS}
     save_settings(
         {
             _CONFIG_KEY: json.dumps(non_secret),
-            _TOKEN_KEY: encrypt(cfg["token_secret"]),
-            _SSHKEY_KEY: encrypt(cfg["ssh_private_key"]),
+            _TOKEN_KEY: encrypt(cfg.get("token_secret", "")),
+            _SSHKEY_KEY: encrypt(cfg.get("ssh_private_key", "")),
         }
     )
+
+
+def save(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate + persist. Returns the normalized config (with secrets). Empty
+    secrets / host key in the payload keep the previously stored value (so the UI
+    need not re-send them, and a form save never wipes the auto-pinned host key)."""
+    cfg = RestoreServerPayload.model_validate(payload).model_dump()
+    existing = load() or {}
+    for field in _KEEP_IF_EMPTY:
+        if not cfg.get(field):
+            cfg[field] = existing.get(field, "")
+    _persist(cfg)
     return cfg
+
+
+def set_host_key(line: str) -> None:
+    """Explicitly set (auto-pin) or clear (empty) the SSH host key, bypassing the
+    keep-if-empty rule used by form saves."""
+    cfg = load()
+    if cfg is None:
+        return
+    cfg["ssh_host_key"] = line
+    _persist(cfg)
 
 
 def load() -> dict[str, Any] | None:

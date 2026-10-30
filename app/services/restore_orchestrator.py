@@ -50,7 +50,7 @@ def ensure_host_key_pinned(config: dict[str, Any]) -> dict[str, Any]:
     updated = dict(config)
     updated["ssh_host_key"] = line
     try:
-        restore_config.save(updated)
+        restore_config.set_host_key(line)
         logger.info("Pinned SSH host key for %s", config.get("ssh_host"))
     except Exception as exc:
         logger.warning("could not persist pinned host key: %s", exc)
@@ -354,21 +354,24 @@ def test_connection() -> dict[str, Any]:
     return checks
 
 
-def ui_target_storages() -> list[dict[str, Any]]:
+def ui_target_storages() -> dict[str, Any]:
     """Storages for the Settings UI: the scratch host's own storages enumerated
     live (name + PVE type), each merged with the operator's saved disk-class and
     selection. The operator only assigns the disk type / picks targets — never
-    types storage names. Best-effort: if the host is unreachable, fall back to
-    the saved assignments so nothing is lost."""
+    types storage names. Returns ``{"rows": [...], "error": str|None}``; on a
+    host error the saved assignments are still returned (nothing lost) and the
+    error is surfaced so the UI can say why nothing fresh was found."""
     config = restore_config.load()
     if config is None:
-        return []
+        return {"rows": [], "error": None}
     saved = {s["storage"]: s for s in config.get("target_storages", [])}
     discovered: list[dict[str, Any]] = []
+    error: str | None = None
     try:
         discovered = build_server(config).list_target_storages()
     except Exception as exc:
-        logger.debug("target storage enumeration failed: %s", exc)
+        logger.warning("target storage enumeration failed: %s", exc)
+        error = str(exc)[:200]
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -400,7 +403,7 @@ def ui_target_storages() -> list[dict[str, Any]]:
                 }
             )
     rows.sort(key=lambda r: (not r["use"], r["order"], r["storage"]))
-    return rows
+    return {"rows": rows, "error": error}
 
 
 def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
