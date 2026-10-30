@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.1] — 2026-10-30
+
+### Added
+
+- **Resource-aware queue draining.** A restore whose estimated footprint does not fit the target storage's free space right now is **skipped** so smaller due runs proceed; it stays queued and is retried on a later pass (management-IP exhaustion still makes the whole queue wait). Completes the §15 skip/wait behaviour.
+
 ## [v3.0.0] — 2026-10-30
 
 ### Added

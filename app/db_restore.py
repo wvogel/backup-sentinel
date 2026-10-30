@@ -119,6 +119,13 @@ def next_queued_run() -> RestoreRunRow | None:
         return cur.fetchone()
 
 
+def list_queued_runs() -> list[RestoreRunRow]:
+    """All queued runs in FIFO order (for resource-aware draining)."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT * FROM restore_runs WHERE status = 'queued' ORDER BY queued_at, id")
+        return list(cur.fetchall())
+
+
 def has_active_run() -> bool:
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT 1 FROM restore_runs WHERE status = 'running' LIMIT 1")

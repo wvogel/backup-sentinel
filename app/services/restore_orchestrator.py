@@ -138,6 +138,7 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         first_delay=candidate.get("probe_first_delay_seconds") or config.get("probe_first_delay_seconds", 30),
         interval=candidate.get("probe_interval_seconds") or config.get("probe_interval_seconds", 30),
         window=candidate.get("probe_window_seconds") or config.get("probe_window_seconds", 300),
+        needed_bytes=snap.get("size"),
     )
 
 
@@ -152,36 +153,62 @@ def enqueue_due(server: RestoreServer, config: dict[str, Any]) -> int:
     return count
 
 
+def _fits_disk(server: RestoreServer, plan: RunPlan) -> bool:
+    """Whether this run's estimated footprint fits the target storage's free
+    space right now (held environments already consume it, so live free avail
+    reflects them). Unknown sizes optimistically fit (spec §15)."""
+    try:
+        free = server.free_resources().get("stores", {}).get(plan.target_storage, {}).get("avail")
+    except Exception as exc:
+        logger.debug("free_resources check failed: %s", exc)
+        return True
+    return restore_worker.fits_disk(free, plan.needed_bytes)
+
+
 def drain(config: dict[str, Any], server: RestoreServer) -> None:
-    """Run queued runs one at a time until none is runnable (resource wait) or
-    the queue is empty. The caller guarantees a single drainer (spec §15)."""
+    """Drain the queue, one active run at a time, until nothing runnable is left.
+    A run too big for the target storage *right now* is skipped so smaller due
+    runs proceed (it stays queued and is retried later); management-IP
+    exhaustion makes the whole queue wait (spec §15). The caller guarantees a
+    single drainer."""
     if restore_config.queue_paused():
         return
     prod = production_endpoints()
     while True:
         if db_restore.has_active_run():
             return
-        run = db_restore.next_queued_run()
-        if run is None:
+        queued = db_restore.list_queued_runs()
+        if not queued:
             return
-        cand = _candidate_for_vm(run["vm_id"])
-        if cand is None:
-            db_restore.record_run_result(run["id"], run["vm_id"], "error", duration_seconds=0, status="error")
-            continue
-        try:
-            plan = build_plan(cand, server, config)
-        except NotRunnable as exc:
-            logger.info("restore run %s dequeued: %s", run["id"], exc)
-            db_restore.record_run_result(
-                run["id"], run["vm_id"], "error", duration_seconds=0, checks={"error": str(exc)}, status="error"
-            )
-            continue
-        if plan is None:
-            # No free management IP: leave queued and wait (spec §15).
-            logger.info("restore run %s waiting for a free management IP", run["id"])
-            return
-        result = restore_worker.execute(run["id"], plan, server, production_hosts=prod)
-        _notify_result(run["vm_id"], result)
+        executed = False
+        for run in queued:
+            cand = _candidate_for_vm(run["vm_id"])
+            if cand is None:
+                db_restore.record_run_result(run["id"], run["vm_id"], "error", duration_seconds=0, status="error")
+                continue  # dequeued (no longer queued), try the next
+            try:
+                plan = build_plan(cand, server, config)
+            except NotRunnable as exc:
+                logger.info("restore run %s dequeued: %s", run["id"], exc)
+                db_restore.record_run_result(
+                    run["id"], run["vm_id"], "error", duration_seconds=0, checks={"error": str(exc)}, status="error"
+                )
+                continue  # dequeued, try the next
+            if plan is None:
+                # No free management IP: nothing can start — wait (spec §15).
+                logger.info("restore run %s waiting for a free management IP", run["id"])
+                return
+            if not _fits_disk(server, plan):
+                # Too big for the target storage right now: skip, leave queued,
+                # try the next (smaller) due run. Retried on a later pass.
+                logger.info("restore run %s skipped: does not fit target storage yet", run["id"])
+                continue
+            result = restore_worker.execute(run["id"], plan, server, production_hosts=prod)
+            _notify_result(run["vm_id"], result)
+            executed = True
+            break  # free space changed; re-evaluate the queue from the top
+        if not executed:
+            return  # nothing runnable fits right now
 
 
 def _notify_result(vm_id: int, result: str) -> None:
