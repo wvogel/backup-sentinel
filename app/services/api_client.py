@@ -79,6 +79,65 @@ def _send(url: str, headers: dict[str, str], timeout: float) -> bytes:
     raise AssertionError("unreachable")
 
 
+def _send_body(method: str, url: str, headers: dict[str, str], body: bytes, timeout: float) -> bytes:
+    """POST/PUT/DELETE with a form body over a fresh connection (write calls are
+    rare, so no pooling). Raises urllib errors like `_send`."""
+    parts = parse.urlsplit(url)
+    target = parts.path + (f"?{parts.query}" if parts.query else "")
+    if parts.scheme == "https":
+        conn = http.client.HTTPSConnection(
+            parts.hostname or "", parts.port, timeout=timeout, context=_get_ssl_context()
+        )
+    else:
+        conn = http.client.HTTPConnection(parts.hostname or "", parts.port, timeout=timeout)
+    try:
+        conn.request(method, target, body=body, headers=headers)
+        response = conn.getresponse()
+        data = response.read()
+        if response.status >= 400:
+            raise error.HTTPError(url, response.status, response.reason, response.headers, io.BytesIO(data))
+        return data
+    except (OSError, http.client.HTTPException) as exc:
+        raise error.URLError(exc) from exc
+    finally:
+        conn.close()
+
+
+def api_send(
+    method: str,
+    base_url: str,
+    path: str,
+    auth_header: str,
+    *,
+    data: dict[str, Any] | None = None,
+    timeout: float = API_TIMEOUT,
+    label: str = "API",
+) -> Any:
+    """Authenticated POST/PUT/DELETE with a form-encoded body. Returns the parsed
+    JSON 'data' field (e.g. a task UPID). No retries — write calls are not
+    blindly repeatable."""
+    url = f"{base_url}{path}"
+    headers = {
+        "Authorization": auth_header,
+        "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    body = parse.urlencode(data or {}).encode()
+    short_path = path.replace("/api2/json", "")
+    logger.info("→ %s %s %s …", label, method, short_path)
+    try:
+        raw = _send_body(method, url, headers, body, timeout)
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise APIError(f"{label} API returned HTTP {exc.code} for {method} {path}: {detail}") from exc
+    except error.URLError as exc:
+        raise APIError(f"{label} API request failed for {method} {path}: {exc.reason}") from exc
+    if not raw:
+        return None
+    payload = json.loads(raw)
+    return payload.get("data") if isinstance(payload, dict) else None
+
+
 class APIError(RuntimeError):
     """Base error for Proxmox/PBS API calls."""
 

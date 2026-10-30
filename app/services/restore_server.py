@@ -166,6 +166,23 @@ class RestoreServer:
                 )
         return out
 
+    def list_snapshots(self, pbs_storage: str, src_vmid: int) -> list[dict[str, Any]]:
+        """Backups of ``src_vmid`` in a local PBS storage, newest-first candidates
+        for restore. PVE lists only finished snapshots, so each counts as
+        complete (completeness, not verification; spec §3, §7)."""
+        node = self.node()
+        content = self.pve.get(f"/nodes/{node}/storage/{pbs_storage}/content?content=backup&vmid={src_vmid}") or []
+        out = []
+        for vol in content:
+            out.append(
+                {
+                    "snapshot_id": vol.get("volid", ""),
+                    "backup_time": vol.get("ctime", 0),
+                    "complete": True,
+                }
+            )
+        return out
+
     def list_target_storages(self) -> list[dict[str, Any]]:
         node = self.node()
         return [
@@ -205,7 +222,11 @@ class RestoreServer:
         live progress. Liveness is the task status; abort only on task error or
         an adaptive stall (spec §6, §11)."""
         node = self.node()
-        archive = f"{source['storage']}:backup/vm/{source['src_vmid']}/{snapshot_id}"
+        # snapshot_id is the PBS volume id (e.g. "store:backup/vm/100/2026-...Z"),
+        # which PVE accepts directly as the restore archive.
+        archive = (
+            snapshot_id if ":" in snapshot_id else f"{source['storage']}:backup/vm/{source['src_vmid']}/{snapshot_id}"
+        )
         upid = self.pve.post(
             f"/nodes/{node}/qemu",
             {"vmid": restore_vmid, "archive": archive, "storage": target_storage, "live-restore": 0},
@@ -418,6 +439,31 @@ def helper_subnet_addrs(reservations: list[dict[str, Any]], probe_offset: int) -
 
 
 # --- real transports (paramiko imported lazily) ------------------------------
+
+
+class PveApi:
+    """Real PVE API transport (token auth) for the restore host."""
+
+    def __init__(self, api_url: str, api_user: str, token_id: str, token_secret: str) -> None:
+        from app.services.proxmox import build_token_header
+
+        self.base = api_url.rstrip("/") + "/api2/json"
+        self.auth = build_token_header(api_user, token_id, token_secret)
+
+    def get(self, path: str) -> Any:
+        from app.services.api_client import api_get
+
+        return api_get(self.base, path, self.auth, label="PVE-Restore")
+
+    def post(self, path: str, data: dict[str, Any]) -> Any:
+        from app.services.api_client import api_send
+
+        return api_send("POST", self.base, path, self.auth, data=data, label="PVE-Restore")
+
+    def delete(self, path: str) -> Any:
+        from app.services.api_client import api_send
+
+        return api_send("DELETE", self.base, path, self.auth, label="PVE-Restore")
 
 
 class ParamikoSsh:

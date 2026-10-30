@@ -1,0 +1,131 @@
+"""Orchestrator integration tests (DB-gated) with a fake RestoreServer."""
+
+import os
+import unittest
+
+if os.environ.get("BSENTINEL_DB_TESTS") != "1":
+    raise unittest.SkipTest("set BSENTINEL_DB_TESTS=1 to run database tests (they truncate all tables)")
+
+from app import db, db_restore
+from app.services import restore_orchestrator as orch
+
+CONFIG = dict(
+    api_url="https://10.0.0.9:8006",
+    api_user="root@pam",
+    token_id="r",
+    token_secret="s",
+    ssh_host="10.0.0.9",
+    ssh_private_key="k",
+    mgmt_iface="vmbr0",
+    mgmt_netmask="255.255.255.0",
+    mgmt_ip_from="10.9.0.10",
+    mgmt_ip_to="10.9.0.12",
+    sandbox_bridge="vmbr9",
+    sandbox_vlan_from=900,
+    sandbox_vlan_to=999,
+    restore_vmid_from=9000,
+    restore_vmid_to=9100,
+    target_storages=[{"storage": "zfs", "type": "zfspool", "disk_class": "enterprise-ssd", "order": 0}],
+    probe_first_delay_seconds=0,
+    probe_interval_seconds=0,
+    probe_window_seconds=0,
+    probe_offset=254,
+)
+
+
+class FakeServer:
+    def __init__(self, storages, snapshots):
+        self._storages = storages
+        self._snapshots = snapshots
+        self.executed = []
+
+    def list_pbs_storages(self):
+        return self._storages
+
+    def list_snapshots(self, storage, vmid):
+        return self._snapshots
+
+
+def setUpModule() -> None:
+    db.init_db()
+
+
+class OrchestratorTest(unittest.TestCase):
+    def setUp(self):
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("TRUNCATE clusters RESTART IDENTITY CASCADE")
+            conn.commit()
+        db.create_cluster("Prod", "prod", "https://pve.prod.example:8006", "secret")
+        self.cid = db.get_cluster_by_slug("prod")["id"]
+        db.sync_cluster_inventory(
+            self.cid,
+            [{"name": "pve1", "status": "online"}],
+            [{"node_name": "pve1", "vmid": 100, "name": "web", "backup_kind": "daily", "last_backup_at": None}],
+        )
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT id FROM vms WHERE vmid = 100")
+            self.vm_id = cur.fetchone()["id"]
+            cur.execute(
+                "INSERT INTO vm_policies (vm_id, owner_name, criticality, rpo_hours, auto_restore_enabled) "
+                "VALUES (%s, 'x', 'medium', 24, TRUE)",
+                (self.vm_id,),
+            )
+            cur.execute(
+                "INSERT INTO pve_pbs_targets (cluster_id, storage_id, server, fingerprint, datastore, namespace) "
+                "VALUES (%s, 'pbs-store', 'pbs-a', '', 'ds1', 'prod')",
+                (self.cid,),
+            )
+            conn.commit()
+        db_restore.set_network_interfaces(
+            self.vm_id,
+            [
+                {
+                    "nic_index": 0,
+                    "mac": "aa:bb:cc:dd:ee:01",
+                    "ip_addresses": ["10.0.0.50"],
+                    "prefix": 24,
+                    "is_primary": True,
+                    "source": "agent",
+                }
+            ],
+        )
+
+    def _server(self):
+        return FakeServer(
+            storages=[{"storage": "local-pbs", "pbs": "pbs-a", "datastore": "ds1", "namespace": "prod"}],
+            snapshots=[
+                {"snapshot_id": "local-pbs:backup/vm/100/2026-10-30T01:00:00Z", "backup_time": 10, "complete": True}
+            ],
+        )
+
+    def test_production_endpoints(self):
+        self.assertIn("pve.prod.example", orch.production_endpoints())
+
+    def test_vm_backup_locations_from_targets(self):
+        locs = orch.vm_backup_locations(self.vm_id)
+        self.assertEqual(locs, [("pbs-a", "ds1", "prod")])
+
+    def test_build_plan_matches_and_allocates(self):
+        cand = orch._candidate_for_vm(self.vm_id)
+        plan = orch.build_plan(cand, self._server(), CONFIG)
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.restore_vmid, 9000)
+        self.assertEqual(plan.helper_vmid, 9001)
+        self.assertEqual(plan.vlan_tag, 900)
+        self.assertEqual(plan.mgmt_ip, "10.9.0.10")
+        self.assertEqual(plan.primary_ip, "10.0.0.50")
+        self.assertEqual(plan.target_storage, "zfs")
+        self.assertEqual(plan.reservations, [{"mac": "aa:bb:cc:dd:ee:01", "ip": "10.0.0.50", "prefix": 24}])
+
+    def test_build_plan_not_restorable_raises(self):
+        cand = orch._candidate_for_vm(self.vm_id)
+        server = FakeServer(
+            storages=[{"storage": "x", "pbs": "other", "datastore": "ds1", "namespace": "prod"}], snapshots=[]
+        )
+        with self.assertRaises(orch.NotRunnable):
+            orch.build_plan(cand, server, CONFIG)
+
+    def test_enqueue_due_creates_run_for_restorable(self):
+        n = orch.enqueue_due(self._server(), CONFIG)
+        self.assertEqual(n, 1)
+        self.assertEqual(db_restore.next_queued_run()["vm_id"], self.vm_id)

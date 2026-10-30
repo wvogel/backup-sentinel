@@ -8,6 +8,7 @@ from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from app import db
@@ -53,6 +54,10 @@ logger = logging.getLogger(__name__)
 syncing_clusters: set[int] = set()
 sync_logs: dict[int, list[str]] = {}
 sync_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="sync")
+# Restore runs can take hours; a dedicated single-slot executor keeps them off
+# the sync workers and enforces "one active restore at a time" (spec §15).
+restore_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="restore")
+_restore_future: Any = None
 
 
 class SyncLogHandler(logging.Handler):
@@ -179,6 +184,10 @@ def sync_cluster_backups(cluster: dict) -> None:
                 db.update_cluster_qdevice(cluster["id"], inventory.qdevice)
             if inventory.ha is not None:
                 db.update_vm_ha(cluster["id"], inventory.ha)
+        # Best-effort guest IP collection for auto-restore-enabled VMs (spec §9).
+        from app.services.restore_orchestrator import collect_cluster_ips
+
+        collect_cluster_ips(cluster, inventory.vms)
         if not inventory.vms:
             prune_blockers.append(ts("synclog.pve_zero_vms"))
         prune_blockers.extend(f"PVE {err}" for err in inventory.fetch_errors)
@@ -636,7 +645,20 @@ async def auto_sync_loop() -> None:
             await asyncio.get_event_loop().run_in_executor(sync_executor, send_weekly_report_if_due)
         except Exception as exc:
             logger.error("Weekly report failed: %s", exc)
+        _kick_restore_queue()
         await asyncio.sleep(interval)
+
+
+def _kick_restore_queue() -> None:
+    """Fire the restore queue on its dedicated single-slot executor without
+    awaiting it (a restore may run for hours). Skip if one is still running, so
+    submissions never pile up."""
+    global _restore_future
+    if _restore_future is not None and not _restore_future.done():
+        return
+    from app.services.restore_orchestrator import run_restore_queue
+
+    _restore_future = restore_executor.submit(run_restore_queue)
 
 
 def background_sync(cluster: dict) -> None:
