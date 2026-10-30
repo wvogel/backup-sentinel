@@ -1553,15 +1553,6 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   flex-wrap: wrap;
 }
 
-.hostkey-val {
-  font-size: 0.8em;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  white-space: nowrap;
-}
-
 /* Inline "?" help marker with an instant tooltip (static/js/common.js). */
 .help-dot {
   display: inline-flex;

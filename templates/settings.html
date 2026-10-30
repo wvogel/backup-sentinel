@@ -238,7 +238,6 @@
           <span>{{ t('restore.f_ssh_host_key') }}:</span>
           {% if rc and rc.ssh_host_key %}
           <span class="status-badge status-passed">✓ {{ t('restore.hostkey_pinned') }}</span>
-          <code class="hostkey-val">{{ rc.ssh_host_key }}</code>
           <button type="submit" formaction="/settings/restore-server/clear-host-key" formnovalidate class="button-secondary">{{ t('restore.hostkey_clear') }}</button>
           {% else %}
           <span class="muted">{{ t('restore.hostkey_auto') }}</span>
