@@ -1617,6 +1617,33 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   margin-top: 0;
 }
 
+/* Right-align a control at the end of a flex row (e.g. "Token neu erzeugen"). */
+.push-right {
+  margin-left: auto;
+}
+
+/* Storage table: numeric size columns and drag-to-reorder handle. */
+.restore-storage-table th.num,
+.restore-storage-table td.num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.restore-storage-table .drag-handle {
+  cursor: grab;
+  color: var(--muted);
+  text-align: center;
+  width: 1.6em;
+  user-select: none;
+  letter-spacing: -1px;
+}
+.restore-storage-table tr[draggable="true"]:active .drag-handle {
+  cursor: grabbing;
+}
+.restore-storage-table tr.dragging {
+  opacity: 0.45;
+}
+
 .held-env {
   display: flex;
   align-items: center;
@@ -1923,6 +1950,11 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 }
 .lightbox-success p {
   margin-bottom: 0;
+}
+/* Failure variant of the status lightbox (red ✗). */
+.lightbox-failure .lightbox-success-icon {
+  background: var(--critical-soft);
+  color: var(--critical);
 }
 
 .bootstrap-poll-status {

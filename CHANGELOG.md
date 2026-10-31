@@ -5,6 +5,15 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.13] — 2026-10-31
+
+### Changed
+
+- **Restore-server settings, tightened UX.** Target storages now show **Used/Free** per storage at two significant figures, rounded down ("430 GB", "1,9 TB", "36 TB") — no noisy decimals. Rows carry a **drag handle** so the fill order can be set by dragging (order = row order). Long inline help is gone; the explanation lives in the (?) next to each heading, including the "SSH only" note on the SSH-Zugang heading.
+- **Save feedback is a brief modal**, centered, showing "Gespeichert" (or "Nicht gespeichert") together with the live connection-test state — instead of a line appended at the bottom after the page jumped to the top. The connection test now runs automatically after every save (and after "Token neu erzeugen"), so a fresh token is verified immediately.
+- **Token id shortened** to `b-sentinel` (was `bsentinel-restore`). The "Verbindung testen" result icon now sits to the left of the button.
+- **Dropped the gateway and netmask fields** from the management network — the sandbox never routes outside, so there is no gateway and the mask is always /24 (set internally). Removed the separate SSH host-key row (the key is still pinned automatically in the background).
+
 ## [v3.0.12] — 2026-10-31
 
 ### Fixed

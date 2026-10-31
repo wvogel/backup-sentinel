@@ -22,7 +22,7 @@ from app.config import (
 from app.i18n import SUPPORTED_LANGUAGES, get_language, get_translations, t
 from app.services import theme
 from app.services.backup_status import format_duration, pbs_sync_state, pve_sync_state
-from app.services.human_format import format_count, format_rate, format_size
+from app.services.human_format import format_count, format_rate, format_size, format_size_coarse
 from app.services.theme_store import active_theme
 
 templates = Jinja2Templates(directory="templates")
@@ -58,6 +58,7 @@ def spark_tooltip(day: dict) -> str:
 
 templates.env.filters["datetime_local"] = datetime_local
 templates.env.filters["format_bytes"] = format_size
+templates.env.filters["size_coarse"] = format_size_coarse
 templates.env.filters["spark_tooltip"] = spark_tooltip
 templates.env.filters["format_number"] = format_count
 

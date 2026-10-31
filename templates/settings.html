@@ -223,37 +223,27 @@
     {{ t('restore.server_config') }} <span class="help-dot" data-tooltip="{{ t('restore.server_hint') }}">?</span></p></div>
     {% if rc %}
     <form action="/settings/restore-server/test" method="post" class="restore-test-form">
-      <button type="submit" class="button-secondary">{{ t('restore.test_connection') }}</button>
       {% if restore_test %}
         {%- set _tip %}{% if _ok %}{{ t('restore.test_ok') }} · {{ restore_test.at }}{% else %}{% if restore_test.get('error') %}{{ restore_test.error }}{% endif %}{% for k in ['api', 'ssh', 'host'] %}{% set c = restore_test.get(k) %}{% if c and not c.ok %}{{ t('restore.test_' ~ k) }}: {{ c.msg }} · {% endif %}{% endfor %}{{ restore_test.at }}{% endif %}{% endset %}
         <span class="test-result-icon {{ 'result-ok' if _ok else 'result-bad' }}" data-tooltip="{{ _tip|trim }}">{{ '✓' if _ok else '✗' }}</span>
       {% endif %}
+      <button type="submit" class="button-secondary">{{ t('restore.test_connection') }}</button>
     </form>
     {% endif %}
   </div>
   <form action="/settings/restore-server" method="post" class="stack restore-config-form">
-    <p class="muted">{{ t('restore.ssh_only_hint') }}</p>
     <div class="restore-net-row">
       <fieldset class="settings-cluster-card restore-net-fieldset">
-        <legend>{{ t('restore.grp_ssh') }}</legend>
+        <legend>{{ t('restore.grp_ssh') }} <span class="help-dot" data-tooltip="{{ t('restore.ssh_only_hint') }}">?</span></legend>
         <label class="full"><span>SSH Host</span><input name="ssh_host" required value="{{ rc.ssh_host if rc else '' }}"></label>
         <label><span>SSH User</span><input name="ssh_user" value="{{ rc.ssh_user if rc else 'root' }}"></label>
         <label><span>SSH Port</span><input name="ssh_port" type="number" value="{{ rc.ssh_port if rc else 22 }}"></label>
         <label class="full"><span>{{ t('restore.f_ssh_key') }}</span><textarea name="ssh_private_key" rows="3" placeholder="{{ '••••••' if rc and rc.has_ssh_private_key else '-----BEGIN OPENSSH PRIVATE KEY-----' }}"></textarea></label>
         <div class="full ssh-hostkey-status">
-          <span>{{ t('restore.f_ssh_host_key') }}:</span>
-          {% if rc and rc.ssh_host_key %}
-          <span class="status-badge status-passed">✓ {{ t('restore.hostkey_pinned') }}</span>
-          <button type="submit" formaction="/settings/restore-server/clear-host-key" formnovalidate class="button-secondary">{{ t('restore.hostkey_clear') }}</button>
-          {% else %}
-          <span class="muted">{{ t('restore.hostkey_auto') }}</span>
-          {% endif %}
-        </div>
-        <div class="full ssh-hostkey-status">
           <span>API:</span>
           {% if rc and rc.has_token_secret %}
           <span class="status-badge status-passed" data-tooltip="{{ rc.api_url }}">✓ {{ rc.api_user }}!{{ rc.token_id }}</span>
-          <button type="submit" name="reprovision" value="1" formnovalidate class="button-secondary">{{ t('restore.reprovision_token') }}</button>
+          <button type="submit" name="reprovision" value="1" formnovalidate class="button-secondary push-right">{{ t('restore.reprovision_token') }}</button>
           {% else %}
           <span class="muted">{{ t('restore.api_auto_hint') }}</span>
           {% endif %}
@@ -272,15 +262,19 @@
       {% else %}
       <table class="data-table restore-storage-table">
         <thead><tr>
-          <th>{{ t('restore.st_use') }}</th><th>{{ t('restore.st_name') }}</th>
-          <th>{{ t('restore.st_type') }}</th><th>{{ t('restore.st_class') }}</th>
+          <th></th><th>{{ t('restore.st_use') }}</th><th>{{ t('restore.st_name') }}</th>
+          <th>{{ t('restore.st_type') }}</th><th class="num">{{ t('restore.st_used') }}</th>
+          <th class="num">{{ t('restore.st_free') }}</th><th>{{ t('restore.st_class') }}</th>
         </tr></thead>
-        <tbody>
+        <tbody data-reorder>
         {% for s in restore_storages %}
-          <tr>
+          <tr draggable="true">
+            <td class="drag-handle" data-tooltip="{{ t('restore.st_drag') }}" aria-hidden="true">⠿</td>
             <td><input type="checkbox" name="ts_use" value="{{ s.storage }}" {% if s.use %}checked{% endif %}></td>
             <td>{{ s.storage }}<input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</td>
             <td class="muted">{{ s.type or '–' }}</td>
+            <td class="num">{{ s.used | size_coarse if s.used is not none else '–' }}</td>
+            <td class="num">{{ s.free | size_coarse if s.free is not none else '–' }}</td>
             <td>
               <select name="ts_class">
                 {% for cls in disk_classes %}<option value="{{ cls }}" {% if s.disk_class == cls %}selected{% endif %}>{{ cls }}</option>{% endfor %}
@@ -290,7 +284,6 @@
         {% endfor %}
         </tbody>
       </table>
-      <p class="muted">{{ t('restore.storage_order_hint') }}</p>
       {% endif %}
       </fieldset>
     </div>
@@ -307,18 +300,27 @@
         <legend>{{ t('restore.grp_mgmt') }} <span class="help-dot" data-tooltip="{{ t('restore.mgmt_hint') }}">?</span></legend>
         <label><span>{{ t('restore.f_mgmt_iface') }}</span><input name="mgmt_iface" required value="{{ rc.mgmt_iface if rc else 'vmbr0' }}"></label>
         <label><span>{{ t('restore.f_mgmt_vlan') }}</span><input name="mgmt_vlan" type="number" value="{{ rc.mgmt_vlan if rc and rc.mgmt_vlan else '' }}"></label>
-        <label><span>{{ t('restore.f_mgmt_gateway') }}</span><input name="mgmt_gateway" value="{{ rc.mgmt_gateway if rc else '' }}"></label>
-        <label><span>{{ t('restore.f_mgmt_netmask') }}</span><input name="mgmt_netmask" required value="{{ rc.mgmt_netmask if rc else '255.255.255.0' }}"></label>
         <label><span>{{ t('restore.f_mgmt_from') }}</span><input name="mgmt_ip_from" required value="{{ rc.mgmt_ip_from if rc else '' }}"></label>
         <label><span>{{ t('restore.f_mgmt_to') }}</span><input name="mgmt_ip_to" required value="{{ rc.mgmt_ip_to if rc else '' }}"></label>
       </fieldset>
     </div>
     <div class="restore-save-row">
-      {% if restore_saved %}<span class="ok-text">{{ t('restore.saved') }}</span>{% endif %}
-      {% if restore_error %}<span class="critical-text">{{ restore_error }}</span>{% endif %}
       <button type="submit" class="button-primary">{{ t('restore.save') }}</button>
     </div>
   </form>
+  {% if restore_saved or restore_error %}
+  {%- set _issues %}{% if restore_test %}{% if restore_test.get('error') %}{{ restore_test.error }}{% endif %}{% for k in ['api', 'ssh', 'host'] %}{% set c = restore_test.get(k) %}{% if c and not c.ok %}{{ t('restore.test_' ~ k) }}: {{ c.msg }} · {% endif %}{% endfor %}{% endif %}{% endset %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      {% if restore_error %}
+      showStatusLightbox(false, {{ t('restore.save_failed')|tojson }}, {{ restore_error|tojson }});
+      {% else %}
+      showStatusLightbox({{ 'true' if _ok else 'false' }}, {{ t('restore.saved')|tojson }},
+        {{ (t('restore.test_ok') if _ok else _issues|trim)|tojson }});
+      {% endif %}
+    });
+  </script>
+  {% endif %}
 </section>
 </div>
 

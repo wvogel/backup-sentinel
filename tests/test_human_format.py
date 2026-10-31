@@ -1,7 +1,13 @@
 import unittest
 
 from app.i18n import set_language
-from app.services.human_format import format_count, format_rate, format_size, short_number
+from app.services.human_format import (
+    format_count,
+    format_rate,
+    format_size,
+    format_size_coarse,
+    short_number,
+)
 
 GIB = 1024**3
 TIB = 1024**4
@@ -45,6 +51,23 @@ class FormatSizeTests(unittest.TestCase):
         set_language("de")
         self.assertEqual(format_size(1.5 * TIB), "1,5 TiB")
         self.assertEqual(format_size(1.5 * TIB, "EN"), "1.5 TiB")
+
+
+class FormatSizeCoarseTests(unittest.TestCase):
+    def test_two_sig_figs_rounded_down(self) -> None:
+        set_language("de")
+        self.assertEqual(format_size_coarse(436 * GIB), "430 GB")
+        self.assertEqual(format_size_coarse(int(1.92 * TIB)), "1,9 TB")
+        self.assertEqual(format_size_coarse(int(36.72 * TIB)), "36 TB")
+
+    def test_english_decimal_point(self) -> None:
+        set_language("en")
+        self.assertEqual(format_size_coarse(int(1.92 * TIB)), "1.9 TB")
+        set_language("de")
+
+    def test_unknown_is_dash(self) -> None:
+        self.assertEqual(format_size_coarse(None), "–")
+        self.assertEqual(format_size_coarse(-5), "–")
 
 
 class FormatRateTests(unittest.TestCase):
