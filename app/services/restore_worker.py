@@ -153,11 +153,17 @@ def _finalize(run_id: int, plan: RunPlan, result: str, checks: dict, duration: i
 
 
 def _teardown(server: Any, plan: RunPlan) -> None:
-    for fn in (
-        lambda: server.shutdown(plan.restore_vmid),
-        lambda: server.destroy(plan.helper_vmid, is_lxc=True),
-        lambda: server.destroy(plan.restore_vmid),
-    ):
+    # Only act on guests that actually exist — a run that errored before the
+    # restore leaves no VM, so shutting it down would just spam task errors.
+    steps = []
+    try:
+        if server.exists(plan.restore_vmid, is_lxc=False):
+            steps += [lambda: server.shutdown(plan.restore_vmid), lambda: server.destroy(plan.restore_vmid)]
+        if server.exists(plan.helper_vmid, is_lxc=True):
+            steps.append(lambda: server.destroy(plan.helper_vmid, is_lxc=True))
+    except Exception as exc:
+        logger.warning("teardown existence check failed: %s", exc)
+    for fn in steps:
         try:
             fn()
         except Exception as exc:

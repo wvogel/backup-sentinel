@@ -132,6 +132,31 @@ def restore_host_pbs_entries(server: RestoreServer) -> list[dict[str, Any]]:
     return entries
 
 
+def matched_vms_by_location(locations: list[str]) -> dict[str, list[str]]:
+    """For each restore-host location, the VMs whose real backups live there,
+    as ``cluster:vm`` — so the diagnostic shows exactly what can be restored
+    from where."""
+    if not locations:
+        return {}
+    out: dict[str, list[str]] = {}
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT loc, c.name AS cluster, v.name AS vm
+            FROM backup_events be, unnest(be.locations) AS loc
+            JOIN vms v ON v.id = be.vm_id
+            JOIN clusters c ON c.id = v.cluster_id
+            WHERE be.status = 'ok' AND be.removed_at IS NULL AND COALESCE(be.size_bytes, 0) > 1
+              AND loc = ANY(%s)
+            ORDER BY loc, c.name, v.name
+            """,
+            (locations,),
+        )
+        for r in cur.fetchall():
+            out.setdefault(r["loc"], []).append(f"{r['cluster']}:{r['vm']}")
+    return out
+
+
 def _reservations(nics: list[dict[str, Any]]) -> list[dict[str, Any]]:
     res = []
     for nic in nics:

@@ -3205,15 +3205,21 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .restore-symbols.is-overdue .cad-label { color: var(--critical); }
 
 /* — Expanded VM detail: section headings + layout — */
-.vm-section-title {
-  display: block;
+/* Expanded VM detail: each area in a bordered box, heading breaking the border. */
+.vm-section {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 2px 16px 16px;
+  margin: 0 0 14px;
+  min-width: 0;
+}
+.vm-section > legend {
+  padding: 0 8px;
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
-  margin: 14px 0 8px;
 }
-.vm-detail-row .vm-section-title:first-of-type { margin-top: 4px; }
 .vm-backup-freq { margin-bottom: 10px; }
 .vm-backup-freq label { display: block; max-width: 240px; }
 .vm-backup-freq label > span { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 5px; }
@@ -3430,6 +3436,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 .store-ring.ring-ctl.ring-paused { color: var(--warn); }
 .ring-ctl-icon svg { width: 26px; height: 26px; }
+.store-rings .queue-ring-right { margin-left: auto; }
 
 /* — VM-list: restore server has no matching backup (red cross) — */
 .restore-nomatch { color: var(--critical); cursor: help; display: inline-flex; }

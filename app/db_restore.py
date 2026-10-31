@@ -83,14 +83,16 @@ def update_run(run_id: int, **fields: Any) -> None:
 
 
 def list_runs(limit: int = 50, status: str | None = None) -> list[RestoreRunRow]:
+    # Join the VM name/vmid so the UI shows "srv01 (100)" not an internal id.
+    base = "SELECT r.*, v.name AS vm_name, v.vmid AS vmid_src FROM restore_runs r LEFT JOIN vms v ON v.id = r.vm_id"
     with connect() as conn, conn.cursor() as cur:
         if status:
             cur.execute(
-                "SELECT * FROM restore_runs WHERE status = %s ORDER BY queued_at DESC, id DESC LIMIT %s",
+                f"{base} WHERE r.status = %s ORDER BY r.queued_at DESC, r.id DESC LIMIT %s",
                 (status, limit),
             )
         else:
-            cur.execute("SELECT * FROM restore_runs ORDER BY queued_at DESC, id DESC LIMIT %s", (limit,))
+            cur.execute(f"{base} ORDER BY r.queued_at DESC, r.id DESC LIMIT %s", (limit,))
         return list(cur.fetchall())
 
 

@@ -397,6 +397,19 @@ class RestoreServer:
             raise RuntimeError(f"token created but no secret in output: {out[:200]}")
         return {"api_user": user, "token_id": token_id, "token_secret": secret}
 
+    def exists(self, vmid: int, *, is_lxc: bool = False) -> bool:
+        """Whether a guest with this vmid is present on the host — so teardown
+        doesn't blindly shut down / destroy a VM that was never created (e.g. a
+        run that errored before restoring)."""
+        if not vmid:
+            return False
+        kind = "lxc" if is_lxc else "qemu"
+        try:
+            guests = self.pve.get(f"/nodes/{self.node()}/{kind}") or []
+        except Exception:
+            return False
+        return any(int(g.get("vmid", -1)) == int(vmid) for g in guests)
+
     def rewrite_nics(self, vmid: int, vlan_tag: int) -> None:
         """Re-point every NIC to the sandbox bridge + this env's VLAN tag,
         keeping MACs (spec §10)."""

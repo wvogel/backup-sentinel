@@ -211,6 +211,9 @@ def restore_runs(request: Request) -> HTMLResponse:
             _cache_host_snapshot(host)
             host_pbs = restore_orchestrator.restore_host_pbs_entries(server)
             _cache_pbs_locations(host_pbs)
+            matched = restore_orchestrator.matched_vms_by_location([e["location"] for e in host_pbs])
+            for e in host_pbs:
+                e["vms"] = matched.get(e["location"], [])
         except Exception as exc:
             # Surface the real reason instead of a bare "host unreachable".
             logger.warning("free_resources failed: %s", exc)
