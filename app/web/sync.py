@@ -661,6 +661,39 @@ def _kick_restore_queue() -> None:
     _restore_future = restore_executor.submit(run_restore_queue)
 
 
+def reconcile_and_resume_restores() -> None:
+    """On startup, re-attach to any restore that was running when the app
+    stopped (a deploy must not interrupt it). Runs that cannot be resumed
+    (no restore config) are marked error by reconcile_on_startup; the rest are
+    resumed on the single-slot restore executor so the queue stays serialized."""
+    global _restore_future
+    from app import db_restore
+    from app.services import restore_config, restore_orchestrator, restore_worker
+
+    try:
+        restore_worker.reconcile_on_startup()
+        config = restore_config.load()
+        if config is None:
+            return
+        running = db_restore.list_runs(limit=50, status="running")
+        if not running:
+            return
+        config = restore_orchestrator.ensure_host_key_pinned(config)
+        server = restore_orchestrator.build_server(config)
+
+        def _resume_all() -> None:
+            for run in running:
+                try:
+                    plan = restore_orchestrator.plan_from_run(run, config)
+                    restore_worker.resume_run(run["id"], plan, server, run.get("task_upid"))
+                except Exception as exc:
+                    logger.error("resume of restore run %s failed: %s", run["id"], exc)
+
+        _restore_future = restore_executor.submit(_resume_all)
+    except Exception as exc:
+        logger.error("restore reconcile/resume on startup failed: %s", exc)
+
+
 def background_sync(cluster: dict) -> None:
     cid = cluster["id"]
     sync_logs[cid] = []

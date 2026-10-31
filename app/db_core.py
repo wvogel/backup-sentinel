@@ -219,6 +219,10 @@ def init_db() -> None:
             )
             cur.execute("CREATE INDEX IF NOT EXISTS idx_restore_runs_status ON restore_runs(status)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_restore_runs_vm ON restore_runs(vm_id, queued_at DESC)")
+            # PVE restore-task UPID: lets a restarted app re-attach to a running
+            # restore instead of orphaning (and reaping) it — a deploy must not
+            # interrupt an in-flight restore.
+            cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS task_upid TEXT")
             # Guest network interfaces collected from production (spec §9).
             cur.execute(
                 """

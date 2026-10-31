@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.3] — 2026-10-31
+
+### Fixed
+
+- **A deployment no longer interrupts a running restore.** The restore itself is a PVE task on the scratch host, independent of this app — but on restart the app used to mark any `running` run as `error`, which un-owned its VMs and exposed them to the hard reaper. Now the restore task's UPID is persisted, and on startup the app **re-attaches** to the still-running task and resumes the pipeline (re-polls progress, rebuilds the cheap helper, probes, finalizes) instead of orphaning it; the restore VM is never destroyed on resume. A run is only marked error on startup when the restore server is no longer configured (so it can't be resumed or reached). Shutdown stays non-blocking (`wait=False`), so deploys aren't held up by a long restore.
+
 ## [v3.1.2] — 2026-10-31
 
 ### Changed

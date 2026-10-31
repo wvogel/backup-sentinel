@@ -119,6 +119,7 @@ def execute(
             plan.snapshot_id,
             plan.target_storage,
             on_progress=lambda p: db_restore.update_run(run_id, **_progress_fields(p)),
+            on_task=lambda upid: db_restore.update_run(run_id, task_upid=upid),
         )
         server.rewrite_nics(plan.restore_vmid, plan.vlan_tag)
         server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
@@ -201,9 +202,62 @@ def reap_held(run_id: int, plan: RunPlan, server: Any) -> None:
 
 
 def reconcile_on_startup() -> None:
-    """A crash leaves runs in 'running'; mark them error (held survive)."""
+    """On restart, a run left in 'running' must NOT be orphaned — while it is
+    'running' its VMs stay owned, so the reaper won't destroy a restore that is
+    still progressing on the PVE host (a deploy must not interrupt it). Only if
+    the restore server is no longer configured — so we cannot resume or even
+    reach the host — do we mark such runs error. Resumable runs are left
+    'running' for the resume pass (``sync.reconcile_and_resume_restores``)."""
+    from app.services import restore_config
+
+    if restore_config.load() is not None:
+        return
     for r in db_restore.list_runs(limit=500, status="running"):
         db_restore.update_run(r["id"], status="error", result="error", finished_at=_utcnow())
+
+
+def resume_run(
+    run_id: int,
+    plan: RunPlan,
+    server: Any,
+    upid: str | None,
+    *,
+    now: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+    probe_fn: Callable[[Any, int, list[dict[str, Any]]], dict[str, Any]] | None = None,
+) -> str:
+    """Resume a restore whose app process restarted mid-run. Re-attaches to the
+    PVE restore task (by UPID) if still running, then re-runs the tail
+    idempotently (fresh helper, NICs, start, probe). The restore VM is preserved;
+    only the cheap helper is rebuilt. Returns the final status."""
+    probe_fn = probe_fn or (lambda s, hv, t: s.probe(hv, t))
+    start = now()
+    result = "error"
+    checks: dict[str, Any] = {}
+    try:
+        if upid:
+            server.poll_task(
+                upid, on_progress=lambda p: db_restore.update_run(run_id, **_progress_fields(p)), now=now, sleep=sleep
+            )
+        # The helper may be half-provisioned or gone; rebuild it fresh. The
+        # restore VM itself is never destroyed here.
+        try:
+            server.destroy(plan.helper_vmid, is_lxc=True)
+        except Exception as exc:
+            logger.debug("resume: helper cleanup (ignored): %s", exc)
+        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag)
+        server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
+        try:
+            server.start(plan.restore_vmid)
+        except Exception as exc:
+            logger.debug("resume: start (maybe already running): %s", exc)
+        result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn)
+    except Exception as exc:
+        logger.warning("restore run %s resume failed: %s", run_id, exc)
+        result = "error"
+        checks = {"error": str(exc)}
+    duration = int(now() - start)
+    return _finalize(run_id, plan, result, checks, duration, server)
 
 
 def fits_disk(free_bytes: int | None, needed_bytes: int | None, safety: float = 1.2) -> bool:
