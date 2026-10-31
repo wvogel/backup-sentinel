@@ -180,6 +180,28 @@ def test_restore_completes_on_ok_status():
     assert any(p.get("percent") == 100 for p in seen)
 
 
+def test_provision_helper_creates_via_ssh_as_root_not_api_token():
+    # Proxmox lets only root pass an ostemplate path/volid, so the helper must be
+    # created over root SSH (pct create), never through the API token.
+    cfg = {
+        "ssh_host": "10.0.0.9",
+        "api_url": "https://10.0.0.9:8006",
+        "sandbox_bridge": "vmbr9",
+        "mgmt_iface": "vmbr0",
+        "mgmt_netmask": "255.255.255.0",
+        "helper_template": "local:vztmpl/alpine.tar.zst",
+        "probe_offset": 254,
+    }
+    srv = RestoreServer(cfg, FakePve({"/nodes": [{"node": "r1", "status": "online"}]}), FakeSsh())
+    srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
+    create = [c for c in srv.ssh.commands if c.startswith("pct create 9001 ")]
+    assert create, srv.ssh.commands
+    assert "local:vztmpl/alpine.tar.zst" in create[0]
+    assert "--net0" in create[0] and "--storage" in create[0]
+    # never through the API token (only status/start may go via the API)
+    assert not any(path == "/nodes/r1/lxc" for path, _ in srv.pve.posts)
+
+
 def test_reap_destroys_unowned():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.17] — 2026-10-31
+
+### Fixed
+
+- **The probe-helper container is created over root SSH, not the API token.** Restoring the guest itself works, but building the little dnsmasq/probe helper LXC through the API token failed with `Only root can pass arbitrary filesystem paths` — Proxmox lets only root pass an `ostemplate` path/volid. The helper already uses root SSH for all its other setup, so it is now created with `pct create` over SSH. Its rootfs storage defaults to the node's `local` and can be overridden with `restore_server.helper_storage`.
+
 ## [v3.1.16] — 2026-10-31
 
 ### Fixed

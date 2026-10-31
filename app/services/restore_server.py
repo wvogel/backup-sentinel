@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shlex
 import time
 from collections.abc import Callable
 from typing import Any, Protocol
@@ -469,19 +470,21 @@ class RestoreServer:
             sandbox_aliases,
             reservations,
         )
-        self.pve.post(
-            f"/nodes/{node}/lxc",
-            {
-                "vmid": helper_vmid,
-                "ostemplate": cfg.get("helper_template", ""),
-                "hostname": f"{OWNED_TAG}-helper-{helper_vmid}",
-                "memory": 256,
-                "cores": 1,
-                **net_ifaces,
-                "tags": OWNED_TAG,
-                "start": 0,
-            },
-        )
+        # Create the helper via SSH as root, not the API token: Proxmox lets only
+        # root pass an ostemplate path/volid ("Only root can pass arbitrary
+        # filesystem paths"), and the helper already relies on root SSH for the
+        # rest of its setup. Default its rootfs to the node's `local` storage.
+        opts = [
+            f"--hostname {shlex.quote(f'{OWNED_TAG}-helper-{helper_vmid}')}",
+            "--memory 256",
+            "--cores 1",
+            f"--storage {shlex.quote(cfg.get('helper_storage', 'local'))}",
+            f"--tags {OWNED_TAG}",
+        ]
+        for leg, spec in net_ifaces.items():
+            opts.append(f"--{leg} {shlex.quote(spec)}")
+        template = cfg.get("helper_template", "")
+        self.ssh.run(f"pct create {helper_vmid} {shlex.quote(template)} {' '.join(opts)}")
         self.start_lxc(helper_vmid)
         # No forwarding between legs; load dnsmasq + probe agent.
         self.ssh.run(f"pct exec {helper_vmid} -- sysctl -w net.ipv4.ip_forward=0")
