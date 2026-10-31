@@ -175,17 +175,20 @@ class RestoreServer:
         return {"ram_free": mem.get("free"), "ram_total": mem.get("total"), "stores": stores}
 
     def list_pbs_storages(self) -> list[dict[str, Any]]:
-        """Local PBS datastores on the scratch host, as matchable tuples."""
-        node = self.node()
+        """The restore host's PBS storages with the fields needed to resolve their
+        identity: ``server``/``datastore``/``namespace``/``fingerprint``. Read from
+        the datacenter storage *config* (``/storage``), which carries these — the
+        node status endpoint (``/nodes/{node}/storage``) does not."""
         out = []
-        for s in self.pve.get(f"/nodes/{node}/storage") or []:
+        for s in self.pve.get("/storage") or []:
             if s.get("type") == "pbs":
                 out.append(
                     {
                         "storage": s["storage"],
-                        "pbs": s.get("server", s["storage"]),
+                        "server": s.get("server", ""),
                         "datastore": s.get("datastore", ""),
                         "namespace": s.get("namespace", ""),
+                        "fingerprint": s.get("fingerprint", ""),
                     }
                 )
         return out

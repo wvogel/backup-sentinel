@@ -132,6 +132,16 @@ def has_active_run() -> bool:
         return cur.fetchone() is not None
 
 
+def delete_run(run_id: int) -> bool:
+    """Remove a queued run from the queue. Only 'queued' runs may be deleted —
+    running/held runs own a live environment and must be reaped, not dropped."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM restore_runs WHERE id = %s AND status = 'queued'", (run_id,))
+        deleted = cur.rowcount > 0
+        conn.commit()
+    return deleted
+
+
 def queue_state() -> str:
     """One word for the top-bar indicator: 'running' if a restore is active,
     'queued' if runs are waiting, else 'idle'. (Pause is tracked separately.)"""
