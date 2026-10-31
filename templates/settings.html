@@ -252,8 +252,7 @@
         <div class="full ssh-hostkey-status">
           <span>API:</span>
           {% if rc and rc.has_token_secret %}
-          <span class="status-badge status-passed">✓ {{ rc.api_user }}!{{ rc.token_id }}</span>
-          <span class="muted">{{ rc.api_url }}</span>
+          <span class="status-badge status-passed" data-tooltip="{{ rc.api_url }}">✓ {{ rc.api_user }}!{{ rc.token_id }}</span>
           <button type="submit" name="reprovision" value="1" formnovalidate class="button-secondary">{{ t('restore.reprovision_token') }}</button>
           {% else %}
           <span class="muted">{{ t('restore.api_auto_hint') }}</span>
