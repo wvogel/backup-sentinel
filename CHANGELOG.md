@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.15] — 2026-10-31
+
+### Fixed
+
+- **Deploy fix for v3.1.14:** a missing blank line failed `ruff format --check` in the pipeline, so v3.1.14 never shipped. No behaviour change; the v3.1.14 notes below apply.
+
 ## [v3.1.14] — 2026-10-31
 
 ### Fixed
