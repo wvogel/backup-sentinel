@@ -254,7 +254,7 @@
           <th>{{ t('restore.st_type') }}</th><th class="num">{{ t('restore.st_used') }}</th>
           <th class="num">{{ t('restore.st_free') }}</th><th>{{ t('restore.st_class') }}</th>
         </tr></thead>
-        <tbody data-reorder>
+        <tbody data-reorder data-autosave="/settings/restore-server/target-storages">
         {% for s in restore_storages %}
           <tr draggable="true">
             <td class="drag-handle" data-tooltip="{{ t('restore.st_drag') }}" aria-hidden="true">⠿</td>

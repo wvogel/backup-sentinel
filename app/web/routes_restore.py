@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette import status
 
 from app import db, db_restore
@@ -141,6 +141,28 @@ def _run_and_store_test() -> dict:
 def test_restore_server(request: Request) -> RedirectResponse:
     _run_and_store_test()
     return RedirectResponse("/settings#restore", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/settings/restore-server/target-storages")
+def save_target_storages(
+    request: Request,
+    ts_name: list[str] = Form(default=[]),
+    ts_class: list[str] = Form(default=[]),
+    ts_use: list[str] = Form(default=[]),
+) -> JSONResponse:
+    """Persist only the target-storage selection/classes/order (from the Settings
+    table), so a checkbox, dropdown or drag change saves on the spot without a
+    full-form submit or a page reload. Everything else in the config is kept."""
+    existing = restore_config.load()
+    if existing is None:
+        return JSONResponse({"ok": False, "error": "not configured"}, status_code=409)
+    existing["target_storages"] = _target_storages_from_rows(ts_name, ts_class, set(ts_use))
+    try:
+        restore_config.save(existing)
+    except Exception as exc:
+        logger.warning("target-storage save failed: %s", exc)
+        return JSONResponse({"ok": False, "error": str(exc)[:200]}, status_code=400)
+    return JSONResponse({"ok": True})
 
 
 @router.post("/settings/restore-server/clear-host-key")

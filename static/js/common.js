@@ -82,6 +82,7 @@ async function copyText(targetId, button) {
     tbody.addEventListener("dragend", () => {
       if (dragged) dragged.classList.remove("dragging");
       dragged = null;
+      if (tbody.hasAttribute("data-autosave") && typeof saveTargetStorages === "function") saveTargetStorages(tbody);
     });
     tbody.addEventListener("dragover", (e) => {
       if (!dragged) return;
@@ -225,6 +226,31 @@ document.addEventListener("change", async (e) => {
     icon.setAttribute("data-tooltip", T("restore.class_" + sel.value));
   });
 })();
+
+// ── Auto-save the restore target-storage table (tbody[data-autosave]) ─────────
+// Toggling a target, changing a disk class, or reordering saves immediately via
+// fetch — no page reload, no bottom "Speichern".
+function saveTargetStorages(tbody) {
+  const url = tbody.getAttribute("data-autosave");
+  if (!url) return;
+  const fd = new FormData();
+  tbody.querySelectorAll("tr").forEach((tr) => {
+    const name = tr.querySelector("input[name='ts_name']")?.value;
+    if (!name) return;
+    fd.append("ts_name", name);
+    fd.append("ts_class", tr.querySelector("select[name='ts_class']")?.value || "standard-ssd");
+    if (tr.querySelector("input[name='ts_use']")?.checked) fd.append("ts_use", name);
+  });
+  fetch(url, { method: "POST", body: fd })
+    .then((r) => {
+      if (r.ok) showStatusLightbox(true, T("restore.saved"), "", 1100);
+    })
+    .catch(() => {});
+}
+document.addEventListener("change", (e) => {
+  const tbody = e.target.closest("tbody[data-autosave]");
+  if (tbody && (e.target.name === "ts_use" || e.target.name === "ts_class")) saveTargetStorages(tbody);
+});
 
 // Expose globally for other modules
 window.showSuccessLightbox = showSuccessLightbox;
