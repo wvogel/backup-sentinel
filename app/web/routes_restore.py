@@ -52,6 +52,8 @@ def save_restore_server(
     restore_vmid_to: int = Form(default=9100),
     mgmt_iface: str = Form(...),
     mgmt_vlan: str = Form(default=""),
+    mgmt_gateway: str = Form(default=""),
+    mgmt_netmask: str = Form(default="255.255.255.0"),
     mgmt_ip_from: str = Form(...),
     mgmt_ip_to: str = Form(...),
     reprovision: str = Form(default=""),
@@ -79,9 +81,11 @@ def save_restore_server(
         "restore_vmid_to": restore_vmid_to,
         "mgmt_iface": mgmt_iface,
         "mgmt_vlan": int(mgmt_vlan) if mgmt_vlan.strip() else None,
-        # The sandbox never talks outside: no gateway, always /24.
-        "mgmt_gateway": "",
-        "mgmt_netmask": "255.255.255.0",
+        # The management leg talks outward (the app reaches the helper across
+        # subnets), so it needs a real netmask AND gateway. (The sandbox leg is
+        # the one that stays isolated — no gateway, always /24.)
+        "mgmt_gateway": mgmt_gateway.strip(),
+        "mgmt_netmask": mgmt_netmask.strip() or "255.255.255.0",
         "mgmt_ip_from": mgmt_ip_from,
         "mgmt_ip_to": mgmt_ip_to,
     }

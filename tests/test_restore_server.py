@@ -318,6 +318,19 @@ def test_free_resources_shows_only_selected_storages():
     assert [s["storage"] for s in res["stores"]] == ["restore-test"]  # the un-ticked one is hidden
 
 
+def test_destroy_stops_a_running_guest_before_deleting():
+    # PVE refuses to destroy a running container, so the helper lingered. Now
+    # destroy stops it first, then purges.
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/lxc/9001/status/current": {"status": "running"},
+    }
+    srv = _server(responses)
+    srv.destroy(9001, is_lxc=True, sleep=lambda s: None)
+    assert ("/nodes/r1/lxc/9001/status/stop", {}) in srv.pve.posts
+    assert any("/nodes/r1/lxc/9001?purge=1" in d for d in srv.pve.deletes)
+
+
 def test_reap_destroys_unowned():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],

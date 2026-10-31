@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.25] — 2026-10-31
+
+### Fixed
+
+- **The helper's management leg now gets a netmask and gateway.** Both were hardcoded (gateway empty, /24), so the leg couldn't route to the app across subnets and the agent was unreachable. They are now real fields in Settings → Restore (Netzmaske, Gateway) and applied to the management leg. (The sandbox leg stays isolated — no gateway.)
+- **The helper container is torn down after a failed run.** PVE refuses to destroy a *running* container, so the delete silently failed and the helper lingered (only the restore VM got a shutdown first). `destroy` now stops the guest and waits for it to stop before purging — for the helper, the restore VM, and the reaper.
+
 ## [v3.1.24] — 2026-10-31
 
 ### Fixed
