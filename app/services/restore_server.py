@@ -13,6 +13,7 @@ module functions and carry their own tests.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -501,8 +502,6 @@ class RestoreServer:
         The helper never forwards between legs (spec §10). Its rootfs goes on the
         first selected target storage that accepts containers — no separate
         storage to configure."""
-        import json
-
         node = self.node()
         cfg = self.config
         helper_storage = self._lxc_storage()
@@ -548,39 +547,53 @@ class RestoreServer:
             },
         )
         self.start_lxc(helper_vmid)
-        # No forwarding between legs; load dnsmasq + probe agent.
-        self.ssh.run(f"pct exec {helper_vmid} -- sysctl -w net.ipv4.ip_forward=0")
-        from app.services.restore_probe import PROBE_AGENT_SCRIPT
-
+        # Configure the helper over its management IP — no SSH. The baked-in agent
+        # (restore_helper_agent) serves DHCP and answers probes; we hand it the
+        # dnsmasq config and the sandbox alias addresses once it is reachable.
+        self._agent_wait_healthy(mgmt_ip)
         conf = dnsmasq_config(reservations, probe_offset)
-        self._write_file(helper_vmid, "/etc/dnsmasq.d/restore.conf", conf)
-        self._write_file(helper_vmid, "/opt/probe.py", PROBE_AGENT_SCRIPT)
-        for extra in alias_addrs:
-            self.ssh.run(f"pct exec {helper_vmid} -- ip addr add {extra['ip']}/{extra['prefix']} dev sbx")
-        self.ssh.run(
-            f"pct exec {helper_vmid} -- rc-service dnsmasq restart || pct exec {helper_vmid} -- "
-            f"systemctl restart dnsmasq"
-        )
-        _ = json  # reserved for future structured push
+        self._agent_post(mgmt_ip, "/dnsmasq", {"conf": conf, "aliases": alias_addrs})
 
     def start_lxc(self, vmid: int) -> None:
         self.pve.post(f"/nodes/{self.node()}/lxc/{vmid}/status/start", {})
 
-    def _write_file(self, helper_vmid: int, path: str, content: str) -> None:
-        import base64
+    def probe(self, mgmt_ip: str, targets: list[dict[str, Any]], require_icmp: bool = True) -> dict[str, Any]:
+        """Ask the helper's agent (over its management IP, not SSH) to probe the
+        restored guest and return its structured JSON result."""
+        return self._agent_post(mgmt_ip, "/probe", {"targets": targets, "require_icmp": require_icmp})
 
-        b64 = base64.b64encode(content.encode()).decode()
-        self.ssh.run(f"pct exec {helper_vmid} -- sh -c 'echo {b64} | base64 -d > {path}'")
+    def _agent_url(self, mgmt_ip: str, path: str) -> str:
+        from app.services.restore_helper_agent import AGENT_PORT
 
-    def probe(self, helper_vmid: int, targets: list[dict[str, Any]]) -> dict[str, Any]:
-        """Run the probe agent inside the helper (host-mediated via pct exec) and
-        return its structured JSON result."""
-        import json
+        return f"http://{mgmt_ip}:{AGENT_PORT}{path}"
 
-        req = json.dumps({"targets": targets})
-        b64 = __import__("base64").b64encode(req.encode()).decode()
-        out = self.ssh.run(f"echo {b64} | base64 -d | pct exec {helper_vmid} -- python3 /opt/probe.py")
-        return json.loads(out) if out.strip() else {}
+    def _agent_post(self, mgmt_ip: str, path: str, body: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
+        import urllib.request
+
+        data = json.dumps(body).encode()
+        req = urllib.request.Request(
+            self._agent_url(mgmt_ip, path), data=data, headers={"Content-Type": "application/json"}, method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read()
+        return json.loads(raw) if raw else {}
+
+    def _agent_wait_healthy(
+        self, mgmt_ip: str, *, attempts: int = 30, sleep: Callable[[float], None] = time.sleep
+    ) -> None:
+        """Wait for the just-started helper agent to answer on its management IP.
+        The app must be able to reach that IP (the point of the management leg)."""
+        import urllib.request
+
+        for _ in range(attempts):
+            try:
+                with urllib.request.urlopen(self._agent_url(mgmt_ip, "/health"), timeout=3) as resp:
+                    if resp.status == 200:
+                        return
+            except Exception as exc:
+                logger.debug("helper agent not ready yet at %s: %s", mgmt_ip, exc)
+            sleep(2.0)
+        raise RestoreTaskError(f"restore helper agent unreachable at {mgmt_ip} (management leg not reachable?)")
 
     def reap(self, owned_vmids: set[int]) -> list[int]:
         """Destroy every guest on the scratch host not owned by a live run

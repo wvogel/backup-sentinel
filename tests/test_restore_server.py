@@ -212,14 +212,37 @@ def test_provision_helper_rootfs_on_first_container_capable_target():
         ],
     }
     srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    posted = []
+    srv._agent_wait_healthy = lambda ip, **k: None  # no real HTTP in the test
+    srv._agent_post = lambda ip, path, body, **k: posted.append((ip, path, body)) or {}
     srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
-    # All via the API token (no SSH for creation); rootfs on the first
-    # container-capable selected target (images-only "restore-vms" skipped).
+    # Container created via the API token; rootfs on the first container-capable
+    # selected target (images-only "restore-vms" skipped); dnsmasq config pushed
+    # to the agent over the management IP (no SSH).
     create = [d for p, d in srv.pve.posts if p == "/nodes/r1/lxc"]
     assert create, srv.pve.posts
     assert create[0]["storage"] == "restore-ct"
     assert create[0]["ostemplate"] == "local:vztmpl/alpine.tar.zst"
-    assert not any(c.startswith("pct create") for c in srv.ssh.commands)
+    assert any(ip == "10.20.0.10" and path == "/dnsmasq" for ip, path, _ in posted)
+    assert not any(c.startswith("pct ") for c in srv.ssh.commands)  # no pct exec
+
+
+def test_probe_calls_the_agent_over_http():
+    srv = _server({})
+    srv._agent_post = lambda ip, path, body, **k: {"ip": ip, "path": path, "body": body}
+    out = srv.probe("10.9.0.10", [{"ip": "10.0.0.50", "ports": [443]}], require_icmp=True)
+    assert out["ip"] == "10.9.0.10" and out["path"] == "/probe"
+    assert out["body"]["require_icmp"] is True
+
+
+def test_helper_agent_probe_targets(monkeypatch):
+    from app.services import restore_helper_agent as agent
+
+    monkeypatch.setattr(agent, "_ping", lambda ip, timeout=2.0: ip == "10.0.0.50")
+    monkeypatch.setattr(agent, "_tcp", lambda ip, port, timeout=2.0: port == 443)
+    out = agent.probe_targets([{"ip": "10.0.0.50", "ports": [443, 22]}], require_icmp=True)
+    assert out["10.0.0.50"]["icmp"] is True
+    assert out["10.0.0.50"]["tcp"] == {"443": True, "22": False}
 
 
 def test_template_volid_resolves_a_path_to_its_volume_id():
