@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import re
-import shlex
 import time
 from collections.abc import Callable
 from typing import Any, Protocol
@@ -445,6 +444,23 @@ class RestoreServer:
 
     # reaper -----------------------------------------------------------------
 
+    def _lxc_storage(self) -> str:
+        """The storage the helper container's rootfs goes on: the first selected
+        target storage, in the operator's order, that accepts LXC rootfs (content
+        'rootdir'). An images-only target (fine for a VM disk, not a container) is
+        skipped — so the set may differ from the VM restore target. No separate
+        setting; it's derived from the same target-storage selection."""
+        node = self.node()
+        content = {s.get("storage"): (s.get("content") or "") for s in (self.pve.get(f"/nodes/{node}/storage") or [])}
+        selected = sorted(
+            (s for s in self.config.get("target_storages", []) if s.get("use", True)),
+            key=lambda s: s.get("order", 9999),
+        )
+        for t in selected:
+            if "rootdir" in content.get(t["storage"], ""):
+                return t["storage"]
+        return ""
+
     def provision_helper(
         self,
         helper_vmid: int,
@@ -454,10 +470,16 @@ class RestoreServer:
     ) -> None:
         """Create + start the dual-homed helper LXC: sandbox leg (this env's VLAN
         tag) running dnsmasq, management leg (static mgmt IP) for reachability.
-        The helper never forwards between legs (spec §10)."""
+        The helper never forwards between legs (spec §10). Its rootfs goes on the
+        first selected target storage that accepts containers — no separate
+        storage to configure."""
         import json
 
+        node = self.node()
         cfg = self.config
+        helper_storage = self._lxc_storage()
+        if not helper_storage:
+            raise RuntimeError("no selected target storage accepts LXC containers (content 'rootdir')")
         bridge = cfg["sandbox_bridge"]
         mgmt_prefix = _prefix_from_netmask(cfg["mgmt_netmask"])
         probe_offset = int(cfg.get("probe_offset", 254))
@@ -473,21 +495,24 @@ class RestoreServer:
             sandbox_aliases,
             reservations,
         )
-        # Create the helper via SSH as root, not the API token: Proxmox lets only
-        # root pass an ostemplate path/volid ("Only root can pass arbitrary
-        # filesystem paths"), and the helper already relies on root SSH for the
-        # rest of its setup. Default its rootfs to the node's `local` storage.
-        opts = [
-            f"--hostname {shlex.quote(f'{OWNED_TAG}-helper-{helper_vmid}')}",
-            "--memory 256",
-            "--cores 1",
-            f"--storage {shlex.quote(cfg.get('helper_storage', 'local'))}",
-            f"--tags {OWNED_TAG}",
-        ]
-        for leg, spec in net_ifaces.items():
-            opts.append(f"--{leg} {shlex.quote(spec)}")
-        template = cfg.get("helper_template", "")
-        self.ssh.run(f"pct create {helper_vmid} {shlex.quote(template)} {' '.join(opts)}")
+        # Same path as the VM restore: the API token creates the container, rootfs
+        # on a selected target storage that accepts containers (the earlier "Only
+        # root can pass arbitrary filesystem paths" was the missing/invalid
+        # storage, not the token).
+        self.pve.post(
+            f"/nodes/{node}/lxc",
+            {
+                "vmid": helper_vmid,
+                "ostemplate": cfg.get("helper_template", ""),
+                "storage": helper_storage,
+                "hostname": f"{OWNED_TAG}-helper-{helper_vmid}",
+                "memory": 256,
+                "cores": 1,
+                **net_ifaces,
+                "tags": OWNED_TAG,
+                "start": 0,
+            },
+        )
         self.start_lxc(helper_vmid)
         # No forwarding between legs; load dnsmasq + probe agent.
         self.ssh.run(f"pct exec {helper_vmid} -- sysctl -w net.ipv4.ip_forward=0")

@@ -180,9 +180,16 @@ def test_restore_completes_on_ok_status():
     assert any(p.get("percent") == 100 for p in seen)
 
 
-def test_provision_helper_creates_via_ssh_as_root_not_api_token():
-    # Proxmox lets only root pass an ostemplate path/volid, so the helper must be
-    # created over root SSH (pct create), never through the API token.
+def test_provision_helper_rootfs_on_first_container_capable_target():
+    # The sorted-first target (restore-vms) is images-only, so the helper skips it
+    # and lands on the next selected one that accepts containers (rootdir).
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage": [
+            {"storage": "restore-vms", "content": "images"},
+            {"storage": "restore-ct", "content": "images,rootdir"},
+        ],
+    }
     cfg = {
         "ssh_host": "10.0.0.9",
         "api_url": "https://10.0.0.9:8006",
@@ -191,15 +198,36 @@ def test_provision_helper_creates_via_ssh_as_root_not_api_token():
         "mgmt_netmask": "255.255.255.0",
         "helper_template": "local:vztmpl/alpine.tar.zst",
         "probe_offset": 254,
+        "target_storages": [
+            {"storage": "restore-vms", "use": True, "order": 0},
+            {"storage": "restore-ct", "use": True, "order": 1},
+        ],
     }
-    srv = RestoreServer(cfg, FakePve({"/nodes": [{"node": "r1", "status": "online"}]}), FakeSsh())
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
     srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
-    create = [c for c in srv.ssh.commands if c.startswith("pct create 9001 ")]
-    assert create, srv.ssh.commands
-    assert "local:vztmpl/alpine.tar.zst" in create[0]
-    assert "--net0" in create[0] and "--storage" in create[0]
-    # never through the API token (only status/start may go via the API)
-    assert not any(path == "/nodes/r1/lxc" for path, _ in srv.pve.posts)
+    create = [(p, d) for p, d in srv.pve.posts if p == "/nodes/r1/lxc"]
+    assert create, srv.pve.posts
+    assert create[0][1]["storage"] == "restore-ct"  # images-only target skipped
+    assert create[0][1]["ostemplate"] == "local:vztmpl/alpine.tar.zst"
+
+
+def test_provision_helper_fails_clearly_when_no_target_accepts_containers():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage": [{"storage": "restore-vms", "content": "images"}],
+    }
+    cfg = {
+        "ssh_host": "10.0.0.9",
+        "api_url": "https://10.0.0.9:8006",
+        "sandbox_bridge": "vmbr9",
+        "mgmt_iface": "vmbr0",
+        "mgmt_netmask": "255.255.255.0",
+        "probe_offset": 254,
+        "target_storages": [{"storage": "restore-vms", "use": True, "order": 0}],
+    }
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    with pytest.raises(RuntimeError, match="rootdir"):
+        srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
 
 
 def test_free_resources_shows_only_selected_storages():
