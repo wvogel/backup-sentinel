@@ -103,9 +103,12 @@ def save_restore_server(
             payload["token_id"] = tok["token_id"]
             payload["token_secret"] = tok["token_secret"]
         restore_config.save(payload)
+        db.save_settings({"restore_server.last_error": ""})
         query = "restore=saved"
     except Exception as exc:
         logger.warning("restore-server config save/provision failed: %s", exc)
+        detail = f"{type(exc).__name__}: {exc}"
+        db.save_settings({"restore_server.last_error": detail[:500]})
         query = "restore_error=1"
     return RedirectResponse(f"/settings?{query}#restore", status_code=status.HTTP_303_SEE_OTHER)
 

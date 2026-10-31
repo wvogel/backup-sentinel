@@ -22,7 +22,15 @@ logger = logging.getLogger(__name__)
 
 
 def build_server(config: dict[str, Any]) -> RestoreServer:
-    pve = PveApi(config["api_url"], config["api_user"], config["token_id"], config["token_secret"])
+    # API fields may be absent during token provisioning: the server is built
+    # from an SSH-only config and create_api_token() runs purely over SSH. Use
+    # .get() so that path never KeyErrors before the token even exists.
+    pve = PveApi(
+        config.get("api_url", ""),
+        config.get("api_user", "root@pam"),
+        config.get("token_id", ""),
+        config.get("token_secret", ""),
+    )
     ssh = ParamikoSsh(
         config["ssh_host"],
         config.get("ssh_port", 22),

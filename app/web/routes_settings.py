@@ -42,7 +42,11 @@ def settings(request: Request) -> HTMLResponse:
         "disk_classes": DISK_CLASSES,
         "restore_test": _load_restore_test(all_settings),
         "restore_saved": request.query_params.get("restore") == "saved",
-        "restore_error": "Invalid configuration" if request.query_params.get("restore_error") else "",
+        "restore_error": (
+            all_settings.get("restore_server.last_error") or "Invalid configuration"
+            if request.query_params.get("restore_error")
+            else ""
+        ),
         **_appearance_context(request),
     }
     return templates.TemplateResponse(request, "settings.html", common_context(request) | context)
