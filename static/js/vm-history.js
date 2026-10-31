@@ -91,7 +91,13 @@
     const collapse = document.createElement("button");
     collapse.type = "button";
     collapse.className = "button-secondary vm-detail-close";
-    collapse.textContent = T("cluster.collapse");
+    collapse.title = T("cluster.collapse");
+    // Arrow-only (the ▲ is a CSS ::before); the label shows on hover, so the
+    // button is a small top-right gutter and the boxes stay wide and equal.
+    const clabel = document.createElement("span");
+    clabel.className = "vm-detail-close-label";
+    clabel.textContent = T("cluster.collapse");
+    collapse.append(clabel);
     collapse.addEventListener("click", () => close(row));
     cell.append(collapse);
 

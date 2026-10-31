@@ -69,7 +69,7 @@ class TopologyTests(unittest.TestCase):
     def test_primary_then_pull_copy(self) -> None:
         topo = self.build(
             20,
-            [target("10.0.0.3", "nas-kiel", fingerprint="cc:03")],
+            [target("pbs-kiel", "nas-kiel")],
             [BERLIN, FH_FOR_BERLIN, KIEL, FH_FOR_KIEL],
             [
                 job(
@@ -79,7 +79,7 @@ class TopologyTests(unittest.TestCase):
                     ns="kiel",
                     remote="kiel",
                     remote_store="nas-kiel",
-                    remote_fingerprint="CC:03",
+                    remote_pbs_id=3,
                 )
             ],
             [usage(3, "nas-kiel", 40), usage(4, "nas-pve-hamburg", 76), usage(4, "nas-offsite-hamburg", 18)],
@@ -102,7 +102,7 @@ class TopologyTests(unittest.TestCase):
                 ns="kiel",
                 remote="kiel",
                 remote_store="nas-kiel",
-                remote_fingerprint="CC:03",
+                remote_pbs_id=3,
             ),
             job(
                 2,
@@ -111,7 +111,7 @@ class TopologyTests(unittest.TestCase):
                 ns="berlin",
                 remote="berlin",
                 remote_store="nas-b1",
-                remote_fingerprint="AA:01",
+                remote_pbs_id=1,
             ),
         ]
         topo = self.build(10, [target("pbs-berlin", "nas-b1")], [BERLIN, FH_FOR_BERLIN, KIEL, FH_FOR_KIEL], jobs)
@@ -119,10 +119,10 @@ class TopologyTests(unittest.TestCase):
 
     def test_mutual_backup_draws_back_edge_without_looping(self) -> None:
         jobs = [
-            job(4, "to-hamburg", "nas-hamburg", remote="kiel", remote_store="nas-kiel", remote_fingerprint="CC:03"),
-            job(3, "to-kiel", "nas-kiel", ns="hamburg", remote="hamburg", remote_store="nas-hamburg", remote_fingerprint="FF:02"),
+            job(4, "to-hamburg", "nas-hamburg", remote="kiel", remote_store="nas-kiel", remote_pbs_id=3),
+            job(3, "to-kiel", "nas-kiel", ns="hamburg", remote="hamburg", remote_store="nas-hamburg", remote_pbs_id=4),
         ]
-        topo = self.build(20, [target("pbs-kiel", "nas-kiel", fingerprint="CC:03")], [KIEL, FH_FOR_KIEL], jobs)
+        topo = self.build(20, [target("pbs-kiel", "nas-kiel")], [KIEL, FH_FOR_KIEL], jobs)
         self.assertEqual(names(topo), [[("pbs-kiel", ["nas-kiel"])], [("pbs-hamburg", ["nas-hamburg"])]])
         back = [e for e in topo["edges"] if e.get("job_id") == "to-kiel"]
         self.assertEqual(len(back), 1)
@@ -183,7 +183,7 @@ class TopologyTests(unittest.TestCase):
             40,
             [target("pbs-hamburg", "nas-pve-hamburg", "FF:02"), target("pbs-berlin", "nas-off", "AA:01")],
             [fh, berlin],
-            [job(7, "s-hamburg", "nas-off", remote="hamburg", remote_store="nas-pve-hamburg", remote_fingerprint="FF:02")],
+            [job(7, "s-hamburg", "nas-off", remote="hamburg", remote_store="nas-pve-hamburg", remote_pbs_id=6)],
             [usage(6, "nas-pve-hamburg", 76), usage(7, "nas-off", 11), usage(7, "nas-b1", 83)],
             now=NOW,
             vms_by_storage={"st-nas-pve-hamburg": 8, "st-nas-off": 1},
@@ -200,16 +200,14 @@ class TopologyTests(unittest.TestCase):
         self.assertEqual(self.build(10, [], [KIEL])["columns"], [])
 
     def test_same_pbs_registered_twice_is_one_server(self) -> None:
-        # Registered for two clusters, once without fingerprint: still one PBS,
+        # Registered for two clusters under the same name: still one PBS,
         # and its sync job (read through both connections) is one edge.
-        fh_no_fp = conn(5, 30, "pbs-hamburg")
+        fh_second = conn(5, 30, "pbs-hamburg")
         jobs = [
-            job(c, "s-kiel", "nas-offsite-hamburg", remote="kiel", remote_store="nas-kiel", remote_fingerprint="CC:03")
+            job(c, "s-kiel", "nas-offsite-hamburg", remote="kiel", remote_store="nas-kiel", remote_pbs_id=3)
             for c in (4, 5)
         ]
-        topo = self.build(
-            20, [target("pbs-kiel", "nas-kiel", fingerprint="CC:03")], [KIEL, FH_FOR_KIEL, fh_no_fp], jobs
-        )
+        topo = self.build(20, [target("pbs-kiel", "nas-kiel")], [KIEL, FH_FOR_KIEL, fh_second], jobs)
         self.assertEqual(names(topo), [[("pbs-kiel", ["nas-kiel"])], [("pbs-hamburg", ["nas-offsite-hamburg"])]])
         self.assertEqual(len([e for e in topo["edges"] if e["kind"] == "sync"]), 1)
 
@@ -231,12 +229,6 @@ class TopologyTests(unittest.TestCase):
         ]
         topo = self.build(50, [side], [mgm, berlin], jobs, [usage(8, "nas-b0-volume1", 35)])
         self.assertEqual(names(topo), [[("mgm-pbs-dresden", ["nas-b0-volume1"])], [("pbs-berlin", ["nas-off"])]])
-
-    def test_certificate_fingerprints_merge_registrations(self) -> None:
-        a = {**conn(10, 60, "mgm-pbs-dresden"), "cert_fingerprints": ["AB:CD"]}
-        b = conn(11, 61, "pbs-dresden", fingerprint="ab:cd")
-        topo = self.build(60, [target("x", "nas", fingerprint="AB:CD")], [a, b], [], [usage(11, "nas", 5)])
-        self.assertEqual(names(topo), [[("mgm-pbs-dresden", ["nas"])]])
 
     def test_alias_joins_pve_target_and_registered_pbs(self) -> None:
         mgm = {**conn(12, 70, "mgm-pbs-dresden"), "aliases": ["pbs-dresden"]}
@@ -311,7 +303,7 @@ class SyncedGuestTests(unittest.TestCase):
             40,
             [target("pbs-hamburg", "nas-pve-hamburg", "FF:02"), target("pbs-berlin", "nas-off", "AA:01")],
             [self.FH, self.BERLIN],
-            [job(7, "s-hamburg", "nas-off", remote="hamburg", remote_store="nas-pve-hamburg", remote_fingerprint="FF:02")],
+            [job(7, "s-hamburg", "nas-off", remote="hamburg", remote_store="nas-pve-hamburg", remote_pbs_id=6)],
             [],
             now=NOW,
             guests_by_storage={"st-nas-pve-hamburg": {1, 2, 3}, "st-nas-off": {8}},

@@ -5,6 +5,19 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.14] — 2026-10-31
+
+### Fixed
+
+- **PBS servers are matched by host name, never by certificate fingerprint.** With ACME/Let's Encrypt the certs rotate every few months; once a stored fingerprint went stale, the same PBS stopped being recognised, so a VM's recorded backup location and the restore host's datastore no longer matched and **nothing was restorable** ("keine VM gematcht"). Identity is now purely host name / alias / resolved IP, which is stable across cert renewals. (A sync re-keys each VM's stored locations.)
+- **Restore with no target storage fails with a clear message** instead of Proxmox's cryptic `storage ID '' cannot be shorter than 2 characters` (HTTP 400). Tick a target storage in Settings → Restore.
+- **`/restore` diagnostic also lists the backup locations recorded across all VMs**, with a ✓ on the ones the restore host can reach — so any remaining mismatch is visible at a glance, no guessing.
+
+### Changed
+
+- **Overview: the restore-server card sits at the normal gap** below the KPI tiles (it had a doubled top margin).
+- **Expanded VM detail: the collapse control is an arrow only** (the "Einklappen" label appears on hover), and both boxes (Backup-Historie, Automated Restore Settings) now end at the same width, each clearing the arrow's gutter.
+
 ## [v3.1.13] — 2026-10-31
 
 ### Fixed

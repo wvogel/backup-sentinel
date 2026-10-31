@@ -120,6 +120,12 @@ class OrchestratorTest(unittest.TestCase):
         self.assertEqual(plan.target_storage, "zfs")
         self.assertEqual(plan.reservations, [{"mac": "aa:bb:cc:dd:ee:01", "ip": "10.0.0.50", "prefix": 24}])
 
+    def test_build_plan_without_target_storage_raises(self):
+        # No ticked target storage must not reach PVE as an empty storage id.
+        cand = orch._candidate_for_vm(self.vm_id)
+        with self.assertRaises(orch.NotRunnable):
+            orch.build_plan(cand, self._server(), {**CONFIG, "target_storages": []})
+
     def test_build_plan_not_restorable_raises(self):
         cand = orch._candidate_for_vm(self.vm_id)
         server = FakeServer(

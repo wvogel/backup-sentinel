@@ -495,7 +495,6 @@ def fetch_backup_details(
             if not cfg:
                 return None  # unknown PBS — never count it as an extra copy
             return pbs_location(
-                str(cfg.get("fingerprint") or ""),
                 str(cfg.get("server") or ""),
                 str(cfg.get("datastore") or ""),
                 str(cfg.get("namespace") or ""),
