@@ -47,36 +47,33 @@
 {%- set qcls = 'paused' if rp.paused else ('running' if rp.state in ['running', 'queued'] else 'idle') %}
 <section class="summary-grid">
   <div class="summary-card restore-server-card">
-    <a class="rss-queue" href="/restore">
+    <a class="rss-queue store-ring-card" href="/restore">
       <span class="queue-glyph queue-{{ qcls }}" aria-hidden="true"><svg class="queue-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 103-7.7L3 8"/></svg></span>
-      <div>
-        {% if rp.paused %}
-        <div class="rq-main">{{ t('restore.queue_paused') }}</div><div class="muted">{{ t('restore.queued_waiting', n=rp.queued) }}</div>
-        {% elif rp.run %}
-        <div class="rq-main">VM {{ rp.run.vm_id }} · {{ rp.run.percent or 0 }}%</div><div class="muted">{% if rp.run.eta %}ETA {{ rp.run.eta|datetime_local }} · {% endif %}{{ t('restore.queued_waiting', n=rp.queued) }}</div>
-        {% elif rp.queued %}
-        <div class="rq-main">{{ t('restore.queued_waiting', n=rp.queued) }}</div>
-        {% else %}
-        <div class="rq-main">{{ t('restore.queue_idle') }}</div>
-        {% endif %}
+      <div class="store-ring-label">
+        {% if rp.paused %}{{ t('restore.queue_paused') }}
+        {% elif rp.run %}VM {{ rp.run.vm_id }} · {{ rp.run.percent or 0 }}%{% if rp.run.eta %} · ETA {{ rp.run.eta|datetime_local }}{% endif %}
+        {% elif rp.queued %}{{ t('restore.queued_waiting', n=rp.queued) }}
+        {% else %}{{ t('restore.queue_idle') }}{% endif %}
       </div>
     </a>
     {% if rp.ram_total %}
-    {%- set rused = (rp.ram_total - rp.ram_free) if rp.ram_free is not none else 0 %}
-    {%- set rpct = (rused / rp.ram_total * 100) if rp.ram_total else 0 %}
-    {%- set rlvl = 'crit' if rpct >= 90 else ('warn' if rpct >= 70 else 'ok') %}
-    <div class="util-ring-item">
-      <div class="store-ring ring-{{ rlvl }}" style="--pct: {{ rpct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ rp.ram_total|size_coarse }}</strong><span>{{ rp.ram_free|size_coarse }} {{ t('restore.free')|lower }}</span></div></div>
-      <div class="util-ring-label">RAM</div>
+    <div class="store-rings rss-rings">
+      {%- set rused = (rp.ram_total - rp.ram_free) if rp.ram_free is not none else 0 %}
+      {%- set rpct = (rused / rp.ram_total * 100) if rp.ram_total else 0 %}
+      {%- set rlvl = 'crit' if rpct >= 90 else ('warn' if rpct >= 70 else 'ok') %}
+      <div class="store-ring-card">
+        <div class="store-ring ring-{{ rlvl }}" style="--pct: {{ rpct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ rp.ram_total|size_coarse }}</strong><span>{{ rp.ram_free|size_coarse }} {{ t('restore.free')|lower }}</span></div></div>
+        <div class="store-ring-label">{{ t('restore.ram') }}</div>
+      </div>
+      {% for s in rp.stores %}
+      {%- set upct = (s.used / s.total * 100) if (s.used is not none and s.total) else 0 %}
+      {%- set ulvl = 'crit' if upct >= 90 else ('warn' if upct >= 70 else 'ok') %}
+      <div class="store-ring-card">
+        <div class="store-ring ring-{{ ulvl }}" style="--pct: {{ upct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ s.total|size_coarse }}</strong><span>{{ s.used|size_coarse }}</span></div></div>
+        <div class="store-ring-label">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span class="store-name">{{ s.storage }}</span></div>
+      </div>
+      {% endfor %}
     </div>
-    {% for s in rp.stores %}
-    {%- set upct = (s.used / s.total * 100) if (s.used is not none and s.total) else 0 %}
-    {%- set ulvl = 'crit' if upct >= 90 else ('warn' if upct >= 70 else 'ok') %}
-    <div class="util-ring-item">
-      <div class="store-ring ring-{{ ulvl }}" style="--pct: {{ upct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ s.total|size_coarse }}</strong><span>{{ s.used|size_coarse }}</span></div></div>
-      <div class="util-ring-label">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span>{{ s.storage }}</span></div>
-    </div>
-    {% endfor %}
     {% else %}
     <p class="muted">{{ t('restore.host_unreachable') }}</p>
     {% endif %}

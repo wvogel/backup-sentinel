@@ -5,6 +5,18 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.10] — 2026-10-31
+
+### Added
+
+- **Per-VM restorability in the VM list.** When the restore server has no matching backup for a VM, the restore-test column shows a red ✗ and the "Automated Restore Settings" offer Auto only for VMs it can actually restore (otherwise a note explains why). Computed against the restore host's cached PBS locations — no live call, no page block.
+- **Restore-host diagnostic on `/restore`:** an expandable list of the restore host's PBS datastores and the canonical backup location each resolves to, flagging any that don't map to a registered PBS connection — to see exactly why a VM matches or not.
+
+### Changed
+
+- **`/restore` restore-host panel is now all rings:** queue pause/resume became a ring control (▶ / ❚❚ with a label), RAM is a ring like the storages, and the storages follow the configured order. Dropped the page's "Restore-Tests" H1; the runs section is now titled "Restore-Tests".
+- **Dashboard restore-server card** rebuilt from the same ring component as `/restore`: queue state as a labelled column on the left, utilization rings right-aligned with even spacing, tighter symmetric padding.
+
 ## [v3.1.9] — 2026-10-31
 
 ### Fixed

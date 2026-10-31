@@ -119,7 +119,16 @@ def restore_host_pbs_entries(server: RestoreServer) -> list[dict[str, Any]]:
             location = bl.connection_location(conn, ds, ns)
         else:
             location = f"pbs:{host}/{ds}" + (f"/{ns}" if ns else "")
-        entries.append({"location": location, "storage": s["storage"], "pbs": host, "datastore": ds, "namespace": ns})
+        entries.append(
+            {
+                "location": location,
+                "storage": s["storage"],
+                "pbs": host,
+                "datastore": ds,
+                "namespace": ns,
+                "resolved": conn is not None,  # matched a registered PBS connection
+            }
+        )
     return entries
 
 

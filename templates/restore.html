@@ -2,7 +2,6 @@
 {% block title %}{{ t('restore.nav') }}{% endblock %}
 {% block content %}
 {% import "_storage_icons.html" as sicons with context %}
-<h1 class="page-title">{{ t('restore.nav') }}</h1>
 
 {% if action_error %}
 <p class="critical-text restore-action-error">
@@ -19,42 +18,41 @@
 </section>
 {% else %}
 
-{# Host capacity panel #}
+{# Restore host #}
 <section class="table-card">
-  <div class="section-head"><div><p class="eyebrow">{{ t('restore.host_capacity') }}</p></div>
-    <form action="/restore/queue/pause" method="post" class="inline-form">
-      <input type="hidden" name="paused" value="{{ '0' if queue_paused else '1' }}">
-      <button type="submit" class="button-secondary">{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}</button>
-    </form>
-  </div>
-  {% if queue_paused %}<p class="warn-text">{{ t('restore.queue_paused') }}</p>{% endif %}
+  <div class="section-head"><div><p class="eyebrow">{{ t('restore.host_capacity') }}</p></div></div>
   {% if host %}
-  {# RAM meter: fills in 10% steps, green → yellow (70%) → red (90%); the top 10% stays reserved for the host. #}
   {%- set ram_used = (host.ram_total - host.ram_free) if (host.ram_total and host.ram_free is not none) else none %}
   {%- set ram_pct = (ram_used / host.ram_total * 100) if (ram_used is not none and host.ram_total) else 0 %}
   {%- set ram_level = 'crit' if ram_pct >= 90 else ('warn' if ram_pct >= 70 else 'ok') %}
-  <div class="meter-row">
-    <span class="meter-label">{{ t('restore.ram') }}</span>
-    <div class="ram-meter" data-tooltip="{{ t('restore.ram_free') }}: {{ host.ram_free|size_coarse }} / {{ host.ram_total|size_coarse }}">
-      <div class="ram-fill ram-{{ ram_level }}" style="width: {{ ram_pct|round(1) }}%"></div>
-      <div class="ram-reserve" data-tooltip="{{ t('restore.ram_reserve') }}"></div>
-    </div>
-    <span class="meter-value">{{ host.ram_free|size_coarse }} {{ t('restore.free')|lower }} / {{ host.ram_total|size_coarse }}</span>
-  </div>
-
-  {# Image-capable storages as fill rings (capacity + usage, 2 significant figures). Others (e.g. local) are hidden. #}
   {%- set targets = host.stores|selectattr('images')|list %}
-  {% if targets %}
   <div class="store-rings">
+    {# Queue pause / resume as a ring control (play ▶ to resume, ❚❚ to pause). #}
+    <form action="/restore/queue/pause" method="post" class="store-ring-card">
+      <input type="hidden" name="paused" value="{{ '0' if queue_paused else '1' }}">
+      <button type="submit" class="store-ring ring-ctl {{ 'ring-paused' if queue_paused else 'ring-ok' }}"
+              aria-label="{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}">
+        <span class="ring-center ring-ctl-icon" aria-hidden="true">
+          {% if queue_paused %}<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          {% else %}<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>{% endif %}
+        </span>
+      </button>
+      <div class="store-ring-label">{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}</div>
+    </form>
+    {# RAM as a ring (capacity + free). #}
+    <div class="store-ring-card">
+      <div class="store-ring ring-{{ ram_level }}" style="--pct: {{ ram_pct|round(0, 'floor')|int }}">
+        <div class="ring-center"><strong>{{ host.ram_total|size_coarse }}</strong><span>{{ host.ram_free|size_coarse }} {{ t('restore.free')|lower }}</span></div>
+      </div>
+      <div class="store-ring-label">{{ t('restore.ram') }}</div>
+    </div>
+    {# Image-capable storages as fill rings (others, e.g. local, are hidden). #}
     {% for s in targets %}
     {%- set pct = (s.used / s.total * 100) if (s.used is not none and s.total) else 0 %}
     {%- set lvl = 'crit' if pct >= 90 else ('warn' if pct >= 70 else 'ok') %}
     <div class="store-ring-card">
       <div class="store-ring ring-{{ lvl }}" style="--pct: {{ pct|round(0, 'floor')|int }}">
-        <div class="ring-center">
-          <strong>{{ s.total|size_coarse }}</strong>
-          <span>{{ s.used|size_coarse }}</span>
-        </div>
+        <div class="ring-center"><strong>{{ s.total|size_coarse }}</strong><span>{{ s.used|size_coarse }}</span></div>
       </div>
       <div class="store-ring-label">
         {{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span class="store-name">{{ s.storage }}</span>
@@ -62,8 +60,19 @@
     </div>
     {% endfor %}
   </div>
-  {% else %}
-  <p class="muted">{{ t('restore.storage_none') }}</p>
+  {% if not targets %}<p class="muted">{{ t('restore.storage_none') }}</p>{% endif %}
+
+  {# Diagnostic: how the restore host's PBS datastores resolve to canonical
+     backup locations — to see why a VM does or doesn't match. #}
+  {% if host_pbs %}
+  <details class="restore-diag">
+    <summary>{{ t('restore.diag_title') }}</summary>
+    <ul class="restore-diag-list">
+      {% for e in host_pbs %}
+      <li><strong>{{ e.storage }}</strong> → <code>{{ e.location }}</code>{% if not e.resolved %} <span class="warn-text">· {{ t('restore.diag_unresolved') }}</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </details>
   {% endif %}
 
   {# Running restores: live progress, ETA and the size being restored. #}

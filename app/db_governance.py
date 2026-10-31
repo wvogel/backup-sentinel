@@ -60,6 +60,7 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             v.missing_since,
             be_copies.copy_latest,
             be_copies.copy_storages,
+            be_copies.pbs_locations,
             be_verify.last_verified_at,
             be_verify.verify_failed_at,
             COALESCE(be_verify.has_pbs, FALSE) AS has_pbs,
@@ -126,7 +127,13 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
                     WHERE c.vm_id = v.id AND c.status = 'ok' AND c.removed_at IS NULL
                       AND COALESCE(c.size_bytes, 0) > 1 AND c.started_at >= NOW() - INTERVAL '7 days'
                     ORDER BY 1
-                ) AS copy_storages
+                ) AS copy_storages,
+                ARRAY(
+                    SELECT DISTINCT loc
+                    FROM backup_events c, unnest(c.locations) AS loc
+                    WHERE c.vm_id = v.id AND c.status = 'ok' AND c.removed_at IS NULL
+                      AND COALESCE(c.size_bytes, 0) > 1 AND loc LIKE 'pbs:%%'
+                ) AS pbs_locations
         ) be_copies ON TRUE
         LEFT JOIN LATERAL (
             SELECT
@@ -265,12 +272,37 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
     from app.db_restore import latest_run_result_by_vm
 
     run_results = latest_run_result_by_vm()
+    host_locations = _restore_host_locations()
     for row in rows:
         row["is_problem"] = is_problem(row)
         # Last automated/manual restore-RUN result for the VM-list result dot
         # (has failed/error too, unlike restore_tests which only logs passed/limited).
         row["last_restore_run_result"] = run_results.get(row["id"])
+        # Can the restore server actually restore this VM? True/False iff one of
+        # its real backup locations is among the restore host's PBS datastores;
+        # None when the restore host's set is unknown (not configured / not yet
+        # probed) — then we don't claim either way.
+        if not host_locations:
+            row["restore_matchable"] = None
+        else:
+            row["restore_matchable"] = bool(set(row.get("pbs_locations") or []) & host_locations)
     return rows
+
+
+def _restore_host_locations() -> set[str]:
+    """The restore host's cached canonical PBS locations (written by the /restore
+    page / queue). Empty when unknown — then restorability is simply not shown."""
+    import json
+
+    from app.db_settings import get_settings_dict
+
+    raw = get_settings_dict("restore_server.pbs_locations").get("restore_server.pbs_locations")
+    if not raw:
+        return set()
+    try:
+        return set(json.loads(raw))
+    except (ValueError, TypeError):
+        return set()
 
 
 def is_problem(row: dict[str, Any]) -> bool:
