@@ -239,14 +239,6 @@ aside {
 
 /* Restore-queue state on the /restore nav icon itself: idle = neutral (no
    change), paused = amber, down = red, running = the circular-arrow icon spins. */
-.header-nav-link.queue-idle { color: var(--ok); }
-.header-nav-link.queue-paused { color: var(--warn); }
-.header-nav-link.queue-down { color: var(--critical); }
-.header-nav-link.queue-running { color: var(--running); }
-.header-nav-link.queue-running .queue-icon {
-  transform-origin: 50% 55%;
-  animation: queue-spin 1.6s linear infinite;
-}
 @keyframes queue-spin {
   to { transform: rotate(360deg); }
 }
@@ -259,6 +251,22 @@ aside {
 .header-nav-link.is-active {
   border: 1px solid var(--header-chip-border);
   color: var(--header-link);
+}
+/* Restore-queue state on the /restore nav icon. Defined AFTER is-active/hover so
+   it wins even on the active page; bright values that read on the dark header in
+   both themes, with a thicker stroke so the colour is clearly perceptible. */
+.header-nav-link.queue-idle,
+.header-nav-link.queue-idle:hover { color: #7dd0a8; }
+.header-nav-link.queue-paused,
+.header-nav-link.queue-paused:hover { color: #e8c17a; }
+.header-nav-link.queue-down,
+.header-nav-link.queue-down:hover { color: #f4a3ad; }
+.header-nav-link.queue-running,
+.header-nav-link.queue-running:hover { color: #89abcf; }
+.header-nav-link[class*="queue-"] .queue-icon { stroke-width: 2.8; }
+.header-nav-link.queue-running .queue-icon {
+  transform-origin: 50% 55%;
+  animation: queue-spin 1.6s linear infinite;
 }
 
 .header-icon {
