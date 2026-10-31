@@ -180,10 +180,10 @@ class JsonSsh:
 
 
 def test_create_api_token_parses_pvesh_json():
-    ssh = JsonSsh('{"full-tokenid":"root@pam!bsentinel-restore","info":{"privsep":"0"},"value":"sek-ret-123"}')
+    ssh = JsonSsh('{"full-tokenid":"root@pam!b-sentinel","info":{"privsep":"0"},"value":"sek-ret-123"}')
     srv = RestoreServer({"ssh_host": "10.0.0.9"}, FakePve({}), ssh)
     tok = srv.create_api_token()
-    assert tok == {"api_user": "root@pam", "token_id": "bsentinel-restore", "token_secret": "sek-ret-123"}
+    assert tok == {"api_user": "root@pam", "token_id": "b-sentinel", "token_secret": "sek-ret-123"}
     assert any("pvesh create" in c and "--privsep 0" in c for c in ssh.commands)
 
 

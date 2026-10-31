@@ -465,9 +465,9 @@ Backup Sentinel can *prove* a restore, not just document it, by driving a **dedi
 
 - **Dedicated, empty PVE host.** Nothing else may live on the host or its target storage — a hard reaper destroys, on startup and before/after every test, anything not owned by a running, known operation.
 - **Local-only PBS datastores** that mirror the source exactly. Matching uses the exact 3-tuple `(PBS name, datastore, namespace)`. Anything the host does not see locally is *not auto-restorable* (no offsite backup) and is never queued.
-- **API token and SSH key** for the restore host (SSH drives the bridge, LXC/dnsmasq, reaper).
+- **SSH access** to the restore host (host, user, private key). That is all: the app derives the API URL from the SSH host and provisions the API token (`root@pam!b-sentinel`, no privilege separation) itself over SSH — the same SSH connection also drives the bridge, LXC/dnsmasq and reaper. The host key is pinned automatically on the first connection test. "Renew token" re-creates it at any time.
 - **Guest-agent audit** (`VM.GuestAgent.Audit` or `VM.Monitor`) on the production cluster tokens for IP discovery; otherwise set the primary IP per VM manually.
-- **Management network** (static, no DHCP): interface/bridge, optional VLAN id, gateway, netmask and an IP range (from–to). One IP per helper; when exhausted the queue waits.
+- **Management network** (static, no DHCP): interface/bridge, optional VLAN id and an IP range (from–to). One IP per helper; when exhausted the queue waits. The sandbox never talks outside, so no gateway and always /24.
 - **Sandbox bridge**: a portless, VLAN-aware bridge (default `vmbr9`) the app ensures idempotently over SSH — traffic never leaves the host.
 
 ### Operation

@@ -401,6 +401,8 @@ def ui_target_storages() -> dict[str, Any]:
                 "disk_class": (s or {}).get("disk_class", "standard-ssd"),
                 "use": s is not None,
                 "order": (s or {}).get("order", 999),
+                "used": d.get("used"),
+                "free": d.get("avail"),
             }
         )
     # Saved storages the host did not return (temporarily missing): keep them so

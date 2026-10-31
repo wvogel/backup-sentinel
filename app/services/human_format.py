@@ -51,6 +51,36 @@ def format_size(value: object, lang: str | None = None) -> str:
     return f"{sign}{_localize(number, lang)} {_SIZE_UNITS[unit]}"
 
 
+_SIZE_UNITS_SHORT = ("B", "KB", "MB", "GB", "TB", "PB", "EB")
+
+
+def _floor_2sig(v: float) -> float:
+    """Round down to two significant figures: 436→430, 1.92→1.9, 36.72→36."""
+    if v <= 0:
+        return 0.0
+    factor = 10.0 ** (math.floor(math.log10(v)) - 1)
+    return math.floor(v / factor) * factor
+
+
+def format_size_coarse(value: object, lang: str | None = None) -> str:
+    """Bytes at two significant figures, rounded down, for at-a-glance storage
+    sizes: "430 GB", "1,9 TB", "36 TB". No noisy decimals ("436,72 GB" → "430 GB").
+    Binary scaling like the Proxmox GUI, with short (GB/TB) labels; "–" when unknown."""
+    try:
+        v = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "–"
+    if not math.isfinite(v) or v < 0:
+        return "–"
+    unit = 0
+    while unit < len(_SIZE_UNITS_SHORT) - 1 and v >= 1000:
+        v /= 1024
+        unit += 1
+    f = _floor_2sig(v)
+    number = str(int(f)) if f == int(f) else f"{f:.1f}"
+    return f"{_localize(number, lang)} {_SIZE_UNITS_SHORT[unit]}"
+
+
 def format_rate(bytes_per_second: object, lang: str | None = None) -> str:
     """Throughput as "188 MiB/s"; "–" when unknown."""
     size = format_size(bytes_per_second, lang)

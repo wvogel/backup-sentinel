@@ -19,16 +19,24 @@ document.addEventListener("DOMContentLoaded", syncAnimations);
 // Anything started elsewhere (a class switched on later) falls in step too.
 document.addEventListener("animationstart", syncAnimations);
 
-// ── Success Lightbox ──────────────────────────────────────────────────────────
-function showSuccessLightbox(title, msg, durationMs = 2000) {
+// ── Status Lightbox ─────────────────────────────────────────────────────────
+// Briefly flashes a result over the page: a green ✓ when ok, a red ✗ otherwise.
+function showStatusLightbox(ok, title, msg, durationMs = 2600) {
   const overlay = document.getElementById("success-lightbox");
   if (!overlay) return;
+  const icon = document.getElementById("success-lightbox-icon");
+  const box = overlay.querySelector(".lightbox-box");
+  if (icon) icon.innerHTML = ok ? "&#x2713;" : "&#x2717;";
+  if (box) box.classList.toggle("lightbox-failure", !ok);
   document.getElementById("success-lightbox-title").textContent = title;
-  document.getElementById("success-lightbox-msg").textContent = msg;
+  document.getElementById("success-lightbox-msg").textContent = msg || "";
   overlay.classList.remove("hidden");
-  setTimeout(() => {
-    overlay.classList.add("hidden");
-  }, durationMs);
+  clearTimeout(overlay._hideTimer);
+  overlay._hideTimer = setTimeout(() => overlay.classList.add("hidden"), durationMs);
+}
+
+function showSuccessLightbox(title, msg, durationMs = 2000) {
+  showStatusLightbox(true, title, msg, durationMs);
 }
 
 async function copyText(targetId, button) {
@@ -58,8 +66,41 @@ async function copyText(targetId, button) {
   window.addEventListener("resize", update);
 })();
 
+// ── Drag-to-reorder table rows (tbody[data-reorder]) ──────────────────────────
+// Rows carry hidden inputs; the form submits them in DOM order, so reordering
+// the rows reorders the saved sequence. No library — plain HTML5 drag events.
+(function () {
+  function initReorder(tbody) {
+    let dragged = null;
+    tbody.addEventListener("dragstart", (e) => {
+      const row = e.target.closest("tr[draggable='true']");
+      if (!row) return;
+      dragged = row;
+      row.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+    });
+    tbody.addEventListener("dragend", () => {
+      if (dragged) dragged.classList.remove("dragging");
+      dragged = null;
+    });
+    tbody.addEventListener("dragover", (e) => {
+      if (!dragged) return;
+      const row = e.target.closest("tr[draggable='true']");
+      e.preventDefault();
+      if (!row || row === dragged) return;
+      const rect = row.getBoundingClientRect();
+      const after = e.clientY - rect.top > rect.height / 2;
+      tbody.insertBefore(dragged, after ? row.nextSibling : row);
+    });
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("tbody[data-reorder]").forEach(initReorder);
+  });
+})();
+
 // Expose globally for other modules
 window.showSuccessLightbox = showSuccessLightbox;
+window.showStatusLightbox = showStatusLightbox;
 window.copyText = copyText;
 
 // ── Instant tooltips for [data-tooltip] (replaces the native title delay) ──

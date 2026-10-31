@@ -113,8 +113,10 @@ class RestoreServerPayload(BaseModel):
 
     mgmt_iface: str = Field(min_length=1, max_length=15)
     mgmt_vlan: int | None = Field(default=None, ge=1, le=4094)
+    # The sandbox never routes outside, so gateway is unused and the mask is
+    # always /24; both are set by the handler, not entered in the form.
     mgmt_gateway: str = Field(default="", max_length=45)
-    mgmt_netmask: str = Field(min_length=7, max_length=45)
+    mgmt_netmask: str = Field(default="255.255.255.0", max_length=45)
     mgmt_ip_from: str = Field(min_length=7, max_length=45)
     mgmt_ip_to: str = Field(min_length=7, max_length=45)
 

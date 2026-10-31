@@ -228,6 +228,11 @@ class RestoreServer:
                     "type": s.get("type", ""),
                     "content": content,
                     "images": "images" in content,
+                    # Usage is only on the node-status rows (first path), not the
+                    # datacenter config; whichever path saw it first wins.
+                    "used": s.get("used"),
+                    "total": s.get("total"),
+                    "avail": s.get("avail"),
                 }
         # Nothing readable AND every source errored → surface it (don't masquerade
         # as "no storages found").
@@ -320,7 +325,7 @@ class RestoreServer:
                 raise RestoreTaskError("restore task stalled (no progress; adaptive backstop exceeded)")
             sleep(poll_interval)
 
-    def create_api_token(self, user: str = "root@pam", token_id: str = "bsentinel-restore") -> dict[str, str]:
+    def create_api_token(self, user: str = "root@pam", token_id: str = "b-sentinel") -> dict[str, str]:
         """Create a PVE API token over SSH and return its credentials. Uses
         ``pvesh`` (reliable JSON) with ``privsep 0`` so the token inherits the
         user's full permissions — no ACLs to maintain, all storages visible.

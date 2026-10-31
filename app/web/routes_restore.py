@@ -48,8 +48,6 @@ def save_restore_server(
     restore_vmid_to: int = Form(default=9100),
     mgmt_iface: str = Form(...),
     mgmt_vlan: str = Form(default=""),
-    mgmt_gateway: str = Form(default=""),
-    mgmt_netmask: str = Form(...),
     mgmt_ip_from: str = Form(...),
     mgmt_ip_to: str = Form(...),
     reprovision: str = Form(default=""),
@@ -77,8 +75,9 @@ def save_restore_server(
         "restore_vmid_to": restore_vmid_to,
         "mgmt_iface": mgmt_iface,
         "mgmt_vlan": int(mgmt_vlan) if mgmt_vlan.strip() else None,
-        "mgmt_gateway": mgmt_gateway,
-        "mgmt_netmask": mgmt_netmask,
+        # The sandbox never talks outside: no gateway, always /24.
+        "mgmt_gateway": "",
+        "mgmt_netmask": "255.255.255.0",
         "mgmt_ip_from": mgmt_ip_from,
         "mgmt_ip_to": mgmt_ip_to,
     }
@@ -105,6 +104,13 @@ def save_restore_server(
         restore_config.save(payload)
         db.save_settings({"restore_server.last_error": ""})
         query = "restore=saved"
+        # Run the connection test right away so the "saved" modal can show the
+        # live state (a fresh token especially) instead of a stale result. A
+        # hiccup here must not turn a successful save into an error.
+        try:
+            _run_and_store_test()
+        except Exception as exc:
+            logger.debug("post-save connection test failed: %s", exc)
     except Exception as exc:
         logger.warning("restore-server config save/provision failed: %s", exc)
         detail = f"{type(exc).__name__}: {exc}"
@@ -113,8 +119,9 @@ def save_restore_server(
     return RedirectResponse(f"/settings?{query}#restore", status_code=status.HTTP_303_SEE_OTHER)
 
 
-@router.post("/settings/restore-server/test")
-def test_restore_server(request: Request) -> RedirectResponse:
+def _run_and_store_test() -> dict:
+    """Run the restore-server connection test and persist it as last_test
+    (human-readable local timestamp). Returns the stored result."""
     import json
     from datetime import UTC, datetime
 
@@ -123,6 +130,12 @@ def test_restore_server(request: Request) -> RedirectResponse:
     result = restore_orchestrator.test_connection()
     result["at"] = datetime_local(datetime.now(UTC))  # human, local tz (e.g. 31.10.2026 01:31)
     db.save_settings({"restore_server.last_test": json.dumps(result)})
+    return result
+
+
+@router.post("/settings/restore-server/test")
+def test_restore_server(request: Request) -> RedirectResponse:
+    _run_and_store_test()
     return RedirectResponse("/settings#restore", status_code=status.HTTP_303_SEE_OTHER)
 
 
