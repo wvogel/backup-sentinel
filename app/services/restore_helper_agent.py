@@ -47,6 +47,22 @@ def _tcp(ip: str, port: int, timeout: float = 2.0) -> bool:
         return False
 
 
+def _ensure_reachable(ip: str, prefix: int = 24) -> None:
+    """Give the sandbox leg an address in the target's subnet so the helper can
+    reach it — needed when the IP was discovered after boot (agent/ARP) and the
+    helper wasn't pre-configured for that subnet. Idempotent; errors ignored."""
+    import ipaddress
+
+    try:
+        net = ipaddress.ip_network(f"{ip}/{prefix}", strict=False)
+        host = net.network_address + 250
+        if str(host) == ip:
+            host = net.network_address + 249
+        subprocess.run(["ip", "addr", "add", f"{host}/{prefix}", "dev", SBX_IFACE], capture_output=True)
+    except (ValueError, OSError):
+        pass
+
+
 def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
     import time
 
@@ -55,6 +71,7 @@ def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
         ip = t.get("ip")
         if not ip:
             continue
+        _ensure_reachable(ip)
         # Key is "ports" (not "tcp"): the classifier reads primary["ports"].
         out[ip] = {
             "icmp": _ping(ip) if require_icmp else None,

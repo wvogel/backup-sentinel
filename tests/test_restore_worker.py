@@ -197,6 +197,27 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(res, "limited")
         self.assertEqual(self._restore_test_count(), 1)
 
+    def test_probe_discovers_ip_via_guest_agent_when_none_recorded(self):
+        run_id = self._run()
+
+        class Srv(FakeServer):
+            def guest_agent_ips(self, vmid):
+                self.calls.append("guest_agent_ips")
+                return ["10.0.0.77"]
+
+        srv = Srv()
+        res = execute(
+            run_id,
+            _plan(self.vm_id, primary_ip=None),
+            srv,
+            production_hosts=set(),
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, ip, t: {"10.0.0.77": {"icmp": True, "ports": {"443": True}}},
+        )
+        self.assertEqual(res, "passed")  # IP discovered from the agent, then probed
+        self.assertIn("guest_agent_ips", srv.calls)
+
     def test_host_identity_failure_is_error(self):
         run_id = self._run()
         srv = FakeServer()
