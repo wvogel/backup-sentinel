@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.12] — 2026-10-31
+
+### Fixed
+
+- **Token provisioning now runs instead of silently failing.** "Token neu erzeugen" aborted with `KeyError: 'api_url'` before it ever reached the PVE host: `build_server` was called with the SSH-only config used during provisioning and demanded an `api_url` the config does not carry yet. No token was created, the stale (invalid) secret stayed in place, and the API returned 401 on `/nodes` and `/storage` while the UI still showed green. `build_server` now tolerates a missing API block (SSH-only provisioning builds the API client lazily with empty credentials), so the token is created over SSH as intended.
+- **Provisioning failures are now visible.** The settings page showed a generic "Invalid configuration" and the real cause only appeared in the server log. The actual error (type + message) is now stored and shown inline next to the save button.
+
 ## [v3.0.11] — 2026-10-31
 
 ### Fixed

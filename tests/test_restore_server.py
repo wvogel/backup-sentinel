@@ -162,3 +162,37 @@ def test_reap_destroys_unowned():
     destroyed = srv.reap({9000, 9001})
     assert destroyed == [100]
     assert srv.pve.deletes == ["/nodes/r1/qemu/100?purge=1&destroy-unreferenced-disks=1"]
+
+
+# --- token provisioning (SSH-only) ---
+
+
+class JsonSsh:
+    """SSH stub that returns a canned stdout per issued command."""
+
+    def __init__(self, out):
+        self.out = out
+        self.commands = []
+
+    def run(self, command):
+        self.commands.append(command)
+        return self.out
+
+
+def test_create_api_token_parses_pvesh_json():
+    ssh = JsonSsh('{"full-tokenid":"root@pam!bsentinel-restore","info":{"privsep":"0"},"value":"sek-ret-123"}')
+    srv = RestoreServer({"ssh_host": "10.0.0.9"}, FakePve({}), ssh)
+    tok = srv.create_api_token()
+    assert tok == {"api_user": "root@pam", "token_id": "bsentinel-restore", "token_secret": "sek-ret-123"}
+    assert any("pvesh create" in c and "--privsep 0" in c for c in ssh.commands)
+
+
+def test_build_server_tolerates_missing_api_block():
+    # Token provisioning builds the server from an SSH-only config (no api_* yet).
+    # build_server must not KeyError before create_api_token runs over SSH.
+    from app.services import restore_orchestrator
+
+    server = restore_orchestrator.build_server(
+        {"ssh_host": "10.0.0.9", "ssh_private_key": "", "sandbox_bridge": "vmbr9"}
+    )
+    assert server.ssh is not None and server.pve is not None
