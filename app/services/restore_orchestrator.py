@@ -172,7 +172,16 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         interval=candidate.get("probe_interval_seconds") or config.get("probe_interval_seconds", 30),
         window=candidate.get("probe_window_seconds") or config.get("probe_window_seconds", 300),
         needed_bytes=snap.get("size"),
+        needed_ram=_vm_memory_bytes(vm_id),
     )
+
+
+def _vm_memory_bytes(vm_id: int) -> int | None:
+    """The guest's configured RAM (maxmem), captured during PVE sync."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT memory_bytes FROM vms WHERE id = %s", (vm_id,))
+        row = cur.fetchone()
+    return row["memory_bytes"] if row else None
 
 
 def enqueue_due(server: RestoreServer, config: dict[str, Any]) -> int:
@@ -196,6 +205,17 @@ def _fits_disk(server: RestoreServer, plan: RunPlan) -> bool:
         logger.debug("free_resources check failed: %s", exc)
         return True
     return restore_worker.fits_disk(free, plan.needed_bytes)
+
+
+def _fits_ram(server: RestoreServer, plan: RunPlan) -> bool:
+    """Whether the guest's RAM fits the host's free RAM, leaving the host its
+    reserve (10%, min 10 GiB). Unknown free RAM optimistically fits."""
+    try:
+        res = server.free_resources()
+    except Exception as exc:
+        logger.debug("free_resources (ram) check failed: %s", exc)
+        return True
+    return restore_worker.fits_ram(res.get("ram_free"), res.get("ram_total"), plan.needed_ram)
 
 
 def drain(config: dict[str, Any], server: RestoreServer) -> None:
@@ -235,6 +255,12 @@ def drain(config: dict[str, Any], server: RestoreServer) -> None:
                 # Too big for the target storage right now: skip, leave queued,
                 # try the next (smaller) due run. Retried on a later pass.
                 logger.info("restore run %s skipped: does not fit target storage yet", run["id"])
+                continue
+            if not _fits_ram(server, plan):
+                # Guest RAM would eat into the host's reserve: skip, try the next
+                # (smaller) run. Left queued; retried on a later pass (no spin —
+                # the pass returns below once nothing executes).
+                logger.info("restore run %s skipped: does not fit free RAM yet", run["id"])
                 continue
             result = restore_worker.execute(run["id"], plan, server, production_hosts=prod)
             _notify_result(run["vm_id"], result)

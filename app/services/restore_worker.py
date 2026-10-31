@@ -41,6 +41,7 @@ class RunPlan:
     interval: int = 30
     window: int = 300
     needed_bytes: int | None = None  # estimated restore footprint, for the disk-fit skip
+    needed_ram: int | None = None  # the guest's configured RAM, for the RAM-fit skip
 
 
 def owned_vmids() -> set[int]:
@@ -211,6 +212,29 @@ def fits_disk(free_bytes: int | None, needed_bytes: int | None, safety: float = 
     if not free_bytes or not needed_bytes:
         return True
     return free_bytes >= needed_bytes * safety
+
+
+# The host always keeps a slice of RAM for itself: 10%, but at least 10 GiB.
+RAM_RESERVE_FRACTION = 0.10
+RAM_RESERVE_MIN_BYTES = 10 * 1024**3
+
+
+def ram_reserve_bytes(total_bytes: int | None) -> int:
+    """How much RAM stays reserved for the host: max(10% of total, 10 GiB)."""
+    if not total_bytes:
+        return RAM_RESERVE_MIN_BYTES
+    return max(int(total_bytes * RAM_RESERVE_FRACTION), RAM_RESERVE_MIN_BYTES)
+
+
+def fits_ram(free_bytes: int | None, total_bytes: int | None, needed_bytes: int | None) -> bool:
+    """Whether a guest needing ``needed_bytes`` of RAM can boot while leaving the
+    host its reserve (10%, min 10 GiB). Unknown guest RAM optimistically fits."""
+    if not needed_bytes:
+        return True
+    if free_bytes is None:
+        return True
+    usable = free_bytes - ram_reserve_bytes(total_bytes)
+    return usable >= needed_bytes
 
 
 def _progress_fields(p: dict[str, Any]) -> dict[str, Any]:

@@ -77,9 +77,9 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
             cur.execute(
                 """
                 INSERT INTO vms (
-                    cluster_id, node_name, vmid, name, guest_type, is_template, backup_storages, backup_kind, last_backup_at
+                    cluster_id, node_name, vmid, name, guest_type, is_template, backup_storages, backup_kind, last_backup_at, memory_bytes
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (cluster_id, vmid) DO UPDATE SET
                     node_name = EXCLUDED.node_name,
                     name = EXCLUDED.name,
@@ -88,6 +88,7 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
                     backup_storages = EXCLUDED.backup_storages,
                     backup_kind = EXCLUDED.backup_kind,
                     last_backup_at = COALESCE(EXCLUDED.last_backup_at, vms.last_backup_at),
+                    memory_bytes = COALESCE(EXCLUDED.memory_bytes, vms.memory_bytes),
                     missing_since = NULL
                 """,
                 (
@@ -100,6 +101,7 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
                     vm.get("backup_storages", []),
                     vm["backup_kind"],
                     vm["last_backup_at"],
+                    vm.get("memory_bytes"),
                 ),
             )
         # VMs we still know but PVE no longer reports have been deleted (or

@@ -5,6 +5,23 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.0] — 2026-10-31
+
+### Added
+
+- **RAM-aware scheduling.** The restore scheduler now reads each guest's configured RAM (`maxmem`, captured during PVE sync) and only starts a restore if the guest fits the host's free RAM while leaving the host its reserve — **10%, at least 10 GB**. A guest that doesn't fit right now is skipped and the next one tried; a pass ends once nothing fits and is retried on the next sync (no busy-spin). Disk-fit on the target storage is checked as before.
+- **Single-leg helper optimisation.** When a restored guest's IP is in the same subnet as the helper management range, the helper is provisioned with one leg instead of two (it serves DHCP/probe and management on the same interface).
+- **Menu-bar restore indicator.** The restore icon in the top bar reflects queue state: neutral when idle, amber when paused, red when the host is unreachable, and it spins while a restore runs.
+- **Dashboard restore tiles.** A `Restore-Tests` group (shorter labels, no repeated "Restore") plus two server tiles: queue activity (running VM, %, ETA, waiting count) and host utilisation as fill rings for RAM and each image-capable storage. The dashboard reads a cached host snapshot, so it never blocks on the restore host.
+
+### Changed
+
+- **One field governs restore timing.** The restore cadence (Turnus: month/quarter/half-year/year) is now also the compliance due-interval (30/91/182/365 days); the separate criticality-based "Restore-Intervall" is gone. Per-VM panel reworked: backup history on top, then "Automated Restore Settings" with a single cadence field and a `Speichern` button.
+- **VM-list restore column** now shows symbols — auto on/off, cadence, and a coloured dot for the last run result (green/blue/yellow/red, neutral ring = never tested).
+- **`/restore` capacity view** redesigned: RAM meter (fills green→amber→red, 10% host reserve marked), fill rings for image-capable storages only (connection-type and disk-class icons, sizes at two significant figures), and running restores with live progress and ETA. The "Jetzt testen" action is now "Restore-Test starten" with a two-step confirm; enabling "keep the restored VM on failure" warns (debug only, with "don't warn again today").
+- **PDF report slimmed** — one summary row per VM instead of one row per backup event, so it generates quickly at thousands of backups instead of timing out.
+- **Settings polish:** PVE/PBS sync icons moved before the names with URL + date folded into their hover; the restore config shows storage icons, management/sandbox swapped, gateway/netmask dropped (always /24), and the token button sits inline on the API row.
+
 ## [v3.0.13] — 2026-10-31
 
 ### Changed

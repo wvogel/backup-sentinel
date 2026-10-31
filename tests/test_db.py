@@ -168,19 +168,30 @@ class RestoreClassTests(DbTestCase):
     def rows(self) -> dict:
         return {row["vmid"]: row for row in db.vm_governance_rows(self.cid)}
 
-    def test_never_tested_is_open_with_default_180_days(self) -> None:
+    def _set_cadence(self, cadence: str) -> None:
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO vm_policies (vm_id, owner_name, criticality, rpo_hours, restore_cadence) "
+                "VALUES (%s, 'x', 'medium', 24, %s) "
+                "ON CONFLICT (vm_id) DO UPDATE SET restore_cadence = EXCLUDED.restore_cadence",
+                (self.vm100, cadence),
+            )
+            conn.commit()
+
+    def test_never_tested_is_open_with_default_half_year(self) -> None:
         row = self.rows()[100]
         self.assertEqual(row["restore_due_status"], "open")
-        self.assertEqual(row["restore_interval_days"], 180)
-        self.assertEqual(row["restore_class"], "medium")
+        self.assertEqual(row["restore_interval_days"], 182)  # half_year cadence default
 
-    def test_class_sets_interval_and_expiry(self) -> None:
-        db.update_vm_restore_class(self.vm100, "high")
+    def test_cadence_drives_interval_and_expiry(self) -> None:
+        # One field governs both: the Turnus (cadence) is the due interval.
+        self._set_cadence("month")  # 30 days
         db.create_restore_test(self.vm100, (NOW - timedelta(days=100)).date(), "passed", "full", 5)
         row = self.rows()[100]
-        self.assertEqual(row["restore_interval_days"], 90)
+        self.assertEqual(row["restore_interval_days"], 30)
         self.assertEqual(row["restore_due_status"], "critical")
-        db.update_vm_restore_class(self.vm100, "low")
+        # A longer Turnus makes the same 100-day-old test fine again.
+        self._set_cadence("year")  # 365 days
         self.assertEqual(self.rows()[100]["restore_due_status"], "ok")
 
     def test_none_class_needs_no_test_and_survives_backup_policy_changes(self) -> None:

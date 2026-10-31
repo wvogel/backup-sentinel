@@ -1,10 +1,10 @@
 {#- Sync status as the PVE / PBS symbol itself, coloured like on the
     overview (green, amber, red; grey before the first sync); details on
     hover, click opens the log. -#}
-{% macro pve_icon(cluster) -%}
+{% macro pve_icon(cluster, prefix='') -%}
 {%- set state = pve_sync_state(cluster) %}
 <button type="button" class="sync-icon-btn sync-fresh-{{ state }}"
-  data-tooltip="{{ t('dashboard.pve_sync', status=t('dashboard.sync_fresh_' ~ state)) }}&#10;{{ t('dashboard.last_sync_success') }} {{ cluster.last_pve_sync_success_at|datetime_local if cluster.last_pve_sync_success_at else t('dashboard.never_synced_short') }}{% if cluster.last_pve_sync_failure_started_at %}&#10;{{ t('dashboard.error_since') }} {{ cluster.last_pve_sync_failure_started_at|datetime_local }}{% endif %}&#10;{{ t('cluster.show_sync_log') }}"
+  data-tooltip="{% if prefix %}{{ prefix }}&#10;{% endif %}{{ t('dashboard.pve_sync', status=t('dashboard.sync_fresh_' ~ state)) }}&#10;{{ t('dashboard.last_sync_success') }} {{ cluster.last_pve_sync_success_at|datetime_local if cluster.last_pve_sync_success_at else t('dashboard.never_synced_short') }}{% if cluster.last_pve_sync_failure_started_at %}&#10;{{ t('dashboard.error_since') }} {{ cluster.last_pve_sync_failure_started_at|datetime_local }}{% endif %}&#10;{{ t('cluster.show_sync_log') }}"
   data-log-title="{{ t('cluster.pve_sync_log_title', name=cluster.name) }}"
   data-log="{{ cluster.last_pve_sync_log or t('common.no_log') }}"
   aria-label="{{ t('dashboard.pve_sync', status=t('dashboard.sync_fresh_' ~ state)) }} – {{ t('cluster.show_sync_log') }}">
@@ -12,13 +12,13 @@
 </button>
 {%- endmacro %}
 
-{% macro pbs_icon(pbs) -%}
+{% macro pbs_icon(pbs, prefix='') -%}
 {%- set state = pbs_sync_state(pbs) %}
 {%- set line -%}
 {% if pbs.last_sync_ok is none %}{{ t('dashboard.pbs_sync_never', name=pbs.name) }}{% elif pbs.last_sync_ok %}{{ t('dashboard.pbs_sync_ok', name=pbs.name, time=pbs.last_sync_at|datetime_local) }}{% else %}{{ t('dashboard.pbs_sync_failed', name=pbs.name, time=pbs.last_sync_at|datetime_local) }}{% endif %}
 {%- endset %}
 <button type="button" class="sync-icon-btn sync-fresh-{{ state }}"
-  data-tooltip="{{ line }}&#10;{{ t('cluster.show_pbs_sync_log') }}"
+  data-tooltip="{% if prefix %}{{ prefix }}&#10;{% endif %}{{ line }}&#10;{{ t('cluster.show_pbs_sync_log') }}"
   data-log-title="{{ t('cluster.pbs_sync_log_title', name=pbs.name) }}"
   data-log="{{ pbs.last_sync_log or t('common.no_log') }}"
   aria-label="{{ line }} – {{ t('cluster.show_pbs_sync_log') }}">

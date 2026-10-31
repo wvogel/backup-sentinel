@@ -96,6 +96,9 @@ def init_db() -> None:
             # PVE HA: {state, placement, nodes}; NULL = not HA-managed.
             cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS ha JSONB")
             cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT FALSE")
+            # Configured RAM (maxmem) in bytes — the restore scheduler needs it to
+            # decide whether a restored guest fits the host's free RAM.
+            cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS memory_bytes BIGINT")
             # Storages the guest's PVE backup jobs write to (direct backups).
             cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS backup_storages TEXT[] NOT NULL DEFAULT '{}'")
             # PBS storages in the cluster's PVE config: where PVE backs up to.

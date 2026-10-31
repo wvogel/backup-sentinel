@@ -132,6 +132,34 @@ def has_active_run() -> bool:
         return cur.fetchone() is not None
 
 
+def queue_state() -> str:
+    """One word for the top-bar indicator: 'running' if a restore is active,
+    'queued' if runs are waiting, else 'idle'. (Pause is tracked separately.)"""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT status FROM restore_runs WHERE status IN ('running', 'queued')")
+        states = {r["status"] for r in cur.fetchall()}
+    if "running" in states:
+        return "running"
+    if "queued" in states:
+        return "queued"
+    return "idle"
+
+
+def latest_run_result_by_vm() -> dict[int, str]:
+    """The most recent finished restore-run result per VM (passed/limited/
+    failed/error), for the VM-list result dot. Newest finished run wins."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT ON (vm_id) vm_id, result
+            FROM restore_runs
+            WHERE result IS NOT NULL
+            ORDER BY vm_id, finished_at DESC NULLS LAST, id DESC
+            """
+        )
+        return {r["vm_id"]: r["result"] for r in cur.fetchall()}
+
+
 def set_network_interfaces(vm_id: int, rows: list[dict[str, Any]]) -> None:
     """Replace the stored NICs for a VM (full refresh each sync)."""
     now = datetime.now(UTC)

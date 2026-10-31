@@ -1,0 +1,36 @@
+{# Storage icons shared by /restore capacity view and the restore config table. #}
+
+{# Connection/backing type (lvmthin, zfs, nfs, …) — icon before the name. #}
+{% macro conn_icon(type) %}
+{%- set tl = (type or '')|lower %}
+<span class="conn-icon" data-tooltip="{{ type or '?' }}" aria-hidden="true">
+  {%- if 'zfs' in tl %}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7c3-2 15-2 18 0"/><path d="M3 12c3-2 15-2 18 0"/><path d="M3 17c3-2 15-2 18 0"/></svg>
+  {%- elif 'lvm' in tl %}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 3 21 7.5 12 12 3 7.5 12 3"/><polyline points="3 12 12 16.5 21 12"/><polyline points="3 16.5 12 21 21 16.5"/></svg>
+  {%- elif tl in ('nfs', 'cifs') %}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h1a4 4 0 010 8H6a5 5 0 01-1-9.9A6 6 0 0117 7"/></svg>
+  {%- elif tl == 'dir' %}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+  {%- elif tl == 'pbs' %}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg>
+  {%- else %}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+  {%- endif %}
+</span>
+{% endmacro %}
+
+{# Disk class (enterprise/standard SSD, SAS/SATA HDD) — colour-coded icon after the name. #}
+{% macro disk_icon(cls) %}
+{%- if cls %}
+{%- set is_ssd = cls in ('enterprise-ssd', 'standard-ssd') %}
+{%- set tone = {'enterprise-ssd': 'disk-green', 'standard-ssd': 'disk-blue', 'sas-hdd': 'disk-green', 'sata-hdd': 'disk-blue'}.get(cls, '') %}
+<span class="disk-icon {{ tone }}" data-tooltip="{{ t('restore.class_' ~ cls) }}" aria-hidden="true">
+  {%- if is_ssd %}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="2"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="16" y1="10" x2="16" y2="14"/></svg>
+  {%- else %}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+  {%- endif %}
+</span>
+{%- endif %}
+{% endmacro %}

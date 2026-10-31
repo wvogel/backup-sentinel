@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ t('restore.nav') }}{% endblock %}
 {% block content %}
+{% import "_storage_icons.html" as sicons with context %}
 <h1 class="page-title">{{ t('restore.nav') }}</h1>
 
 {% if not configured %}
@@ -20,20 +21,64 @@
   </div>
   {% if queue_paused %}<p class="warn-text">{{ t('restore.queue_paused') }}</p>{% endif %}
   {% if host %}
-  <p>{{ t('restore.ram_free') }}: <strong>{{ (host.ram_free / 1073741824)|round(1) if host.ram_free else '?' }} GiB</strong>
-     / {{ (host.ram_total / 1073741824)|round(1) if host.ram_total else '?' }} GiB</p>
-  <table class="data-table">
-    <thead><tr><th>{{ t('restore.store') }}</th><th>{{ t('restore.free') }}</th><th>{{ t('restore.total') }}</th></tr></thead>
-    <tbody>
-    {% for name, s in host.stores.items() %}
-      <tr><td>{{ name }}</td>
-          <td>{{ (s.avail / 1073741824)|round(1) if s.avail else '?' }} GiB</td>
-          <td>{{ (s.total / 1073741824)|round(1) if s.total else '?' }} GiB</td></tr>
+  {# RAM meter: fills in 10% steps, green → yellow (70%) → red (90%); the top 10% stays reserved for the host. #}
+  {%- set ram_used = (host.ram_total - host.ram_free) if (host.ram_total and host.ram_free is not none) else none %}
+  {%- set ram_pct = (ram_used / host.ram_total * 100) if (ram_used is not none and host.ram_total) else 0 %}
+  {%- set ram_level = 'crit' if ram_pct >= 90 else ('warn' if ram_pct >= 70 else 'ok') %}
+  <div class="meter-row">
+    <span class="meter-label">{{ t('restore.ram') }}</span>
+    <div class="ram-meter" data-tooltip="{{ t('restore.ram_free') }}: {{ host.ram_free|size_coarse }} / {{ host.ram_total|size_coarse }}">
+      <div class="ram-fill ram-{{ ram_level }}" style="width: {{ ram_pct|round(1) }}%"></div>
+      <div class="ram-reserve" data-tooltip="{{ t('restore.ram_reserve') }}"></div>
+    </div>
+    <span class="meter-value">{{ host.ram_free|size_coarse }} {{ t('restore.free')|lower }} / {{ host.ram_total|size_coarse }}</span>
+  </div>
+
+  {# Image-capable storages as fill rings (capacity + usage, 2 significant figures). Others (e.g. local) are hidden. #}
+  {%- set targets = host.stores|selectattr('images')|list %}
+  {% if targets %}
+  <div class="store-rings">
+    {% for s in targets %}
+    {%- set pct = (s.used / s.total * 100) if (s.used is not none and s.total) else 0 %}
+    {%- set lvl = 'crit' if pct >= 90 else ('warn' if pct >= 70 else 'ok') %}
+    <div class="store-ring-card">
+      <div class="store-ring ring-{{ lvl }}" style="--pct: {{ pct|round(0, 'floor')|int }}">
+        <div class="ring-center">
+          <strong>{{ s.total|size_coarse }}</strong>
+          <span>{{ s.used|size_coarse }}</span>
+        </div>
+      </div>
+      <div class="store-ring-label">
+        {{ sicons.conn_icon(s.type) }}<span class="store-name">{{ s.storage }}</span>{{ sicons.disk_icon(s.disk_class) }}
+      </div>
+    </div>
     {% endfor %}
-    </tbody>
-  </table>
+  </div>
+  {% else %}
+  <p class="muted">{{ t('restore.storage_none') }}</p>
+  {% endif %}
+
+  {# Running restores: live progress, ETA and the size being restored. #}
+  {%- set running = runs|selectattr('status', 'equalto', 'running')|list %}
+  {% if running %}
+  <div class="running-restores">
+    <p class="eyebrow">{{ t('restore.running_now') }}</p>
+    {% for run in running %}
+    {%- set rp = run.percent or 0 %}
+    <div class="running-card">
+      <div class="store-ring ring-ok running-ring" style="--pct: {{ rp }}"><div class="ring-center"><strong>{{ rp }}%</strong></div></div>
+      <div class="running-info">
+        <strong>VM {{ run.vm_id }}</strong>
+        <span class="muted">{{ t('restore.col_progress') }}: {{ run.bytes_done|size_coarse if run.bytes_done else '–' }} / {{ run.bytes_total|size_coarse if run.bytes_total else '?' }}</span>
+        <span class="muted">{% if run.eta %}ETA {{ run.eta|datetime_local }}{% endif %}{% if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% else %}
   <p class="muted">{{ t('restore.host_unreachable') }}</p>
+  {% if host_error %}<p class="critical-text">{{ host_error }}</p>{% endif %}
   {% endif %}
 </section>
 

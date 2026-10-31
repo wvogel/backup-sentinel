@@ -137,6 +137,7 @@ def fetch_cluster_inventory(
                     "is_template": bool(int(row.get("template") or 0)),
                     "backup_kind": "daily",
                     "last_backup_at": None,
+                    "memory_bytes": int(row["maxmem"]) if row.get("maxmem") else None,
                 }
             )
 

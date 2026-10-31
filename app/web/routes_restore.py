@@ -145,21 +145,40 @@ def clear_host_key(request: Request) -> RedirectResponse:
     return RedirectResponse("/settings#restore", status_code=status.HTTP_303_SEE_OTHER)
 
 
+def _cache_host_snapshot(host: dict) -> None:
+    """Persist the latest host capacity so the dashboard tile can show it
+    without a live (slow, blockable) call to the restore host on every load."""
+    import json
+    from datetime import UTC, datetime
+
+    try:
+        db.save_settings(
+            {"restore_server.host_snapshot": json.dumps({"at": datetime.now(UTC).isoformat(), "host": host})}
+        )
+    except Exception as exc:
+        logger.debug("host snapshot cache failed: %s", exc)
+
+
 @router.get("/restore", response_class=HTMLResponse)
 def restore_runs(request: Request) -> HTMLResponse:
     runs = db_restore.list_runs(limit=50)
     held = db_restore.list_runs(limit=50, status="held")
     host = None
+    host_error = None
     config = restore_config.load()
     if config is not None:
         try:
             host = restore_orchestrator.build_server(config).free_resources()
+            _cache_host_snapshot(host)
         except Exception as exc:
-            logger.debug("free_resources failed: %s", exc)
+            # Surface the real reason instead of a bare "host unreachable".
+            logger.warning("free_resources failed: %s", exc)
+            host_error = f"{type(exc).__name__}: {exc}"[:300]
     context = {
         "runs": runs,
         "held": held,
         "host": host,
+        "host_error": host_error,
         "configured": config is not None,
         "queue_paused": restore_config.queue_paused(),
     }
