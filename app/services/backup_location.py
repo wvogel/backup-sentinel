@@ -99,6 +99,8 @@ def _connection_names(conn: Mapping[str, Any]) -> set[str]:
     for alias in conn.get("aliases") or []:
         names |= _names(str(alias))
     return names
+
+
 def assign_pbs_servers(
     events: list[dict[str, Any]],
     connections: Iterable[Mapping[str, Any]],
