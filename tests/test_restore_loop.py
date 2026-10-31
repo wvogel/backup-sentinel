@@ -108,6 +108,17 @@ class OrchestratorTest(unittest.TestCase):
         locs = orch.vm_backup_locations(self.vm_id)
         self.assertEqual(locs, {"pbs:pbs-a/ds1/prod"})
 
+    def test_matched_vms_by_location_finds_the_vm(self):
+        # Regression: the comma-then-JOIN form put backup_events out of scope for
+        # the vms join, so this threw and the diagnostic showed "no VM matched"
+        # everywhere even while restores matched fine.
+        matched = orch.matched_vms_by_location(["pbs:pbs-a/ds1/prod", "pbs:other/x"])
+        self.assertEqual(matched, {"pbs:pbs-a/ds1/prod": ["Prod:web"]})
+
+    def test_all_vm_backup_locations_lists_the_location(self):
+        rows = orch.all_vm_backup_locations()
+        self.assertEqual(rows, [{"location": "pbs:pbs-a/ds1/prod", "vms": 1, "sample": "Prod:web"}])
+
     def test_build_plan_matches_and_allocates(self):
         cand = orch._candidate_for_vm(self.vm_id)
         plan = orch.build_plan(cand, self._server(), CONFIG)
