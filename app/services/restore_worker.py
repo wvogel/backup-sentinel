@@ -59,7 +59,7 @@ def _probe_loop(
     *,
     now: Callable[[], float],
     sleep: Callable[[float], None],
-    probe_fn: Callable[[Any, int, list[dict[str, Any]]], dict[str, Any]],
+    probe_fn: Callable[[Any, str, list[dict[str, Any]]], dict[str, Any]],
 ) -> tuple[str, dict[str, Any]]:
     """Poll until success or the window elapses. Returns (result, checks)."""
     had_ip = plan.primary_ip is not None
@@ -71,7 +71,7 @@ def _probe_loop(
     checks: dict[str, Any] = {}
     result = "failed"
     while True:
-        checks = probe_fn(server, plan.helper_vmid, plan.probe_targets)
+        checks = probe_fn(server, plan.mgmt_ip, plan.probe_targets)
         primary = checks.get(plan.primary_ip)
         result = restore_probe.classify(primary, require_icmp=plan.require_icmp, tcp_ports=plan.tcp_ports, had_ip=True)
         if result == "passed" or now() >= deadline:
@@ -87,11 +87,11 @@ def execute(
     production_hosts: set[str],
     now: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
-    probe_fn: Callable[[Any, int, list[dict[str, Any]]], dict[str, Any]] | None = None,
+    probe_fn: Callable[[Any, str, list[dict[str, Any]]], dict[str, Any]] | None = None,
 ) -> str:
     """Run the full pipeline for ``run_id`` and persist the outcome. Returns the
     final status (passed/limited/failed/error/held)."""
-    probe_fn = probe_fn or (lambda s, hv, t: s.probe(hv, t))
+    probe_fn = probe_fn or (lambda s, ip, t: s.probe(ip, t, plan.require_icmp))
     start = now()
     db_restore.update_run(
         run_id,
@@ -182,7 +182,7 @@ def _teardown(server: Any, plan: RunPlan) -> None:
 def retest_held(run_id: int, server: Any, plan: RunPlan, *, probe_fn=None, now=time.monotonic, sleep=time.sleep) -> str:
     """Re-probe a held environment (no new restore). Returns the new result; on
     'passed' the caller offers to promote."""
-    probe_fn = probe_fn or (lambda s, hv, t: s.probe(hv, t))
+    probe_fn = probe_fn or (lambda s, ip, t: s.probe(ip, t, plan.require_icmp))
     result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn)
     db_restore.update_run(run_id, checks=checks)
     return result
@@ -235,13 +235,13 @@ def resume_run(
     *,
     now: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
-    probe_fn: Callable[[Any, int, list[dict[str, Any]]], dict[str, Any]] | None = None,
+    probe_fn: Callable[[Any, str, list[dict[str, Any]]], dict[str, Any]] | None = None,
 ) -> str:
     """Resume a restore whose app process restarted mid-run. Re-attaches to the
     PVE restore task (by UPID) if still running, then re-runs the tail
     idempotently (fresh helper, NICs, start, probe). The restore VM is preserved;
     only the cheap helper is rebuilt. Returns the final status."""
-    probe_fn = probe_fn or (lambda s, hv, t: s.probe(hv, t))
+    probe_fn = probe_fn or (lambda s, ip, t: s.probe(ip, t, plan.require_icmp))
     start = now()
     result = "error"
     checks: dict[str, Any] = {}

@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.22] — 2026-10-31
+
+### Changed
+
+- **The restore helper is now driven over its management IP, not SSH `pct exec` (direction A, step 1).** The helper runs a small HTTP agent (`restore_helper_agent`, baked into its template); the app creates it via the API token, then POSTs the DHCP config and reads probe results over HTTP. No `pct exec` for setup or probing — a step toward the API-only (no-SSH) goal.
+  - **One-time setup:** rebuild the helper template so the agent is baked in — `scripts/build-helper-template.sh` produces the tarball; upload it to a `vztmpl` storage and point `restore_server.helper_template` at its volid.
+  - **Requirement:** the app must be able to reach the helper's management IP (that is the purpose of the management leg). If it can't, provisioning fails fast with a clear message rather than hanging.
+
 ## [v3.1.21] — 2026-10-31
 
 ### Fixed
