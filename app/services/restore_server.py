@@ -441,6 +441,32 @@ class RestoreServer:
     def start(self, vmid: int) -> None:
         self.pve.post(f"/nodes/{self.node()}/qemu/{vmid}/status/start", {})
 
+    def guest_agent_ips(self, vmid: int) -> list[str]:
+        """Non-loopback IPv4 addresses the QEMU guest agent reports for the VM, or
+        [] if the agent isn't up yet or absent. Used to discover the IP of a VM
+        with no recorded/static-known address (the agent reports it after boot)."""
+        import ipaddress
+
+        try:
+            res = self.pve.get(f"/nodes/{self.node()}/qemu/{vmid}/agent/network-get-interfaces")
+        except Exception as exc:
+            logger.debug("guest agent not ready for %s: %s", vmid, exc)
+            return []
+        ifaces = res.get("result") if isinstance(res, dict) else res
+        ips: list[str] = []
+        for iface in ifaces or []:
+            for a in iface.get("ip-addresses") or []:
+                ip = a.get("ip-address", "")
+                if a.get("ip-address-type") != "ipv4" or not ip:
+                    continue
+                try:
+                    addr = ipaddress.ip_address(ip)
+                except ValueError:
+                    continue
+                if not addr.is_loopback and not addr.is_link_local:
+                    ips.append(ip)
+        return ips
+
     def shutdown(self, vmid: int, *, force_after: bool = True) -> None:
         node = self.node()
         try:
@@ -458,20 +484,21 @@ class RestoreServer:
         return isinstance(st, dict) and st.get("status") == "running"
 
     def destroy(self, vmid: int, *, is_lxc: bool = False, sleep: Callable[[float], None] = time.sleep) -> None:
-        """Destroy a guest. PVE refuses to destroy a *running* one (a running LXC
-        in particular), so stop it first and wait for it to actually stop — else
-        the delete silently fails and the guest (e.g. the helper) lingers."""
+        """Destroy a guest. PVE refuses to destroy a *running* one, so ALWAYS stop
+        first and wait until it is actually down before purging. The stop is not
+        gated on a status read: right after a start the status can still read
+        non-running, which previously skipped the stop and made the delete fail."""
         kind = "lxc" if is_lxc else "qemu"
         node = self.node()
-        if self._is_running(vmid, is_lxc=is_lxc):
-            try:
-                self.pve.post(f"/nodes/{node}/{kind}/{vmid}/status/stop", {})
-            except Exception as exc:
-                logger.warning("stop before destroy failed for %s %s: %s", kind, vmid, exc)
-            for _ in range(30):
-                if not self._is_running(vmid, is_lxc=is_lxc):
-                    break
-                sleep(1.0)
+        try:
+            self.pve.post(f"/nodes/{node}/{kind}/{vmid}/status/stop", {})
+        except Exception as exc:
+            # Already stopped / mid-transition: harmless, we confirm below.
+            logger.debug("stop before destroy (%s %s): %s", kind, vmid, exc)
+        for _ in range(30):
+            if not self._is_running(vmid, is_lxc=is_lxc):
+                break
+            sleep(1.0)
         self.pve.delete(f"/nodes/{node}/{kind}/{vmid}?purge=1&destroy-unreferenced-disks=1")
 
     # reaper -----------------------------------------------------------------

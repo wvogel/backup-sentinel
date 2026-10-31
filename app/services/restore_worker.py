@@ -61,19 +61,28 @@ def _probe_loop(
     sleep: Callable[[float], None],
     probe_fn: Callable[[Any, str, list[dict[str, Any]]], dict[str, Any]],
 ) -> tuple[str, dict[str, Any]]:
-    """Poll until success or the window elapses. Returns (result, checks)."""
-    had_ip = plan.primary_ip is not None
-    if not had_ip:
-        return "limited", {}
+    """Poll until success or the window elapses. Returns (result, checks).
 
+    The target IP is resolved per iteration: the recorded/override IP if known,
+    otherwise discovered from the restored VM's guest agent (which only answers
+    once it has booted). So a VM whose IP we don't have recorded is no longer an
+    instant "limited" — we wait for the agent within the window and then probe."""
     sleep(plan.first_delay)
     deadline = now() + plan.window
+    target_ip = plan.primary_ip  # override or recorded; may be None
     checks: dict[str, Any] = {}
-    result = "failed"
+    result = "limited"
     while True:
-        checks = probe_fn(server, plan.mgmt_ip, plan.probe_targets)
-        primary = checks.get(plan.primary_ip)
-        result = restore_probe.classify(primary, require_icmp=plan.require_icmp, tcp_ports=plan.tcp_ports, had_ip=True)
+        if not target_ip:
+            target_ip = next(iter(server.guest_agent_ips(plan.restore_vmid) or []), None)
+        if target_ip:
+            targets = plan.probe_targets if plan.primary_ip else [{"ip": target_ip, "ports": plan.tcp_ports}]
+            checks = probe_fn(server, plan.mgmt_ip, targets)
+            result = restore_probe.classify(
+                checks.get(target_ip), require_icmp=plan.require_icmp, tcp_ports=plan.tcp_ports, had_ip=True
+            )
+        else:
+            result, checks = "limited", {"note": "no target IP yet (no record, override, or guest agent)"}
         if result == "passed" or now() >= deadline:
             return result, checks
         sleep(plan.interval)

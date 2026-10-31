@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.28] — 2026-11-01
+
+### Fixed
+
+- **A VM with no recorded IP is no longer an instant "limited" one second after start.** The probe loop used to bail immediately when it had no IP. It now resolves the target per iteration — recorded/override IP, otherwise the restored VM's **QEMU guest agent** (which answers once it has booted) — and waits within the 5-minute window instead of giving up.
+- **A guest must be stopped before it is destroyed.** `destroy` now always issues a stop and waits for the guest to be down before purging (previously the stop was skipped when a status read right after start didn't yet say "running", so the VM delete failed).
+
+### Added
+
+- **Guest-agent IP discovery for restored VMs** (`agent/network-get-interfaces` over the API): the restored VM's IP is read from its agent after boot, and the helper adds a sandbox address in that subnet so it can reach and probe it — no reliance on a pre-recorded IP.
+
 ## [v3.1.27] — 2026-11-01
 
 ### Fixed

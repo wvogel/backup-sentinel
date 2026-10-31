@@ -343,6 +343,26 @@ def test_destroy_stops_a_running_guest_before_deleting():
     assert any("/nodes/r1/lxc/9001?purge=1" in d for d in srv.pve.deletes)
 
 
+def test_guest_agent_ips_parses_and_filters():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/agent/network-get-interfaces": {
+            "result": [
+                {"name": "lo", "ip-addresses": [{"ip-address": "127.0.0.1", "ip-address-type": "ipv4"}]},
+                {
+                    "name": "eth0",
+                    "ip-addresses": [
+                        {"ip-address": "10.0.0.77", "ip-address-type": "ipv4"},
+                        {"ip-address": "fe80::1", "ip-address-type": "ipv6"},
+                    ],
+                },
+            ]
+        },
+    }
+    srv = _server(responses)
+    assert srv.guest_agent_ips(9000) == ["10.0.0.77"]  # loopback + ipv6 filtered out
+
+
 def test_reap_destroys_unowned():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],
