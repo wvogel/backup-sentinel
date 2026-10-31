@@ -5,6 +5,19 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.11] — 2026-10-31
+
+### Fixed
+
+- **Teardown no longer blindly shuts down / destroys a VM that doesn't exist.** A run that errored before the restore left no VM, yet teardown still issued a shutdown (spamming "unable to find configuration" on the PVE host). It now checks existence first; the reaper remains the safety net.
+- **Restore-runs list shows the VM name and the error reason.** It showed an internal id and only "error"; now it shows `name (vmid)` and, for failed/errored runs, the actual reason (from the run's checks) inline and on hover.
+
+### Changed
+
+- **`/restore` diagnostic now lists the matched VMs** per detected backup location (as `cluster:vm`), or "no VM matched" — so it's immediately visible whether a location maps to any VM and what would be restored from where.
+- The queue pause/resume ring sits far right in the restore-host row.
+- **Per-VM detail:** Backup history and Automated Restore Settings are each in their own bordered box with the heading breaking the border line, consistent with the cards elsewhere.
+
 ## [v3.1.10] — 2026-10-31
 
 ### Added

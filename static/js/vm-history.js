@@ -74,11 +74,13 @@
     return box;
   }
 
-  function sectionTitle(text) {
-    const h = document.createElement("strong");
-    h.className = "vm-section-title";
-    h.textContent = text;
-    return h;
+  function sectionBox(text) {
+    const fs = document.createElement("fieldset");
+    fs.className = "vm-section";
+    const lg = document.createElement("legend");
+    lg.textContent = text;
+    fs.append(lg);
+    return fs;
   }
 
   async function open(row) {
@@ -96,23 +98,26 @@
     const settings = row.querySelector("template.vm-settings-template");
     const frag = settings ? settings.content.cloneNode(true) : null;
 
-    // Section 1 — Backup history (heading, backup-frequency control, charts).
-    cell.append(sectionTitle(T("cluster.backup_history")));
-    if (frag) {
-      const bf = frag.querySelector(".vm-backup-freq");
-      if (bf) cell.append(bf);
-    }
+    // Each area in its own bordered box whose heading breaks the border line
+    // (fieldset + legend, like the cards elsewhere).
     const box = document.createElement("div");
     box.className = "vm-history muted";
     box.textContent = T("cluster.history_loading");
-    cell.append(box);
 
-    // Section 2 — Automated restore settings.
+    const s1 = sectionBox(T("cluster.backup_history"));
+    if (frag) {
+      const bf = frag.querySelector(".vm-backup-freq");
+      if (bf) s1.append(bf);
+    }
+    s1.append(box);
+    cell.append(s1);
+
     if (frag) {
       const rs = frag.querySelector(".vm-restore-settings");
       if (rs) {
-        cell.append(sectionTitle(T("restore.settings_title")));
-        cell.append(rs);
+        const s2 = sectionBox(T("restore.settings_title"));
+        s2.append(rs);
+        cell.append(s2);
       }
     }
     detail.append(cell);

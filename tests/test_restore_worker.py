@@ -50,6 +50,10 @@ class FakeServer:
     def __init__(self):
         self.calls = []
 
+    def exists(self, vmid, is_lxc=False):
+        self.calls.append("exists")
+        return True
+
     def __getattr__(self, name):
         def rec(*a, **k):
             self.calls.append(name)
@@ -232,3 +236,17 @@ class WorkerTest(unittest.TestCase):
         self.assertIn("poll_task", srv.calls)  # re-attached to the running task
         self.assertIn("provision_helper", srv.calls)  # tail re-run idempotently
         self.assertEqual(db_restore.get_run(run_id)["result"], "passed")
+
+    def test_teardown_skips_shutdown_when_vm_absent(self):
+        from app.services.restore_worker import _teardown
+
+        class Absent(FakeServer):
+            def exists(self, vmid, is_lxc=False):
+                self.calls.append("exists")
+                return False
+
+        srv = Absent()
+        _teardown(srv, _plan(self.vm_id))
+        self.assertNotIn("shutdown", srv.calls)  # no blind shutdown of a VM that isn't there
+        self.assertNotIn("destroy", srv.calls)
+        self.assertIn("reap", srv.calls)  # the reaper still runs as the safety net

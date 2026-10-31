@@ -27,18 +27,6 @@
   {%- set ram_level = 'crit' if ram_pct >= 90 else ('warn' if ram_pct >= 70 else 'ok') %}
   {%- set targets = host.stores|selectattr('images')|list %}
   <div class="store-rings">
-    {# Queue pause / resume as a ring control (play ▶ to resume, ❚❚ to pause). #}
-    <form action="/restore/queue/pause" method="post" class="store-ring-card">
-      <input type="hidden" name="paused" value="{{ '0' if queue_paused else '1' }}">
-      <button type="submit" class="store-ring ring-ctl {{ 'ring-paused' if queue_paused else 'ring-ok' }}"
-              aria-label="{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}">
-        <span class="ring-center ring-ctl-icon" aria-hidden="true">
-          {% if queue_paused %}<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          {% else %}<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>{% endif %}
-        </span>
-      </button>
-      <div class="store-ring-label">{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}</div>
-    </form>
     {# RAM as a ring (capacity + free). #}
     <div class="store-ring-card">
       <div class="store-ring ring-{{ ram_level }}" style="--pct: {{ ram_pct|round(0, 'floor')|int }}">
@@ -59,6 +47,18 @@
       </div>
     </div>
     {% endfor %}
+    {# Queue pause / resume as a ring control (play ▶ to resume, ❚❚ to pause), far right. #}
+    <form action="/restore/queue/pause" method="post" class="store-ring-card queue-ring-right">
+      <input type="hidden" name="paused" value="{{ '0' if queue_paused else '1' }}">
+      <button type="submit" class="store-ring ring-ctl {{ 'ring-paused' if queue_paused else 'ring-ok' }}"
+              aria-label="{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}">
+        <span class="ring-center ring-ctl-icon" aria-hidden="true">
+          {% if queue_paused %}<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          {% else %}<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>{% endif %}
+        </span>
+      </button>
+      <div class="store-ring-label">{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}</div>
+    </form>
   </div>
   {% if not targets %}<p class="muted">{{ t('restore.storage_none') }}</p>{% endif %}
 
@@ -69,7 +69,11 @@
     <summary>{{ t('restore.diag_title') }}</summary>
     <ul class="restore-diag-list">
       {% for e in host_pbs %}
-      <li><strong>{{ e.storage }}</strong> → <code>{{ e.location }}</code>{% if not e.resolved %} <span class="warn-text">· {{ t('restore.diag_unresolved') }}</span>{% endif %}</li>
+      <li>
+        <strong>{{ e.storage }}</strong> → <code>{{ e.location }}</code>{% if not e.resolved %} <span class="warn-text">· {{ t('restore.diag_unresolved') }}</span>{% endif %}
+        {% if e.vms %}<div class="restore-diag-vms">{{ e.vms|join(', ') }}</div>
+        {% else %}<div class="restore-diag-vms muted">{{ t('restore.diag_no_vms') }}</div>{% endif %}
+      </li>
       {% endfor %}
     </ul>
   </details>
@@ -138,12 +142,13 @@
     <tbody>
     {% for run in runs %}
       <tr>
-        <td>VM {{ run.vm_id }}</td>
+        <td>{{ run.vm_name or ('VM ' ~ run.vm_id) }}{% if run.vmid_src %} <span class="muted">({{ run.vmid_src }})</span>{% endif %}</td>
         <td><span class="status-badge status-{{ run.status }}">{{ run.status }}</span></td>
         <td>
           {% if run.status == 'running' %}
             {{ run.percent or 0 }}%{% if run.eta %} · ETA {{ run.eta|datetime_local }}{% endif %}
             {% if run.throughput_bps %} · {{ (run.throughput_bps / 1048576)|round(1) }} MiB/s{% endif %}
+          {% elif run.checks and run.checks.get('error') %}<span class="critical-text" data-tooltip="{{ run.checks.error }}">{{ run.result or 'error' }}: {{ run.checks.error|truncate(80) }}</span>
           {% elif run.result %}{{ run.result }}{% else %}–{% endif %}
         </td>
         <td>{{ run.trigger }}</td>

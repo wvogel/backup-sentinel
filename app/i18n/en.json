@@ -606,6 +606,7 @@
   "restore.runs_title": "Restore tests",
   "restore.diag_title": "Restore server's detected backup locations",
   "restore.diag_unresolved": "not matched to a registered PBS connection",
+  "restore.diag_no_vms": "no VM matched",
   "restore.no_runs": "No runs yet.",
   "restore.col_status": "Status",
   "restore.col_progress": "Progress",

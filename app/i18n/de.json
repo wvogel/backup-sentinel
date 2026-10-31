@@ -606,6 +606,7 @@
   "restore.runs_title": "Restore-Tests",
   "restore.diag_title": "Erkannte Backup-Orte des Restore-Servers",
   "restore.diag_unresolved": "keiner registrierten PBS-Verbindung zugeordnet",
+  "restore.diag_no_vms": "keine VM gematcht",
   "restore.no_runs": "Noch keine Läufe.",
   "restore.col_status": "Status",
   "restore.col_progress": "Fortschritt",
