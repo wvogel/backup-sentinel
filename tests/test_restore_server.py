@@ -103,6 +103,7 @@ class FakePve:
         self.responses = responses
         self.posts = []
         self.deletes = []
+        self.uploads = []
 
     def get(self, path):
         # Longest matching prefix wins, so "/nodes/r1/qemu" beats "/nodes".
@@ -121,6 +122,10 @@ class FakePve:
 
     def delete(self, path):
         self.deletes.append(path)
+
+    def upload(self, node, storage, filename, data):
+        self.uploads.append((node, storage, filename, len(data)))
+        return ""  # no task UPID → no wait in the test
 
 
 class FakeSsh:
@@ -213,6 +218,7 @@ def test_provision_helper_rootfs_on_first_container_capable_target():
     }
     srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
     posted = []
+    srv.ensure_helper_template = lambda: "local:vztmpl/restore-helper.tar.gz"
     srv._agent_wait_healthy = lambda ip, **k: None  # no real HTTP in the test
     srv._agent_post = lambda ip, path, body, **k: posted.append((ip, path, body)) or {}
     srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
@@ -222,7 +228,7 @@ def test_provision_helper_rootfs_on_first_container_capable_target():
     create = [d for p, d in srv.pve.posts if p == "/nodes/r1/lxc"]
     assert create, srv.pve.posts
     assert create[0]["storage"] == "restore-ct"
-    assert create[0]["ostemplate"] == "local:vztmpl/alpine.tar.zst"
+    assert create[0]["ostemplate"] == "local:vztmpl/restore-helper.tar.gz"
     assert any(ip == "10.20.0.10" and path == "/dnsmasq" for ip, path, _ in posted)
     assert not any(c.startswith("pct ") for c in srv.ssh.commands)  # no pct exec
 
@@ -245,21 +251,29 @@ def test_helper_agent_probe_targets(monkeypatch):
     assert out["10.0.0.50"]["tcp"] == {"443": True, "22": False}
 
 
-def test_template_volid_resolves_a_path_to_its_volume_id():
-    # A filesystem-path template is matched by filename to the host's listed CT
-    # templates, so the API token can pass the volid (no SSH, no root path).
+def test_ensure_helper_template_returns_existing_volid_without_upload():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],
         "/nodes/r1/storage": [{"storage": "local", "content": "vztmpl,iso"}],
-        "/nodes/r1/storage/local/content": [{"volid": "local:vztmpl/alpine-3.19.tar.zst"}],
+        "/nodes/r1/storage/local/content": [{"volid": "local:vztmpl/restore-helper.tar.gz"}],
     }
-    cfg = {
-        "ssh_host": "10.0.0.9",
-        "api_url": "https://10.0.0.9:8006",
-        "helper_template": "/var/lib/vz/template/cache/alpine-3.19.tar.zst",
+    srv = RestoreServer({"ssh_host": "10.0.0.9", "api_url": "https://10.0.0.9:8006"}, FakePve(responses), FakeSsh())
+    assert srv.ensure_helper_template() == "local:vztmpl/restore-helper.tar.gz"
+    assert srv.pve.uploads == []  # already present → no upload
+
+
+def test_ensure_helper_template_uploads_when_absent(tmp_path):
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage": [{"storage": "local", "content": "vztmpl"}],
+        "/nodes/r1/storage/local/content": [],  # not present yet
     }
+    img = tmp_path / "restore-helper.tar.gz"
+    img.write_bytes(b"ROOTFS")
+    cfg = {"ssh_host": "10.0.0.9", "api_url": "https://10.0.0.9:8006", "helper_image_path": str(img)}
     srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
-    assert srv._template_volid() == "local:vztmpl/alpine-3.19.tar.zst"
+    assert srv.ensure_helper_template() == "local:vztmpl/restore-helper.tar.gz"
+    assert srv.pve.uploads == [("r1", "local", "restore-helper.tar.gz", 6)]
 
 
 def test_provision_helper_fails_clearly_when_no_target_accepts_containers():

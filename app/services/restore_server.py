@@ -23,12 +23,14 @@ from typing import Any, Protocol
 logger = logging.getLogger(__name__)
 
 OWNED_TAG = "bsentinel-restore"
+HELPER_IMAGE_NAME = "restore-helper.tar.gz"  # the app-built helper CT template
 
 
 class PveClient(Protocol):
     def get(self, path: str) -> Any: ...
     def post(self, path: str, data: dict[str, Any]) -> Any: ...
     def delete(self, path: str) -> Any: ...
+    def upload(self, node: str, storage: str, filename: str, data: bytes) -> Any: ...
 
 
 class SshClient(Protocol):
@@ -470,25 +472,46 @@ class RestoreServer:
                 return t["storage"]
         return ""
 
-    def _template_volid(self) -> str:
-        """The configured helper template as a storage VOLUME ID (what a non-root
-        API token may pass). A volid is used as-is; a filesystem path is matched
-        by filename against the host's listed CT templates, so the operator can
-        configure either form. "" if nothing matches."""
-        want = str(self.config.get("helper_template", "")).strip()
-        if want and ":" in want and not want.startswith("/"):
-            return want  # already a storage volume id
-        base = want.rsplit("/", 1)[-1]
-        if not base:
-            return ""
+    def ensure_helper_template(self) -> str:
+        """The helper CT template on the restore host, as a volid — uploaded via
+        the API if not already there. The image is built into the app (Dockerfile)
+        and uploaded on demand, so there is nothing for the operator to prepare or
+        upload, and no SSH."""
         node = self.node()
-        for s in self.pve.get(f"/nodes/{node}/storage") or []:
-            if "vztmpl" not in (s.get("content") or ""):
-                continue
+        stores = [s for s in (self.pve.get(f"/nodes/{node}/storage") or []) if "vztmpl" in (s.get("content") or "")]
+        for s in stores:
             for vol in self.pve.get(f"/nodes/{node}/storage/{s['storage']}/content?content=vztmpl") or []:
-                if str(vol.get("volid", "")).rsplit("/", 1)[-1] == base:
+                if str(vol.get("volid", "")).rsplit("/", 1)[-1] == HELPER_IMAGE_NAME:
                     return vol["volid"]
-        return ""
+        if not stores:
+            raise RestoreTaskError("no vztmpl-capable storage on the restore host to hold the helper template")
+        storage = stores[0]["storage"]
+        upid = self.pve.upload(node, storage, HELPER_IMAGE_NAME, self._helper_image_bytes())
+        if isinstance(upid, str) and upid.startswith("UPID"):
+            self._wait_task(node, upid)
+        return f"{storage}:vztmpl/{HELPER_IMAGE_NAME}"
+
+    def _helper_image_bytes(self) -> bytes:
+        from pathlib import Path
+
+        from app.config import BASE_DIR
+
+        path = Path(self.config.get("helper_image_path") or (Path(BASE_DIR) / "assets" / HELPER_IMAGE_NAME))
+        try:
+            return path.read_bytes()
+        except OSError as exc:
+            raise RestoreTaskError(f"helper image not found at {path}: {exc}") from exc
+
+    def _wait_task(
+        self, node: str, upid: str, *, attempts: int = 120, sleep: Callable[[float], None] = time.sleep
+    ) -> None:
+        for _ in range(attempts):
+            st = self.pve.get(f"/nodes/{node}/tasks/{upid}/status") or {}
+            if st.get("status") == "stopped":
+                if st.get("exitstatus") not in (None, "OK"):
+                    raise RestoreTaskError(f"helper template upload failed: {st.get('exitstatus')}")
+                return
+            sleep(1.0)
 
     def provision_helper(
         self,
@@ -526,12 +549,7 @@ class RestoreServer:
         # storage VOLUME ID, just not an absolute filesystem path ("Only root can
         # pass arbitrary filesystem paths"). So resolve the template to its volid
         # first; rootfs goes on the selected container-capable target storage.
-        template = self._template_volid()
-        if not template:
-            raise RuntimeError(
-                "helper template not found as a storage volume on the restore host "
-                "(set restore_server.helper_template to a volid like local:vztmpl/alpine-…tar.zst)"
-            )
+        template = self.ensure_helper_template()
         self.pve.post(
             f"/nodes/{node}/lxc",
             {
@@ -742,6 +760,19 @@ class PveApi:
         from app.services.api_client import api_send
 
         return api_send("DELETE", self.base, path, self.auth, label="PVE-Restore")
+
+    def upload(self, node: str, storage: str, filename: str, data: bytes) -> Any:
+        from app.services.api_client import api_upload
+
+        return api_upload(
+            self.base,
+            f"/nodes/{node}/storage/{storage}/upload",
+            self.auth,
+            content="vztmpl",
+            filename=filename,
+            data=data,
+            label="PVE-Restore",
+        )
 
 
 def _extract_json(text: str) -> dict[str, Any]:

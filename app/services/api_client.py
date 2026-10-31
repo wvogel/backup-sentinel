@@ -143,6 +143,46 @@ def api_send(
     return payload.get("data") if isinstance(payload, dict) else None
 
 
+def api_upload(
+    base_url: str,
+    path: str,
+    auth_header: str,
+    *,
+    content: str,
+    filename: str,
+    data: bytes,
+    timeout: float = 600.0,
+    label: str = "API",
+) -> Any:
+    """multipart/form-data upload (e.g. a vztmpl to a PVE storage). Returns the
+    parsed JSON 'data' field (the upload task's UPID)."""
+    import secrets
+
+    boundary = "----bsentinel" + secrets.token_hex(16)
+    pre = (
+        f'--{boundary}\r\nContent-Disposition: form-data; name="content"\r\n\r\n{content}\r\n'
+        f'--{boundary}\r\nContent-Disposition: form-data; name="filename"; filename="{filename}"\r\n'
+        "Content-Type: application/octet-stream\r\n\r\n"
+    ).encode()
+    body = pre + data + f"\r\n--{boundary}--\r\n".encode()
+    headers = {
+        "Authorization": auth_header,
+        "Accept": "application/json",
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+    }
+    short_path = path.replace("/api2/json", "")
+    logger.info("→ %s POST %s (%d bytes)", label, short_path, len(data))
+    try:
+        raw = _send_body("POST", f"{base_url}{path}", headers, body, timeout)
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise APIError(f"{label} API returned HTTP {exc.code} for POST {path}: {detail}") from exc
+    except error.URLError as exc:
+        raise APIError(f"{label} API request failed for POST {path}: {exc.reason}") from exc
+    payload = json.loads(raw) if raw else {}
+    return payload.get("data") if isinstance(payload, dict) else None
+
+
 class APIError(RuntimeError):
     """Base error for Proxmox/PBS API calls."""
 
