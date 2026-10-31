@@ -1759,11 +1759,18 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   .auto-restore-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Restore-test button cell (grid row 2, first column). The button has no label
-   above it, so align-self:end drops it to the row's baseline — bottom-aligned
-   with the inputs/checkboxes beside it. */
-.auto-restore-form .field-action { align-self: end; justify-content: flex-end; }
-.auto-restore-form .field-action .button-secondary { width: 100%; justify-content: center; }
+/* Restore-test button on its own full-width row below the fields, right-aligned. */
+.auto-restore-form .field-action-row {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+/* Read-only detected IP: visibly non-editable. */
+.auto-restore-form input[readonly] {
+  opacity: 0.75;
+  cursor: default;
+}
 
 .checkbox-label {
   display: inline-flex;

@@ -60,6 +60,7 @@ def _probe_loop(
     now: Callable[[], float],
     sleep: Callable[[float], None],
     probe_fn: Callable[[Any, str, list[dict[str, Any]]], dict[str, Any]],
+    run_id: int | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Poll until success or the window elapses. Returns (result, checks).
 
@@ -75,6 +76,8 @@ def _probe_loop(
     while True:
         if not target_ip:
             target_ip = next(iter(server.guest_agent_ips(plan.restore_vmid) or []), None)
+            if target_ip and run_id is not None:
+                db_restore.update_run(run_id, detected_ip=target_ip)
         if target_ip:
             targets = plan.probe_targets if plan.primary_ip else [{"ip": target_ip, "ports": plan.tcp_ports}]
             checks = probe_fn(server, plan.mgmt_ip, targets)
@@ -138,7 +141,9 @@ def execute(
         db_restore.update_run(run_id, phase="booting")
         server.start(plan.restore_vmid)
         db_restore.update_run(run_id, phase="probing")
-        result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn)
+        if plan.primary_ip:
+            db_restore.update_run(run_id, detected_ip=plan.primary_ip)  # recorded/override IP
+        result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id)
     except Exception as exc:
         logger.warning("restore run %s failed: %s", run_id, exc)
         result = "error"
@@ -196,7 +201,7 @@ def retest_held(run_id: int, server: Any, plan: RunPlan, *, probe_fn=None, now=t
     """Re-probe a held environment (no new restore). Returns the new result; on
     'passed' the caller offers to promote."""
     probe_fn = probe_fn or (lambda s, ip, t: s.probe(ip, t, plan.require_icmp))
-    result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn)
+    result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id)
     db_restore.update_run(run_id, checks=checks)
     return result
 
@@ -275,7 +280,7 @@ def resume_run(
             server.start(plan.restore_vmid)
         except Exception as exc:
             logger.debug("resume: start (maybe already running): %s", exc)
-        result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn)
+        result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id)
     except Exception as exc:
         logger.warning("restore run %s resume failed: %s", run_id, exc)
         result = "error"

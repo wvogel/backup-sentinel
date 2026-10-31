@@ -226,6 +226,9 @@ def init_db() -> None:
             # Current pipeline step of a running run (restoring/network/helper/
             # booting/probing), for the live progress card.
             cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS phase TEXT")
+            # The restored guest's IP as discovered at probe time (override,
+            # recorded, or guest agent), shown read-only in the VM's settings.
+            cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS detected_ip TEXT")
             # Guest network interfaces collected from production (spec §9).
             cur.execute(
                 """

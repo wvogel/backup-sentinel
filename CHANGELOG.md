@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.29] — 2026-11-01
+
+### Changed
+
+- **`/restore` shows a restore that starts after the page loaded, without a manual reload.** The live card previously polled only if a restore was already running at load; it now polls the page unconditionally and brings the card in as soon as a run appears (and clears it when it finishes).
+- **The VM's restore settings show the detected IP (read-only) next to the override.** The IP found on the last run (recorded/override/guest agent) appears, non-editable, in the column before "Primary IP (override)". The "Restore-Test starten" button moved to its own row below, right-aligned.
+
 ## [v3.1.28] — 2026-11-01
 
 ### Fixed
