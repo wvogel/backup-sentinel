@@ -94,13 +94,18 @@ def _send_body(method: str, url: str, headers: dict[str, str], body: bytes, time
         conn.request(method, target, body=body, headers=headers)
         response = conn.getresponse()
         data = response.read()
-        if response.status >= 400:
-            raise error.HTTPError(url, response.status, response.reason, response.headers, io.BytesIO(data))
-        return data
+        status, reason, resp_headers = response.status, response.reason, response.headers
     except (OSError, http.client.HTTPException) as exc:
         raise error.URLError(exc) from exc
     finally:
         conn.close()
+    # Raise the HTTPError OUTSIDE the try: it subclasses URLError subclasses
+    # OSError, so raising it above would be caught by the broad except and
+    # downgraded to a bare URLError — discarding the response body, which is
+    # where Proxmox puts the specifics (e.g. which parameter failed).
+    if status >= 400:
+        raise error.HTTPError(url, status, reason, resp_headers, io.BytesIO(data))
+    return data
 
 
 def api_send(
