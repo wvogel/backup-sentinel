@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.2] — 2026-10-31
+
+### Changed
+
+- **Per-VM restore settings form** reworked to a uniform grid: every field is a heading with its control below (checkboxes too), so it lines up in two rows. "ICMP nötig" → "ICMP"; "Wiederhergestellte VM bei Fehler behalten" → "VM bei Fehler behalten"; Retry now sits right after Turnus. Actions are right-aligned with "Restore-Test starten" before "Speichern".
+
 ## [v3.1.1] — 2026-10-31
 
 ### Fixed

@@ -1709,28 +1709,49 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 /* Per-VM auto-restore controls inside the VM settings panel: a compact
    horizontal flow (matching the rest of the panel), not a sparse column. */
 .auto-restore-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-  flex-basis: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  align-items: end;
+  gap: 10px 16px;
   margin-top: 8px;
   padding-top: 10px;
   border-top: 1px dashed var(--line);
 }
 
-.auto-restore-form label { white-space: nowrap; }
-
-.auto-restore-form input {
-  width: auto;
-  max-width: 150px;
+/* Every control: heading on top, field below — so the row lines up uniformly. */
+.auto-restore-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  white-space: nowrap;
+}
+.auto-restore-form .field > span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.auto-restore-form .field-check {
+  justify-content: flex-start;
+}
+.auto-restore-form .field-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+}
+.auto-restore-form input,
+.auto-restore-form select {
+  width: 100%;
   padding: 4px 8px;
   font-size: 0.85rem;
+  box-sizing: border-box;
 }
 
-.auto-restore-form input[type="checkbox"] { width: auto; }
-
-.auto-restore-actions { margin-left: auto; }
+/* Actions span the full grid width; buttons right (Restore-Test, then Speichern). */
+.auto-restore-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
 
 .checkbox-label {
   display: inline-flex;
