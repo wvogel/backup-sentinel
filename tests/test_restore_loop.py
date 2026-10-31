@@ -224,7 +224,10 @@ def test_target_storages_from_rows():
         classes=["enterprise-ssd", "sata-hdd", "standard-ssd"],
         used={"zfs", "dir"},
     )
+    # Every row kept (disk class known everywhere); `use` marks targets, `order`
+    # the fill order of the ticked ones.
     assert rows == [
-        {"storage": "zfs", "disk_class": "enterprise-ssd", "order": 0},
-        {"storage": "dir", "disk_class": "standard-ssd", "order": 1},
+        {"storage": "zfs", "disk_class": "enterprise-ssd", "use": True, "order": 0},
+        {"storage": "nfs", "disk_class": "sata-hdd", "use": False, "order": 9999},
+        {"storage": "dir", "disk_class": "standard-ssd", "use": True, "order": 1},
     ]

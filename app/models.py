@@ -48,6 +48,9 @@ class TargetStorage(BaseModel):
     storage: str = Field(min_length=1, max_length=120)
     type: str = Field(default="", max_length=40)  # PVE storage type, display-only
     disk_class: str = Field(default="standard-ssd")
+    # The operator assigns a disk class to every image-capable storage; `use`
+    # marks the subset selected as restore targets (order is the fill order).
+    use: bool = Field(default=True)
     order: int = Field(default=0, ge=0)
 
     @field_validator("disk_class")

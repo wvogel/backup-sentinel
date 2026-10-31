@@ -199,6 +199,33 @@ document.addEventListener("change", async (e) => {
   }
 });
 
+// ── Live disk-class icon in the restore storage table ─────────────────────────
+// Changing the disk-class dropdown swaps the icon (shape + colour) immediately.
+(function () {
+  const WRAP = (inner) =>
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    inner +
+    "</svg>";
+  const SSD = WRAP('<rect x="4" y="6" width="16" height="12" rx="2"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="16" y1="10" x2="16" y2="14"/>');
+  const HDD = WRAP('<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>');
+  const META = {
+    "enterprise-ssd": ["disk-green", SSD],
+    "standard-ssd": ["disk-blue", SSD],
+    "sas-hdd": ["disk-green", HDD],
+    "sata-hdd": ["disk-blue", HDD],
+  };
+  document.addEventListener("change", (e) => {
+    const sel = e.target.closest(".js-disk-class");
+    if (!sel) return;
+    const icon = sel.closest("tr")?.querySelector(".disk-icon");
+    const meta = META[sel.value];
+    if (!icon || !meta) return;
+    icon.className = "disk-icon " + meta[0];
+    icon.innerHTML = meta[1];
+    icon.setAttribute("data-tooltip", T("restore.class_" + sel.value));
+  });
+})();
+
 // Expose globally for other modules
 window.showSuccessLightbox = showSuccessLightbox;
 window.showStatusLightbox = showStatusLightbox;

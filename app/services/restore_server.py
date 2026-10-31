@@ -143,7 +143,11 @@ class RestoreServer:
         node = self.node()
         status = self.pve.get(f"/nodes/{node}/status") or {}
         mem = status.get("memory", {})
-        classes = {s["storage"]: s.get("disk_class") for s in self.config.get("target_storages", [])}
+        cfg_targets = self.config.get("target_storages", [])
+        classes = {s["storage"]: s.get("disk_class") for s in cfg_targets}
+        # Operator's configured preference order, so the UI is stable across
+        # reloads instead of following PVE's arbitrary listing order.
+        orders = {s["storage"]: s.get("order", 9999) for s in cfg_targets}
         stores = []
         for s in self.pve.get(f"/nodes/{node}/storage") or []:
             content = s.get("content", "") or ""
@@ -161,8 +165,10 @@ class RestoreServer:
                     "total": total,
                     "avail": avail,
                     "disk_class": classes.get(s["storage"]),
+                    "order": orders.get(s["storage"], 9999),
                 }
             )
+        stores.sort(key=lambda s: (s["order"], s["storage"]))
         return {"ram_free": mem.get("free"), "ram_total": mem.get("total"), "stores": stores}
 
     def list_pbs_storages(self) -> list[dict[str, Any]]:
