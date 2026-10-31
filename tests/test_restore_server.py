@@ -213,10 +213,30 @@ def test_provision_helper_rootfs_on_first_container_capable_target():
     }
     srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
     srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
-    create = [(p, d) for p, d in srv.pve.posts if p == "/nodes/r1/lxc"]
+    # All via the API token (no SSH for creation); rootfs on the first
+    # container-capable selected target (images-only "restore-vms" skipped).
+    create = [d for p, d in srv.pve.posts if p == "/nodes/r1/lxc"]
     assert create, srv.pve.posts
-    assert create[0][1]["storage"] == "restore-ct"  # images-only target skipped
-    assert create[0][1]["ostemplate"] == "local:vztmpl/alpine.tar.zst"
+    assert create[0]["storage"] == "restore-ct"
+    assert create[0]["ostemplate"] == "local:vztmpl/alpine.tar.zst"
+    assert not any(c.startswith("pct create") for c in srv.ssh.commands)
+
+
+def test_template_volid_resolves_a_path_to_its_volume_id():
+    # A filesystem-path template is matched by filename to the host's listed CT
+    # templates, so the API token can pass the volid (no SSH, no root path).
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage": [{"storage": "local", "content": "vztmpl,iso"}],
+        "/nodes/r1/storage/local/content": [{"volid": "local:vztmpl/alpine-3.19.tar.zst"}],
+    }
+    cfg = {
+        "ssh_host": "10.0.0.9",
+        "api_url": "https://10.0.0.9:8006",
+        "helper_template": "/var/lib/vz/template/cache/alpine-3.19.tar.zst",
+    }
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    assert srv._template_volid() == "local:vztmpl/alpine-3.19.tar.zst"
 
 
 def test_provision_helper_fails_clearly_when_no_target_accepts_containers():

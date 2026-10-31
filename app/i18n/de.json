@@ -617,6 +617,7 @@
   "restore.diag_vm_locs": "Über alle VMs erfasste Backup-Orte",
   "restore.diag_vm_locs_count": "{n} VM(s)",
   "restore.no_runs": "Noch keine Läufe.",
+  "restore.col_cluster": "Cluster",
   "restore.col_status": "Status",
   "restore.col_progress": "Fortschritt",
   "restore.col_trigger": "Auslöser",

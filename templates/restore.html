@@ -149,12 +149,13 @@
   {% else %}
   <table class="data-table">
     <thead><tr>
-      <th>VM</th><th>{{ t('restore.col_status') }}</th><th>{{ t('restore.col_progress') }}</th>
+      <th>{{ t('restore.col_cluster') }}</th><th>VM</th><th>{{ t('restore.col_status') }}</th><th>{{ t('restore.col_progress') }}</th>
       <th>{{ t('restore.col_trigger') }}</th><th>{{ t('restore.col_queued') }}</th><th>{{ t('restore.col_duration') }}</th><th></th>
     </tr></thead>
     <tbody>
     {% for run in runs %}
       <tr>
+        <td>{{ run.cluster_name or '–' }}</td>
         <td>{{ run.vm_name or ('VM ' ~ run.vm_id) }}{% if run.vmid_src %} <span class="muted">({{ run.vmid_src }})</span>{% endif %}</td>
         <td><span class="status-badge status-{{ run.status }}">{{ run.status }}</span></td>
         <td>

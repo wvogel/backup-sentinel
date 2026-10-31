@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.21] — 2026-10-31
+
+### Fixed
+
+- **The probe helper is created entirely through the API token — no SSH.** The real cause of `Only root can pass arbitrary filesystem paths` was the `ostemplate` being an absolute path; a non-root token may pass it only as a storage **volume id**. The template is now resolved to its volid (a volid is used as-is; a path is matched by filename against the host's listed CT templates), so creation works via the token, with the rootfs on the first selected container-capable (`rootdir`) target storage.
+
+### Changed
+
+- **The restore-tests list has its own Cluster column** (e.g. `pve-pano` · `srv01-pano`) instead of only the VM name.
+
 ## [v3.1.20] — 2026-10-31
 
 ### Fixed

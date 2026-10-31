@@ -469,6 +469,26 @@ class RestoreServer:
                 return t["storage"]
         return ""
 
+    def _template_volid(self) -> str:
+        """The configured helper template as a storage VOLUME ID (what a non-root
+        API token may pass). A volid is used as-is; a filesystem path is matched
+        by filename against the host's listed CT templates, so the operator can
+        configure either form. "" if nothing matches."""
+        want = str(self.config.get("helper_template", "")).strip()
+        if want and ":" in want and not want.startswith("/"):
+            return want  # already a storage volume id
+        base = want.rsplit("/", 1)[-1]
+        if not base:
+            return ""
+        node = self.node()
+        for s in self.pve.get(f"/nodes/{node}/storage") or []:
+            if "vztmpl" not in (s.get("content") or ""):
+                continue
+            for vol in self.pve.get(f"/nodes/{node}/storage/{s['storage']}/content?content=vztmpl") or []:
+                if str(vol.get("volid", "")).rsplit("/", 1)[-1] == base:
+                    return vol["volid"]
+        return ""
+
     def provision_helper(
         self,
         helper_vmid: int,
@@ -503,15 +523,21 @@ class RestoreServer:
             sandbox_aliases,
             reservations,
         )
-        # Same path as the VM restore: the API token creates the container, rootfs
-        # on a selected target storage that accepts containers (the earlier "Only
-        # root can pass arbitrary filesystem paths" was the missing/invalid
-        # storage, not the token).
+        # All via the API token: a non-root token may pass an ostemplate that is a
+        # storage VOLUME ID, just not an absolute filesystem path ("Only root can
+        # pass arbitrary filesystem paths"). So resolve the template to its volid
+        # first; rootfs goes on the selected container-capable target storage.
+        template = self._template_volid()
+        if not template:
+            raise RuntimeError(
+                "helper template not found as a storage volume on the restore host "
+                "(set restore_server.helper_template to a volid like local:vztmpl/alpine-…tar.zst)"
+            )
         self.pve.post(
             f"/nodes/{node}/lxc",
             {
                 "vmid": helper_vmid,
-                "ostemplate": cfg.get("helper_template", ""),
+                "ostemplate": template,
                 "storage": helper_storage,
                 "hostname": f"{OWNED_TAG}-helper-{helper_vmid}",
                 "memory": 256,
