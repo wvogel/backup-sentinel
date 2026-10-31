@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.18] — 2026-10-31
+
+### Changed
+
+- **The restore-server rings (on the overview and `/restore`) show only the selected target storages.** Previously every image-capable storage on the node appeared; now it's just the ones ticked in Settings → Restore (RAM is always shown).
+
+### Fixed
+
+- **Pipeline lint fix:** an unused variable left v3.1.17 failing `ruff check`, so it didn't deploy. Folded in here; the v3.1.17 helper-over-SSH fix applies.
+
 ## [v3.1.17] — 2026-10-31
 
 ### Fixed
