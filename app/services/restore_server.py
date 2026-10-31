@@ -321,23 +321,27 @@ class RestoreServer:
             sleep(poll_interval)
 
     def create_api_token(self, user: str = "root@pam", token_id: str = "bsentinel-restore") -> dict[str, str]:
-        """Create (or recreate) a PVE API token over SSH and return its
-        credentials. Uses ``--privsep 0`` so the token inherits the user's full
-        permissions — no separate ACLs to maintain, and all storages are visible.
-        Safe because we already hold root SSH on this dedicated host."""
-        import json as _json
+        """Create a PVE API token over SSH and return its credentials. Uses
+        ``pvesh`` (reliable JSON) with ``privsep 0`` so the token inherits the
+        user's full permissions — no ACLs to maintain, all storages visible.
 
-        # Remove any existing token of this name so we get a fresh, known secret.
+        Non-destructive: we try to create first and only delete+recreate when the
+        token already exists, so a failure never leaves the host without a token.
+        Safe because we already hold root SSH on this dedicated host."""
+        path = f"/access/users/{user}/token/{token_id}"
+        add_cmd = f"pvesh create {path} --privsep 0 --output-format json"
         try:
-            self.ssh.run(f"pveum user token remove {user} {token_id}")
-        except Exception as exc:
-            logger.debug("token remove (ignored): %s", exc)
-        out = self.ssh.run(f"pveum user token add {user} {token_id} --privsep 0 --output-format json")
-        try:
-            data = _json.loads(out)
-        except ValueError as exc:
-            raise RuntimeError(f"unexpected 'pveum token add' output: {out[:200]}") from exc
+            out = self.ssh.run(add_cmd)
+        except Exception as first:
+            logger.info("token create failed once (%s); deleting + retrying", str(first)[:140])
+            try:
+                self.ssh.run(f"pvesh delete {path}")
+            except Exception as exc:
+                logger.debug("token delete (ignored): %s", exc)
+            out = self.ssh.run(add_cmd)
+        data = _extract_json(out)
         secret = data.get("value") or (data.get("info") or {}).get("value")
+        logger.info("provisioned API token %s!%s (secret length %d)", user, token_id, len(secret or ""))
         if not secret:
             raise RuntimeError(f"token created but no secret in output: {out[:200]}")
         return {"api_user": user, "token_id": token_id, "token_secret": secret}
@@ -539,6 +543,20 @@ class PveApi:
         from app.services.api_client import api_send
 
         return api_send("DELETE", self.base, path, self.auth, label="PVE-Restore")
+
+
+def _extract_json(text: str) -> dict[str, Any]:
+    """Parse the first JSON object in ``text`` (CLI tools may prepend warnings)."""
+    import json
+
+    s = text.strip()
+    try:
+        return json.loads(s)
+    except ValueError:
+        start, end = s.find("{"), s.rfind("}")
+        if start != -1 and end > start:
+            return json.loads(s[start : end + 1])
+        raise RuntimeError(f"no JSON in command output: {text[:200]}") from None
 
 
 def scan_host_key(host: str, port: int = 22, timeout: float = 10.0) -> str:

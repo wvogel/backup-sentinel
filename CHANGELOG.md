@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.11] — 2026-10-31
+
+### Fixed
+
+- **Token provisioning actually creates the token now.** It used `pveum user token add … --output-format json`, which errored (so no token was created) after a destructive `remove` had already deleted the previous one — leaving the host with no token while the UI still showed green and the API returned 401. Now it uses `pvesh create` (reliable JSON), is non-destructive (create first, delete+recreate only on conflict), tolerates leading warnings in the output, and logs the resulting secret length.
+
 ## [v3.0.10] — 2026-10-31
 
 ### Changed
