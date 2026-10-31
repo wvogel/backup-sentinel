@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.20] — 2026-10-31
+
+### Fixed
+
+- **Restore progress no longer freezes partway.** The task-log poll fetched without paging, so Proxmox returned only its first ~50 lines and the percentage stuck (e.g. at 34%) while the restore finished on the host. It now pages through the log with `start`/`limit`, and understands Proxmox's own `progress N% (read … bytes …)` lines (the previous parser only knew the `(X of Y)` form).
+
+### Changed
+
+- **The live restore card shows the real VM and the current step, and refreshes itself.** It now reads `cluster:vm-name` (e.g. `aboe-muc:fw-central`) instead of an internal id, shows the current phase — Restoring → **Finalizing volumes (cache flush)** → Adjusting network → Helper container → Booting → Checking reachability — and polls every 3 s so it updates without a manual reload. The long silent stretch after `restore image complete` is the post-copy volume rescan and the target storage flushing its write cache (slow disk), now shown as its own step rather than a frozen 100%.
+
 ## [v3.1.19] — 2026-10-31
 
 ### Changed

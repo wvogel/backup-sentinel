@@ -113,6 +113,7 @@ def execute(
         server.verify_host_identity(production_hosts)
         server.reap(owned_vmids())
         server.ensure_sandbox_bridge()
+        db_restore.update_run(run_id, phase="restoring")
         server.restore(
             plan.restore_vmid,
             plan.source,
@@ -121,9 +122,13 @@ def execute(
             on_progress=lambda p: db_restore.update_run(run_id, **_progress_fields(p)),
             on_task=lambda upid: db_restore.update_run(run_id, task_upid=upid),
         )
+        db_restore.update_run(run_id, phase="network")
         server.rewrite_nics(plan.restore_vmid, plan.vlan_tag)
+        db_restore.update_run(run_id, phase="helper")
         server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
+        db_restore.update_run(run_id, phase="booting")
         server.start(plan.restore_vmid)
+        db_restore.update_run(run_id, phase="probing")
         result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn)
     except Exception as exc:
         logger.warning("restore run %s failed: %s", run_id, exc)
@@ -301,6 +306,11 @@ def _progress_fields(p: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     if "percent" in p:
         out["percent"] = p["percent"]
+        # The data copy is done at 100% but the task keeps running: Proxmox then
+        # rescans volumes and the slow target flushes its write cache (can take
+        # minutes). Show that as its own step instead of a frozen 100%.
+        if p["percent"] >= 100:
+            out["phase"] = "finalizing"
     if "bytes_done" in p:
         out["bytes_done"] = p["bytes_done"]
     if "bytes_total" in p:

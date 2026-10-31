@@ -223,6 +223,9 @@ def init_db() -> None:
             # restore instead of orphaning (and reaping) it — a deploy must not
             # interrupt an in-flight restore.
             cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS task_upid TEXT")
+            # Current pipeline step of a running run (restoring/network/helper/
+            # booting/probing), for the live progress card.
+            cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS phase TEXT")
             # Guest network interfaces collected from production (spec §9).
             cur.execute(
                 """

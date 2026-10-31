@@ -93,16 +93,18 @@
   {# Running restores: live progress, ETA and the size being restored. #}
   {%- set running = runs|selectattr('status', 'equalto', 'running')|list %}
   {% if running %}
-  <div class="running-restores">
+  <div class="running-restores" data-poll="/restore/progress.json">
     <p class="eyebrow">{{ t('restore.running_now') }}</p>
     {% for run in running %}
     {%- set rp = run.percent or 0 %}
-    <div class="running-card">
-      <div class="store-ring ring-ok running-ring" style="--pct: {{ rp }}"><div class="ring-center"><strong>{{ rp }}%</strong></div></div>
+    <div class="running-card" data-run-id="{{ run.id }}">
+      <div class="store-ring ring-ok running-ring" style="--pct: {{ rp }}"><div class="ring-center"><strong class="js-run-pct">{{ rp }}%</strong></div></div>
       <div class="running-info">
-        <strong>VM {{ run.vm_id }}</strong>
-        <span class="muted">{{ t('restore.col_progress') }}: {{ run.bytes_done|size_coarse if run.bytes_done else '–' }} / {{ run.bytes_total|size_coarse if run.bytes_total else '?' }}</span>
-        <span class="muted">{% if run.eta %}ETA {{ run.eta|datetime_local }}{% endif %}{% if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
+        <strong>{{ (run.cluster_name ~ ':' ~ run.vm_name) if run.vm_name else ('VM ' ~ (run.vmid_src or run.vm_id)) }}</strong>
+        <span class="muted js-run-phase">{{ t('restore.phase_' ~ run.phase) if run.phase else t('restore.phase_restoring') }}</span>
+        <span class="muted js-run-progress">
+          {%- if run.bytes_done %}{{ run.bytes_done|size_coarse }} {{ t('restore.read_label') }}{% endif %}
+          {%- if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
       </div>
     </div>
     {% endfor %}

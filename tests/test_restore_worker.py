@@ -4,9 +4,18 @@ fake RestoreServer."""
 import os
 import unittest
 
-from app.services.restore_worker import fits_disk, fits_ram, ram_reserve_bytes
+from app.services.restore_worker import _progress_fields, fits_disk, fits_ram, ram_reserve_bytes
 
 GIB = 1024**3
+
+
+class ProgressFieldsTest(unittest.TestCase):
+    def test_under_100_has_no_phase(self):
+        self.assertEqual(_progress_fields({"percent": 42, "bytes_done": 5}), {"percent": 42, "bytes_done": 5})
+
+    def test_100_percent_marks_finalizing(self):
+        # Copy done but task still running (volume rescan / cache flush).
+        self.assertEqual(_progress_fields({"percent": 100})["phase"], "finalizing")
 
 
 class FitsDiskTest(unittest.TestCase):

@@ -48,6 +48,14 @@ def test_parse_task_progress():
     assert parse_task_progress("starting restore") is None
 
 
+def test_parse_task_progress_proxmox_read_bytes_format():
+    # Proxmox's own line: percent plus "read N bytes" (no total).
+    out = parse_task_progress(
+        "progress 90% (read 30924603392 bytes, zeroes = 60% (18668847104 bytes), duration 39 sec)"
+    )
+    assert out == {"percent": 90, "bytes_done": 30924603392}
+
+
 def test_stall_backstop_tolerates_slow_huge_restore():
     # 1% took 1h so far; a 50-min quiet gap is NOT a stall (factor 6 → ~6h allowed).
     assert stall_exceeded(50 * 60, percent_done=1, elapsed_seconds=3600, factor=6.0) is False

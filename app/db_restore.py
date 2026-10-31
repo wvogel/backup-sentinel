@@ -40,6 +40,7 @@ _UPDATABLE = frozenset(
         "percent",
         "throughput_bps",
         "eta",
+        "phase",
         "result",
         "restore_test_id",
         "log",
@@ -84,7 +85,10 @@ def update_run(run_id: int, **fields: Any) -> None:
 
 def list_runs(limit: int = 50, status: str | None = None) -> list[RestoreRunRow]:
     # Join the VM name/vmid so the UI shows "srv01 (100)" not an internal id.
-    base = "SELECT r.*, v.name AS vm_name, v.vmid AS vmid_src FROM restore_runs r LEFT JOIN vms v ON v.id = r.vm_id"
+    base = (
+        "SELECT r.*, v.name AS vm_name, v.vmid AS vmid_src, c.name AS cluster_name "
+        "FROM restore_runs r LEFT JOIN vms v ON v.id = r.vm_id LEFT JOIN clusters c ON c.id = v.cluster_id"
+    )
     with connect() as conn, conn.cursor() as cur:
         if status:
             cur.execute(
