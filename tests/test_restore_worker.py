@@ -39,7 +39,7 @@ if os.environ.get("BSENTINEL_DB_TESTS") != "1":
     raise unittest.SkipTest("set BSENTINEL_DB_TESTS=1 to run database tests (they truncate all tables)")
 
 from app import db, db_restore
-from app.services.restore_worker import RunPlan, execute, promote_held, reconcile_on_startup
+from app.services.restore_worker import RunPlan, execute, promote_held, reconcile_on_startup, resume_run
 
 
 def setUpModule() -> None:
@@ -206,7 +206,29 @@ class WorkerTest(unittest.TestCase):
         self.assertIn("destroy", srv.calls)
 
     def test_reconcile_marks_running_as_error(self):
+        # No restore server configured in the test DB → a running run can't be
+        # resumed or reached, so it is marked error.
         run_id = self._run()
         db_restore.update_run(run_id, status="running")
         reconcile_on_startup()
         self.assertEqual(db_restore.get_run(run_id)["status"], "error")
+
+    def test_resume_reattaches_to_task_and_finalizes(self):
+        run_id = self._run()
+        db_restore.update_run(
+            run_id, status="running", restore_vmid=9000, helper_vmid=9001, task_upid="UPID:restore:abcd"
+        )
+        srv = FakeServer()
+        res = resume_run(
+            run_id,
+            _plan(self.vm_id),
+            srv,
+            "UPID:restore:abcd",
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": True, "ports": {"443": True}}},
+        )
+        self.assertEqual(res, "passed")
+        self.assertIn("poll_task", srv.calls)  # re-attached to the running task
+        self.assertIn("provision_helper", srv.calls)  # tail re-run idempotently
+        self.assertEqual(db_restore.get_run(run_id)["result"], "passed")

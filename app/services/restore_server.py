@@ -283,6 +283,7 @@ class RestoreServer:
         snapshot_id: str,
         target_storage: str,
         on_progress: Callable[[dict[str, Any]], None] | None = None,
+        on_task: Callable[[str], None] | None = None,
         *,
         poll_interval: float = 5.0,
         now: Callable[[], float] = time.monotonic,
@@ -290,7 +291,9 @@ class RestoreServer:
     ) -> None:
         """Restore a snapshot to ``restore_vmid`` on the target storage, tracking
         live progress. Liveness is the task status; abort only on task error or
-        an adaptive stall (spec §6, §11)."""
+        an adaptive stall (spec §6, §11). ``on_task`` receives the PVE task UPID
+        as soon as it starts, so the caller can persist it and re-attach after an
+        app restart (a deploy must not interrupt a running restore)."""
         node = self.node()
         # snapshot_id is the PBS volume id (e.g. "store:backup/vm/100/2026-...Z"),
         # which PVE accepts directly as the restore archive.
@@ -301,7 +304,23 @@ class RestoreServer:
             f"/nodes/{node}/qemu",
             {"vmid": restore_vmid, "archive": archive, "storage": target_storage, "live-restore": 0},
         )
+        if on_task:
+            on_task(upid)
         self._poll_task(node, upid, on_progress, poll_interval=poll_interval, now=now, sleep=sleep)
+
+    def poll_task(
+        self,
+        upid: str,
+        on_progress: Callable[[dict[str, Any]], None] | None = None,
+        *,
+        poll_interval: float = 5.0,
+        now: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        """Re-attach to an existing PVE task (by UPID) and poll it to completion —
+        used to resume a restore whose app process was restarted mid-run. A task
+        that already finished returns at once; a failed one raises RestoreTaskError."""
+        self._poll_task(self.node(), upid, on_progress, poll_interval=poll_interval, now=now, sleep=sleep)
 
     def _poll_task(
         self,
