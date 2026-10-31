@@ -74,6 +74,13 @@
     return box;
   }
 
+  function sectionTitle(text) {
+    const h = document.createElement("strong");
+    h.className = "vm-section-title";
+    h.textContent = text;
+    return h;
+  }
+
   async function open(row) {
     const detail = document.createElement("tr");
     detail.className = "vm-detail-row";
@@ -85,12 +92,29 @@
     collapse.textContent = T("cluster.collapse");
     collapse.addEventListener("click", () => close(row));
     cell.append(collapse);
+
     const settings = row.querySelector("template.vm-settings-template");
-    if (settings) cell.append(settings.content.cloneNode(true));
+    const frag = settings ? settings.content.cloneNode(true) : null;
+
+    // Section 1 — Backup history (heading, backup-frequency control, charts).
+    cell.append(sectionTitle(T("cluster.backup_history")));
+    if (frag) {
+      const bf = frag.querySelector(".vm-backup-freq");
+      if (bf) cell.append(bf);
+    }
     const box = document.createElement("div");
     box.className = "vm-history muted";
     box.textContent = T("cluster.history_loading");
     cell.append(box);
+
+    // Section 2 — Automated restore settings.
+    if (frag) {
+      const rs = frag.querySelector(".vm-restore-settings");
+      if (rs) {
+        cell.append(sectionTitle(T("restore.settings_title")));
+        cell.append(rs);
+      }
+    }
     detail.append(cell);
     row.after(detail);
     row.classList.add("is-expanded");

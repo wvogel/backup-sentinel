@@ -4,7 +4,9 @@ fake RestoreServer."""
 import os
 import unittest
 
-from app.services.restore_worker import fits_disk
+from app.services.restore_worker import fits_disk, fits_ram, ram_reserve_bytes
+
+GIB = 1024**3
 
 
 class FitsDiskTest(unittest.TestCase):
@@ -15,6 +17,22 @@ class FitsDiskTest(unittest.TestCase):
     def test_fit_with_safety_margin(self):
         self.assertTrue(fits_disk(130, 100))  # 100*1.2 = 120 <= 130
         self.assertFalse(fits_disk(110, 100))  # 120 > 110
+
+
+class FitsRamTest(unittest.TestCase):
+    def test_reserve_is_ten_percent_min_ten_gib(self):
+        self.assertEqual(ram_reserve_bytes(500 * GIB), 50 * GIB)  # 10%
+        self.assertEqual(ram_reserve_bytes(50 * GIB), 10 * GIB)  # floor at 10 GiB
+        self.assertEqual(ram_reserve_bytes(None), 10 * GIB)
+
+    def test_unknown_guest_ram_fits(self):
+        self.assertTrue(fits_ram(100 * GIB, 256 * GIB, None))
+
+    def test_leaves_host_reserve(self):
+        # 256 GiB host, reserve 25.6 GiB; 100 GiB free, guest needs 80 → 100-25.6=74.4 < 80 → no
+        self.assertFalse(fits_ram(100 * GIB, 256 * GIB, 80 * GIB))
+        # guest needs 70 → 74.4 >= 70 → yes
+        self.assertTrue(fits_ram(100 * GIB, 256 * GIB, 70 * GIB))
 
 
 if os.environ.get("BSENTINEL_DB_TESTS") != "1":

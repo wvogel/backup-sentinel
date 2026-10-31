@@ -128,6 +128,9 @@ _PDF_LABELS_DE: dict[str, str] = {
     "status": "Status",
     "node": "Node",
     "vm": "VM",
+    "backups": "Backups",
+    "latest": "Letztes",
+    "result": "Ergebnis",
     "created_at": "Erstellt:",
     "page_of": "Seite {n} von {total}",
     "footer_brand": "Backup Sentinel {version}",
@@ -179,6 +182,9 @@ _PDF_LABELS_EN: dict[str, str] = {
     "status": "Status",
     "node": "Node",
     "vm": "VM",
+    "backups": "Backups",
+    "latest": "Latest",
+    "result": "Result",
     "created_at": "Generated:",
     "page_of": "Page {n} of {total}",
     "footer_brand": "Backup Sentinel {version}",
@@ -547,7 +553,7 @@ def _comparison_section(comparison: dict, st: dict, L: dict[str, str], lang: str
 
 
 # ── Backup events table ───────────────────────────────────────────────────────
-_COL_W = [36 * mm, 24 * mm, 26 * mm, 22 * mm, 20 * mm, 18 * mm, 24 * mm]  # total ≈ 170mm usable
+_COL_W = [40 * mm, 24 * mm, 18 * mm, 28 * mm, 24 * mm, 36 * mm]  # 6 cols, ≈ 170mm usable
 
 
 def _events_table(rows: list[dict], st: dict, L: dict[str, str], lang: str, tz_name: str = "Europe/Berlin") -> list:
@@ -564,14 +570,15 @@ def _events_table(rows: list[dict], st: dict, L: dict[str, str], lang: str, tz_n
             dt = dt.replace(tzinfo=UTC)
         return dt.astimezone(tz).strftime(fmt)
 
+    # Slim: one summary row per VM (not one per backup event) — at thousands of
+    # backups a per-event table was huge and slow and timed out the request.
     th_cols = [
         L["vm"],
         L["node"],
-        L["date"],
+        L["backups"],
+        L["latest"],
         L["size"],
-        L["encrypted_short"],
-        L["verify_short"],
-        L["status"],
+        L["result"],
     ]
 
     flowables = []
@@ -611,43 +618,31 @@ def _events_table(rows: list[dict], st: dict, L: dict[str, str], lang: str, tz_n
         data_row_idx = 1
 
         for vm_row in vm_rows:
-            vm_name = vm_row["vm_name"]
-            node_name = vm_row["node_name"]
-            first = True
-            for evt in vm_row["events"]:
-                status_for_report = evt.get("status_for_report", "ok" if evt["status"] == "ok" else "failed")
-                is_ok = status_for_report == "ok"
-                is_deleted = status_for_report == "deleted"
-                status_para = Paragraph(
-                    L["deleted_status"] if is_deleted else (L["ok"] if is_ok else L["error"]),
-                    st["muted"] if is_deleted else (st["ok"] if is_ok else st["fail"]),
-                )
-
-                enc = evt.get("encrypted")
-                enc_str = L["yes"] if enc is True else (L["no"] if enc is False else "–")
-
-                vs = evt.get("verify_state")
-                verify_str = L["ok"] if vs == "ok" else (L["error"] if vs == "failed" else "–")
-                verify_style = st["ok"] if vs == "ok" else (st["fail"] if vs == "failed" else st["td"])
-
-                row = [
-                    Paragraph(vm_name if first else "", st["td"]),
-                    Paragraph(node_name if first else "", st["td"]),
-                    Paragraph(fmt_dt(evt["started_at"], dt_fmt), st["td"]),
-                    Paragraph(format_size(evt.get("size_bytes"), lang), st["td"]),
-                    Paragraph(enc_str, st["td"]),
-                    Paragraph(verify_str, verify_style),
-                    status_para,
-                ]
-                table_data.append(row)
-                if status_for_report == "failed":
-                    row_styles.append(("BACKGROUND", (0, data_row_idx), (-1, data_row_idx), colors.HexColor("#fef2f2")))
-                elif is_deleted:
-                    row_styles.append(("BACKGROUND", (0, data_row_idx), (-1, data_row_idx), colors.HexColor("#f8fafc")))
-                elif data_row_idx % 2 == 0:
-                    row_styles.append(("BACKGROUND", (0, data_row_idx), (-1, data_row_idx), C_ROW_ALT))
-                first = False
-                data_row_idx += 1
+            evts = vm_row.get("events") or []
+            dated = [e for e in evts if e.get("started_at")]
+            latest = max(dated, key=lambda e: e["started_at"]) if dated else None
+            ok_c = vm_row.get("ok_count", 0)
+            fail_c = vm_row.get("failed_count", 0)
+            del_c = vm_row.get("deleted_count", 0)
+            result_bits = [f"<font color='#059669'>{format_count(ok_c, lang)} {L['ok']}</font>"]
+            if fail_c:
+                result_bits.append(f"<font color='#b22c3a'>{format_count(fail_c, lang)} {L['error']}</font>")
+            if del_c:
+                result_bits.append(f"{format_count(del_c, lang)} {L['deleted']}")
+            row = [
+                Paragraph(vm_row["vm_name"], st["td"]),
+                Paragraph(vm_row["node_name"], st["td"]),
+                Paragraph(format_count(vm_row.get("event_count", len(evts)), lang), st["td"]),
+                Paragraph(fmt_dt(latest["started_at"], dt_fmt) if latest else "–", st["td"]),
+                Paragraph(format_size(latest.get("size_bytes") if latest else None, lang), st["td"]),
+                Paragraph("  ·  ".join(result_bits), st["td"]),
+            ]
+            table_data.append(row)
+            if fail_c:
+                row_styles.append(("BACKGROUND", (0, data_row_idx), (-1, data_row_idx), colors.HexColor("#fef2f2")))
+            elif data_row_idx % 2 == 0:
+                row_styles.append(("BACKGROUND", (0, data_row_idx), (-1, data_row_idx), C_ROW_ALT))
+            data_row_idx += 1
 
         t = Table(table_data, colWidths=_COL_W, repeatRows=1)
         base_style = [
@@ -658,9 +653,9 @@ def _events_table(rows: list[dict], st: dict, L: dict[str, str], lang: str, tz_n
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [C_WHITE, C_ROW_ALT]),
             ("GRID", (0, 0), (-1, -1), 0.3, C_LINE),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("ALIGN", (2, 0), (2, -1), "CENTER"),  # date centred
-            ("ALIGN", (3, 0), (3, -1), "RIGHT"),  # size right
-            ("ALIGN", (4, 0), (5, -1), "CENTER"),  # Enc/Verify centred
+            ("ALIGN", (2, 0), (2, -1), "CENTER"),  # backups count centred
+            ("ALIGN", (3, 0), (3, -1), "CENTER"),  # latest date centred
+            ("ALIGN", (4, 0), (4, -1), "RIGHT"),  # size right
             ("TOPPADDING", (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
             ("LEFTPADDING", (0, 0), (-1, -1), 4),

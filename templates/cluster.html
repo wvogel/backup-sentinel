@@ -9,6 +9,10 @@
 {% set restore_result_labels = {"passed": t('cluster.result_passed'), "limited": t('cluster.result_limited'), "failed": t('cluster.result_failed')} %}
 {% set recovery_type_labels = {"full": t('cluster.recovery_full'), "partial": t('cluster.recovery_partial'), "file": t('cluster.recovery_file')} %}
 {% set recovery_type_icons = {"full": "●", "partial": "◐", "file": "▤"} %}
+{# Restore-RUN result → tone for the result dot (fail=red, warn=yellow, partial=blue, success=green). #}
+{% set restore_run_tone = {"passed": "success", "limited": "partial", "failed": "fail", "error": "warn"} %}
+{% set cadence_short = {"month": t('restore.cad_short_month'), "quarter": t('restore.cad_short_quarter'), "half_year": t('restore.cad_short_half_year'), "year": t('restore.cad_short_year')} %}
+{% set restore_run_result_labels = {"passed": t('cluster.result_passed'), "limited": t('cluster.result_limited'), "failed": t('cluster.result_failed'), "error": t('restore.result_error')} %}
 <section class="hero-card cluster-hero">
   <div class="cluster-hero-main">
     <h2>
@@ -188,42 +192,46 @@
             <span class="protect-pill protect-{{ protect_level }}" data-tooltip="{{ t('cluster.local_tooltip') }}{% if protect_tip %}&#10;{{ protect_tip }}{% endif %}">{{ t('cluster.local') }}{% if row.copy_count > 1 %} ×{{ row.copy_count }}{% endif %}</span>
             {%- else %}<span class="muted">–</span>{% endif -%}
           </td>
-          {%- set restore_tip %}{% if row.last_restore_tested_at %}{{ row.last_restore_tested_at|datetime_local('%d.%m.%Y') }} · {{ row.last_restore_duration_minutes }} min · {{ recovery_type_labels.get(row.last_restore_recovery_type, row.last_restore_recovery_type) }}{% else %}{{ t('common.never') }}{% endif %}{% if row.restore_interval_days is not none and row.restore_tone != 'none' %} · {{ t('cluster.interval_days', days=row.restore_interval_days) }}{% endif %}{% endset %}
-          <td class="restore-cell" data-label="{{ t('cluster.th_restore_test') }}" data-sort-value="{% if row.restore_tone == 'critical' %}{{ -row.restore_days }}{% elif row.restore_tone == 'open' %}-0.5{% elif row.restore_tone == 'none' %}99999{% else %}{{ row.restore_days }}{% endif %}">
+          {%- set _res = row.last_restore_run_result %}
+          {%- set _res_tone = restore_run_tone.get(_res, 'open') %}
+          {%- set restore_tip %}
+            {{- t('restore.auto') }}: {{ t('common.on') if row.auto_restore_enabled else t('common.off') }}
+            {{- ' · ' }}{{ t('restore.cadence') }}: {{ t('restore.cadence_' ~ row.restore_cadence) }}
+            {%- if _res %} · {{ t('restore.last_result') }}: {{ restore_run_result_labels.get(_res, _res) }}{% endif %}
+            {%- if row.last_restore_tested_at %} ({{ row.last_restore_tested_at|datetime_local('%d.%m.%Y') }}){% else %} · {{ t('common.never') }}{% endif %}
+            {%- if row.restore_due_status == 'critical' %} · {{ t('cluster.restore_overdue', days=row.restore_days) }}{% endif %}
+          {%- endset %}
+          {%- set _sort = {'fail': 0, 'warn': 1, 'partial': 2, 'success': 3}.get(_res_tone, 4) %}
+          <td class="restore-cell" data-label="{{ t('cluster.th_restore_test') }}" data-sort-value="{{ _sort }}">
             {%- if row.vm_gone %}<span class="muted">–</span>
-            {%- elif row.restore_tone == 'none' %}<span class="muted" data-tooltip="{{ t('cluster.restore_not_required') }}">–</span>
-            {%- elif row.restore_tone == 'open' %}<span class="restore-tag restore-open" data-tooltip="{{ restore_tip }}">{{ t('cluster.restore_open') }}</span>
-            {%- elif row.restore_tone == 'critical' %}<span class="restore-tag restore-critical" data-tooltip="{{ restore_tip }}">{{ t('cluster.restore_overdue', days=row.restore_days) }}</span>
-            {%- else %}<span class="restore-tag restore-{{ row.restore_tone }}" data-tooltip="{{ restore_tip }}">{% if row.restore_days == 0 %}{{ t('cluster.restore_due_today') }}{% else %}{{ t('cluster.restore_due_in', days=row.restore_days) }}{% endif %}</span>
+            {%- else %}
+            <span class="restore-symbols{% if row.restore_due_status == 'critical' %} is-overdue{% endif %}" data-tooltip="{{ restore_tip|trim }}">
+              <span class="auto-ind auto-{{ 'on' if row.auto_restore_enabled else 'off' }}" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 103-7.7L3 8"/></svg>
+              </span>
+              <span class="cad-label">{{ cadence_short.get(row.restore_cadence, '?') }}</span>
+              <span class="result-dot result-{{ _res_tone }}" aria-hidden="true"></span>
+            </span>
             {%- endif %}
             {%- if not row.vm_gone %}
             <template class="vm-settings-template">
-              <div class="vm-settings">
-                <strong class="vm-settings-title">{{ t('cluster.vm_settings') }}</strong>
-                <form action="/clusters/{{ cluster.slug }}/backup-policy" method="post">
-                  <input type="hidden" name="vm_id" value="{{ row.id }}">
-                  <label><span>{{ t('cluster.backup_frequency') }}</span>
-                    <select name="backup_policy_override" onchange="saveScrollAndSubmit(this.form)">
-                      <option value="" {% if not row.backup_policy_override %}selected{% endif %}>{{ t('cluster.policy_auto') }}</option>
-                      <option value="daily" {% if row.backup_policy_override == 'daily' %}selected{% endif %}>{{ t('cluster.policy_daily') }}</option>
-                      <option value="weekly" {% if row.backup_policy_override == 'weekly' %}selected{% endif %}>{{ t('cluster.policy_weekly') }}</option>
-                      <option value="none" {% if row.backup_policy_override == 'none' %}selected{% endif %}>{{ t('cluster.policy_none') }}</option>
-                    </select>
-                  </label>
-                </form>
-                <form action="/clusters/{{ cluster.slug }}/restore-class" method="post">
-                  <input type="hidden" name="vm_id" value="{{ row.id }}">
-                  <label><span>{{ t('cluster.restore_class') }}</span>
-                    <select name="restore_class" onchange="saveScrollAndSubmit(this.form)">
-                      {% for cls in ['high', 'medium', 'low', 'none'] %}
-                      <option value="{{ cls }}" {% if row.restore_class == cls %}selected{% endif %}>{{ t('cluster.restore_class_' ~ cls) }}</option>
-                      {% endfor %}
-                    </select>
-                  </label>
-                </form>
+              {# Section 1 (placed under the "Backup-Historie" heading by vm-history.js): backup policy. #}
+              <form class="vm-backup-freq" action="/clusters/{{ cluster.slug }}/backup-policy" method="post">
+                <input type="hidden" name="vm_id" value="{{ row.id }}">
+                <label><span>{{ t('cluster.backup_frequency') }}</span>
+                  <select name="backup_policy_override" onchange="saveScrollAndSubmit(this.form)">
+                    <option value="" {% if not row.backup_policy_override %}selected{% endif %}>{{ t('cluster.policy_auto') }}</option>
+                    <option value="daily" {% if row.backup_policy_override == 'daily' %}selected{% endif %}>{{ t('cluster.policy_daily') }}</option>
+                    <option value="weekly" {% if row.backup_policy_override == 'weekly' %}selected{% endif %}>{{ t('cluster.policy_weekly') }}</option>
+                    <option value="none" {% if row.backup_policy_override == 'none' %}selected{% endif %}>{{ t('cluster.policy_none') }}</option>
+                  </select>
+                </label>
+              </form>
+              {# Section 2 (placed under the "Automated Restore Settings" heading). #}
+              <div class="vm-restore-settings">
                 <form action="/restore/vm/{{ row.id }}/policy" method="post" class="auto-restore-form">
                   <input type="hidden" name="redirect" value="/clusters/{{ cluster.slug }}">
-                  <label class="checkbox-label"><input type="checkbox" name="auto_restore_enabled" value="1" {% if row.auto_restore_enabled %}checked{% endif %}> {{ t('restore.auto_enable') }}</label>
+                  <label class="checkbox-label"><input type="checkbox" name="auto_restore_enabled" value="1" {% if row.auto_restore_enabled %}checked{% endif %}> {{ t('restore.auto') }}</label>
                   <label><span>{{ t('restore.cadence') }}</span>
                     <select name="restore_cadence">
                       {% for cad in ['month', 'quarter', 'half_year', 'year'] %}
@@ -234,16 +242,16 @@
                   <label><span>{{ t('restore.tcp_ports') }}</span><input name="probe_tcp_ports" value="{{ row.probe_tcp_ports|join(', ') if row.probe_tcp_ports else '' }}" placeholder="443, 445"></label>
                   <label><span>{{ t('restore.primary_ip') }}</span><input name="probe_primary_ip" value="{{ row.probe_primary_ip or '' }}"></label>
                   <label class="checkbox-label"><input type="checkbox" name="probe_require_icmp" value="1" {% if row.probe_require_icmp %}checked{% endif %}> {{ t('restore.require_icmp') }}</label>
-                  <label class="checkbox-label"><input type="checkbox" name="hold_on_failure" value="1" {% if row.hold_on_failure %}checked{% endif %}> {{ t('restore.hold_on_failure') }}</label>
+                  <label class="checkbox-label"><input type="checkbox" name="hold_on_failure" value="1" {% if row.hold_on_failure %}checked{% endif %} data-confirm-hold> {{ t('restore.hold_on_failure') }}</label>
                   <label><span>{{ t('restore.retry_days') }}</span><input name="restore_retry_days" type="number" value="{{ row.restore_retry_days or 7 }}"></label>
                   <div class="auto-restore-actions">
                     <button type="submit" class="button-secondary">{{ t('restore.save_policy') }}</button>
+                    <button type="submit" formaction="/restore/vm/{{ row.id }}/test" class="button-secondary restore-test-start js-confirm-submit" data-confirm-text="{{ t('restore.test_confirm') }}">
+                      <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                      <span class="js-confirm-label">{{ t('restore.test_now') }}</span>
+                    </button>
                   </div>
                 </form>
-                <form action="/restore/vm/{{ row.id }}/test" method="post">
-                  <button type="submit" class="button-secondary">{{ t('restore.test_now') }}</button>
-                </form>
-                {% if row.last_restore_result %}<p class="muted">{{ t('restore.last_result') }}: {{ row.last_restore_result }}</p>{% endif %}
               </div>
             </template>
             {%- endif %}

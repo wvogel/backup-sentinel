@@ -98,9 +98,111 @@ async function copyText(targetId, button) {
   });
 })();
 
+// ── Generic confirm modal ─────────────────────────────────────────────────────
+// Returns a Promise<{ok, suppress}>. `suppressLabel`, when given, adds a
+// "don't warn again today" checkbox.
+function confirmModal(opts) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "lightbox-overlay confirm-overlay";
+    const box = document.createElement("div");
+    box.className = "lightbox-box confirm-box";
+    const h = document.createElement("h3");
+    h.textContent = opts.title || "";
+    const p = document.createElement("p");
+    p.textContent = opts.body || "";
+    box.append(h, p);
+    let suppressCb = null;
+    if (opts.suppressLabel) {
+      const lbl = document.createElement("label");
+      lbl.className = "checkbox-label confirm-suppress";
+      suppressCb = document.createElement("input");
+      suppressCb.type = "checkbox";
+      lbl.append(suppressCb, document.createTextNode(" " + opts.suppressLabel));
+      box.append(lbl);
+    }
+    const actions = document.createElement("div");
+    actions.className = "lightbox-actions";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "button-secondary";
+    cancel.textContent = opts.cancelLabel || "Cancel";
+    const ok = document.createElement("button");
+    ok.type = "button";
+    ok.className = "button-primary";
+    ok.textContent = opts.confirmLabel || "OK";
+    actions.append(cancel, ok);
+    box.append(actions);
+    overlay.append(box);
+    document.body.append(overlay);
+    const done = (result) => {
+      overlay.remove();
+      resolve(result);
+    };
+    cancel.addEventListener("click", () => done({ ok: false }));
+    ok.addEventListener("click", () => done({ ok: true, suppress: !!(suppressCb && suppressCb.checked) }));
+    overlay.addEventListener("click", (ev) => {
+      if (ev.target === overlay) done({ ok: false });
+    });
+  });
+}
+
+// ── Two-step confirm on submit buttons (.js-confirm-submit) ────────────────────
+// First click arms (shows data-confirm-text); a second click within 4s submits.
+document.addEventListener(
+  "click",
+  (e) => {
+    const btn = e.target.closest(".js-confirm-submit");
+    if (!btn) return;
+    if (btn.dataset.armed === "1") return; // armed → let the submit through
+    e.preventDefault();
+    const label = btn.querySelector(".js-confirm-label") || btn;
+    if (!btn.dataset.orig) btn.dataset.orig = label.textContent;
+    label.textContent = btn.dataset.confirmText || T("js.confirm");
+    btn.classList.add("is-armed");
+    btn.dataset.armed = "1";
+    clearTimeout(btn._armTimer);
+    btn._armTimer = setTimeout(() => {
+      btn.dataset.armed = "";
+      btn.classList.remove("is-armed");
+      label.textContent = btn.dataset.orig;
+    }, 4000);
+  },
+  true,
+);
+
+// ── Hold-on-failure: warn (debug only) when enabling, unless suppressed today ──
+document.addEventListener("change", async (e) => {
+  const cb = e.target;
+  if (!(cb instanceof HTMLInputElement) || !cb.hasAttribute("data-confirm-hold") || !cb.checked) return;
+  const today = new Date().toISOString().slice(0, 10);
+  let suppressed = null;
+  try {
+    suppressed = localStorage.getItem("holdWarnSuppressed");
+  } catch {}
+  if (suppressed === today) return;
+  cb.checked = false; // hold until confirmed
+  const res = await confirmModal({
+    title: T("restore.hold_confirm_title"),
+    body: T("restore.hold_confirm_body"),
+    confirmLabel: T("common.confirm"),
+    cancelLabel: T("common.cancel"),
+    suppressLabel: T("restore.hold_confirm_suppress"),
+  });
+  if (res.ok) {
+    cb.checked = true;
+    if (res.suppress) {
+      try {
+        localStorage.setItem("holdWarnSuppressed", today);
+      } catch {}
+    }
+  }
+});
+
 // Expose globally for other modules
 window.showSuccessLightbox = showSuccessLightbox;
 window.showStatusLightbox = showStatusLightbox;
+window.confirmModal = confirmModal;
 window.copyText = copyText;
 
 // ── Instant tooltips for [data-tooltip] (replaces the native title delay) ──

@@ -17,6 +17,38 @@ from app.web.sync import refresh_sync_job_states_soon
 router = APIRouter()
 
 
+def _restore_dashboard_panel() -> dict | None:
+    """Data for the dashboard's two restore-server tiles (queue + utilization).
+    Uses only cheap DB reads and the cached host snapshot — never a live call to
+    the restore host, so the home page never blocks on it. None = not configured."""
+    import json
+
+    from app.db_restore import list_queued_runs, list_runs, queue_state
+    from app.services import restore_config
+
+    if not restore_config.is_configured():
+        return None
+    running = list_runs(limit=1, status="running")
+    snap = None
+    raw = db.get_settings_dict().get("restore_server.host_snapshot")
+    if raw:
+        try:
+            snap = json.loads(raw)
+        except (ValueError, TypeError):
+            snap = None
+    host = (snap or {}).get("host") or {}
+    return {
+        "paused": restore_config.queue_paused(),
+        "state": queue_state(),
+        "run": running[0] if running else None,
+        "queued": len(list_queued_runs()),
+        "ram_free": host.get("ram_free"),
+        "ram_total": host.get("ram_total"),
+        "stores": [s for s in host.get("stores", []) if s.get("images")],
+        "snapshot_at": (snap or {}).get("at"),
+    }
+
+
 def _encryption_total(summaries: list[dict]) -> dict[str, int]:
     """All clusters together, from the per-cluster counts already loaded."""
     total = sum(s["encryption"]["total_backups"] for s in summaries)
@@ -83,5 +115,6 @@ def dashboard(request: Request) -> HTMLResponse:
         "compliance_summary": compliance_summary,
         "encryption": _encryption_total(clusters),
         "restore_coverage": db.restore_test_coverage(vm_rows),
+        "restore_panel": _restore_dashboard_panel(),
     }
     return templates.TemplateResponse(request, "dashboard.html", common_context(request) | context)

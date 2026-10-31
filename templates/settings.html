@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_sync_dots.html" as dots with context %}
+{% import "_storage_icons.html" as sicons with context %}
 {% block title %}{{ t('settings.title') }}{% endblock %}
 {% block content %}
 {# Tabs: the active one is the URL hash, so redirects after saving land on it. #}
@@ -21,6 +22,8 @@
   <div class="settings-cluster-list">
     {% for cluster in clusters %}
     <fieldset class="settings-cluster-card">
+      {%- set pve_prefix %}{{ cluster.api_url }}
+{{ t('settings.registered') }}: {{ cluster.registered_at|datetime_local if cluster.registered_at else 'pending' }}{% endset %}
       <div class="settings-cluster-head">
         <div class="settings-cluster-title">
           <form action="/clusters/{{ cluster.slug }}/sync" method="post" class="inline-form js-sync-form"
@@ -28,6 +31,7 @@
             <input type="hidden" name="next" value="/settings">
             <button type="submit" class="icon-button js-sync-btn" title="{{ t('cluster.sync_now') }}"><svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></button>
           </form>
+          {{ dots.pve_icon(cluster, prefix=pve_prefix) }}
           <a href="/clusters/{{ cluster.slug }}" class="cluster-name-link js-cluster-name" data-cluster-slug="{{ cluster.slug }}">{{ cluster.name }}</a>
           <button type="button" class="icon-button js-rename-cluster-btn" data-cluster-slug="{{ cluster.slug }}" data-cluster-name="{{ cluster.name }}" title="{{ t('settings.rename') }}">✎</button>
         </div>
@@ -36,32 +40,16 @@
                 data-delete-url="/clusters/{{ cluster.slug }}/delete">{{ t('settings.delete_cluster') }}</button>
       </div>
 
-      <div class="settings-cluster-meta">
-        <div class="settings-cluster-meta-item">
-          <span class="settings-cluster-meta-label">PVE URL</span>
-          <div class="settings-cluster-meta-value">
-            {{ dots.pve_icon(cluster) }}
-            <span class="conn-url">{{ cluster.api_url }}</span>
-          </div>
-        </div>
-        <div class="settings-cluster-meta-item">
-          <span class="settings-cluster-meta-label">{{ t('settings.registered') }}</span>
-          <span class="settings-cluster-meta-value">{{ cluster.registered_at|datetime_local if cluster.registered_at else 'pending' }}</span>
-        </div>
-      </div>
-
       <div class="settings-cluster-sublist">
         {% for pbs in cluster.pbs_connections %}
         <div class="settings-subcard">
           <div class="settings-subcard-main">
+            {%- set pbs_prefix %}{{ pbs.api_url }}
+{{ t('settings.pbs_created') }} {{ pbs.created_at|datetime_local }}{% endset %}
             <div class="settings-subcard-title">
               <span class="pbs-sync-arrow">&#x21B3;</span>
+              {{ dots.pbs_icon(pbs, prefix=pbs_prefix) }}
               <span class="pill ok-pill pbs-name-pill" title="PBS">{{ pbs.name }}</span>
-            </div>
-            <div class="settings-subcard-meta">
-              {{ dots.pbs_icon(pbs) }}
-              <span class="muted">{{ pbs.api_url }}</span>
-              <span class="muted">{{ t('settings.pbs_created') }} {{ pbs.created_at|datetime_local }}</span>
             </div>
             <form action="/clusters/{{ cluster.slug }}/pbs/{{ pbs.id }}/settings" method="post" class="inline-form pbs-namespace-form">
               <label class="muted" title="{{ t('settings.pbs_namespace_hint') }}">
@@ -239,10 +227,10 @@
         <label><span>SSH User</span><input name="ssh_user" value="{{ rc.ssh_user if rc else 'root' }}"></label>
         <label><span>SSH Port</span><input name="ssh_port" type="number" value="{{ rc.ssh_port if rc else 22 }}"></label>
         <label class="full"><span>{{ t('restore.f_ssh_key') }}</span><textarea name="ssh_private_key" rows="3" placeholder="{{ '••••••' if rc and rc.has_ssh_private_key else '-----BEGIN OPENSSH PRIVATE KEY-----' }}"></textarea></label>
-        <div class="full ssh-hostkey-status">
+        <div class="full ssh-hostkey-status api-status-row">
           <span>API:</span>
           {% if rc and rc.has_token_secret %}
-          <span class="status-badge status-passed" data-tooltip="{{ rc.api_url }}">✓ {{ rc.api_user }}!{{ rc.token_id }}</span>
+          <span class="status-badge status-passed api-pill" data-tooltip="{{ rc.api_url }}">✓ {{ rc.api_user }}!{{ rc.token_id }}</span>
           <button type="submit" name="reprovision" value="1" formnovalidate class="button-secondary push-right">{{ t('restore.reprovision_token') }}</button>
           {% else %}
           <span class="muted">{{ t('restore.api_auto_hint') }}</span>
@@ -271,7 +259,7 @@
           <tr draggable="true">
             <td class="drag-handle" data-tooltip="{{ t('restore.st_drag') }}" aria-hidden="true">⠿</td>
             <td><input type="checkbox" name="ts_use" value="{{ s.storage }}" {% if s.use %}checked{% endif %}></td>
-            <td>{{ s.storage }}<input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</td>
+            <td class="store-name-cell">{{ sicons.conn_icon(s.type) }}<span class="store-name">{{ s.storage }}</span>{{ sicons.disk_icon(s.disk_class) }}<input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</td>
             <td class="muted">{{ s.type or '–' }}</td>
             <td class="num">{{ s.used | size_coarse if s.used is not none else '–' }}</td>
             <td class="num">{{ s.free | size_coarse if s.free is not none else '–' }}</td>
@@ -289,19 +277,19 @@
     </div>
     <div class="restore-net-row">
       <fieldset class="settings-cluster-card restore-net-fieldset">
+        <legend>{{ t('restore.grp_mgmt') }} <span class="help-dot" data-tooltip="{{ t('restore.mgmt_hint') }}">?</span></legend>
+        <label><span>{{ t('restore.f_mgmt_iface') }}</span><input name="mgmt_iface" required value="{{ rc.mgmt_iface if rc else 'vmbr0' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_vlan') }}</span><input name="mgmt_vlan" type="number" value="{{ rc.mgmt_vlan if rc and rc.mgmt_vlan else '' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_from') }}</span><input name="mgmt_ip_from" required value="{{ rc.mgmt_ip_from if rc else '' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_to') }}</span><input name="mgmt_ip_to" required value="{{ rc.mgmt_ip_to if rc else '' }}"></label>
+      </fieldset>
+      <fieldset class="settings-cluster-card restore-net-fieldset">
         <legend>{{ t('restore.grp_sandbox') }}</legend>
         <label><span>{{ t('restore.f_sandbox_bridge') }}</span><input name="sandbox_bridge" value="{{ rc.sandbox_bridge if rc else 'vmbr9' }}"></label>
         <label class="row-break"><span>{{ t('restore.f_vlan_from') }}</span><input name="sandbox_vlan_from" type="number" value="{{ rc.sandbox_vlan_from if rc else 900 }}"></label>
         <label><span>{{ t('restore.f_vlan_to') }}</span><input name="sandbox_vlan_to" type="number" value="{{ rc.sandbox_vlan_to if rc else 999 }}"></label>
         <label><span>{{ t('restore.f_vmid_from') }}</span><input name="restore_vmid_from" type="number" value="{{ rc.restore_vmid_from if rc else 9000 }}"></label>
         <label><span>{{ t('restore.f_vmid_to') }}</span><input name="restore_vmid_to" type="number" value="{{ rc.restore_vmid_to if rc else 9100 }}"></label>
-      </fieldset>
-      <fieldset class="settings-cluster-card restore-net-fieldset">
-        <legend>{{ t('restore.grp_mgmt') }} <span class="help-dot" data-tooltip="{{ t('restore.mgmt_hint') }}">?</span></legend>
-        <label><span>{{ t('restore.f_mgmt_iface') }}</span><input name="mgmt_iface" required value="{{ rc.mgmt_iface if rc else 'vmbr0' }}"></label>
-        <label><span>{{ t('restore.f_mgmt_vlan') }}</span><input name="mgmt_vlan" type="number" value="{{ rc.mgmt_vlan if rc and rc.mgmt_vlan else '' }}"></label>
-        <label><span>{{ t('restore.f_mgmt_from') }}</span><input name="mgmt_ip_from" required value="{{ rc.mgmt_ip_from if rc else '' }}"></label>
-        <label><span>{{ t('restore.f_mgmt_to') }}</span><input name="mgmt_ip_to" required value="{{ rc.mgmt_ip_to if rc else '' }}"></label>
       </fieldset>
     </div>
     <div class="restore-save-row">

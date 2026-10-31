@@ -111,9 +111,40 @@ def _forwarded_user(request: Request) -> str:
     )
 
 
+def _restore_queue_state() -> dict | None:
+    """Top-bar restore-icon state: down/red (last connection test failed),
+    paused/yellow, running/animated (queue busy), else idle/green. None when no
+    restore server is configured (icon keeps its normal colour)."""
+    try:
+        import json as _json
+
+        from app import db
+        from app.db_restore import queue_state
+        from app.services import restore_config
+
+        if not restore_config.is_configured():
+            return None
+        # No connection? Use the last stored connection-test result (cheap; a live
+        # probe on every page render would be far too costly).
+        raw = db.get_settings_dict().get("restore_server.last_test")
+        if raw:
+            try:
+                lt = _json.loads(raw)
+                if lt.get("configured") and lt.get("ok") is False:
+                    return {"cls": "down"}
+            except (ValueError, TypeError):
+                pass
+        if restore_config.queue_paused():
+            return {"cls": "paused"}
+        return {"cls": "running" if queue_state() in ("running", "queued") else "idle"}
+    except Exception:
+        return None
+
+
 def common_context(request: Request) -> dict:
     return {
         "request": request,
+        "restore_queue": _restore_queue_state(),
         "logout_url": LOGOUT_URL,
         "brand_logo_light_url": BRAND_LOGO_LIGHT_URL,
         "brand_logo_dark_url": BRAND_LOGO_DARK_URL,

@@ -143,12 +143,27 @@ class RestoreServer:
         node = self.node()
         status = self.pve.get(f"/nodes/{node}/status") or {}
         mem = status.get("memory", {})
-        stores = self.pve.get(f"/nodes/{node}/storage") or []
-        return {
-            "ram_free": mem.get("free"),
-            "ram_total": mem.get("total"),
-            "stores": {s["storage"]: {"avail": s.get("avail"), "total": s.get("total")} for s in stores},
-        }
+        classes = {s["storage"]: s.get("disk_class") for s in self.config.get("target_storages", [])}
+        stores = []
+        for s in self.pve.get(f"/nodes/{node}/storage") or []:
+            content = s.get("content", "") or ""
+            total = s.get("total")
+            avail = s.get("avail")
+            used = s.get("used")
+            if used is None and total is not None and avail is not None:
+                used = total - avail
+            stores.append(
+                {
+                    "storage": s["storage"],
+                    "type": s.get("type", ""),
+                    "images": "images" in content,  # only image-capable storages are restore targets
+                    "used": used,
+                    "total": total,
+                    "avail": avail,
+                    "disk_class": classes.get(s["storage"]),
+                }
+            )
+        return {"ram_free": mem.get("free"), "ram_total": mem.get("total"), "stores": stores}
 
     def list_pbs_storages(self) -> list[dict[str, Any]]:
         """Local PBS datastores on the scratch host, as matchable tuples."""
@@ -396,14 +411,20 @@ class RestoreServer:
         node = self.node()
         cfg = self.config
         bridge = cfg["sandbox_bridge"]
-        mgmt_net = f"name=mgmt,bridge={cfg['mgmt_iface']},ip={mgmt_ip}/{_prefix_from_netmask(cfg['mgmt_netmask'])}"
-        if cfg.get("mgmt_gateway"):
-            mgmt_net += f",gw={cfg['mgmt_gateway']}"
-        if cfg.get("mgmt_vlan"):
-            mgmt_net += f",tag={cfg['mgmt_vlan']}"
-        sandbox_aliases = helper_subnet_addrs(reservations, int(cfg.get("probe_offset", 254)))
-        first = sandbox_aliases[0] if sandbox_aliases else {"ip": "0.0.0.0", "prefix": 24}
-        sandbox_net = f"name=sbx,bridge={bridge},tag={vlan_tag},ip={first['ip']}/{first['prefix']}"
+        mgmt_prefix = _prefix_from_netmask(cfg["mgmt_netmask"])
+        probe_offset = int(cfg.get("probe_offset", 254))
+        sandbox_aliases = helper_subnet_addrs(reservations, probe_offset)
+        net_ifaces, alias_addrs = helper_legs(
+            bridge,
+            vlan_tag,
+            cfg["mgmt_iface"],
+            mgmt_ip,
+            mgmt_prefix,
+            cfg.get("mgmt_vlan"),
+            cfg.get("mgmt_gateway", ""),
+            sandbox_aliases,
+            reservations,
+        )
         self.pve.post(
             f"/nodes/{node}/lxc",
             {
@@ -412,8 +433,7 @@ class RestoreServer:
                 "hostname": f"{OWNED_TAG}-helper-{helper_vmid}",
                 "memory": 256,
                 "cores": 1,
-                "net0": sandbox_net,
-                "net1": mgmt_net,
+                **net_ifaces,
                 "tags": OWNED_TAG,
                 "start": 0,
             },
@@ -423,10 +443,10 @@ class RestoreServer:
         self.ssh.run(f"pct exec {helper_vmid} -- sysctl -w net.ipv4.ip_forward=0")
         from app.services.restore_probe import PROBE_AGENT_SCRIPT
 
-        conf = dnsmasq_config(reservations, int(cfg.get("probe_offset", 254)))
+        conf = dnsmasq_config(reservations, probe_offset)
         self._write_file(helper_vmid, "/etc/dnsmasq.d/restore.conf", conf)
         self._write_file(helper_vmid, "/opt/probe.py", PROBE_AGENT_SCRIPT)
-        for extra in sandbox_aliases[1:]:
+        for extra in alias_addrs:
             self.ssh.run(f"pct exec {helper_vmid} -- ip addr add {extra['ip']}/{extra['prefix']} dev sbx")
         self.ssh.run(
             f"pct exec {helper_vmid} -- rc-service dnsmasq restart || pct exec {helper_vmid} -- "
@@ -518,6 +538,58 @@ def helper_subnet_addrs(reservations: list[dict[str, Any]], probe_offset: int) -
             helper_ip = str(net.network_address + max(1, probe_offset - 1))
         seen[str(net)] = {"ip": helper_ip, "prefix": r["prefix"]}
     return list(seen.values())
+
+
+def guest_in_mgmt_subnet(reservations: list[dict[str, Any]], mgmt_ip: str, mgmt_prefix: int = 24) -> bool:
+    """True when a restored guest NIC sits in the same subnet as the helper
+    management IPs. Then one leg suffices: that leg is in the guest's subnet (to
+    serve DHCP + probe) and is the management address at the same time."""
+    import ipaddress
+
+    try:
+        mgmt_net = ipaddress.ip_network(f"{mgmt_ip}/{mgmt_prefix}", strict=False)
+    except ValueError:
+        return False
+    for r in reservations:
+        try:
+            if ipaddress.ip_address(r["ip"]) in mgmt_net:
+                return True
+        except (ValueError, KeyError):
+            continue
+    return False
+
+
+def helper_legs(
+    bridge: str,
+    vlan_tag: int,
+    mgmt_iface: str,
+    mgmt_ip: str,
+    mgmt_prefix: int,
+    mgmt_vlan: int | None,
+    mgmt_gateway: str,
+    sandbox_aliases: list[dict[str, Any]],
+    reservations: list[dict[str, Any]],
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    """Decide the helper's network legs. Returns (net_ifaces, extra_alias_addrs).
+
+    Dual-homed (default): net0 on the sandbox VLAN (serves the guest) + net1 on
+    the management interface (worker reachability); extra sandbox subnets aliased.
+
+    Single-homed (spec §10 special case): when a guest NIC is already in the
+    management subnet, one leg on the sandbox VLAN carries the management IP and
+    serves both roles — no separate management leg. All sandbox offset addresses
+    are aliased so dnsmasq has its per-subnet address."""
+    if guest_in_mgmt_subnet(reservations, mgmt_ip, mgmt_prefix):
+        net0 = f"name=sbx,bridge={bridge},tag={vlan_tag},ip={mgmt_ip}/{mgmt_prefix}"
+        return {"net0": net0}, list(sandbox_aliases)
+    mgmt_net = f"name=mgmt,bridge={mgmt_iface},ip={mgmt_ip}/{mgmt_prefix}"
+    if mgmt_gateway:
+        mgmt_net += f",gw={mgmt_gateway}"
+    if mgmt_vlan:
+        mgmt_net += f",tag={mgmt_vlan}"
+    first = sandbox_aliases[0] if sandbox_aliases else {"ip": "0.0.0.0", "prefix": 24}
+    net0 = f"name=sbx,bridge={bridge},tag={vlan_tag},ip={first['ip']}/{first['prefix']}"
+    return {"net0": net0, "net1": mgmt_net}, list(sandbox_aliases[1:])
 
 
 # --- real transports (paramiko imported lazily) ------------------------------

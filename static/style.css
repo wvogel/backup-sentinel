@@ -233,7 +233,21 @@ aside {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+/* Restore-queue state on the /restore nav icon itself: idle = neutral (no
+   change), paused = amber, down = red, running = the circular-arrow icon spins. */
+.header-nav-link.queue-paused { color: var(--warn); }
+.header-nav-link.queue-down { color: var(--critical); }
+.header-nav-link.queue-running { color: var(--running); }
+.header-nav-link.queue-running .queue-icon {
+  transform-origin: 50% 55%;
+  animation: queue-spin 1.6s linear infinite;
+}
+@keyframes queue-spin {
+  to { transform: rotate(360deg); }
 }
 .logout-link:hover,
 .header-nav-link:hover {
@@ -3112,4 +3126,255 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* Phones: a running sync's ring moves below rather than overlap the text. */
 @media (max-width: 640px) {
   .topo-store { flex-wrap: wrap; }
+}
+
+/* ============================================================================
+   Automated restore testing — VM-list symbols, panel sections, capacity view,
+   storage icons. (v3.1 UI overhaul)
+   ========================================================================== */
+
+/* — VM-list restore-test column: auto indicator · cadence · result dot — */
+.restore-symbols {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: help;
+}
+.restore-symbols .auto-ind svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.restore-symbols .auto-on { color: var(--running); }
+.restore-symbols .auto-off { color: var(--muted); opacity: 0.5; }
+.restore-symbols .cad-label {
+  font-size: 0.8em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.result-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.result-dot.result-success { background: var(--ok); }
+.result-dot.result-partial { background: var(--running); }
+.result-dot.result-warn { background: var(--warn); }
+.result-dot.result-fail { background: var(--critical); }
+.result-dot.result-open {
+  background: transparent;
+  border: 1.5px solid var(--muted);
+}
+.restore-symbols.is-overdue .cad-label { color: var(--critical); }
+
+/* — Expanded VM detail: section headings + layout — */
+.vm-section-title {
+  display: block;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 14px 0 8px;
+}
+.vm-detail-row .vm-section-title:first-of-type { margin-top: 4px; }
+.vm-backup-freq { margin-bottom: 10px; }
+.vm-restore-settings .auto-restore-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.btn-icon {
+  width: 15px;
+  height: 15px;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+.js-confirm-submit.is-armed {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.confirm-suppress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 12px;
+  font-size: 0.9em;
+  color: var(--muted);
+}
+
+/* — Settings API row: keep the "Token neu erzeugen" button on the same line — */
+.api-status-row { flex-wrap: nowrap; }
+.api-status-row .api-pill {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.api-status-row .push-right { white-space: nowrap; }
+
+/* — Storage icons (connection type + disk class) — */
+.conn-icon, .disk-icon {
+  display: inline-flex;
+  vertical-align: middle;
+}
+.conn-icon svg, .disk-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.conn-icon { color: var(--muted); margin-right: 6px; }
+.disk-icon { margin-left: 6px; }
+.disk-icon.disk-green { color: var(--ok); }
+.disk-icon.disk-blue { color: var(--running); }
+.store-name-cell { display: flex; align-items: center; gap: 2px; }
+.store-name-cell .store-name { white-space: nowrap; }
+
+/* — /restore capacity: RAM meter — */
+.meter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 18px;
+  flex-wrap: wrap;
+}
+.meter-label { min-width: 3em; color: var(--muted); font-size: 0.9em; }
+.meter-value { color: var(--muted); font-size: 0.9em; }
+.ram-meter {
+  position: relative;
+  flex: 1 1 260px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--chip);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  /* 10% segment dividers */
+  background-image: repeating-linear-gradient(
+    to right, transparent 0, transparent calc(10% - 1px), var(--line) calc(10% - 1px), var(--line) 10%);
+}
+.ram-fill {
+  height: 100%;
+  border-radius: 10px 0 0 10px;
+  transition: width 0.4s ease;
+}
+.ram-fill.ram-ok { background: var(--ok); }
+.ram-fill.ram-warn { background: var(--warn); }
+.ram-fill.ram-crit { background: var(--critical); }
+.ram-reserve {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10%;
+  height: 100%;
+  background: repeating-linear-gradient(45deg, var(--line) 0, var(--line) 3px, transparent 3px, transparent 6px);
+  opacity: 0.6;
+}
+
+/* — /restore capacity: storage fill rings — */
+.store-rings, .running-restores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 10px;
+}
+.running-restores { flex-direction: column; }
+.store-ring-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 120px;
+}
+.store-ring {
+  --pct: 0;
+  --ring-color: var(--ok);
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ring-color) calc(var(--pct) * 1%), var(--chip) 0);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+.store-ring::before {
+  content: "";
+  position: absolute;
+  inset: 11px;
+  border-radius: 50%;
+  background: var(--panel);
+}
+.store-ring.ring-ok { --ring-color: var(--ok); }
+.store-ring.ring-warn { --ring-color: var(--warn); }
+.store-ring.ring-crit { --ring-color: var(--critical); }
+.ring-center {
+  position: relative;
+  text-align: center;
+  line-height: 1.15;
+}
+.ring-center strong { display: block; font-size: 0.9rem; }
+.ring-center span { font-size: 0.78rem; color: var(--muted); }
+.store-ring-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.store-ring-label .store-name { overflow-wrap: anywhere; }
+
+/* — /restore: running-restore cards — */
+.running-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.running-ring { width: 64px; height: 64px; }
+.running-ring::before { inset: 8px; }
+.running-info { display: flex; flex-direction: column; gap: 2px; }
+
+/* — Settings cluster list (#11): PBS subcards end before "Cluster entfernen" — */
+.settings-subcard { align-items: flex-start; }
+.settings-cluster-sublist { margin-right: 11rem; }
+.pbs-remove-btn { margin-top: 0; }
+@media (max-width: 860px) {
+  .settings-cluster-sublist { margin-right: 0; }
+}
+
+/* — Dashboard restore-server tiles (queue + utilization rings) — */
+.dashboard-group-eyebrow { margin: 0 0 8px; }
+.restore-server-grid {
+  grid-template-columns: 1fr 1.6fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.restore-queue-body { display: flex; align-items: center; gap: 14px; margin-top: 6px; }
+.queue-glyph svg { width: 30px; height: 30px; display: block; }
+.queue-glyph.queue-idle { color: var(--ok); }
+.queue-glyph.queue-paused { color: var(--warn); }
+.queue-glyph.queue-queued,
+.queue-glyph.queue-running { color: var(--running); }
+.queue-glyph.queue-running .queue-icon {
+  transform-origin: 50% 55%;
+  animation: queue-spin 1.6s linear infinite;
+}
+.rq-main { font-size: 17px; font-weight: 500; }
+.util-rings { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 6px; }
+.util-ring-item { text-align: center; }
+.util-ring-label {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 4px;
+}
+.util-ring-item .store-ring { width: 76px; height: 76px; }
+.util-ring-item .store-ring::before { inset: 9px; }
+@media (max-width: 760px) {
+  .restore-server-grid { grid-template-columns: 1fr; }
 }

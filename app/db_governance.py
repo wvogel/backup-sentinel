@@ -7,9 +7,9 @@ from app.config import BACKUP_DAY_OFFSET_HOURS, DEFAULT_TIMEZONE
 from app.db_core import connect
 from app.services.backup_location import server_name
 from app.services.backup_status import (
-    RESTORE_CLASS_INTERVALS,
     RESTORE_DUE_STATUSES,
     assess_backup_status,
+    cadence_days,
     overall_status,
     restore_summary,
 )
@@ -226,10 +226,12 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         )
         row["copy_status"], row["verify_status"] = _protection_status(row, now)
         if row["restore_required"] and status_backup_kind != "none":
-            class_interval = RESTORE_CLASS_INTERVALS.get(row["criticality"], RESTORE_CLASS_INTERVALS["medium"])
+            # One field governs both: the restore cadence (Turnus) is the due
+            # interval — month/quarter/half_year/year → 30/91/182/365 days. The
+            # old criticality-based "Restore-Intervall" is gone.
+            interval_days = cadence_days(row["restore_cadence"])
             if status_backup_kind == "weekly":
-                class_interval = max(class_interval, 365)
-            interval_days = row["restore_interval_days"] or class_interval
+                interval_days = max(interval_days, 365)
             row["restore_interval_days"] = interval_days
             if row["last_restore_tested_at"] is None:
                 # Never tested: due, but not "critical" — that is reserved for
@@ -260,8 +262,14 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             row["restore_interval_days"],
             required=bool(row["restore_required"]) and status_backup_kind != "none",
         )
+    from app.db_restore import latest_run_result_by_vm
+
+    run_results = latest_run_result_by_vm()
     for row in rows:
         row["is_problem"] = is_problem(row)
+        # Last automated/manual restore-RUN result for the VM-list result dot
+        # (has failed/error too, unlike restore_tests which only logs passed/limited).
+        row["last_restore_run_result"] = run_results.get(row["id"])
     return rows
 
 
