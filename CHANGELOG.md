@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.1] — 2026-10-31
+
+### Fixed
+
+- **Disk-class icon now shows everywhere.** The operator's disk class is kept for every image-capable storage (not only ticked targets), so the coloured disk-type icon appears next to the connection-type icon on `/restore`, on the dashboard, and in the settings table. The `/settings#restore` table now lists only image-capable storages (so `local` is gone), shows both icons **before** the name, swaps the icon live when the disk-class dropdown changes, and the dropdown uses short labels (`entp-ssd`, `std-ssd`) with the full name on the icon hover. Fixed the row-height offset (a `display:flex` cell broke table alignment).
+- **Stable storage order.** Storages on `/restore` and the dashboard now always follow the configured preference order instead of PVE's arbitrary listing order (which shuffled on reload).
+- **Menu-bar restore icon** now also colours the idle state (green), alongside amber (paused), red (host unreachable) and the spin (running).
+
 ## [v3.1.0] — 2026-10-31
 
 ### Added

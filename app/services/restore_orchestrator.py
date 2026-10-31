@@ -143,7 +143,9 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
     if alloc is None:
         return None  # management IP (or vmid/vlan) exhausted → caller waits
 
-    targets_sorted = sorted(config.get("target_storages", []), key=lambda s: s.get("order", 0))
+    targets_sorted = sorted(
+        (s for s in config.get("target_storages", []) if s.get("use", True)), key=lambda s: s.get("order", 0)
+    )
     target_storage = targets_sorted[0]["storage"] if targets_sorted else ""
 
     return RunPlan(
@@ -416,7 +418,11 @@ def ui_target_storages() -> dict[str, Any]:
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
+    # Only image-capable storages are restore targets; others (e.g. "local") are
+    # never shown or configurable here.
     for d in discovered:
+        if not d.get("images"):
+            continue
         name = d["storage"]
         seen.add(name)
         s = saved.get(name)
@@ -425,7 +431,7 @@ def ui_target_storages() -> dict[str, Any]:
                 "storage": name,
                 "type": d.get("type", ""),
                 "disk_class": (s or {}).get("disk_class", "standard-ssd"),
-                "use": s is not None,
+                "use": bool(s.get("use")) if s else False,
                 "order": (s or {}).get("order", 999),
                 "used": d.get("used"),
                 "free": d.get("avail"),
@@ -440,7 +446,7 @@ def ui_target_storages() -> dict[str, Any]:
                     "storage": name,
                     "type": s.get("type", ""),
                     "disk_class": s.get("disk_class", "standard-ssd"),
-                    "use": True,
+                    "use": bool(s.get("use", True)),
                     "order": s.get("order", 999),
                     "missing": True,
                 }

@@ -239,6 +239,7 @@ aside {
 
 /* Restore-queue state on the /restore nav icon itself: idle = neutral (no
    change), paused = amber, down = red, running = the circular-arrow icon spins. */
+.header-nav-link.queue-idle { color: var(--ok); }
 .header-nav-link.queue-paused { color: var(--warn); }
 .header-nav-link.queue-down { color: var(--critical); }
 .header-nav-link.queue-running { color: var(--running); }
@@ -3224,12 +3225,16 @@ html[data-theme="dark"] .node-filter-button.is-active {
   width: 16px;
   height: 16px;
 }
-.conn-icon { color: var(--muted); margin-right: 6px; }
-.disk-icon { margin-left: 6px; }
+.conn-icon { color: var(--muted); }
 .disk-icon.disk-green { color: var(--ok); }
 .disk-icon.disk-blue { color: var(--running); }
-.store-name-cell { display: flex; align-items: center; gap: 2px; }
-.store-name-cell .store-name { white-space: nowrap; }
+/* Icons sit inline before the name; a plain (non-flex) cell keeps the table
+   row heights aligned. */
+.restore-storage-table td { vertical-align: middle; }
+.store-name-cell { white-space: nowrap; }
+.store-name-cell .conn-icon,
+.store-name-cell .disk-icon { margin-right: 4px; }
+.store-name-cell .store-name { vertical-align: middle; }
 
 /* — /restore capacity: RAM meter — */
 .meter-row {

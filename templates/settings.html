@@ -259,13 +259,13 @@
           <tr draggable="true">
             <td class="drag-handle" data-tooltip="{{ t('restore.st_drag') }}" aria-hidden="true">⠿</td>
             <td><input type="checkbox" name="ts_use" value="{{ s.storage }}" {% if s.use %}checked{% endif %}></td>
-            <td class="store-name-cell">{{ sicons.conn_icon(s.type) }}<span class="store-name">{{ s.storage }}</span>{{ sicons.disk_icon(s.disk_class) }}<input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</td>
+            <td class="store-name-cell">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class) }}<span class="store-name">{{ s.storage }}</span><input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</td>
             <td class="muted">{{ s.type or '–' }}</td>
             <td class="num">{{ s.used | size_coarse if s.used is not none else '–' }}</td>
             <td class="num">{{ s.free | size_coarse if s.free is not none else '–' }}</td>
             <td>
-              <select name="ts_class">
-                {% for cls in disk_classes %}<option value="{{ cls }}" {% if s.disk_class == cls %}selected{% endif %}>{{ cls }}</option>{% endfor %}
+              <select name="ts_class" class="js-disk-class">
+                {% for cls in disk_classes %}<option value="{{ cls }}" {% if s.disk_class == cls %}selected{% endif %}>{{ t('restore.class_short_' ~ cls) }}</option>{% endfor %}
               </select>
             </td>
           </tr>

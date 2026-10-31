@@ -18,14 +18,18 @@ router = APIRouter()
 
 
 def _target_storages_from_rows(names: list[str], classes: list[str], used: set[str]) -> list[dict]:
-    """Build the target-storage list from the Settings table: the app enumerated
-    the storages, the operator only ticked which to use and assigned a disk
-    class. Order follows table (selection) order."""
+    """Build the storage list from the Settings table. Every (image-capable) row
+    is kept with its disk class so the class — and its icon — is known everywhere,
+    not just for ticked targets; ``use`` marks the restore targets and ``order``
+    their fill order (ticked rows first, in table order)."""
     out = []
     order = 0
     for name, cls in zip(names, classes, strict=False):
-        if name in used:
-            out.append({"storage": name, "disk_class": cls or "standard-ssd", "order": order})
+        is_used = name in used
+        out.append(
+            {"storage": name, "disk_class": cls or "standard-ssd", "use": is_used, "order": order if is_used else 9999}
+        )
+        if is_used:
             order += 1
     return out
 
