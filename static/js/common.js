@@ -172,6 +172,24 @@ document.addEventListener(
   true,
 );
 
+// ── Auto-save forms (.js-autosave-form): every change persists at once ────────
+function autoSaveForm(form) {
+  if (!form) return;
+  fetch(form.getAttribute("action"), { method: "POST", body: new FormData(form) })
+    .then((r) => {
+      if (r.ok) showStatusLightbox(true, T("restore.saved"), "", 1000);
+    })
+    .catch(() => {});
+}
+document.addEventListener("change", (e) => {
+  const form = e.target.closest(".js-autosave-form");
+  if (!form) return;
+  // "keep VM on failure": when switched ON, the confirm handler below saves it
+  // after confirmation; any other change (incl. switching it OFF) saves now.
+  if (e.target.hasAttribute("data-confirm-hold") && e.target.checked) return;
+  autoSaveForm(form);
+});
+
 // ── Hold-on-failure: warn (debug only) when enabling, unless suppressed today ──
 document.addEventListener("change", async (e) => {
   const cb = e.target;
@@ -181,7 +199,15 @@ document.addEventListener("change", async (e) => {
   try {
     suppressed = localStorage.getItem("holdWarnSuppressed");
   } catch {}
-  if (suppressed === today) return;
+  const proceed = (confirmed) => {
+    if (!confirmed) return;
+    cb.checked = true;
+    autoSaveForm(cb.closest(".js-autosave-form"));
+  };
+  if (suppressed === today) {
+    proceed(true);
+    return;
+  }
   cb.checked = false; // hold until confirmed
   const res = await confirmModal({
     title: T("restore.hold_confirm_title"),
@@ -190,14 +216,12 @@ document.addEventListener("change", async (e) => {
     cancelLabel: T("common.cancel"),
     suppressLabel: T("restore.hold_confirm_suppress"),
   });
-  if (res.ok) {
-    cb.checked = true;
-    if (res.suppress) {
-      try {
-        localStorage.setItem("holdWarnSuppressed", today);
-      } catch {}
-    }
+  if (res.ok && res.suppress) {
+    try {
+      localStorage.setItem("holdWarnSuppressed", today);
+    } catch {}
   }
+  proceed(res.ok);
 });
 
 // ── Live disk-class icon in the restore storage table ─────────────────────────

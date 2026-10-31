@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.12] — 2026-10-31
+
+### Changed
+
+- **Per-VM Automated Restore Settings save on change** — the "Speichern" button is gone; toggling Auto, changing the Turnus/Retry/ports/IP all persist immediately (background save, no reload, brief confirmation). The "Restore-Test starten" button moved into the settings grid (first cell of the second row).
+- **Hold-on-failure confirm dialog tidied:** Cancel on the left, Confirm on the right, and the "don't warn again today" checkbox sits inline with its label (no wrap) above the buttons.
+
 ## [v3.1.11] — 2026-10-31
 
 ### Fixed

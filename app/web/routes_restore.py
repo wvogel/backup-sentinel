@@ -324,7 +324,8 @@ def update_vm_restore_policy(
     hold_on_failure: str = Form(default=""),
     restore_retry_days: int = Form(default=7),
     redirect: str = Form(default="/restore"),
-) -> RedirectResponse:
+    ajax: str = Form(default=""),
+):
     ports = [int(p) for p in probe_tcp_ports.replace(",", " ").split() if p.strip().isdigit()]
     with db.connect() as conn, conn.cursor() as cur:
         cur.execute(
@@ -363,4 +364,8 @@ def update_vm_restore_policy(
             _kick_restore_queue()
         except Exception as exc:
             logger.debug("kick restore queue after policy save failed: %s", exc)
+    if ajax == "1":
+        from starlette.responses import Response
+
+        return Response(status_code=204)  # auto-save: no navigation
     return RedirectResponse(redirect, status_code=status.HTTP_303_SEE_OTHER)
