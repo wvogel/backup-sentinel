@@ -231,7 +231,11 @@
               <div class="vm-restore-settings">
                 <form action="/restore/vm/{{ row.id }}/policy" method="post" class="auto-restore-form">
                   <input type="hidden" name="redirect" value="/clusters/{{ cluster.slug }}">
+                  {% if row.last_backup_at %}
                   <label class="field field-check"><span>{{ t('restore.auto') }}</span><input type="checkbox" name="auto_restore_enabled" value="1" {% if row.auto_restore_enabled %}checked{% endif %}></label>
+                  {% else %}
+                  <label class="field"><span>{{ t('restore.auto') }}</span><span class="muted" data-tooltip="{{ t('restore.auto_no_backup_hint') }}">{{ t('restore.auto_no_backup') }}</span></label>
+                  {% endif %}
                   <label class="field"><span>{{ t('restore.cadence') }}</span>
                     <select name="restore_cadence">
                       {% for cad in ['month', 'quarter', 'half_year', 'year'] %}

@@ -1710,39 +1710,45 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
    horizontal flow (matching the rest of the panel), not a sparse column. */
 .auto-restore-form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  align-items: end;
-  gap: 10px 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px 16px;
   margin-top: 8px;
   padding-top: 10px;
   border-top: 1px dashed var(--line);
 }
 
-/* Every control: heading on top, field below — so the row lines up uniformly. */
+/* Every control: heading on top, field below, on a uniform baseline so the two
+   rows line up — the control area is a fixed height whether field or checkbox. */
 .auto-restore-form .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   white-space: nowrap;
+  min-width: 0;
 }
 .auto-restore-form .field > span {
   font-size: 0.8rem;
   color: var(--muted);
 }
-.auto-restore-form .field-check {
-  justify-content: flex-start;
+.auto-restore-form .field > .muted {
+  line-height: 32px;
 }
 .auto-restore-form .field-check input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  margin: 2px 0 0;
+  margin: 7px 0;
 }
 .auto-restore-form input,
 .auto-restore-form select {
   width: 100%;
+  height: 32px;
   padding: 4px 8px;
   font-size: 0.85rem;
   box-sizing: border-box;
+}
+@media (max-width: 680px) {
+  .auto-restore-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Actions span the full grid width; buttons right (Restore-Test, then Speichern). */
@@ -3201,6 +3207,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 .vm-detail-row .vm-section-title:first-of-type { margin-top: 4px; }
 .vm-backup-freq { margin-bottom: 10px; }
+.vm-backup-freq label { display: block; max-width: 240px; }
+.vm-backup-freq label > span { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 5px; }
+.vm-backup-freq select { width: 100%; height: 32px; }
 .vm-restore-settings .auto-restore-actions {
   display: flex;
   gap: 10px;

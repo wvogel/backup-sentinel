@@ -289,4 +289,13 @@ def update_vm_restore_policy(
             ),
         )
         conn.commit()
+    # Enabling auto on a VM that is already due (e.g. never restore-tested) should
+    # start promptly, not wait for the next sync tick.
+    if auto_restore_enabled:
+        try:
+            from app.web.sync import _kick_restore_queue
+
+            _kick_restore_queue()
+        except Exception as exc:
+            logger.debug("kick restore queue after policy save failed: %s", exc)
     return RedirectResponse(redirect, status_code=status.HTTP_303_SEE_OTHER)
