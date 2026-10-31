@@ -280,6 +280,8 @@
         <legend>{{ t('restore.grp_mgmt') }} <span class="help-dot" data-tooltip="{{ t('restore.mgmt_hint') }}">?</span></legend>
         <label><span>{{ t('restore.f_mgmt_iface') }}</span><input name="mgmt_iface" required value="{{ rc.mgmt_iface if rc else 'vmbr0' }}"></label>
         <label><span>{{ t('restore.f_mgmt_vlan') }}</span><input name="mgmt_vlan" type="number" value="{{ rc.mgmt_vlan if rc and rc.mgmt_vlan else '' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_netmask') }}</span><input name="mgmt_netmask" value="{{ rc.mgmt_netmask if rc and rc.mgmt_netmask else '255.255.255.0' }}"></label>
+        <label><span>{{ t('restore.f_mgmt_gateway') }}</span><input name="mgmt_gateway" value="{{ rc.mgmt_gateway if rc and rc.mgmt_gateway else '' }}"></label>
         <label><span>{{ t('restore.f_mgmt_from') }}</span><input name="mgmt_ip_from" required value="{{ rc.mgmt_ip_from if rc else '' }}"></label>
         <label><span>{{ t('restore.f_mgmt_to') }}</span><input name="mgmt_ip_to" required value="{{ rc.mgmt_ip_to if rc else '' }}"></label>
       </fieldset>

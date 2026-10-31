@@ -547,6 +547,8 @@
   "restore.mgmt_hint": "Statisch, kein DHCP. Je Helfer eine IP aus dem Bereich; sind alle belegt, wartet die Queue. Das Sandbox-Netz spricht nie nach außen — daher kein Gateway, immer /24.",
   "restore.f_mgmt_iface": "Interface/Bridge",
   "restore.f_mgmt_vlan": "VLAN-ID (optional)",
+  "restore.f_mgmt_netmask": "Netzmaske",
+  "restore.f_mgmt_gateway": "Gateway",
   "restore.f_mgmt_from": "IP von",
   "restore.f_mgmt_to": "IP bis",
   "restore.save": "Speichern",

@@ -1532,7 +1532,7 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 .restore-config-form fieldset legend,
 .restore-config-form fieldset > p,
 .restore-config-form fieldset > table,
-.restore-config-form label.full {
+.restore-config-form .full {
   grid-column: 1 / -1;
 }
 

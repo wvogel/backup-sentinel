@@ -449,9 +449,30 @@ class RestoreServer:
             if force_after:
                 self.pve.post(f"/nodes/{node}/qemu/{vmid}/status/stop", {})
 
-    def destroy(self, vmid: int, *, is_lxc: bool = False) -> None:
+    def _is_running(self, vmid: int, *, is_lxc: bool) -> bool:
         kind = "lxc" if is_lxc else "qemu"
-        self.pve.delete(f"/nodes/{self.node()}/{kind}/{vmid}?purge=1&destroy-unreferenced-disks=1")
+        try:
+            st = self.pve.get(f"/nodes/{self.node()}/{kind}/{vmid}/status/current")
+        except Exception:
+            return False
+        return isinstance(st, dict) and st.get("status") == "running"
+
+    def destroy(self, vmid: int, *, is_lxc: bool = False, sleep: Callable[[float], None] = time.sleep) -> None:
+        """Destroy a guest. PVE refuses to destroy a *running* one (a running LXC
+        in particular), so stop it first and wait for it to actually stop — else
+        the delete silently fails and the guest (e.g. the helper) lingers."""
+        kind = "lxc" if is_lxc else "qemu"
+        node = self.node()
+        if self._is_running(vmid, is_lxc=is_lxc):
+            try:
+                self.pve.post(f"/nodes/{node}/{kind}/{vmid}/status/stop", {})
+            except Exception as exc:
+                logger.warning("stop before destroy failed for %s %s: %s", kind, vmid, exc)
+            for _ in range(30):
+                if not self._is_running(vmid, is_lxc=is_lxc):
+                    break
+                sleep(1.0)
+        self.pve.delete(f"/nodes/{node}/{kind}/{vmid}?purge=1&destroy-unreferenced-disks=1")
 
     # reaper -----------------------------------------------------------------
 
