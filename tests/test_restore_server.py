@@ -202,6 +202,29 @@ def test_provision_helper_creates_via_ssh_as_root_not_api_token():
     assert not any(path == "/nodes/r1/lxc" for path, _ in srv.pve.posts)
 
 
+def test_free_resources_shows_only_selected_storages():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/status": {"memory": {"free": 5, "total": 10}},
+        "/nodes/r1/storage": [
+            {"storage": "restore-test", "type": "dir", "content": "images", "total": 100, "avail": 60},
+            {"storage": "local-lvm", "type": "lvmthin", "content": "images", "total": 100, "avail": 90},
+        ],
+    }
+    cfg = {
+        "ssh_host": "10.0.0.9",
+        "api_url": "https://10.0.0.9:8006",
+        "sandbox_bridge": "vmbr9",
+        "target_storages": [
+            {"storage": "restore-test", "use": True, "order": 0, "disk_class": "enterprise-ssd"},
+            {"storage": "local-lvm", "use": False, "order": 9999},
+        ],
+    }
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    res = srv.free_resources()
+    assert [s["storage"] for s in res["stores"]] == ["restore-test"]  # the un-ticked one is hidden
+
+
 def test_reap_destroys_unowned():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],

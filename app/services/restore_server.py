@@ -149,8 +149,12 @@ class RestoreServer:
         # Operator's configured preference order, so the UI is stable across
         # reloads instead of following PVE's arbitrary listing order.
         orders = {s["storage"]: s.get("order", 9999) for s in cfg_targets}
+        # Only the operator's selected (ticked) target storages are shown as rings.
+        selected = {s["storage"] for s in cfg_targets if s.get("use", True)}
         stores = []
         for s in self.pve.get(f"/nodes/{node}/storage") or []:
+            if s.get("storage") not in selected:
+                continue
             content = s.get("content", "") or ""
             images = "images" in content  # only image-capable storages are restore targets
             total = s.get("total")
@@ -453,7 +457,6 @@ class RestoreServer:
         The helper never forwards between legs (spec §10)."""
         import json
 
-        node = self.node()
         cfg = self.config
         bridge = cfg["sandbox_bridge"]
         mgmt_prefix = _prefix_from_netmask(cfg["mgmt_netmask"])
