@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.19] — 2026-10-31
+
+### Changed
+
+- **The probe-helper container lands on a real target storage, created by the API token — no SSH, no `local`, nothing extra to configure.** It picks the first selected target storage (in your order) that accepts LXC containers (`rootdir`), skipping an images-only one if needed, and is created the same way the VM restore is (API token, `storage` set). The previous "Only root can pass arbitrary filesystem paths" was the missing/invalid storage, not the token. If no selected storage accepts containers, the run fails with a clear message instead of a cryptic one.
+
 ## [v3.1.18] — 2026-10-31
 
 ### Changed
