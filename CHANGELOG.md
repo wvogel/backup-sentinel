@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.8] — 2026-10-31
+
+### Changed
+
+- **Target-storage changes save instantly.** Ticking a target, changing a disk class, or dragging to reorder now saves on the spot via a background request — no bottom "Speichern", no page reload (a brief "Gespeichert" confirmation shows).
+- **Dashboard restore-server status redesigned** into one tidy card: queue state on the left (click-through to `/restore`), utilization rings on the right, evenly spread. The rings now have a visible neutral track so a near-empty storage still reads as a ring instead of a faint circle.
+
 ## [v3.1.7] — 2026-10-31
 
 ### Changed
