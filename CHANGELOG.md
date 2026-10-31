@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.26] — 2026-10-31
+
+### Fixed
+
+- **Teardown no longer hangs on a restored VM that won't ACPI-shut-down.** A restored production VM has no working guest agent in the sandbox, so the graceful shutdown timed out (60 s) holding the VM's config lock, which then blocked the destroy — leaving the VM (and the helper) behind. Teardown now hard-stops and destroys (no graceful shutdown).
+
+### Changed
+
+- **The reachability probe now retries every 5 s for the full 5-minute window** (was every 30 s). ICMP often answers before services finish binding, which produced a premature "limited"; probing every 5 s catches late-starting ports within the window.
+
 ## [v3.1.25] — 2026-10-31
 
 ### Fixed

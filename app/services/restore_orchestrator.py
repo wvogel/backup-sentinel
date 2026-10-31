@@ -258,7 +258,7 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         hold_on_failure=candidate.get("hold_on_failure", False),
         retry_days=candidate.get("restore_retry_days", 7),
         first_delay=candidate.get("probe_first_delay_seconds") or config.get("probe_first_delay_seconds", 30),
-        interval=candidate.get("probe_interval_seconds") or config.get("probe_interval_seconds", 30),
+        interval=candidate.get("probe_interval_seconds") or config.get("probe_interval_seconds", 5),
         window=candidate.get("probe_window_seconds") or config.get("probe_window_seconds", 300),
         needed_bytes=snap.get("size"),
         needed_ram=_vm_memory_bytes(vm_id),
@@ -574,7 +574,7 @@ def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
         hold_on_failure=cand.get("hold_on_failure", False),
         retry_days=cand.get("restore_retry_days", 7),
         first_delay=cand.get("probe_first_delay_seconds") or config.get("probe_first_delay_seconds", 30),
-        interval=cand.get("probe_interval_seconds") or config.get("probe_interval_seconds", 30),
+        interval=cand.get("probe_interval_seconds") or config.get("probe_interval_seconds", 5),
         window=cand.get("probe_window_seconds") or config.get("probe_window_seconds", 300),
     )
 

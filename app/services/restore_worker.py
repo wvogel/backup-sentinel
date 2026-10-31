@@ -162,8 +162,12 @@ def _teardown(server: Any, plan: RunPlan) -> None:
     # restore leaves no VM, so shutting it down would just spam task errors.
     steps = []
     try:
+        # Hard-stop + destroy, no graceful shutdown: a restored prod VM has no
+        # working guest agent in the sandbox, so an ACPI shutdown just times out
+        # (60s) holding the config lock, which then blocks the destroy. destroy()
+        # force-stops and waits before purging.
         if server.exists(plan.restore_vmid, is_lxc=False):
-            steps += [lambda: server.shutdown(plan.restore_vmid), lambda: server.destroy(plan.restore_vmid)]
+            steps.append(lambda: server.destroy(plan.restore_vmid))
         if server.exists(plan.helper_vmid, is_lxc=True):
             steps.append(lambda: server.destroy(plan.helper_vmid, is_lxc=True))
     except Exception as exc:
