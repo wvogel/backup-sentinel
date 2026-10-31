@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.27] — 2026-11-01
+
+### Fixed
+
+- **Restore tests no longer get stuck on "limited" when ports are actually open.** The helper agent returned the per-port results under the key `tcp`, but the classifier reads `ports` — so every TCP port was counted as closed regardless of reality, and a run could never reach "passed". The agent now returns `ports`. (The probe loop itself was already correct: it keeps re-probing every few seconds until all checks pass or the 5-minute window elapses — it does not give up at the first partial result.)
+- **A changed helper image is actually redeployed.** The uploaded template name now carries the image's content hash, so a new image (e.g. this agent fix) uploads as a new template instead of silently reusing the stale one already on the host.
+
+### Added
+
+- **Per-check detail on each restore run** — ICMP and every TCP port shown individually with ✓/✗, so "limited" says exactly what answered and what didn't.
+
 ## [v3.1.26] — 2026-10-31
 
 ### Fixed
