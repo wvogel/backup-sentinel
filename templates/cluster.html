@@ -202,8 +202,12 @@
             {%- if row.restore_due_status == 'critical' %} · {{ t('cluster.restore_overdue', days=row.restore_days) }}{% endif %}
           {%- endset %}
           {%- set _sort = {'fail': 0, 'warn': 1, 'partial': 2, 'success': 3}.get(_res_tone, 4) %}
-          <td class="restore-cell" data-label="{{ t('cluster.th_restore_test') }}" data-sort-value="{{ _sort }}">
+          <td class="restore-cell" data-label="{{ t('cluster.th_restore_test') }}" data-sort-value="{{ -1 if row.restore_matchable is false else _sort }}">
             {%- if row.vm_gone %}<span class="muted">–</span>
+            {%- elif row.restore_matchable is false %}
+            <span class="restore-nomatch" data-tooltip="{{ t('restore.vm_no_match') }}" aria-label="{{ t('restore.vm_no_match') }}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </span>
             {%- else %}
             <span class="restore-symbols{% if row.restore_due_status == 'critical' %} is-overdue{% endif %}" data-tooltip="{{ restore_tip|trim }}">
               <span class="auto-ind auto-{{ 'on' if row.auto_restore_enabled else 'off' }}" aria-hidden="true">
@@ -228,8 +232,11 @@
                 </label>
               </form>
               {# Section 2 (placed under the "Automated Restore Settings" heading).
-                 Omitted entirely when the VM has no backup — nothing to restore-test. #}
-              {% if row.last_backup_at %}
+                 Omitted when the VM has no backup; when the restore server has no
+                 matching backup for it, a note explains why Auto isn't offered. #}
+              {% if row.last_backup_at and row.restore_matchable is false %}
+              <div class="vm-restore-settings"><p class="muted restore-no-match-note">{{ t('restore.vm_no_match') }}</p></div>
+              {% elif row.last_backup_at %}
               <div class="vm-restore-settings">
                 <form action="/restore/vm/{{ row.id }}/policy" method="post" class="auto-restore-form">
                   <input type="hidden" name="redirect" value="/clusters/{{ cluster.slug }}">

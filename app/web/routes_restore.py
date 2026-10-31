@@ -185,17 +185,32 @@ def _cache_host_snapshot(host: dict) -> None:
         logger.debug("host snapshot cache failed: %s", exc)
 
 
+def _cache_pbs_locations(entries: list) -> None:
+    """Cache the restore host's canonical PBS backup locations so the cluster/VM
+    list can show per-VM restorability (red cross) without a live host call."""
+    import json
+
+    try:
+        db.save_settings({"restore_server.pbs_locations": json.dumps(sorted({e["location"] for e in entries}))})
+    except Exception as exc:
+        logger.debug("pbs locations cache failed: %s", exc)
+
+
 @router.get("/restore", response_class=HTMLResponse)
 def restore_runs(request: Request) -> HTMLResponse:
     runs = db_restore.list_runs(limit=50)
     held = db_restore.list_runs(limit=50, status="held")
     host = None
     host_error = None
+    host_pbs: list = []
     config = restore_config.load()
     if config is not None:
         try:
-            host = restore_orchestrator.build_server(config).free_resources()
+            server = restore_orchestrator.build_server(config)
+            host = server.free_resources()
             _cache_host_snapshot(host)
+            host_pbs = restore_orchestrator.restore_host_pbs_entries(server)
+            _cache_pbs_locations(host_pbs)
         except Exception as exc:
             # Surface the real reason instead of a bare "host unreachable".
             logger.warning("free_resources failed: %s", exc)
@@ -204,6 +219,7 @@ def restore_runs(request: Request) -> HTMLResponse:
         "runs": runs,
         "held": held,
         "host": host,
+        "host_pbs": host_pbs,
         "host_error": host_error,
         "configured": config is not None,
         "queue_paused": restore_config.queue_paused(),
