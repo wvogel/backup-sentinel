@@ -3217,7 +3217,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .vm-backup-freq { margin-bottom: 10px; }
 .vm-backup-freq label { display: block; max-width: 240px; }
 .vm-backup-freq label > span { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 5px; }
-.vm-backup-freq select { width: 100%; height: 32px; }
+.vm-backup-freq select { width: 100%; height: auto; min-height: 36px; padding: 6px 10px; box-sizing: border-box; }
 .vm-restore-settings .auto-restore-actions {
   display: flex;
   gap: 10px;

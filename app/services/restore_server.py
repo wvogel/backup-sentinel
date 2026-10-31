@@ -151,6 +151,7 @@ class RestoreServer:
         stores = []
         for s in self.pve.get(f"/nodes/{node}/storage") or []:
             content = s.get("content", "") or ""
+            images = "images" in content  # only image-capable storages are restore targets
             total = s.get("total")
             avail = s.get("avail")
             used = s.get("used")
@@ -160,11 +161,13 @@ class RestoreServer:
                 {
                     "storage": s["storage"],
                     "type": s.get("type", ""),
-                    "images": "images" in content,  # only image-capable storages are restore targets
+                    "images": images,
                     "used": used,
                     "total": total,
                     "avail": avail,
-                    "disk_class": classes.get(s["storage"]),
+                    # Default image-capable storages to standard-ssd so a disk-type
+                    # icon always shows (same as the settings table) until assigned.
+                    "disk_class": classes.get(s["storage"]) or ("standard-ssd" if images else None),
                     "order": orders.get(s["storage"], 9999),
                 }
             )

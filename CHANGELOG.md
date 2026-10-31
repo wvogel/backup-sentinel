@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.6] — 2026-10-31
+
+### Changed
+
+- **Disk-type icon now shows on `/restore` and the dashboard**, next to the connection-type icon, defaulting to std-ssd like the settings table (image-capable storages always carry a class).
+- **Less chrome:** dropped the "Restore-Tests", "Queue" and "Auslastung" headings on the dashboard, and renamed the `/restore` section "Host-Kapazität" → "Restore Host".
+- **Per-VM panel:** the whole "Automated Restore Settings" block is omitted when the VM has no backup (nothing to restore-test), not just the Auto checkbox. Fixed the clipped Backup-Frequenz select (height).
+
 ## [v3.1.5] — 2026-10-31
 
 ### Fixed

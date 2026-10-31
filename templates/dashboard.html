@@ -6,7 +6,6 @@
 {% set recovery_type_labels = {"full": t('cluster.recovery_full'), "partial": t('cluster.recovery_partial'), "file": t('cluster.recovery_file')} %}
 
 {# ── Restore-Tests KPI group ─────────────────────────────────────────── #}
-<p class="eyebrow dashboard-group-eyebrow">{{ t('dashboard.restore_group') }}</p>
 <section class="summary-grid report-grid">
   {# Restore-test coverage as a ring KPI #}
   <div class="summary-card kpi-ring-card">
@@ -49,7 +48,6 @@
   {%- set rp = restore_panel %}
   {%- set qcls = 'paused' if rp.paused else ('running' if rp.state == 'running' else ('queued' if rp.state == 'queued' else 'idle')) %}
   <div class="summary-card restore-queue-card">
-    <p class="muted">{{ t('restore.queue') }}</p>
     <div class="restore-queue-body">
       <span class="queue-glyph queue-{{ qcls }}" aria-hidden="true"><svg class="queue-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 103-7.7L3 8"/></svg></span>
       <div>
@@ -70,7 +68,6 @@
   </div>
   {# Host utilization as rings #}
   <div class="summary-card restore-util-card">
-    <p class="muted">{{ t('restore.utilization') }}</p>
     {% if rp.ram_total %}
     <div class="util-rings">
       {%- set rused = (rp.ram_total - rp.ram_free) if rp.ram_free is not none else 0 %}
@@ -85,7 +82,7 @@
       {%- set ulvl = 'crit' if upct >= 90 else ('warn' if upct >= 70 else 'ok') %}
       <div class="util-ring-item">
         <div class="store-ring ring-{{ ulvl }}" style="--pct: {{ upct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ s.total|size_coarse }}</strong><span>{{ s.used|size_coarse }}</span></div></div>
-        <div class="util-ring-label">{{ sicons.conn_icon(s.type) }}<span>{{ s.storage }}</span>{{ sicons.disk_icon(s.disk_class) }}</div>
+        <div class="util-ring-label">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span>{{ s.storage }}</span></div>
       </div>
       {% endfor %}
     </div>

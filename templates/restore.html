@@ -49,7 +49,7 @@
         </div>
       </div>
       <div class="store-ring-label">
-        {{ sicons.conn_icon(s.type) }}<span class="store-name">{{ s.storage }}</span>{{ sicons.disk_icon(s.disk_class) }}
+        {{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span class="store-name">{{ s.storage }}</span>
       </div>
     </div>
     {% endfor %}
