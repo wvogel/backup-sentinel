@@ -3460,3 +3460,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .restore-diag summary { cursor: pointer; color: var(--muted); }
 .restore-diag-list { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; }
 .restore-diag-list code { font-size: 0.9em; }
+/* Per-check breakdown under a run's result (ICMP + each TCP port). */
+.check-detail { font-size: 0.78rem; margin-top: 3px; }
+.check-detail .chk { margin-right: 8px; white-space: nowrap; }
+.check-detail .chk-ok { color: var(--ok); }
+.check-detail .chk-bad { color: var(--critical); }
+.check-detail .chk-na { color: var(--muted); }

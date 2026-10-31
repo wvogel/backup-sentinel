@@ -497,20 +497,26 @@ class RestoreServer:
         """The helper CT template on the restore host, as a volid — uploaded via
         the API if not already there. The image is built into the app (Dockerfile)
         and uploaded on demand, so there is nothing for the operator to prepare or
-        upload, and no SSH."""
+        upload, and no SSH. The uploaded name carries a content hash, so a changed
+        image (e.g. a fixed agent) uploads as a new template instead of reusing a
+        stale one."""
+        import hashlib
+
         node = self.node()
+        data = self._helper_image_bytes()
+        name = f"restore-helper-{hashlib.sha256(data).hexdigest()[:8]}.tar.gz"
         stores = [s for s in (self.pve.get(f"/nodes/{node}/storage") or []) if "vztmpl" in (s.get("content") or "")]
         for s in stores:
             for vol in self.pve.get(f"/nodes/{node}/storage/{s['storage']}/content?content=vztmpl") or []:
-                if str(vol.get("volid", "")).rsplit("/", 1)[-1] == HELPER_IMAGE_NAME:
+                if str(vol.get("volid", "")).rsplit("/", 1)[-1] == name:
                     return vol["volid"]
         if not stores:
             raise RestoreTaskError("no vztmpl-capable storage on the restore host to hold the helper template")
         storage = stores[0]["storage"]
-        upid = self.pve.upload(node, storage, HELPER_IMAGE_NAME, self._helper_image_bytes())
+        upid = self.pve.upload(node, storage, name, data)
         if isinstance(upid, str) and upid.startswith("UPID"):
             self._wait_task(node, upid)
-        return f"{storage}:vztmpl/{HELPER_IMAGE_NAME}"
+        return f"{storage}:vztmpl/{name}"
 
     def _helper_image_bytes(self) -> bytes:
         from pathlib import Path

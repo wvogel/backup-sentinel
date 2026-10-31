@@ -48,14 +48,18 @@ def _tcp(ip: str, port: int, timeout: float = 2.0) -> bool:
 
 
 def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
+    import time
+
     out: dict[str, dict] = {}
     for t in targets:
         ip = t.get("ip")
         if not ip:
             continue
+        # Key is "ports" (not "tcp"): the classifier reads primary["ports"].
         out[ip] = {
             "icmp": _ping(ip) if require_icmp else None,
-            "tcp": {str(p): _tcp(ip, int(p)) for p in (t.get("ports") or [])},
+            "ports": {str(p): _tcp(ip, int(p)) for p in (t.get("ports") or [])},
+            "ts": int(time.time()),
         }
     return out
 

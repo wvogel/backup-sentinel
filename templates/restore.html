@@ -163,7 +163,14 @@
             {{ run.percent or 0 }}%{% if run.eta %} · ETA {{ run.eta|datetime_local }}{% endif %}
             {% if run.throughput_bps %} · {{ (run.throughput_bps / 1048576)|round(1) }} MiB/s{% endif %}
           {% elif run.checks and run.checks.get('error') %}<span class="critical-text" data-tooltip="{{ run.checks.error }}">{{ run.result or 'error' }}: {{ run.checks.error|truncate(80) }}</span>
-          {% elif run.result %}{{ run.result }}{% else %}–{% endif %}
+          {% elif run.result %}{{ run.result }}
+            {%- for ip, r in (run.checks or {}).items() if r is mapping and 'icmp' in r %}
+            <div class="muted check-detail">
+              <span class="chk chk-{{ 'na' if r.icmp is none else ('ok' if r.icmp else 'bad') }}">ICMP {{ '–' if r.icmp is none else ('✓' if r.icmp else '✗') }}</span>
+              {%- for port, ok in (r.ports or {}).items() %} <span class="chk chk-{{ 'ok' if ok else 'bad' }}">:{{ port }} {{ '✓' if ok else '✗' }}</span>{% endfor %}
+            </div>
+            {%- endfor %}
+          {% else %}–{% endif %}
         </td>
         <td>{{ run.trigger }}</td>
         <td>{{ run.queued_at|datetime_local }}</td>

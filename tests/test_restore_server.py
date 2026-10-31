@@ -248,18 +248,29 @@ def test_helper_agent_probe_targets(monkeypatch):
     monkeypatch.setattr(agent, "_tcp", lambda ip, port, timeout=2.0: port == 443)
     out = agent.probe_targets([{"ip": "10.0.0.50", "ports": [443, 22]}], require_icmp=True)
     assert out["10.0.0.50"]["icmp"] is True
-    assert out["10.0.0.50"]["tcp"] == {"443": True, "22": False}
+    # Key must be "ports" (the classifier reads primary["ports"]), not "tcp".
+    assert out["10.0.0.50"]["ports"] == {"443": True, "22": False}
 
 
-def test_ensure_helper_template_returns_existing_volid_without_upload():
+def _helper_name(data: bytes) -> str:
+    import hashlib
+
+    return f"restore-helper-{hashlib.sha256(data).hexdigest()[:8]}.tar.gz"
+
+
+def test_ensure_helper_template_returns_existing_volid_without_upload(tmp_path):
+    img = tmp_path / "restore-helper.tar.gz"
+    img.write_bytes(b"ROOTFS")
+    name = _helper_name(b"ROOTFS")
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],
         "/nodes/r1/storage": [{"storage": "local", "content": "vztmpl,iso"}],
-        "/nodes/r1/storage/local/content": [{"volid": "local:vztmpl/restore-helper.tar.gz"}],
+        "/nodes/r1/storage/local/content": [{"volid": f"local:vztmpl/{name}"}],
     }
-    srv = RestoreServer({"ssh_host": "10.0.0.9", "api_url": "https://10.0.0.9:8006"}, FakePve(responses), FakeSsh())
-    assert srv.ensure_helper_template() == "local:vztmpl/restore-helper.tar.gz"
-    assert srv.pve.uploads == []  # already present → no upload
+    cfg = {"ssh_host": "10.0.0.9", "api_url": "https://10.0.0.9:8006", "helper_image_path": str(img)}
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    assert srv.ensure_helper_template() == f"local:vztmpl/{name}"
+    assert srv.pve.uploads == []  # already present (same content hash) → no upload
 
 
 def test_ensure_helper_template_uploads_when_absent(tmp_path):
@@ -270,10 +281,11 @@ def test_ensure_helper_template_uploads_when_absent(tmp_path):
     }
     img = tmp_path / "restore-helper.tar.gz"
     img.write_bytes(b"ROOTFS")
+    name = _helper_name(b"ROOTFS")
     cfg = {"ssh_host": "10.0.0.9", "api_url": "https://10.0.0.9:8006", "helper_image_path": str(img)}
     srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
-    assert srv.ensure_helper_template() == "local:vztmpl/restore-helper.tar.gz"
-    assert srv.pve.uploads == [("r1", "local", "restore-helper.tar.gz", 6)]
+    assert srv.ensure_helper_template() == f"local:vztmpl/{name}"
+    assert srv.pve.uploads == [("r1", "local", name, 6)]
 
 
 def test_provision_helper_fails_clearly_when_no_target_accepts_containers():
