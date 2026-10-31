@@ -1759,9 +1759,10 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   .auto-restore-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Restore-test button cell (grid row 2, first column). Bottom-aligned so it
-   lines up with the inputs in the same row. */
-.auto-restore-form .field-action { justify-content: flex-end; }
+/* Restore-test button cell (grid row 2, first column). The button has no label
+   above it, so align-self:end drops it to the row's baseline — bottom-aligned
+   with the inputs/checkboxes beside it. */
+.auto-restore-form .field-action { align-self: end; justify-content: flex-end; }
 .auto-restore-form .field-action .button-secondary { width: 100%; justify-content: center; }
 
 .checkbox-label {
@@ -2988,7 +2989,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 #vm-table tbody tr.is-expanded > td { border-bottom-color: transparent; }
 /* Beats the cell padding of the table and phone-card rules below. */
 #vm-table tr.vm-detail-row > td { padding: 10px 12px 16px; background-color: var(--row-hover); }
-.vm-history { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 20px; }
+.vm-history { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 20px; }
 .vm-history-chart { min-width: 0; }
 .vm-history-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
 .vm-history-head strong { color: var(--ink); }
@@ -3107,6 +3108,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
   /* Not enough room for all 31 days: the newest stay, the oldest drop off
      the left edge instead of running past the card. */
   #vm-table td.sparkline-cell .sparkline { overflow: hidden; justify-content: flex-end; }
+  /* Four history charts in one row is a desktop layout; halve on phones. */
+  .vm-history { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Reports on phones: tiles and status columns wrap, the archive becomes cards. */
@@ -3204,7 +3207,11 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* — Expanded VM detail: section headings + layout — */
 /* Expanded VM detail: each area in a bordered box, heading breaking the border. */
 .vm-section {
-  border: 1px solid var(--line);
+  /* The detail row's td is tinted (--row-hover), so a --line border nearly
+     vanishes against it. Use the brighter card border and a plain --panel fill
+     so each area reads as a distinct box. */
+  border: 1px solid var(--chip-border);
+  background: var(--panel);
   border-radius: 12px;
   padding: 2px 16px 16px;
   margin: 0 0 14px;

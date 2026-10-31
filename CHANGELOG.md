@@ -5,6 +5,15 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.13] — 2026-10-31
+
+### Fixed
+
+- **Restore failures now show which parameter Proxmox rejected.** Write calls (e.g. the restore `POST …/qemu`) downgraded every HTTP 4xx to a bare connection error — the `HTTPError` was caught by the transport's broad `except OSError` (it subclasses `OSError`) and re-raised without the response body. So a real "Parameter verification failed" arrived with no detail. The body is now preserved, so the run's error names the offending field.
+- **Expanded VM detail: the Backup-Historie and Automated Restore Settings boxes are visible again.** Their border used `--line`, which is nearly invisible against the highlighted (tinted) detail-row background; they now use the brighter card border on a plain panel fill.
+- **The four backup-history charts stay on one row** (Größe · Dauer · Durchsatz · Wiederverwendet) instead of wrapping; they halve to two columns only on phones.
+- **"Restore-Test starten" sits on the row baseline**, bottom-aligned with the inputs beside it instead of floating at the top of the grid cell.
+
 ## [v3.1.12] — 2026-10-31
 
 ### Changed

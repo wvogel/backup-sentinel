@@ -64,6 +64,18 @@ class _Handler(BaseHTTPRequestHandler):
         # keep-alive connection: the client only notices on its next request.
         self.close_connection = type(self).drop_after_reply
 
+    def do_POST(self) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        self.rfile.read(length)
+        # A Proxmox-style 400: the specifics (which parameter failed) live in the
+        # body, not the status line.
+        body = json.dumps({"data": None, "errors": {"storage": "storage 'x' does not exist"}}).encode()
+        self.send_response(400, "Parameter verification failed")
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def log_message(self, *args) -> None:
         pass
 
@@ -103,6 +115,16 @@ class KeepAliveTests(unittest.TestCase):
         # The connection stays usable after an error reply.
         self.assertEqual(api_client.api_get_json(self.base, "/ok", "x"), [{"path": "/ok"}])
         self.assertEqual(_Handler.connections, 1)
+
+    def test_write_http_error_surfaces_response_body(self) -> None:
+        # Regression: a write call's HTTPError was swallowed by the broad OSError
+        # except (HTTPError subclasses URLError subclasses OSError) and downgraded
+        # to a bare URLError, discarding the body. The body must reach the caller.
+        with self.assertRaises(api_client.APIError) as ctx:
+            api_client.api_send("POST", self.base, "/bad", "x", data={"a": "1"})
+        msg = str(ctx.exception)
+        self.assertIn("HTTP 400", msg)
+        self.assertIn("storage 'x' does not exist", msg)  # the parameter detail
 
     def test_unreachable_server_is_an_api_error(self) -> None:
         with socket.socket() as probe:  # a port nobody listens on
