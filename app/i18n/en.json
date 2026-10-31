@@ -617,6 +617,7 @@
   "restore.diag_vm_locs": "Backup locations recorded across all VMs",
   "restore.diag_vm_locs_count": "{n} VM(s)",
   "restore.no_runs": "No runs yet.",
+  "restore.col_cluster": "Cluster",
   "restore.col_status": "Status",
   "restore.col_progress": "Progress",
   "restore.col_trigger": "Trigger",
