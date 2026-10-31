@@ -143,9 +143,10 @@ def all_vm_backup_locations() -> list[dict[str, Any]]:
             SELECT loc,
                    COUNT(DISTINCT be.vm_id) AS vms,
                    MIN(cl.name || ':' || v.name) AS sample
-            FROM backup_events be, unnest(be.locations) AS loc
+            FROM backup_events be
             JOIN vms v ON v.id = be.vm_id
             JOIN clusters cl ON cl.id = v.cluster_id
+            CROSS JOIN unnest(be.locations) AS loc
             WHERE be.status = 'ok' AND be.removed_at IS NULL
               AND COALESCE(be.size_bytes, 0) > 1 AND loc LIKE 'pbs:%%'
             GROUP BY loc
@@ -165,13 +166,14 @@ def matched_vms_by_location(locations: list[str]) -> dict[str, list[str]]:
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT DISTINCT loc, c.name AS cluster, v.name AS vm
-            FROM backup_events be, unnest(be.locations) AS loc
+            SELECT DISTINCT loc, cl.name AS cluster, v.name AS vm
+            FROM backup_events be
             JOIN vms v ON v.id = be.vm_id
-            JOIN clusters c ON c.id = v.cluster_id
+            JOIN clusters cl ON cl.id = v.cluster_id
+            CROSS JOIN unnest(be.locations) AS loc
             WHERE be.status = 'ok' AND be.removed_at IS NULL AND COALESCE(be.size_bytes, 0) > 1
               AND loc = ANY(%s)
-            ORDER BY loc, c.name, v.name
+            ORDER BY loc, cl.name, v.name
             """,
             (locations,),
         )

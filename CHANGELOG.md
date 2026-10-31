@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.16] — 2026-10-31
+
+### Fixed
+
+- **`/restore` diagnostic no longer reports "keine VM gematcht" for every datastore.** The diagnostic's two queries wrote `FROM backup_events be, unnest(be.locations) … JOIN vms …`, where the comma puts `backup_events` out of scope for the `JOIN`'s `ON be.vm_id`; Postgres raised `invalid reference to FROM-clause entry for table "be"`, the route swallowed it, and nothing showed as matched — even though the real restore matcher (a separate, un-joined query) matched fine and restores ran. Both queries now join `backup_events` first and `CROSS JOIN unnest(…)`, so the diagnostic reflects reality, including the per-VM location list with a ✓ on reachable ones.
+
 ## [v3.1.15] — 2026-10-31
 
 ### Fixed
