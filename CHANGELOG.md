@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.23] — 2026-10-31
+
+### Changed
+
+- **The restore helper template is now fully self-provided — nothing to prepare or upload.** The helper image (Alpine + python3 + dnsmasq + the probe agent) is built into the app container (a Docker build stage) and the app uploads it to a `vztmpl` storage on the restore host via the API on first use (idempotent), then creates the helper from it. No operator steps, no SSH, no manual template. Removes the previous `helper_template` requirement.
+
 ## [v3.1.22] — 2026-10-31
 
 ### Changed
