@@ -76,6 +76,17 @@
       </li>
       {% endfor %}
     </ul>
+    {% if vm_locations %}
+    <p class="eyebrow restore-diag-sub">{{ t('restore.diag_vm_locs') }}</p>
+    <ul class="restore-diag-list">
+      {% for v in vm_locations %}
+      <li class="{% if not v.matched %}muted{% endif %}">
+        {% if v.matched %}✓ {% endif %}<code>{{ v.location }}</code>
+        <span class="muted">· {{ t('restore.diag_vm_locs_count', n=v.vms) }} · {{ v.sample }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
   </details>
   {% endif %}
 

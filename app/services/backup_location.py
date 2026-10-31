@@ -1,25 +1,24 @@
 """Physical location of a backup, to tell real second copies from aliases.
 
-A PBS is identified by its certificate fingerprint (falls back to the host):
+A PBS is identified by its host name (short name, aliases, or resolved IP):
 the same machine may be configured by IP in PVE and by name as a direct PBS
-connection, and must still count as one server. Other PVE storages (NFS,
-local, …) are their own location.
+connection, and must still count as one server. Certificate fingerprints are
+deliberately NOT used — with ACME/Let's Encrypt they rotate every few months,
+so a fingerprint match silently breaks and the same server stops counting as
+one. Other PVE storages (NFS, local, …) are their own location.
 """
 
 from __future__ import annotations
 
-import hashlib
 import ipaddress
-import re
 import socket
-import ssl
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 from urllib.parse import urlsplit
 
 
-def pbs_location(fingerprint: str, host: str, datastore: str, namespace: str = "") -> str:
-    server = normalize_fingerprint(fingerprint) or (host or "").strip().lower()
+def pbs_location(host: str, datastore: str, namespace: str = "") -> str:
+    server = (host or "").strip().lower()
     location = f"pbs:{server}/{datastore}"
     return f"{location}/{namespace}" if namespace else location
 
@@ -33,10 +32,6 @@ def server_name(server: str) -> str:
     ("pbs:pbs-aboe-muc.int.example.de" → "pbs-aboe-muc")."""
     name = server.split(":", 1)[-1]
     return name if _is_ip(name) else name.split(".")[0]
-
-
-def normalize_fingerprint(fingerprint: str | None) -> str:
-    return re.sub(r"[^0-9a-f]", "", (fingerprint or "").lower())
 
 
 def connection_location(conn: Mapping[str, Any], datastore: str, namespace: str = "") -> str:
@@ -77,22 +72,14 @@ def _dns(host: str) -> set[str]:
 
 
 def match_pbs_connection(
-    fingerprint: str,
     host: str,
     connections: Iterable[Mapping[str, Any]],
     resolve: Callable[[str], set[str]] = _dns,
 ) -> Mapping[str, Any] | None:
-    """The registered PBS a PVE storage points to: same certificate, same
-    (short) host name, or the same IP address."""
+    """The registered PBS a PVE storage points to, matched by host identity:
+    same (short) host name or alias, or the same resolved IP address. Never by
+    certificate fingerprint — ACME certs rotate and would break the match."""
     connections = list(connections)
-    fp = normalize_fingerprint(fingerprint)
-    if fp:
-        for conn in connections:
-            # The fingerprint from the bootstrap or the ones the PBS reports
-            # for its own certificates (fetched on every sync).
-            known = [conn.get("fingerprint"), *(conn.get("cert_fingerprints") or [])]
-            if fp in {normalize_fingerprint(f) for f in known}:
-                return conn
     names = _names(host)
     for conn in connections:
         if names & _connection_names(conn):
@@ -112,56 +99,15 @@ def _connection_names(conn: Mapping[str, Any]) -> set[str]:
     for alias in conn.get("aliases") or []:
         names |= _names(str(alias))
     return names
-
-
-def probe_tls_fingerprint(host: str, port: int = 8007, timeout: float = 3.0) -> str:
-    """SHA-256 fingerprint of the certificate a PBS serves, or "" if
-    unreachable. Identifies a PBS known under different names or IPs."""
-    try:
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        with (
-            socket.create_connection((host, port), timeout=timeout) as sock,
-            context.wrap_socket(sock, server_hostname=host) as tls,
-        ):
-            der = tls.getpeercert(binary_form=True)
-    except (OSError, ValueError):
-        return ""
-    return hashlib.sha256(der).hexdigest() if der else ""
-
-
-def resolve_pbs_connection(
-    fingerprint: str,
-    host: str,
-    connections: Iterable[Mapping[str, Any]],
-    resolve: Callable[[str], set[str]] = _dns,
-    probe: Callable[[str, int], str] = probe_tls_fingerprint,
-    port: int = 8007,
-) -> Mapping[str, Any] | None:
-    """Like match_pbs_connection, but asks the server for its certificate
-    when nothing matches and no fingerprint is known (e.g. an ACME
-    certificate, or the PBS registered under its management name)."""
-    connections = list(connections)
-    conn = match_pbs_connection(fingerprint, host, connections, resolve)
-    if conn or normalize_fingerprint(fingerprint) or not host:
-        return conn
-    probed = probe(host, port)
-    return match_pbs_connection(probed, "", connections, resolve) if probed else None
-
-
 def assign_pbs_servers(
     events: list[dict[str, Any]],
     connections: Iterable[Mapping[str, Any]],
     resolve: Callable[[str], set[str]] = _dns,
-    probe: Callable[[str, int], str] | None = None,
 ) -> None:
     """Give PVE events on a PBS storage the location of the matching registered
-    PBS connection, so the same server counts once whichever way it was seen.
-
-    Unregistered PBS keep a host-based name; storages sharing a certificate
-    fingerprint are merged under one host (a name rather than an IP).
-    """
+    PBS connection (keyed by its name), so the same server counts once whichever
+    way it was seen. Unregistered PBS keep a host-based name; storages on the
+    same host name are merged under it (a name rather than an IP)."""
     connections = list(connections)
     cache: dict[str, set[str]] = {}
 
@@ -170,54 +116,26 @@ def assign_pbs_servers(
             cache[host] = resolve(host)
         return cache[host]
 
-    targets = [e for e in events if e.get("pbs_target")]
-    unmatched_hosts: dict[str, str] = {}
-    pending: list[dict[str, Any]] = []
-    for event in targets:
+    for event in [e for e in events if e.get("pbs_target")]:
         t = event["pbs_target"]
-        if probe:
-            conn = resolve_pbs_connection(t["fingerprint"], t["server"], connections, cached, probe)
-        else:
-            conn = match_pbs_connection(t["fingerprint"], t["server"], connections, cached)
+        conn = match_pbs_connection(t["server"], connections, cached)
         if conn:
             event["location"] = connection_location(conn, t["datastore"], t["namespace"])
-            continue
-        fp = normalize_fingerprint(t["fingerprint"])
-        host = str(t["server"]).strip().lower()
-        if fp and host:
-            # Prefer a host name over an IP address as the display name.
-            unmatched_hosts[fp] = min(unmatched_hosts.get(fp, host), host, key=lambda h: (_is_ip(h), h))
-        pending.append(event)
-    for event in pending:
-        t = event["pbs_target"]
-        host = unmatched_hosts.get(normalize_fingerprint(t["fingerprint"])) or str(t["server"]).strip().lower()
-        location = f"pbs:{host}/{t['datastore']}"
-        event["location"] = f"{location}/{t['namespace']}" if t["namespace"] else location
+        else:
+            event["location"] = pbs_location(str(t["server"]), t["datastore"], t["namespace"])
 
 
 class CachedLookups:
-    """DNS and certificate lookups, each host asked once per sync."""
+    """DNS lookups, each host asked once per sync."""
 
-    def __init__(
-        self,
-        resolve: Callable[[str], set[str]] = _dns,
-        probe: Callable[[str, int], str] = probe_tls_fingerprint,
-    ):
-        self._resolve, self._probe = resolve, probe
+    def __init__(self, resolve: Callable[[str], set[str]] = _dns):
+        self._resolve = resolve
         self._dns: dict[str, set[str]] = {}
-        self._certs: dict[tuple[str, int], str] = {}
 
     def resolve(self, host: str) -> set[str]:
         if host not in self._dns:
             self._dns[host] = self._resolve(host)
         return self._dns[host]
 
-    def probe(self, host: str, port: int) -> str:
-        if (host, port) not in self._certs:
-            self._certs[(host, port)] = self._probe(host, port)
-        return self._certs[(host, port)]
-
-    def connection(
-        self, fingerprint: str, host: str, connections: Iterable[Mapping[str, Any]]
-    ) -> Mapping[str, Any] | None:
-        return resolve_pbs_connection(fingerprint, host, connections, self.resolve, self.probe)
+    def connection(self, host: str, connections: Iterable[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+        return match_pbs_connection(host, connections, self.resolve)

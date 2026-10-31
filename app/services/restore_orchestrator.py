@@ -114,7 +114,7 @@ def restore_host_pbs_entries(server: RestoreServer) -> list[dict[str, Any]]:
         host = (s.get("server") or "").strip().lower()
         ds = s.get("datastore", "")
         ns = s.get("namespace", "")
-        conn = bl.match_pbs_connection(s.get("fingerprint", ""), host, conns)
+        conn = bl.match_pbs_connection(host, conns)
         if conn is not None:
             location = bl.connection_location(conn, ds, ns)
         else:
@@ -130,6 +130,29 @@ def restore_host_pbs_entries(server: RestoreServer) -> list[dict[str, Any]]:
             }
         )
     return entries
+
+
+def all_vm_backup_locations() -> list[dict[str, Any]]:
+    """Every distinct canonical PBS backup location recorded across all VMs, with
+    a sample VM for each — shown in the diagnostic beside the restore host's
+    datastores so the exact string difference (datastore, namespace, server name)
+    is visible when nothing matches."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT loc,
+                   COUNT(DISTINCT be.vm_id) AS vms,
+                   MIN(cl.name || ':' || v.name) AS sample
+            FROM backup_events be, unnest(be.locations) AS loc
+            JOIN vms v ON v.id = be.vm_id
+            JOIN clusters cl ON cl.id = v.cluster_id
+            WHERE be.status = 'ok' AND be.removed_at IS NULL
+              AND COALESCE(be.size_bytes, 0) > 1 AND loc LIKE 'pbs:%%'
+            GROUP BY loc
+            ORDER BY loc
+            """
+        )
+        return [{"location": r["loc"], "vms": r["vms"], "sample": r["sample"]} for r in cur.fetchall()]
 
 
 def matched_vms_by_location(locations: list[str]) -> dict[str, list[str]]:
@@ -204,7 +227,11 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
     targets_sorted = sorted(
         (s for s in config.get("target_storages", []) if s.get("use", True)), key=lambda s: s.get("order", 0)
     )
-    target_storage = targets_sorted[0]["storage"] if targets_sorted else ""
+    if not targets_sorted:
+        # No ticked target storage: PVE would reject the restore with a cryptic
+        # "storage ID '' ..." 400. Fail with an actionable message instead.
+        raise NotRunnable("no target storage selected — tick one in Settings → Restore")
+    target_storage = targets_sorted[0]["storage"]
 
     return RunPlan(
         vm_id=vm_id,

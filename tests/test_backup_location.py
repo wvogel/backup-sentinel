@@ -6,7 +6,6 @@ from app.services.backup_location import (
     match_pbs_connection,
     pbs_location,
     pve_location,
-    resolve_pbs_connection,
     server_name,
 )
 
@@ -17,34 +16,29 @@ def server_of(location: str) -> str:
 
 
 class BackupLocationTests(unittest.TestCase):
-    FP = "AB:CD:EF:01"
+    def test_host_is_the_server_key(self):
+        self.assertEqual(server_of(pbs_location("PBS.example.org", "ds")), "pbs:pbs.example.org")
 
-    def test_same_pbs_via_ip_and_hostname_is_one_server(self):
-        via_pve = pbs_location(self.FP, "10.0.0.5", "nas-b1", "aboe")
-        via_direct = pbs_location(self.FP.lower(), "pbs.example.org", "nas-b1")
-        self.assertEqual(server_of(via_pve), server_of(via_direct))
+    def test_host_and_namespace_build_the_location(self):
+        self.assertEqual(pbs_location("pbs1", "nas-b1", "aboe"), "pbs:pbs1/nas-b1/aboe")
+        self.assertEqual(pbs_location("pbs1", "nas-b1"), "pbs:pbs1/nas-b1")
 
-    def test_host_is_used_without_fingerprint(self):
-        self.assertEqual(server_of(pbs_location("", "PBS.example.org", "ds")), "pbs:pbs.example.org")
-
-    def test_different_pbs_are_different_servers(self):
-        self.assertNotEqual(
-            server_of(pbs_location("aa:aa", "pbs1", "ds")), server_of(pbs_location("bb:bb", "pbs2", "ds"))
-        )
+    def test_different_hosts_are_different_servers(self):
+        self.assertNotEqual(server_of(pbs_location("pbs1", "ds")), server_of(pbs_location("pbs2", "ds")))
 
     def test_pve_storages_are_their_own_location(self):
         self.assertEqual(server_of(pve_location("nfs-backup")), "pve:nfs-backup")
 
 
-AOBE = {"name": "pbs-aboe-muc", "api_url": "https://pbs-aboe-muc.example.org:8007", "fingerprint": "AA:BB:CC"}
-FH = {"name": "pbs-fh-muc", "api_url": "https://10.9.9.9:8007", "fingerprint": "DD:EE:FF"}
+AOBE = {"name": "pbs-aboe-muc", "api_url": "https://pbs-aboe-muc.example.org:8007"}
+FH = {"name": "pbs-fh-muc", "api_url": "https://10.9.9.9:8007"}
 
 
-def pve_event(fingerprint="", server="", datastore="nas-b1", namespace=""):
+def pve_event(server="", datastore="nas-b1", namespace=""):
     return {
         "vmid": 100,
-        "location": pbs_location(fingerprint, server, datastore, namespace),
-        "pbs_target": {"fingerprint": fingerprint, "server": server, "datastore": datastore, "namespace": namespace},
+        "location": pbs_location(server, datastore, namespace),
+        "pbs_target": {"server": server, "datastore": datastore, "namespace": namespace},
     }
 
 
@@ -61,26 +55,26 @@ class AssignPbsServersTests(unittest.TestCase):
     def test_direct_connection_location_uses_its_name(self):
         self.assertEqual(server_of(connection_location(AOBE, "nas-b1")), "pbs:pbs-aboe-muc")
 
-    def test_pve_storage_matches_by_fingerprint_in_any_notation(self):
-        self.assertEqual(self.assign(pve_event("aabbcc", "10.0.0.5")), ["pbs:pbs-aboe-muc"])
-
-    def test_pve_storage_without_fingerprint_matches_by_hostname(self):
-        # ACME certificate: PVE needs no fingerprint, only the server name.
-        self.assertEqual(self.assign(pve_event("", "PBS-ABOE-MUC.example.org")), ["pbs:pbs-aboe-muc"])
-        self.assertEqual(self.assign(pve_event("", "pbs-aboe-muc")), ["pbs:pbs-aboe-muc"])
+    def test_pve_storage_matches_by_hostname(self):
+        # ACME certificate / rotating certs: matched purely by the server name.
+        self.assertEqual(self.assign(pve_event("PBS-ABOE-MUC.example.org")), ["pbs:pbs-aboe-muc"])
+        self.assertEqual(self.assign(pve_event("pbs-aboe-muc")), ["pbs:pbs-aboe-muc"])
 
     def test_pve_storage_matches_by_resolved_ip(self):
         dns = {"10.0.0.5": {"10.0.0.5"}, "pbs-aboe-muc.example.org": {"10.0.0.5"}}
-        result = self.assign(pve_event("", "10.0.0.5"), resolve=lambda h: dns.get(h, set()))
+        result = self.assign(pve_event("10.0.0.5"), resolve=lambda h: dns.get(h, set()))
         self.assertEqual(result, ["pbs:pbs-aboe-muc"])
 
     def test_ip_is_not_shortened_to_its_first_octet(self):
-        self.assertEqual(self.assign(pve_event("", "10.0.0.7")), ["pbs:10.0.0.7"])
+        self.assertEqual(self.assign(pve_event("10.0.0.7")), ["pbs:10.0.0.7"])
 
-    def test_unregistered_pbs_is_named_by_host_and_merged_by_fingerprint(self):
-        result = self.assign(pve_event("11:22", "offsite.example.org"), pve_event("1122", "192.0.2.4"))
-        self.assertEqual(result[0], result[1])
-        self.assertEqual(result[0], "pbs:offsite.example.org")
+    def test_unregistered_pbs_is_named_by_its_host(self):
+        self.assertEqual(self.assign(pve_event("offsite.example.org")), ["pbs:offsite.example.org"])
+
+    def test_same_unregistered_host_is_one_server(self):
+        result = self.assign(pve_event("offsite.example.org"), pve_event("offsite.example.org", namespace="ns2"))
+        self.assertEqual(server_of_both := {result[0], result[1]}, {"pbs:offsite.example.org"})
+        self.assertEqual(len(server_of_both), 1)
 
     def test_other_events_are_untouched(self):
         event = {"vmid": 1, "location": pve_location("nfs")}
@@ -96,56 +90,22 @@ class AssignPbsServersTests(unittest.TestCase):
         self.assertEqual(server_name("pbs:192.0.2.4"), "192.0.2.4")
 
 
-if __name__ == "__main__":
-    unittest.main()
+MGM = {"id": 9, "name": "mgm-pbs-mar-lej", "api_url": "https://10.9.0.2:8007", "aliases": ["pbs-mar-lej", "10.20.0.2"]}
 
 
-MGM = {
-    "id": 9,
-    "name": "mgm-pbs-mar-lej",
-    "api_url": "https://10.9.0.2:8007",
-    "fingerprint": "",
-    "cert_fingerprints": ["AB:CD:EF"],
-}
+class MatchByHostTests(unittest.TestCase):
+    def test_registered_name_matches(self):
+        self.assertIs(match_pbs_connection("mgm-pbs-mar-lej", [MGM], no_dns), MGM)
 
-
-class CertificateMatchTests(unittest.TestCase):
-    def test_certificate_fingerprint_reported_by_the_pbs_matches(self):
-        self.assertIs(match_pbs_connection("ab:cd:ef", "pbs-mar-lej", [MGM], no_dns), MGM)
-
-    def test_probe_reads_the_certificate_when_pve_has_no_fingerprint(self):
-        probed = []
-
-        def probe(host, port):
-            probed.append((host, port))
-            return "AB:CD:EF"
-
-        conn = resolve_pbs_connection("", "pbs-mar-lej", [MGM], no_dns, probe)
-        self.assertIs(conn, MGM)
-        self.assertEqual(probed, [("pbs-mar-lej", 8007)])
-
-    def test_probe_is_skipped_when_names_already_match(self):
-        def probe(host, port):
-            raise AssertionError("no probe needed")
-
-        self.assertIs(resolve_pbs_connection("", "mgm-pbs-mar-lej", [MGM], no_dns, probe), MGM)
-
-    def test_unreachable_probe_matches_nothing(self):
-        self.assertIsNone(resolve_pbs_connection("", "pbs-mar-lej", [MGM], no_dns, lambda h, p: ""))
-
-
-ALIASED = {**MGM, "cert_fingerprints": [], "aliases": ["pbs-mar-lej", "10.20.0.2"]}
-
-
-class AliasTests(unittest.TestCase):
     def test_alias_name_matches(self):
-        self.assertIs(match_pbs_connection("", "PBS-MAR-LEJ.int.example.de", [ALIASED], no_dns), ALIASED)
+        self.assertIs(match_pbs_connection("PBS-MAR-LEJ.int.example.de", [MGM], no_dns), MGM)
 
     def test_alias_ip_matches(self):
-        self.assertIs(match_pbs_connection("", "10.20.0.2", [ALIASED], no_dns), ALIASED)
+        self.assertIs(match_pbs_connection("10.20.0.2", [MGM], no_dns), MGM)
 
-    def test_no_probe_needed_for_an_alias(self):
-        def probe(host, port):
-            raise AssertionError("alias must match without probing")
+    def test_nothing_matches_an_unknown_host(self):
+        self.assertIsNone(match_pbs_connection("unknown.example.org", [MGM], no_dns))
 
-        self.assertIs(resolve_pbs_connection("", "pbs-mar-lej", [ALIASED], no_dns, probe), ALIASED)
+
+if __name__ == "__main__":
+    unittest.main()

@@ -41,7 +41,6 @@ from app.services.pbs import (
     assess_datastore_usage,
     fetch_all_pbs_backups,
     fetch_datastore_usage,
-    fetch_pbs_cert_fingerprints,
     fetch_pbs_sync_jobs,
 )
 from app.services.proxmox import fetch_cluster_inventory, fetch_finished_backup_tasks
@@ -81,9 +80,7 @@ def read_directly(conns: list[dict], lookups: CachedLookups):
     seen = {(row["pbs_id"], row["store"]) for row in db.list_datastore_usage()}
 
     def covered(cfg: dict) -> bool:
-        conn = match_pbs_connection(
-            str(cfg.get("fingerprint") or ""), str(cfg.get("server") or ""), conns, lookups.resolve
-        )
+        conn = match_pbs_connection(str(cfg.get("server") or ""), conns, lookups.resolve)
         if not conn or (conn["id"], str(cfg.get("datastore") or "")) not in seen:
             return False
         scope, ns = str(conn.get("namespace") or ""), str(cfg.get("namespace") or "")
@@ -208,19 +205,16 @@ def sync_cluster_backups(cluster: dict) -> None:
         with step(ts("synclog.step_database")):
             db.sync_backup_events_for_source(cluster["id"], "pve", pve_events)
 
-        for conn in db.list_pbs_connections(cluster["id"]):
-            with step(ts("synclog.step_pbs_certs", name=conn.get("name"))):
-                record_cert_fingerprints(conn)
         pbs_conns = db.list_pbs_connections(cluster["id"])
         # Name PBS storages seen through PVE after the registered PBS behind them,
-        # so one server is one copy however it was reached.
+        # so one server is one copy however it was reached (matched by host name).
         with step(ts("synclog.step_matching")):
-            assign_pbs_servers(inventory.backup_events or [], pbs_conns, lookups.resolve, lookups.probe)
+            assign_pbs_servers(inventory.backup_events or [], pbs_conns, lookups.resolve)
             if inventory.pbs_targets is not None:
                 # Any cluster's registration counts: the PBS may be registered elsewhere.
                 all_conns = db.list_pbs_connections()
                 for target in inventory.pbs_targets:
-                    match = lookups.connection(target["fingerprint"], target["server"], all_conns)
+                    match = lookups.connection(target["server"], all_conns)
                     target["pbs_id"] = match["id"] if match else None
                 db.replace_pve_pbs_targets(cluster["id"], inventory.pbs_targets)
         if not pbs_conns:
@@ -407,17 +401,6 @@ def record_datastore_usage(cluster: dict, conn: dict, pbs_log: list[str]) -> Non
             notify_datastore_full(cluster["name"], conn.get("name", ""), row["store"], pct, row["estimated_full_at"])
 
 
-def record_cert_fingerprints(conn: dict) -> None:
-    """Remember the certificates this PBS serves (best effort)."""
-    try:
-        fingerprints = fetch_pbs_cert_fingerprints(conn)
-    except Exception as exc:
-        logger.warning("Certificate info failed for PBS %s: %s", conn.get("name"), exc)
-        return
-    if fingerprints != list(conn.get("cert_fingerprints") or []):
-        db.update_pbs_cert_fingerprints(conn["id"], fingerprints)
-
-
 def record_sync_jobs(
     conn: dict, pbs_log: list[str], lookups: CachedLookups | None = None, jobs: list[dict] | None = None
 ) -> None:
@@ -434,7 +417,7 @@ def record_sync_jobs(
     lookups = lookups or CachedLookups()
     for job in jobs:
         if job["remote_name"]:
-            match = lookups.connection(job["remote_fingerprint"], job["remote_host"], all_conns)
+            match = lookups.connection(job["remote_host"] or job["remote_name"], all_conns)
             job["remote_pbs_id"] = match["id"] if match else None
     db.replace_pbs_sync_jobs(conn["id"], jobs)
     pbs_log.append(ts("synclog.sync_jobs", count=len(jobs)))

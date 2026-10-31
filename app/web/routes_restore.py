@@ -203,6 +203,7 @@ def restore_runs(request: Request) -> HTMLResponse:
     host = None
     host_error = None
     host_pbs: list = []
+    vm_locations: list = []
     config = restore_config.load()
     if config is not None:
         try:
@@ -214,6 +215,12 @@ def restore_runs(request: Request) -> HTMLResponse:
             matched = restore_orchestrator.matched_vms_by_location([e["location"] for e in host_pbs])
             for e in host_pbs:
                 e["vms"] = matched.get(e["location"], [])
+            # Show the VM-side locations next to the host ones so the exact string
+            # difference is visible when something doesn't match (no guessing).
+            host_locs = {e["location"] for e in host_pbs}
+            vm_locations = restore_orchestrator.all_vm_backup_locations()
+            for v in vm_locations:
+                v["matched"] = v["location"] in host_locs
         except Exception as exc:
             # Surface the real reason instead of a bare "host unreachable".
             logger.warning("free_resources failed: %s", exc)
@@ -223,6 +230,7 @@ def restore_runs(request: Request) -> HTMLResponse:
         "held": held,
         "host": host,
         "host_pbs": host_pbs,
+        "vm_locations": vm_locations,
         "host_error": host_error,
         "configured": config is not None,
         "queue_paused": restore_config.queue_paused(),

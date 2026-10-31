@@ -123,22 +123,22 @@ PBS1 = {"id": 7, "name": "pbs1", "api_url": "https://pbs1:8007", "fingerprint": 
 
 class ReadDirectlyTests(unittest.TestCase):
     def covered(self, cfg, conn=None):
-        lookups = sync.CachedLookups(resolve=lambda host: set(), probe=lambda host, port: "")
+        lookups = sync.CachedLookups(resolve=lambda host: set())
         usage = [{"pbs_id": 7, "store": "nas"}]
         with mock.patch.object(sync.db, "list_datastore_usage", return_value=usage):
             return sync.read_directly([conn or PBS1], lookups)(cfg)
 
     def test_registered_pbs_with_its_datastore_and_namespace(self):
-        self.assertTrue(self.covered({"fingerprint": "AA:01", "server": "10.0.0.5", "datastore": "nas"}))
+        self.assertTrue(self.covered({"server": "pbs1", "datastore": "nas"}))
 
     def test_datastore_the_connection_does_not_see(self):
-        self.assertFalse(self.covered({"fingerprint": "AA:01", "server": "10.0.0.5", "datastore": "other"}))
+        self.assertFalse(self.covered({"server": "pbs1", "datastore": "other"}))
 
     def test_unregistered_pbs(self):
-        self.assertFalse(self.covered({"fingerprint": "BB:02", "server": "elsewhere", "datastore": "nas"}))
+        self.assertFalse(self.covered({"server": "elsewhere", "datastore": "nas"}))
 
     def test_namespace_outside_what_is_read(self):
-        cfg = {"fingerprint": "AA:01", "server": "x", "datastore": "nas", "namespace": "aboe"}
+        cfg = {"server": "pbs1", "datastore": "nas", "namespace": "aboe"}
         self.assertFalse(self.covered(cfg))  # only the root is read
         self.assertTrue(self.covered(cfg, {**PBS1, "namespace": "aboe"}))
         self.assertTrue(self.covered({**cfg, "namespace": "aboe/sub"}, {**PBS1, "namespace": "aboe"}))

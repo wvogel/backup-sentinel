@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
-from app.services.backup_location import match_pbs_connection, normalize_fingerprint, server_name
+from app.services.backup_location import match_pbs_connection, server_name
 from app.services.pbs import assess_datastore_usage
 
 # PBS allows at most 7 namespace levels; bounds the walk through cycles.
@@ -85,7 +85,7 @@ def _synced_guests(
         return None
     present: dict[Node, dict[int, tuple[bool, datetime]]] = {}
     for (label, store), guests in present_by_store.items():
-        node = (servers.resolve("", label, label), store)
+        node = (servers.resolve(label, label), store)
         since = now - timedelta(days=copy_windows.get(f"pbs:{label}", default_window))
         seen = present.setdefault(node, {})
         for vmid, latest in guests.items():
@@ -115,8 +115,7 @@ class _Servers:
         self.key_of_conn: dict[int, str] = {}
         self.name: dict[str, str] = {}
         self.registered: set[str] = set()
-        # Connections sharing a fingerprint, name or API host are one server,
-        # even if one of them was registered without a fingerprint.
+        # Connections sharing a name or API host (or alias) are one server.
         owner: dict[str, int] = {}
         parent = {conn["id"]: conn["id"] for conn in connections}
 
@@ -126,11 +125,9 @@ class _Servers:
             return conn_id
 
         for conn in connections:
-            fps = {normalize_fingerprint(f) for f in [conn.get("fingerprint"), *(conn.get("cert_fingerprints") or [])]}
             host = urlsplit(str(conn.get("api_url") or "")).hostname or ""
-            idents = [f"fp:{fp}" for fp in sorted(fps) if fp]
             aliases = [f"host:{str(a).lower()}" for a in conn.get("aliases") or []]
-            for ident in (*idents, f"name:{str(conn.get('name') or '').lower()}", f"host:{host}", *aliases):
+            for ident in (f"name:{str(conn.get('name') or '').lower()}", f"host:{host}", *aliases):
                 if not ident or ident.endswith(":"):
                     continue
                 if ident in owner:
@@ -143,11 +140,14 @@ class _Servers:
             self.name.setdefault(key, str(conn.get("name") or ""))
             self.registered.add(key)
 
-    def resolve(self, fingerprint: str, host: str, fallback_name: str = "", pbs_id: int | None = None) -> str:
-        # Resolved at sync time (DNS, certificate probe) when available.
+    def resolve(self, host: str, fallback_name: str = "", pbs_id: int | None = None) -> str:
+        # Matched by the pbs_id stored at sync time, else by host name, else by
+        # the remote's registered name (a strong identity; never a fingerprint).
         if pbs_id in self.key_of_conn:
             return self.key_of_conn[pbs_id]
-        conn = match_pbs_connection(fingerprint, host, self.connections, _no_dns)
+        conn = match_pbs_connection(host, self.connections, _no_dns)
+        if conn is None and fallback_name:
+            conn = match_pbs_connection(fallback_name, self.connections, _no_dns)
         if conn:
             return self.key_of_conn[conn["id"]]
         label = host.strip().lower() or fallback_name
@@ -198,9 +198,7 @@ def build_topology(
             continue
         seen_jobs.add((here, job["job_id"]))
         if job["remote_name"]:
-            there = servers.resolve(
-                job["remote_fingerprint"], job["remote_host"], job["remote_name"], job.get("remote_pbs_id")
-            )
+            there = servers.resolve(job["remote_host"], job["remote_name"], job.get("remote_pbs_id"))
         else:
             there = here  # local sync between two datastores of this PBS
         local = ((here, job["store"]), job["ns"])
@@ -241,7 +239,7 @@ def build_topology(
         # job data (before the first sync) every configured storage counts.
         if vms_by_storage and not vms_by_storage.get(t["storage_id"]):
             continue
-        node = (servers.resolve(t["fingerprint"], t["server"], pbs_id=t.get("pbs_id")), str(t["datastore"]))
+        node = (servers.resolve(t["server"], pbs_id=t.get("pbs_id")), str(t["datastore"]))
         primary_edges.append({"dst": node, "dst_ns": str(t["namespace"] or ""), "storage_id": t["storage_id"]})
         reach(node, str(t["namespace"] or ""), 1)
     walk()

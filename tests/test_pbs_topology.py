@@ -69,7 +69,7 @@ class TopologyTests(unittest.TestCase):
     def test_primary_then_pull_copy(self) -> None:
         topo = self.build(
             20,
-            [target("10.0.0.3", "nas-pano", fingerprint="cc:03")],
+            [target("pbs-pano", "nas-pano")],
             [ABOE, FH_FOR_ABOE, PANO, FH_FOR_PANO],
             [
                 job(
@@ -79,7 +79,7 @@ class TopologyTests(unittest.TestCase):
                     ns="pano",
                     remote="pano",
                     remote_store="nas-pano",
-                    remote_fingerprint="CC:03",
+                    remote_pbs_id=3,
                 )
             ],
             [usage(3, "nas-pano", 40), usage(4, "nas-pve-fh-muc", 76), usage(4, "nas-offsite-fh-muc", 18)],
@@ -102,7 +102,7 @@ class TopologyTests(unittest.TestCase):
                 ns="pano",
                 remote="pano",
                 remote_store="nas-pano",
-                remote_fingerprint="CC:03",
+                remote_pbs_id=3,
             ),
             job(
                 2,
@@ -111,7 +111,7 @@ class TopologyTests(unittest.TestCase):
                 ns="aboe",
                 remote="aboe",
                 remote_store="nas-b1",
-                remote_fingerprint="AA:01",
+                remote_pbs_id=1,
             ),
         ]
         topo = self.build(10, [target("pbs-aboe-muc", "nas-b1")], [ABOE, FH_FOR_ABOE, PANO, FH_FOR_PANO], jobs)
@@ -119,10 +119,10 @@ class TopologyTests(unittest.TestCase):
 
     def test_mutual_backup_draws_back_edge_without_looping(self) -> None:
         jobs = [
-            job(4, "to-fh", "nas-fh", remote="pano", remote_store="nas-pano", remote_fingerprint="CC:03"),
-            job(3, "to-pano", "nas-pano", ns="fh", remote="fh", remote_store="nas-fh", remote_fingerprint="FF:02"),
+            job(4, "to-fh", "nas-fh", remote="pano", remote_store="nas-pano", remote_pbs_id=3),
+            job(3, "to-pano", "nas-pano", ns="fh", remote="fh", remote_store="nas-fh", remote_pbs_id=4),
         ]
-        topo = self.build(20, [target("pbs-pano", "nas-pano", fingerprint="CC:03")], [PANO, FH_FOR_PANO], jobs)
+        topo = self.build(20, [target("pbs-pano", "nas-pano")], [PANO, FH_FOR_PANO], jobs)
         self.assertEqual(names(topo), [[("pbs-pano", ["nas-pano"])], [("pbs-fh-muc", ["nas-fh"])]])
         back = [e for e in topo["edges"] if e.get("job_id") == "to-pano"]
         self.assertEqual(len(back), 1)
@@ -183,7 +183,7 @@ class TopologyTests(unittest.TestCase):
             40,
             [target("pbs-fh-muc", "nas-pve-fh-muc", "FF:02"), target("pbs-aboe-muc", "nas-off", "AA:01")],
             [fh, aboe],
-            [job(7, "s-fh", "nas-off", remote="fh", remote_store="nas-pve-fh-muc", remote_fingerprint="FF:02")],
+            [job(7, "s-fh", "nas-off", remote="fh", remote_store="nas-pve-fh-muc", remote_pbs_id=6)],
             [usage(6, "nas-pve-fh-muc", 76), usage(7, "nas-off", 11), usage(7, "nas-b1", 83)],
             now=NOW,
             vms_by_storage={"st-nas-pve-fh-muc": 8, "st-nas-off": 1},
@@ -200,16 +200,14 @@ class TopologyTests(unittest.TestCase):
         self.assertEqual(self.build(10, [], [PANO])["columns"], [])
 
     def test_same_pbs_registered_twice_is_one_server(self) -> None:
-        # Registered for two clusters, once without fingerprint: still one PBS,
+        # Registered for two clusters under the same name: still one PBS,
         # and its sync job (read through both connections) is one edge.
-        fh_no_fp = conn(5, 30, "pbs-fh-muc")
+        fh_second = conn(5, 30, "pbs-fh-muc")
         jobs = [
-            job(c, "s-pano", "nas-offsite-fh-muc", remote="pano", remote_store="nas-pano", remote_fingerprint="CC:03")
+            job(c, "s-pano", "nas-offsite-fh-muc", remote="pano", remote_store="nas-pano", remote_pbs_id=3)
             for c in (4, 5)
         ]
-        topo = self.build(
-            20, [target("pbs-pano", "nas-pano", fingerprint="CC:03")], [PANO, FH_FOR_PANO, fh_no_fp], jobs
-        )
+        topo = self.build(20, [target("pbs-pano", "nas-pano")], [PANO, FH_FOR_PANO, fh_second], jobs)
         self.assertEqual(names(topo), [[("pbs-pano", ["nas-pano"])], [("pbs-fh-muc", ["nas-offsite-fh-muc"])]])
         self.assertEqual(len([e for e in topo["edges"] if e["kind"] == "sync"]), 1)
 
@@ -231,12 +229,6 @@ class TopologyTests(unittest.TestCase):
         ]
         topo = self.build(50, [side], [mgm, aboe], jobs, [usage(8, "nas-b0-volume1", 35)])
         self.assertEqual(names(topo), [[("mgm-pbs-mar-lej", ["nas-b0-volume1"])], [("pbs-aboe-muc", ["nas-off"])]])
-
-    def test_certificate_fingerprints_merge_registrations(self) -> None:
-        a = {**conn(10, 60, "mgm-pbs-mar-lej"), "cert_fingerprints": ["AB:CD"]}
-        b = conn(11, 61, "pbs-mar-lej", fingerprint="ab:cd")
-        topo = self.build(60, [target("x", "nas", fingerprint="AB:CD")], [a, b], [], [usage(11, "nas", 5)])
-        self.assertEqual(names(topo), [[("mgm-pbs-mar-lej", ["nas"])]])
 
     def test_alias_joins_pve_target_and_registered_pbs(self) -> None:
         mgm = {**conn(12, 70, "mgm-pbs-mar-lej"), "aliases": ["pbs-mar-lej"]}
@@ -311,7 +303,7 @@ class SyncedGuestTests(unittest.TestCase):
             40,
             [target("pbs-fh-muc", "nas-pve-fh-muc", "FF:02"), target("pbs-aboe-muc", "nas-off", "AA:01")],
             [self.FH, self.ABOE],
-            [job(7, "s-fh", "nas-off", remote="fh", remote_store="nas-pve-fh-muc", remote_fingerprint="FF:02")],
+            [job(7, "s-fh", "nas-off", remote="fh", remote_store="nas-pve-fh-muc", remote_pbs_id=6)],
             [],
             now=NOW,
             guests_by_storage={"st-nas-pve-fh-muc": {1, 2, 3}, "st-nas-off": {8}},
