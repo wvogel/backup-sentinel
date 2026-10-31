@@ -238,8 +238,11 @@
               <div class="vm-restore-settings"><p class="muted restore-no-match-note">{{ t('restore.vm_no_match') }}</p></div>
               {% elif row.last_backup_at %}
               <div class="vm-restore-settings">
-                <form action="/restore/vm/{{ row.id }}/policy" method="post" class="auto-restore-form">
+                {# All fields auto-save on change (no Speichern); the restore-test
+                   button sits in the grid's first cell of the second row. #}
+                <form action="/restore/vm/{{ row.id }}/policy" method="post" class="auto-restore-form js-autosave-form">
                   <input type="hidden" name="redirect" value="/clusters/{{ cluster.slug }}">
+                  <input type="hidden" name="ajax" value="1">
                   <label class="field field-check"><span>{{ t('restore.auto') }}</span><input type="checkbox" name="auto_restore_enabled" value="1" {% if row.auto_restore_enabled %}checked{% endif %}></label>
                   <label class="field"><span>{{ t('restore.cadence') }}</span>
                     <select name="restore_cadence">
@@ -250,18 +253,15 @@
                   </label>
                   <label class="field"><span>{{ t('restore.retry_days') }}</span><input name="restore_retry_days" type="number" value="{{ row.restore_retry_days or 7 }}"></label>
                   <label class="field"><span>{{ t('restore.tcp_ports') }}</span><input name="probe_tcp_ports" value="{{ row.probe_tcp_ports|join(', ') if row.probe_tcp_ports else '' }}" placeholder="443, 445"></label>
-                  {# spacer: keep the cell under "Auto" empty; Primäre IP sits far right #}
-                  <div class="field-spacer" aria-hidden="true"></div>
-                  <label class="field field-check"><span>{{ t('restore.require_icmp') }}</span><input type="checkbox" name="probe_require_icmp" value="1" {% if row.probe_require_icmp %}checked{% endif %}></label>
-                  <label class="field field-check"><span>{{ t('restore.hold_on_failure') }}</span><input type="checkbox" name="hold_on_failure" value="1" {% if row.hold_on_failure %}checked{% endif %} data-confirm-hold></label>
-                  <label class="field"><span>{{ t('restore.primary_ip') }}</span><input name="probe_primary_ip" value="{{ row.probe_primary_ip or '' }}"></label>
-                  <div class="auto-restore-actions">
-                    <button type="submit" formaction="/restore/vm/{{ row.id }}/test" class="button-secondary restore-test-start js-confirm-submit" data-confirm-text="{{ t('restore.test_confirm') }}">
+                  <div class="field field-action">
+                    <button type="submit" formaction="/restore/vm/{{ row.id }}/test" formnovalidate class="button-secondary restore-test-start js-confirm-submit" data-confirm-text="{{ t('restore.test_confirm') }}">
                       <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                       <span class="js-confirm-label">{{ t('restore.test_now') }}</span>
                     </button>
-                    <button type="submit" class="button-secondary">{{ t('restore.save_policy') }}</button>
                   </div>
+                  <label class="field field-check"><span>{{ t('restore.require_icmp') }}</span><input type="checkbox" name="probe_require_icmp" value="1" {% if row.probe_require_icmp %}checked{% endif %}></label>
+                  <label class="field field-check"><span>{{ t('restore.hold_on_failure') }}</span><input type="checkbox" name="hold_on_failure" value="1" {% if row.hold_on_failure %}checked{% endif %} data-confirm-hold></label>
+                  <label class="field"><span>{{ t('restore.primary_ip') }}</span><input name="probe_primary_ip" value="{{ row.probe_primary_ip or '' }}"></label>
                 </form>
               </div>
               {% endif %}

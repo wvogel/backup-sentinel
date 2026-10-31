@@ -1759,13 +1759,10 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   .auto-restore-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Actions span the full grid width; buttons right (Restore-Test, then Speichern). */
-.auto-restore-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
+/* Restore-test button cell (grid row 2, first column). Bottom-aligned so it
+   lines up with the inputs in the same row. */
+.auto-restore-form .field-action { justify-content: flex-end; }
+.auto-restore-form .field-action .button-secondary { width: 100%; justify-content: center; }
 
 .checkbox-label {
   display: inline-flex;
@@ -3244,11 +3241,15 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .confirm-suppress {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 4px 0 12px;
+  gap: 8px;
+  margin: 4px 0 16px;
   font-size: 0.9em;
   color: var(--muted);
+  white-space: nowrap;
 }
+.confirm-suppress input[type="checkbox"] { flex: none; width: 16px; height: 16px; margin: 0; }
+/* Confirm modal: Cancel left, Confirm right. */
+.confirm-box .lightbox-actions { justify-content: space-between; }
 
 /* — Settings API row: keep the "Token neu erzeugen" button on the same line — */
 .api-status-row { flex-wrap: nowrap; }
