@@ -565,6 +565,8 @@
   "restore.utilization": "Auslastung",
   "restore.queued_waiting": "{n} warten",
   "restore.auto": "Auto",
+  "restore.auto_no_backup": "kein Backup",
+  "restore.auto_no_backup_hint": "Auto-Restore ist erst möglich, wenn für diese VM ein Backup existiert.",
   "restore.settings_title": "Automated Restore Settings",
   "restore.test_confirm": "Jetzt wirklich starten?",
   "restore.hold_confirm_title": "Nur zum Debuggen",

@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.4] — 2026-10-31
+
+### Fixed
+
+- **Auto is only offered when the VM has a backup.** A VM with no backup (e.g. a template) can't be restore-tested, so its Auto checkbox is replaced by a muted "kein Backup" hint.
+- **Enabling Auto starts a due test promptly.** Saving the policy now kicks the restore queue, so a VM that is already due (e.g. never restore-tested) is picked up immediately instead of waiting for the next sync tick. (The due calculation was already relative — never-tested = due now, otherwise last successful test + cadence — not anchored to calendar boundaries.)
+- **Layout:** the per-VM restore settings now lay out as two tidy aligned rows (4 columns), and the Backup-Frequenz select no longer stretches the full width.
+
 ## [v3.1.3] — 2026-10-31
 
 ### Fixed
