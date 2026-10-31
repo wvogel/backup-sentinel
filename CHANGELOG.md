@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.24] — 2026-10-31
+
+### Fixed
+
+- **The helper-image Docker build actually works now.** v3.1.23's build stage used `apk add --root --initdb`, which can't resolve packages in a fresh root (no keys/index) and failed `docker compose build` on the host, so v3.1.23 never deployed. The stage now installs into the Alpine builder and packs its rootfs as the CT template (validated: the 20 MB image lands at `/app/assets/restore-helper.tar.gz`).
+
 ## [v3.1.23] — 2026-10-31
 
 ### Changed

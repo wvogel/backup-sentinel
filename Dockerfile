@@ -2,19 +2,17 @@
 #     probe/DHCP agent, baked in and started on boot. Built here so the app can
 #     upload it to PVE via the API — nothing for the operator to prepare.
 FROM alpine:3.20 AS helper
-COPY app/services/restore_helper_agent.py /agent.py
-RUN mkdir -p /rootfs \
- && apk add --no-cache --root /rootfs --initdb \
-      --repository https://dl-cdn.alpinelinux.org/alpine/v3.20/main \
-      alpine-base python3 dnsmasq iproute2 iputils openrc \
- && cp /agent.py /rootfs/opt/restore-helper-agent.py \
- && printf '#!/sbin/openrc-run\ncommand="/usr/bin/python3"\ncommand_args="/opt/restore-helper-agent.py"\ncommand_background=true\npidfile="/run/restore-helper.pid"\n' \
-      > /rootfs/etc/init.d/restore-helper \
- && chmod +x /rootfs/etc/init.d/restore-helper \
- && mkdir -p /rootfs/etc/runlevels/default \
- && ln -sf /etc/init.d/restore-helper /rootfs/etc/runlevels/default/restore-helper \
- && ln -sf /etc/init.d/dnsmasq /rootfs/etc/runlevels/default/dnsmasq \
- && tar -C /rootfs -czf /restore-helper.tar.gz .
+RUN apk add --no-cache python3 dnsmasq iproute2 iputils openrc
+COPY app/services/restore_helper_agent.py /opt/restore-helper-agent.py
+RUN printf '#!/sbin/openrc-run\ncommand="/usr/bin/python3"\ncommand_args="/opt/restore-helper-agent.py"\ncommand_background=true\npidfile="/run/restore-helper.pid"\n' \
+      > /etc/init.d/restore-helper \
+ && chmod +x /etc/init.d/restore-helper \
+ && rc-update add restore-helper default \
+ && rc-update add dnsmasq default \
+ && rc-update add networking boot \
+ # Pack the whole (configured) rootfs as the CT template; drop virtual/volatile dirs.
+ && tar --exclude=./restore-helper.tar.gz --exclude=./proc --exclude=./sys --exclude=./dev \
+        -C / -czf /restore-helper.tar.gz .
 
 FROM python:3.14-slim
 
