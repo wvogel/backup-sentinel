@@ -239,6 +239,33 @@ def restore_runs(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "restore.html", common_context(request) | context)
 
 
+@router.get("/restore/progress.json")
+def restore_progress(request: Request) -> JSONResponse:
+    """Live state of running restores, for the progress card's auto-refresh —
+    the restore (and especially the slow post-copy volume rescan / cache flush)
+    can run for minutes, so the card updates without a manual reload."""
+    from app.i18n import t
+    from app.services.human_format import format_size_coarse
+
+    out = []
+    for r in db_restore.list_runs(limit=20, status="running"):
+        phase = r.get("phase") or "restoring"
+        name = f"{r['cluster_name']}:{r['vm_name']}" if r.get("vm_name") else f"VM {r.get('vmid_src') or r['vm_id']}"
+        progress = f"{format_size_coarse(r['bytes_done'])} {t('restore.read_label')}" if r.get("bytes_done") else ""
+        if r.get("throughput_bps"):
+            progress = f"{progress} · {format_size_coarse(r['throughput_bps'])}/s".strip(" ·")
+        out.append(
+            {
+                "id": r["id"],
+                "percent": r.get("percent") or 0,
+                "phase": t(f"restore.phase_{phase}"),
+                "name": name,
+                "progress": progress,
+            }
+        )
+    return JSONResponse({"running": out})
+
+
 @router.post("/restore/vm/{vm_id}/test")
 def manual_test(request: Request, vm_id: int) -> RedirectResponse:
     from app.services import restore_match

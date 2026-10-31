@@ -59,6 +59,8 @@ def select_reaper_targets(guests: list[dict[str, Any]], owned_vmids: set[int]) -
 
 _PROGRESS_RE = re.compile(r"\bprogress\s+(\d+)%")
 _BYTES_RE = re.compile(r"\((\d+(?:\.\d+)?)\s*([KMGT]i?B)\s*(?:of|/)\s*(\d+(?:\.\d+)?)\s*([KMGT]i?B)\)")
+# Proxmox's own restore line: "progress 90% (read 30924603392 bytes, zeroes = …)".
+_READ_RE = re.compile(r"read\s+(\d+)\s+bytes")
 _UNIT = {
     "B": 1,
     "KiB": 1024,
@@ -83,6 +85,10 @@ def parse_task_progress(line: str) -> dict[str, Any] | None:
     if b:
         out["bytes_done"] = int(float(b.group(1)) * _UNIT.get(b.group(2), 1))
         out["bytes_total"] = int(float(b.group(3)) * _UNIT.get(b.group(4), 1))
+    else:
+        r = _READ_RE.search(line)
+        if r:
+            out["bytes_done"] = int(r.group(1))  # Proxmox gives bytes read, no total
     return out or None
 
 
@@ -350,21 +356,23 @@ class RestoreServer:
         while True:
             try:
                 status = self.pve.get(f"/nodes/{node}/tasks/{upid}/status") or {}
-                log = self.pve.get(f"/nodes/{node}/tasks/{upid}/log") or []
+                # Page from the last line seen: the task-log API caps at ~50 lines
+                # per call, so without `start` the progress froze at the first page.
+                log = self.pve.get(f"/nodes/{node}/tasks/{upid}/log?start={seen_log_lines}&limit=500") or []
             except Exception as exc:
                 logger.warning("task poll blip (continuing): %s", exc)
                 sleep(poll_interval)
                 if stall_exceeded(now() - last_progress_at, last_percent, now() - start, factor):
                     raise RestoreTaskError("restore task unreachable past the adaptive backstop") from exc
                 continue
-            for entry in log[seen_log_lines:]:
+            for entry in log:
                 prog = parse_task_progress(entry.get("t", "") if isinstance(entry, dict) else str(entry))
                 if prog:
                     last_progress_at = now()
                     last_percent = prog.get("percent", last_percent)
                     if on_progress:
                         on_progress(prog)
-            seen_log_lines = len(log)
+            seen_log_lines += len(log)
 
             if status.get("status") == "stopped":
                 if status.get("exitstatus") not in (None, "OK"):
