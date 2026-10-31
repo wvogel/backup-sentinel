@@ -70,10 +70,11 @@ class OrchestratorTest(unittest.TestCase):
                 "VALUES (%s, 'x', 'medium', 24, TRUE)",
                 (self.vm_id,),
             )
+            # The VM's real backup location (as the protection column records it).
             cur.execute(
-                "INSERT INTO pve_pbs_targets (cluster_id, storage_id, server, fingerprint, datastore, namespace) "
-                "VALUES (%s, 'pbs-store', 'pbs-a', '', 'ds1', 'prod')",
-                (self.cid,),
+                "INSERT INTO backup_events (vm_id, started_at, status, size_bytes, source, locations) "
+                "VALUES (%s, NOW(), 'ok', 100, 'pbs', %s)",
+                (self.vm_id, ["pbs:pbs-a/ds1/prod"]),
             )
             conn.commit()
         db_restore.set_network_interfaces(
@@ -92,7 +93,9 @@ class OrchestratorTest(unittest.TestCase):
 
     def _server(self):
         return FakeServer(
-            storages=[{"storage": "local-pbs", "pbs": "pbs-a", "datastore": "ds1", "namespace": "prod"}],
+            storages=[
+                {"storage": "local-pbs", "server": "pbs-a", "datastore": "ds1", "namespace": "prod", "fingerprint": ""}
+            ],
             snapshots=[
                 {"snapshot_id": "local-pbs:backup/vm/100/2026-10-30T01:00:00Z", "backup_time": 10, "complete": True}
             ],
@@ -101,9 +104,9 @@ class OrchestratorTest(unittest.TestCase):
     def test_production_endpoints(self):
         self.assertIn("pve.prod.example", orch.production_endpoints())
 
-    def test_vm_backup_locations_from_targets(self):
+    def test_vm_backup_locations_from_events(self):
         locs = orch.vm_backup_locations(self.vm_id)
-        self.assertEqual(locs, [("pbs-a", "ds1", "prod")])
+        self.assertEqual(locs, {"pbs:pbs-a/ds1/prod"})
 
     def test_build_plan_matches_and_allocates(self):
         cand = orch._candidate_for_vm(self.vm_id)
@@ -120,7 +123,8 @@ class OrchestratorTest(unittest.TestCase):
     def test_build_plan_not_restorable_raises(self):
         cand = orch._candidate_for_vm(self.vm_id)
         server = FakeServer(
-            storages=[{"storage": "x", "pbs": "other", "datastore": "ds1", "namespace": "prod"}], snapshots=[]
+            storages=[{"storage": "x", "server": "other", "datastore": "ds1", "namespace": "prod", "fingerprint": ""}],
+            snapshots=[],
         )
         with self.assertRaises(orch.NotRunnable):
             orch.build_plan(cand, server, CONFIG)
@@ -139,7 +143,7 @@ class _DrainServer:
         self._size = size_by_vmid
 
     def list_pbs_storages(self):
-        return [{"storage": "local-pbs", "pbs": "pbs-a", "datastore": "ds1", "namespace": "prod"}]
+        return [{"storage": "local-pbs", "server": "pbs-a", "datastore": "ds1", "namespace": "prod", "fingerprint": ""}]
 
     def list_snapshots(self, storage, vmid):
         return [
@@ -152,7 +156,7 @@ class _DrainServer:
         ]
 
     def free_resources(self):
-        return {"ram_free": 10**12, "stores": {"zfs": {"avail": self._avail, "total": 10**13}}}
+        return {"ram_free": 10**12, "stores": [{"storage": "zfs", "avail": self._avail, "total": 10**13}]}
 
     def __getattr__(self, name):
         return lambda *a, **k: None
@@ -185,11 +189,12 @@ class DrainSkipTest(unittest.TestCase):
                     "VALUES (%s, 'x', 'medium', 24, TRUE)",
                     (vid,),
                 )
-            cur.execute(
-                "INSERT INTO pve_pbs_targets (cluster_id, storage_id, server, fingerprint, datastore, namespace)"
-                " VALUES (%s, 'pbs-store', 'pbs-a', '', 'ds1', 'prod')",
-                (self.cid,),
-            )
+            for vid in self.ids.values():
+                cur.execute(
+                    "INSERT INTO backup_events (vm_id, started_at, status, size_bytes, source, locations) "
+                    "VALUES (%s, NOW(), 'ok', 100, 'pbs', %s)",
+                    (vid, ["pbs:pbs-a/ds1/prod"]),
+                )
             conn.commit()
         for vmid in (100, 101):
             db_restore.set_network_interfaces(

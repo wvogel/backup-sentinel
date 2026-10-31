@@ -5,6 +5,22 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.9] — 2026-10-31
+
+### Fixed
+
+- **Auto-restore matching now actually matches** — the core fix. A VM's eligibility is decided against its **real** backup locations (`backup_events.locations`, incl. offsite) using the exact same identity the protection/offsite column uses: the PBS certificate fingerprint resolved to the registered connection (fallback to hostname/aliases/DNS), compared 1:1 against the restore host's PBS datastores. Previously it compared a cluster-level target's hostname against a fingerprint key, so nothing matched and nothing ran. Let's-Encrypt-safe: the persistent key is the connection name, not the rotating fingerprint.
+- **A manual restore test is refused when the VM has no matching backup** on the restore server — it is never queued (auto already filtered this; manual did not). A clear message explains why.
+- **Fixed the disk-fit check** silently short-circuiting since the capacity view switched storages to a list (it indexed them as a dict and fell into its except → always "fits").
+
+### Added
+
+- **Delete queued runs** from the queue (a remove button on each queued run).
+
+### Changed
+
+- **Dashboard restore-server card:** queue state and the utilization rings are now equal-width columns with even spacing; the rings follow the configured storage preference order; tighter, symmetric padding (no gap above "Queue bereit").
+
 ## [v3.1.8] — 2026-10-31
 
 ### Changed

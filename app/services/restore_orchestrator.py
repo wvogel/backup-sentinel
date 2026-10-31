@@ -11,10 +11,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app import db_restore
+from app import db, db_restore
 from app.db_core import connect
 from app.services import restore_alloc, restore_config, restore_ip_collect, restore_match, restore_worker
-from app.services.restore_match import PbsTuple
 from app.services.restore_server import ParamikoSsh, PveApi, RestoreServer
 from app.services.restore_worker import RunPlan
 
@@ -83,20 +82,45 @@ def production_endpoints() -> set[str]:
     return hosts
 
 
-def vm_backup_locations(vm_id: int) -> list[PbsTuple]:
-    """The (pbs, datastore, namespace) tuples a VM's cluster backs up to, from
-    pve_pbs_targets (spec §7)."""
+def vm_backup_locations(vm_id: int) -> set[str]:
+    """The canonical PBS backup locations the VM actually has — the exact same
+    keys the protection/offsite column uses (``backup_events.locations``, one
+    ``pbs:<server>/<datastore>/<namespace>`` per physical copy, incl. offsite).
+    Not the cluster's configured targets: a VM is restorable from wherever its
+    backups really live."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT t.server, t.datastore, t.namespace
-            FROM pve_pbs_targets t
-            JOIN vms v ON v.cluster_id = t.cluster_id
-            WHERE v.id = %s
+            SELECT DISTINCT loc
+            FROM backup_events c, unnest(c.locations) AS loc
+            WHERE c.vm_id = %s AND c.status = 'ok' AND c.removed_at IS NULL
+              AND COALESCE(c.size_bytes, 0) > 1 AND loc LIKE 'pbs:%%'
             """,
             (vm_id,),
         )
-        return [restore_match.normalize(r["server"], r["datastore"], r["namespace"]) for r in cur.fetchall()]
+        return {r["loc"] for r in cur.fetchall()}
+
+
+def restore_host_pbs_entries(server: RestoreServer) -> list[dict[str, Any]]:
+    """The restore host's PBS datastores, each resolved to its canonical backup
+    location — the same identity (certificate fingerprint → registered
+    connection) the protection column uses — so a VM's backup location matches
+    1:1 with no heuristics."""
+    from app.services import backup_location as bl
+
+    conns = list(db.list_pbs_connections())
+    entries: list[dict[str, Any]] = []
+    for s in server.list_pbs_storages():
+        host = (s.get("server") or "").strip().lower()
+        ds = s.get("datastore", "")
+        ns = s.get("namespace", "")
+        conn = bl.match_pbs_connection(s.get("fingerprint", ""), host, conns)
+        if conn is not None:
+            location = bl.connection_location(conn, ds, ns)
+        else:
+            location = f"pbs:{host}/{ds}" + (f"/{ns}" if ns else "")
+        entries.append({"location": location, "storage": s["storage"], "pbs": host, "datastore": ds, "namespace": ns})
+    return entries
 
 
 def _reservations(nics: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -117,7 +141,7 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
     a resource wait (no free management IP); raises NotRunnable when the VM is
     not auto-restorable or has no snapshot (those become an error, not a wait)."""
     vm_id = candidate["vm_id"]
-    match = restore_match.match_source(vm_backup_locations(vm_id), server.list_pbs_storages())
+    match = restore_match.match_source(vm_backup_locations(vm_id), restore_host_pbs_entries(server))
     if match is None:
         raise NotRunnable("not auto-restorable (no matching local datastore)")
     snaps = server.list_snapshots(match["storage"], candidate["vmid"])
@@ -188,7 +212,7 @@ def _vm_memory_bytes(vm_id: int) -> int | None:
 
 def enqueue_due(server: RestoreServer, config: dict[str, Any]) -> int:
     """Create queued runs for due, auto-restorable VMs. Returns count enqueued."""
-    storages = server.list_pbs_storages()
+    storages = restore_host_pbs_entries(server)
     count = 0
     for cand in db_restore.due_auto_restore_candidates():
         if restore_match.is_auto_restorable(vm_backup_locations(cand["vm_id"]), storages):
@@ -202,7 +226,8 @@ def _fits_disk(server: RestoreServer, plan: RunPlan) -> bool:
     space right now (held environments already consume it, so live free avail
     reflects them). Unknown sizes optimistically fit (spec §15)."""
     try:
-        free = server.free_resources().get("stores", {}).get(plan.target_storage, {}).get("avail")
+        stores = server.free_resources().get("stores", [])
+        free = next((s.get("avail") for s in stores if s.get("storage") == plan.target_storage), None)
     except Exception as exc:
         logger.debug("free_resources check failed: %s", exc)
         return True

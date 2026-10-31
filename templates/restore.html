@@ -4,6 +4,14 @@
 {% import "_storage_icons.html" as sicons with context %}
 <h1 class="page-title">{{ t('restore.nav') }}</h1>
 
+{% if action_error %}
+<p class="critical-text restore-action-error">
+  {%- if action_error == 'not_restorable' %}{{ t('restore.err_not_restorable') }}
+  {%- elif action_error == 'host' %}{{ t('restore.err_host') }}
+  {%- else %}{{ t('restore.err_generic') }}{% endif %}
+</p>
+{% endif %}
+
 {% if not configured %}
 <section class="table-card">
   <p class="muted">{{ t('restore.not_configured') }}</p>
@@ -116,7 +124,7 @@
   <table class="data-table">
     <thead><tr>
       <th>VM</th><th>{{ t('restore.col_status') }}</th><th>{{ t('restore.col_progress') }}</th>
-      <th>{{ t('restore.col_trigger') }}</th><th>{{ t('restore.col_queued') }}</th><th>{{ t('restore.col_duration') }}</th>
+      <th>{{ t('restore.col_trigger') }}</th><th>{{ t('restore.col_queued') }}</th><th>{{ t('restore.col_duration') }}</th><th></th>
     </tr></thead>
     <tbody>
     {% for run in runs %}
@@ -132,9 +140,10 @@
         <td>{{ run.trigger }}</td>
         <td>{{ run.queued_at|datetime_local }}</td>
         <td>{% if run.duration_seconds %}{{ (run.duration_seconds // 60) }}m {{ run.duration_seconds % 60 }}s{% else %}–{% endif %}</td>
+        <td class="run-actions">{% if run.status == 'queued' %}<form action="/restore/runs/{{ run.id }}/delete" method="post" class="inline-form"><button type="submit" class="icon-button" title="{{ t('restore.delete_run') }}" aria-label="{{ t('restore.delete_run') }}">✕</button></form>{% endif %}</td>
       </tr>
       {% if run.log %}
-      <tr class="run-log-row"><td colspan="6"><details><summary>{{ t('restore.show_log') }}</summary><pre class="run-log">{{ run.log }}</pre></details></td></tr>
+      <tr class="run-log-row"><td colspan="7"><details><summary>{{ t('restore.show_log') }}</summary><pre class="run-log">{{ run.log }}</pre></details></td></tr>
       {% endif %}
     {% endfor %}
     </tbody>

@@ -207,12 +207,29 @@ def restore_runs(request: Request) -> HTMLResponse:
         "host_error": host_error,
         "configured": config is not None,
         "queue_paused": restore_config.queue_paused(),
+        "action_error": request.query_params.get("error"),
     }
     return templates.TemplateResponse(request, "restore.html", common_context(request) | context)
 
 
 @router.post("/restore/vm/{vm_id}/test")
 def manual_test(request: Request, vm_id: int) -> RedirectResponse:
+    from app.services import restore_match
+
+    # Never queue a VM whose backups aren't matched on the restore host — confirm
+    # eligibility first (same 1:1 match as auto). Only queue when confirmed.
+    config = restore_config.load()
+    if config is None:
+        return RedirectResponse("/restore?error=not_configured", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        server = restore_orchestrator.build_server(config)
+        entries = restore_orchestrator.restore_host_pbs_entries(server)
+        matchable = restore_match.is_auto_restorable(restore_orchestrator.vm_backup_locations(vm_id), entries)
+    except Exception as exc:
+        logger.warning("manual test eligibility check failed for vm %s: %s", vm_id, exc)
+        return RedirectResponse("/restore?error=host", status_code=status.HTTP_303_SEE_OTHER)
+    if not matchable:
+        return RedirectResponse("/restore?error=not_restorable", status_code=status.HTTP_303_SEE_OTHER)
     db_restore.create_run(vm_id, trigger="manual")
     try:
         from app.web.sync import _kick_restore_queue
@@ -220,6 +237,13 @@ def manual_test(request: Request, vm_id: int) -> RedirectResponse:
         _kick_restore_queue()
     except Exception as exc:
         logger.debug("kick restore queue failed: %s", exc)
+    return RedirectResponse("/restore", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/restore/runs/{run_id}/delete")
+def delete_run(request: Request, run_id: int) -> RedirectResponse:
+    """Remove a queued (planned) run from the queue."""
+    db_restore.delete_run(run_id)
     return RedirectResponse("/restore", status_code=status.HTTP_303_SEE_OTHER)
 
 

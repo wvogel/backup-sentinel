@@ -3392,10 +3392,15 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .restore-server-card {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 18px;
   flex-wrap: wrap;
   margin-top: 12px;
+  /* Equal padding all round, matched to the gap, so vertical = horizontal and
+     there is no extra space above "Queue bereit". */
+  padding: 18px;
 }
+.restore-server-card > .rss-queue,
+.restore-server-card > .util-ring-item { flex: 1 1 0; min-width: 0; }
 .rss-queue {
   display: flex;
   align-items: center;
@@ -3405,13 +3410,6 @@ html[data-theme="dark"] .node-filter-button.is-active {
   text-decoration: none;
 }
 .rss-queue:hover .rq-main { text-decoration: underline; }
-.rss-rings {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 22px;
-  margin-left: auto;
-  align-items: flex-start;
-}
 .queue-glyph svg { width: 34px; height: 34px; display: block; }
 .queue-glyph.queue-idle { color: var(--ok); }
 .queue-glyph.queue-paused { color: var(--warn); }
@@ -3431,9 +3429,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
   gap: 3px;
   margin-top: 6px;
 }
-.util-ring-item .store-ring { width: 78px; height: 78px; }
-.util-ring-item .store-ring::before { inset: 9px; }
+.util-ring-item .store-ring { width: 72px; height: 72px; }
+.util-ring-item .store-ring::before { inset: 8px; }
+.util-ring-label { margin-top: 5px; }
 @media (max-width: 760px) {
-  .restore-server-card { gap: 18px; }
-  .rss-rings { margin-left: 0; }
+  .restore-server-card > .rss-queue { flex-basis: 100%; }
 }

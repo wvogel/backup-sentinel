@@ -44,7 +44,10 @@ def _restore_dashboard_panel() -> dict | None:
         "queued": len(list_queued_runs()),
         "ram_free": host.get("ram_free"),
         "ram_total": host.get("ram_total"),
-        "stores": [s for s in host.get("stores", []) if s.get("images")],
+        "stores": sorted(
+            (s for s in host.get("stores", []) if s.get("images")),
+            key=lambda s: (s.get("order", 9999), s.get("storage", "")),
+        ),
         "snapshot_at": (snap or {}).get("at"),
     }
 
