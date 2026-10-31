@@ -231,25 +231,25 @@
               <div class="vm-restore-settings">
                 <form action="/restore/vm/{{ row.id }}/policy" method="post" class="auto-restore-form">
                   <input type="hidden" name="redirect" value="/clusters/{{ cluster.slug }}">
-                  <label class="checkbox-label"><input type="checkbox" name="auto_restore_enabled" value="1" {% if row.auto_restore_enabled %}checked{% endif %}> {{ t('restore.auto') }}</label>
-                  <label><span>{{ t('restore.cadence') }}</span>
+                  <label class="field field-check"><span>{{ t('restore.auto') }}</span><input type="checkbox" name="auto_restore_enabled" value="1" {% if row.auto_restore_enabled %}checked{% endif %}></label>
+                  <label class="field"><span>{{ t('restore.cadence') }}</span>
                     <select name="restore_cadence">
                       {% for cad in ['month', 'quarter', 'half_year', 'year'] %}
                       <option value="{{ cad }}" {% if row.restore_cadence == cad %}selected{% endif %}>{{ t('restore.cadence_' ~ cad) }}</option>
                       {% endfor %}
                     </select>
                   </label>
-                  <label><span>{{ t('restore.tcp_ports') }}</span><input name="probe_tcp_ports" value="{{ row.probe_tcp_ports|join(', ') if row.probe_tcp_ports else '' }}" placeholder="443, 445"></label>
-                  <label><span>{{ t('restore.primary_ip') }}</span><input name="probe_primary_ip" value="{{ row.probe_primary_ip or '' }}"></label>
-                  <label class="checkbox-label"><input type="checkbox" name="probe_require_icmp" value="1" {% if row.probe_require_icmp %}checked{% endif %}> {{ t('restore.require_icmp') }}</label>
-                  <label class="checkbox-label"><input type="checkbox" name="hold_on_failure" value="1" {% if row.hold_on_failure %}checked{% endif %} data-confirm-hold> {{ t('restore.hold_on_failure') }}</label>
-                  <label><span>{{ t('restore.retry_days') }}</span><input name="restore_retry_days" type="number" value="{{ row.restore_retry_days or 7 }}"></label>
+                  <label class="field"><span>{{ t('restore.retry_days') }}</span><input name="restore_retry_days" type="number" value="{{ row.restore_retry_days or 7 }}"></label>
+                  <label class="field"><span>{{ t('restore.tcp_ports') }}</span><input name="probe_tcp_ports" value="{{ row.probe_tcp_ports|join(', ') if row.probe_tcp_ports else '' }}" placeholder="443, 445"></label>
+                  <label class="field"><span>{{ t('restore.primary_ip') }}</span><input name="probe_primary_ip" value="{{ row.probe_primary_ip or '' }}"></label>
+                  <label class="field field-check"><span>{{ t('restore.require_icmp') }}</span><input type="checkbox" name="probe_require_icmp" value="1" {% if row.probe_require_icmp %}checked{% endif %}></label>
+                  <label class="field field-check"><span>{{ t('restore.hold_on_failure') }}</span><input type="checkbox" name="hold_on_failure" value="1" {% if row.hold_on_failure %}checked{% endif %} data-confirm-hold></label>
                   <div class="auto-restore-actions">
-                    <button type="submit" class="button-secondary">{{ t('restore.save_policy') }}</button>
                     <button type="submit" formaction="/restore/vm/{{ row.id }}/test" class="button-secondary restore-test-start js-confirm-submit" data-confirm-text="{{ t('restore.test_confirm') }}">
                       <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                       <span class="js-confirm-label">{{ t('restore.test_now') }}</span>
                     </button>
+                    <button type="submit" class="button-secondary">{{ t('restore.save_policy') }}</button>
                   </div>
                 </form>
               </div>
