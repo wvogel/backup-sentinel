@@ -41,6 +41,7 @@ _UPDATABLE = frozenset(
         "throughput_bps",
         "eta",
         "phase",
+        "detected_ip",
         "result",
         "restore_test_id",
         "log",
@@ -174,6 +175,21 @@ def latest_run_result_by_vm() -> dict[int, str]:
             """
         )
         return {r["vm_id"]: r["result"] for r in cur.fetchall()}
+
+
+def latest_detected_ip_by_vm() -> dict[int, str]:
+    """The IP discovered on the most recent run that found one, per VM — shown
+    read-only in the VM's restore settings."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT ON (vm_id) vm_id, detected_ip
+            FROM restore_runs
+            WHERE detected_ip IS NOT NULL
+            ORDER BY vm_id, queued_at DESC, id DESC
+            """
+        )
+        return {r["vm_id"]: r["detected_ip"] for r in cur.fetchall()}
 
 
 def set_network_interfaces(vm_id: int, rows: list[dict[str, Any]]) -> None:

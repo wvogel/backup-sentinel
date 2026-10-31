@@ -1,10 +1,10 @@
-// Live-refresh the running-restore card(s) on /restore: a restore — and its
-// slow post-copy volume rescan / cache flush — can run for minutes, so poll the
-// server for progress instead of making the operator reload the page.
+// Live-refresh the running-restore card on /restore. Polls unconditionally
+// while on the page — so a restore that starts *after* the page loaded (the
+// queue wasn't active yet) still shows up without a manual reload — and updates
+// progress in place once its card is present.
 (function () {
-  const box = document.querySelector(".running-restores[data-poll]");
-  if (!box) return;
-  const url = box.dataset.poll;
+  if (location.pathname !== "/restore") return;
+  const url = "/restore/progress.json";
 
   async function tick() {
     let data;
@@ -16,19 +16,24 @@
       return; // transient; try again next tick
     }
     const running = data.running || [];
-    const cards = [...box.querySelectorAll(".running-card")];
-    // The set of running restores changed (one finished, or a new one started):
-    // reload so the runs table and card list reflect it.
-    if (running.length !== cards.length) {
+    const runningIds = running
+      .map((r) => String(r.id))
+      .sort()
+      .join(",");
+    const cards = [...document.querySelectorAll(".running-card")];
+    const cardIds = cards
+      .map((c) => c.dataset.runId)
+      .sort()
+      .join(",");
+    // The set of running restores changed (one started or finished): reload so
+    // the card list and the runs table reflect it, then update in place after.
+    if (runningIds !== cardIds) {
       location.reload();
       return;
     }
     for (const r of running) {
-      const card = box.querySelector(`.running-card[data-run-id="${r.id}"]`);
-      if (!card) {
-        location.reload();
-        return;
-      }
+      const card = document.querySelector(`.running-card[data-run-id="${r.id}"]`);
+      if (!card) continue;
       const ring = card.querySelector(".running-ring");
       if (ring) ring.style.setProperty("--pct", r.percent);
       const pct = card.querySelector(".js-run-pct");

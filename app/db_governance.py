@@ -269,15 +269,18 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             row["restore_interval_days"],
             required=bool(row["restore_required"]) and status_backup_kind != "none",
         )
-    from app.db_restore import latest_run_result_by_vm
+    from app.db_restore import latest_detected_ip_by_vm, latest_run_result_by_vm
 
     run_results = latest_run_result_by_vm()
+    detected_ips = latest_detected_ip_by_vm()
     host_locations = _restore_host_locations()
     for row in rows:
         row["is_problem"] = is_problem(row)
         # Last automated/manual restore-RUN result for the VM-list result dot
         # (has failed/error too, unlike restore_tests which only logs passed/limited).
         row["last_restore_run_result"] = run_results.get(row["id"])
+        # IP discovered on the last run (read-only, shown in the VM's settings).
+        row["detected_ip"] = detected_ips.get(row["id"])
         # Can the restore server actually restore this VM? True/False iff one of
         # its real backup locations is among the restore host's PBS datastores;
         # None when the restore host's set is unknown (not configured / not yet

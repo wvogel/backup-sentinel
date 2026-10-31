@@ -639,6 +639,7 @@
   "restore.require_icmp": "ICMP",
   "restore.hold_on_failure": "VM bei Fehler behalten",
   "restore.retry_days": "Retry (Tage)",
+  "restore.detected_ip": "Erkannte IP",
   "restore.primary_ip": "Primäre IP (Override)",
   "restore.save_policy": "Speichern",
   "restore.storage_save_first": "Zuerst API-Zugang speichern — danach liest die App die verfügbaren Storages aus.",
