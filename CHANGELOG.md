@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.31] — 2026-11-01
+
+### Added
+
+- **Retry icon in the restore-test log.** A run that didn't pass (failed/error/limited) now shows a ↻ button in the runs list that re-queues a fresh restore test **for that VM** (not a replay of that exact run) — the same eligibility-checked manual trigger as "Restore-Test starten". Held runs keep their own retest/promote/reap actions.
+
 ## [v3.1.30] — 2026-11-01
 
 ### Fixed
