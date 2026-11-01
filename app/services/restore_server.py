@@ -99,6 +99,30 @@ _UNIT = {
 }
 
 
+def classify_task_error(exitstatus: str, log_tail: str = "") -> str:
+    """Human message for a failed restore task. Proxmox exits 255 for almost
+    everything with the real reason on the stderr lines *above* the "command …
+    failed" line, so we match those (``log_tail``) — not the command line, which
+    always carries ``--crypt-mode=encrypt`` for encrypted backups and would
+    false-positive. Recognises a wrong PBS encryption key, missing permission,
+    cert, or connectivity; otherwise falls back to the raw detail."""
+    tail = (log_tail or "").lower()
+    hint = ""
+    if "decrypt" in tail or "encryption key" in tail or "wrong key" in tail:
+        hint = (
+            "backup decryption failed — the PBS encryption key on the restore host does not match "
+            "this backup's key (check the datastore/namespace key)"
+        )
+    elif any(k in tail for k in ("permission", "access denied", "not allowed", "403 forbidden", "no permission")):
+        hint = "permission denied reading the backup — check the PBS user's rights on this datastore/namespace"
+    elif any(k in tail for k in ("fingerprint", "certificate verify", "self signed", "self-signed", "tls error")):
+        hint = "PBS server certificate could not be verified (fingerprint/cert mismatch)"
+    elif any(k in tail for k in ("connection refused", "timed out", "no route to host", "could not resolve")):
+        hint = "could not reach the PBS server (connection/DNS)"
+    detail = (log_tail.strip() or str(exitstatus).strip())[:600]
+    return f"{hint}: {detail}" if hint else f"restore task failed: {detail}"
+
+
 def parse_task_progress(line: str) -> dict[str, Any] | None:
     """Extract ``{percent, bytes_done, bytes_total}`` from a restore task log
     line, or None if the line carries no progress."""
@@ -377,6 +401,7 @@ class RestoreServer:
         last_progress_at = start
         last_percent = 0
         seen_log_lines = 0
+        recent_lines: list[str] = []  # tail of the task log, for the failure message
         factor = float(self.config.get("stall_backstop_factor") or 6.0)
         while True:
             try:
@@ -391,17 +416,22 @@ class RestoreServer:
                     raise RestoreTaskError("restore task unreachable past the adaptive backstop") from exc
                 continue
             for entry in log:
-                prog = parse_task_progress(entry.get("t", "") if isinstance(entry, dict) else str(entry))
+                text = entry.get("t", "") if isinstance(entry, dict) else str(entry)
+                if text:
+                    recent_lines.append(text)
+                prog = parse_task_progress(text)
                 if prog:
                     last_progress_at = now()
                     last_percent = prog.get("percent", last_percent)
                     if on_progress:
                         on_progress(prog)
             seen_log_lines += len(log)
+            del recent_lines[:-40]  # keep only the tail
 
             if status.get("status") == "stopped":
                 if status.get("exitstatus") not in (None, "OK"):
-                    raise RestoreTaskError(f"restore task failed: {status.get('exitstatus')}")
+                    tail = "\n".join(line for line in recent_lines[-10:] if line.strip())
+                    raise RestoreTaskError(classify_task_error(str(status.get("exitstatus")), tail))
                 return
 
             if stall_exceeded(now() - last_progress_at, last_percent, now() - start, factor):
