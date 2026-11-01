@@ -38,6 +38,7 @@ class RunPlan:
     sandbox_prefix: int = 24  # the guest subnet's prefix (not always /24)
     guest_vlan: int | None = None  # the VID the guest tags internally (trunk the NIC, access the helper)
     probe_override: str | None = None  # operator-set probe IP (CIDR); when set, the live agent IP never overrides it
+    probe_is_fallback: bool = False  # primary_ip is the management-range guess, not a known/recorded IP
     require_icmp: bool = True
     tcp_ports: list[int] = field(default_factory=list)
     hold_on_failure: bool = False
@@ -70,12 +71,16 @@ def _probe_loop(
 ) -> tuple[str, dict[str, Any]]:
     """Poll until success or the window elapses. Returns (result, checks).
 
-    The target IP is resolved per iteration. An operator override always wins.
-    Otherwise we trust the restored VM's **live guest-agent IP** (with its own
-    prefix): a static guest keeps its address and never takes our DHCP, so the
-    agent's report is the truth — we probe that IP and the helper reaches it over
-    a host it adds in the same subnet. Only if the agent reports nothing do we
-    fall back to the planned IP (recorded, or the management-range address)."""
+    Target resolution, re-done every pass:
+    - An operator override always wins.
+    - Otherwise we WAIT for the restored VM's **live guest-agent IP** (with its own
+      prefix) and probe that — a static guest keeps its own address, never takes
+      our DHCP, and only reports it once it has booted. We do not probe a useless
+      fallback while the agent is still coming up (that left the helper stuck on
+      the management IP): no agent IP yet simply means keep waiting.
+    - Only if the agent never reports within the window do we fall back once to
+      the planned IP (a DHCP guest at the management-range address that has no
+      guest agent to ask)."""
     sleep(plan.first_delay)
     deadline = now() + plan.window
     checks: dict[str, Any] = {}
@@ -83,24 +88,32 @@ def _probe_loop(
     while True:
         if should_cancel and should_cancel():
             raise RestoreCancelled("restore cancelled by operator")
-        target_ip, prefix = plan.primary_ip, plan.sandbox_prefix
-        if not plan.probe_override:
-            # No explicit override → the live agent IP is authoritative (handles a
-            # static guest that kept its own IP in a subnet we didn't plan for).
+        past_deadline = now() >= deadline
+        target_ip, prefix = None, plan.sandbox_prefix
+        if plan.probe_override:
+            target_ip, prefix = plan.primary_ip, plan.sandbox_prefix
+        else:
+            # Check the guest agent before every test; the live IP is authoritative.
             nic = next(iter(server.guest_agent_nics(plan.restore_vmid) or []), None)
             if nic:
                 target_ip, prefix = nic
-        if target_ip and run_id is not None:
-            db_restore.update_run(run_id, detected_ip=target_ip)
+            elif plan.primary_ip and (not plan.probe_is_fallback or past_deadline):
+                # A known/recorded IP is probed right away; the management-range
+                # GUESS (fallback) only as a last resort at the deadline — while the
+                # agent is still coming up we wait rather than probe a useless IP
+                # (which left the helper stuck on the management subnet).
+                target_ip, prefix = plan.primary_ip, plan.sandbox_prefix
         if target_ip:
+            if run_id is not None:
+                db_restore.update_run(run_id, detected_ip=target_ip)
             targets = [{"ip": target_ip, "ports": plan.tcp_ports, "prefix": prefix}]
             checks = probe_fn(server, plan.mgmt_ip, targets)
             result = restore_probe.classify(
                 checks.get(target_ip), require_icmp=plan.require_icmp, tcp_ports=plan.tcp_ports, had_ip=True
             )
         else:
-            result, checks = "limited", {"note": "no target IP yet (no record, override, or guest agent)"}
-        if result == "passed" or now() >= deadline:
+            result, checks = "limited", {"note": "waiting for the guest agent to report an IP"}
+        if result == "passed" or past_deadline:
             return result, checks
         sleep(plan.interval)
 

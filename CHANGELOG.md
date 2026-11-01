@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.58] — 2026-11-01
+
+### Fixed
+
+- **A static guest whose IP the guest agent reports only after booting is now reached correctly (no longer stuck probing the management IP).** The prober checked once, too early, saw no agent IP, and fell back to the management-range address — so the helper never moved onto the guest's real subnet. Now, with no operator override, the probe **waits for the live guest-agent IP** (checking before every test) and targets that, so the helper adds the first host of the guest's own subnet. The management-range address is a guess (a static guest ignores our DHCP) and is only probed as a last resort at the end of the window, for a DHCP guest that has no agent to ask. A known/recorded IP is still probed right away.
+
 ## [v3.1.57] — 2026-11-01
 
 ### Fixed
