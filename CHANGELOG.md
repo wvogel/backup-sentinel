@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.32] — 2026-11-01
+
+### Changed
+
+- **The restored VM now starts *before* the helper is provisioned, so the two waits overlap.** Previously the pipeline fully provisioned the helper (create LXC → wait for its agent → push dnsmasq) and only then booted the VM — the helper wait sat entirely on the critical path. Now the VM begins its (much longer) boot first and the helper comes up alongside it; dnsmasq is serving long before the guest OS requests DHCP, so the helper wait disappears behind the boot. The health check also polls every 1s (was 2s) and returns the instant the agent answers.
+
+### Fixed
+
+- **The runs-table row now updates its progress live, not only the ring.** The live-refresh updated the running card but left the row in the Restore-Tests list stuck at its page-load percent (e.g. 0% while the ring showed 100%). The row's percent, phase and throughput now update in place on every poll.
+
 ## [v3.1.31] — 2026-11-01
 
 ### Added

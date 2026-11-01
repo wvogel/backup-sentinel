@@ -136,10 +136,16 @@ def execute(
         )
         db_restore.update_run(run_id, phase="network")
         server.rewrite_nics(plan.restore_vmid, plan.vlan_tag)
-        db_restore.update_run(run_id, phase="helper")
-        server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
+        # Start the VM BEFORE provisioning the helper so the two slow waits
+        # overlap: the guest's OS boot (tens of seconds) runs while the helper
+        # LXC + dnsmasq come up (~10s). DHCP still serves in time — a guest OS
+        # doesn't request a lease until well into its boot, long after dnsmasq
+        # is up — so the helper wait disappears behind the boot instead of
+        # stacking on top of it.
         db_restore.update_run(run_id, phase="booting")
         server.start(plan.restore_vmid)
+        db_restore.update_run(run_id, phase="helper")
+        server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
         db_restore.update_run(run_id, phase="probing")
         if plan.primary_ip:
             db_restore.update_run(run_id, detected_ip=plan.primary_ip)  # recorded/override IP
