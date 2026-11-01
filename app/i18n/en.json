@@ -622,6 +622,7 @@
   "restore.diag_vm_locs_count": "{n} VM(s)",
   "restore.no_runs": "No runs yet.",
   "restore.no_runs_filtered": "No runs match this filter.",
+  "restore.filter_all": "All",
   "restore.filter_all_status": "All statuses",
   "restore.filter_all_trigger": "All triggers",
   "restore.filter_all_cluster": "All clusters",

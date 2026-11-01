@@ -101,7 +101,22 @@ def _parse_footer_links(s: str) -> list[dict[str, str]]:
 
 _footer_links = _parse_footer_links(FOOTER_LINKS)
 
+
+def runs_filter_href(filt: dict, key: str, value: str) -> str:
+    """URL for the restore runs log with ``key`` set to ``value`` (empty clears
+    it) and all OTHER active filters preserved — for the per-column (Excel-style)
+    header filter menus. Page is dropped, so a filter change returns to page 1."""
+    from urllib.parse import urlencode
+
+    params = {k: v for k, v in (filt or {}).items() if v and k != key}
+    if value:
+        params[key] = value
+    qs = urlencode(params)
+    return "/restore?" + qs if qs else "/restore"
+
+
 templates.env.globals["t"] = t
+templates.env.globals["runs_filter_href"] = runs_filter_href
 templates.env.globals["pve_sync_state"] = lambda cluster: pve_sync_state(
     cluster, datetime.now(UTC), SYNC_INTERVAL_MINUTES
 )
