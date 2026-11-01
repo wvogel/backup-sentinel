@@ -58,6 +58,77 @@ def test_classify_task_error_falls_back_to_detail():
     assert "unrecognised" in msg
 
 
+def test_pvesh_command_maps_rest_to_cli():
+    from app.services.restore_server import pvesh_command, split_path_query
+
+    path, params = split_path_query("/nodes/r1/storage/local/content?content=vztmpl&vmid=100")
+    assert path == "/nodes/r1/storage/local/content"
+    assert params == {"content": "vztmpl", "vmid": "100"}
+    cmd = pvesh_command("get", path, params)
+    assert cmd == "pvesh get /nodes/r1/storage/local/content -content vztmpl -vmid 100 --output-format json"
+    # A net config line is passed as a single option value (its =,:.- chars are
+    # shell-safe, so shlex leaves it unquoted — still one argument to pvesh).
+    cmd2 = pvesh_command("set", "/nodes/r1/qemu/9000/config", {"net0": "name=sbx,bridge=vmbr9,tag=901"})
+    assert "pvesh set /nodes/r1/qemu/9000/config -net0 name=sbx,bridge=vmbr9,tag=901 " in cmd2
+
+
+class _RecSsh:
+    """Records pvesh commands and returns canned JSON per command substring."""
+
+    def __init__(self, replies=None):
+        self.commands = []
+        self.puts = []
+        self.replies = replies or {}
+
+    def run(self, command):
+        self.commands.append(command)
+        for needle, reply in self.replies.items():
+            if needle in command:
+                return reply
+        return ""
+
+    def put_bytes(self, remote_path, data):
+        self.puts.append((remote_path, len(data)))
+
+
+def test_pve_ssh_post_uses_set_for_config_create_otherwise():
+    from app.services.restore_server import PveSsh
+
+    ssh = _RecSsh()
+    pve = PveSsh(ssh)
+    pve.post("/nodes/r1/qemu/9000/config", {"net0": "x"})  # config → set (PUT)
+    pve.post("/nodes/r1/qemu/9000/status/start", {})  # not config → create (POST)
+    assert ssh.commands[0].startswith("pvesh set /nodes/r1/qemu/9000/config")
+    assert ssh.commands[1].startswith("pvesh create /nodes/r1/qemu/9000/status/start")
+
+
+def test_pve_ssh_upload_sfts_into_template_cache():
+    from app.services.restore_server import PveSsh
+
+    ssh = _RecSsh(replies={"pvesh get /storage/local": '{"path": "/var/lib/vz"}'})
+    pve = PveSsh(ssh)
+    assert pve.upload("r1", "local", "restore-helper-abc.tar.gz", b"ROOTFS") is None
+    assert ssh.puts == [("/var/lib/vz/template/cache/restore-helper-abc.tar.gz", 6)]
+    assert any("mkdir -p /var/lib/vz/template/cache" in c for c in ssh.commands)
+
+
+def test_rewrite_nics_strips_hostpci_before_start():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/config": {
+            "net0": "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,tag=5",
+            "hostpci0": "0000:01:00.0,pcie=1",
+            "hostpci1": "0000:02:00.0",
+            "scsi0": "local:vm-9000-disk-0",
+        },
+    }
+    srv = _server(responses)
+    srv.rewrite_nics(9000, 901)
+    _path, data = srv.pve.posts[-1]
+    assert data["net0"] == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9,tag=901"
+    assert data["delete"] == "hostpci0,hostpci1"  # both passthrough devices removed
+
+
 def test_eject_cdroms_empties_source_isos_only():
     config = {
         "ide2": "nas-pve-aboe-muc:iso/virtio.iso,media=cdrom",  # source ISO → eject
@@ -178,10 +249,14 @@ class FakePve:
 class FakeSsh:
     def __init__(self):
         self.commands = []
+        self.puts = []
 
     def run(self, command):
         self.commands.append(command)
         return ""
+
+    def put_bytes(self, remote_path, data):
+        self.puts.append((remote_path, len(data)))
 
 
 def _server(responses):

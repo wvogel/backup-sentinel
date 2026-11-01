@@ -16,9 +16,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shlex
 import time
 from collections.abc import Callable
 from typing import Any, Protocol
+from urllib.parse import parse_qsl, urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,7 @@ class PveClient(Protocol):
 
 class SshClient(Protocol):
     def run(self, command: str) -> str: ...
+    def put_bytes(self, remote_path: str, data: bytes) -> None: ...
 
 
 # --- pure helpers ------------------------------------------------------------
@@ -97,6 +100,40 @@ _UNIT = {
     "GB": 1000**3,
     "TB": 1000**4,
 }
+
+
+def split_path_query(path: str) -> tuple[str, dict[str, str]]:
+    """Split a REST path with an optional query string into (path, params) — so a
+    query like ``/…/content?content=vztmpl&vmid=100`` becomes pvesh ``-content``
+    / ``-vmid`` options."""
+    parts = urlsplit(path)
+    return parts.path, dict(parse_qsl(parts.query))
+
+
+def pvesh_command(verb: str, path: str, params: dict[str, Any] | None = None) -> str:
+    """Build a shell-quoted ``pvesh`` command that mirrors a REST call. ``verb`` is
+    get/create/set/delete (POST→create, PUT→set). None-valued params are dropped;
+    everything is JSON so callers parse a single, predictable format."""
+    args = ["pvesh", verb, path]
+    for key, value in (params or {}).items():
+        if value is None:
+            continue
+        args += [f"-{key}", str(value)]
+    args += ["--output-format", "json"]
+    return " ".join(shlex.quote(a) for a in args)
+
+
+def parse_pvesh_output(out: str) -> Any:
+    """Parse ``pvesh … --output-format json`` output: a JSON value, or None when
+    empty. A bare non-JSON line (some pvesh create calls print a raw UPID) is
+    returned verbatim so task polling still gets its UPID string."""
+    text = (out or "").strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return text
 
 
 def classify_task_error(exitstatus: str, log_tail: str = "") -> str:
@@ -478,11 +515,16 @@ class RestoreServer:
         return any(int(g.get("vmid", -1)) == int(vmid) for g in guests)
 
     def rewrite_nics(self, vmid: int, vlan_tag: int) -> None:
-        """Prepare the restored guest's config for an isolated sandbox boot:
-        re-point every NIC to the sandbox bridge + this env's VLAN tag (keeping
-        MACs, spec §10) AND eject any CD-ROM still backed by a source-cluster ISO
-        (whose storage doesn't exist here, which would fail the start). Both are
-        applied in one config update."""
+        """Prepare the restored guest's config for an isolated sandbox boot, in one
+        config update:
+        - re-point every NIC to the sandbox bridge + this env's VLAN tag (keeping
+          MACs, spec §10);
+        - eject any CD-ROM still backed by a source-cluster ISO (whose storage
+          doesn't exist here, which would fail the start);
+        - drop every ``hostpciN`` PCI passthrough: the physical device doesn't
+          exist (or isn't free) on the scratch host, so the VM couldn't start with
+          it. The restore itself set it (we restore as root), so it's removed here
+          before the start."""
         node = self.node()
         config = self.pve.get(f"/nodes/{node}/qemu/{vmid}/config") or {}
         bridge = self.config["sandbox_bridge"]
@@ -491,6 +533,9 @@ class RestoreServer:
             if re.fullmatch(r"net\d+", key) and isinstance(value, str):
                 changes[key] = rewrite_net_line(value, bridge, vlan_tag)
         changes.update(eject_cdroms(config))
+        hostpci = sorted(k for k in config if re.fullmatch(r"hostpci\d+", k))
+        if hostpci:
+            changes["delete"] = ",".join(hostpci)
         if changes:
             self.pve.post(f"/nodes/{node}/qemu/{vmid}/config", changes)
 
@@ -933,6 +978,48 @@ def helper_legs(
 # --- real transports (paramiko imported lazily) ------------------------------
 
 
+class PveSsh:
+    """PVE transport over root SSH using ``pvesh`` — mirrors the REST API 1:1, so
+    RestoreServer's orchestration (and all its FakePve tests) are unchanged. Used
+    instead of an API token because a token can NEVER set raw PCI passthrough
+    (PVE checks the user is literally root@pam); as root over SSH there is no such
+    restriction, and the restore of a VM with ``hostpciN`` just works."""
+
+    def __init__(self, ssh: SshClient) -> None:
+        self.ssh = ssh
+
+    def _call(self, verb: str, path: str, params: dict[str, Any] | None = None) -> Any:
+        clean_path, query = split_path_query(path)
+        merged = {**query, **(params or {})}
+        return parse_pvesh_output(self.ssh.run(pvesh_command(verb, clean_path, merged)))
+
+    def get(self, path: str) -> Any:
+        return self._call("get", path)
+
+    def post(self, path: str, data: dict[str, Any]) -> Any:
+        # Config updates are PUT (pvesh "set"); everything else (restore, create,
+        # status/start) is POST (pvesh "create"). pvesh create on /qemu with an
+        # archive IS a root qmrestore, which can set hostpci.
+        verb = "set" if split_path_query(path)[0].rstrip("/").endswith("/config") else "create"
+        return self._call(verb, path, data)
+
+    def delete(self, path: str) -> Any:
+        return self._call("delete", path)
+
+    def upload(self, node: str, storage: str, filename: str, data: bytes) -> Any:
+        """Place the helper CT template by writing it straight into the target
+        storage's ``template/cache`` directory over SFTP (no API multipart). The
+        write is synchronous, so there is no task to wait on — return None."""
+        info = self._call("get", f"/storage/{storage}") or {}
+        base = info.get("path") if isinstance(info, dict) else None
+        if not base:
+            raise RestoreTaskError(f"storage {storage} has no filesystem path for the template upload")
+        cache = f"{base.rstrip('/')}/template/cache"
+        self.ssh.run(f"mkdir -p {shlex.quote(cache)}")
+        self.ssh.put_bytes(f"{cache}/{filename}", data)
+        return None
+
+
 class PveApi:
     """Real PVE API transport (token auth) for the restore host."""
 
@@ -1072,3 +1159,15 @@ class ParamikoSsh:
         if stdout.channel.recv_exit_status() != 0:
             raise RuntimeError(f"ssh command failed: {err.strip() or out.strip()}")
         return out
+
+    def put_bytes(self, remote_path: str, data: bytes) -> None:
+        """Write ``data`` to ``remote_path`` over SFTP (used to place the helper
+        CT template into a storage's template/cache directory)."""
+        if self._client is None:
+            self._client = self._connect()
+        sftp = self._client.open_sftp()
+        try:
+            with sftp.open(remote_path, "wb") as fh:
+                fh.write(data)
+        finally:
+            sftp.close()

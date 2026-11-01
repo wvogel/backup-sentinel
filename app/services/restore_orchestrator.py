@@ -14,22 +14,16 @@ from typing import Any
 from app import db, db_restore
 from app.db_core import connect
 from app.services import restore_alloc, restore_config, restore_ip_collect, restore_match, restore_worker
-from app.services.restore_server import ParamikoSsh, PveApi, RestoreServer
+from app.services.restore_server import ParamikoSsh, PveSsh, RestoreServer
 from app.services.restore_worker import RunPlan
 
 logger = logging.getLogger(__name__)
 
 
 def build_server(config: dict[str, Any]) -> RestoreServer:
-    # API fields may be absent during token provisioning: the server is built
-    # from an SSH-only config and create_api_token() runs purely over SSH. Use
-    # .get() so that path never KeyErrors before the token even exists.
-    pve = PveApi(
-        config.get("api_url", ""),
-        config.get("api_user", "root@pam"),
-        config.get("token_id", ""),
-        config.get("token_secret", ""),
-    )
+    # All PVE operations go over root SSH (`pvesh`/`qmrestore`): an API token can
+    # never set raw PCI passthrough, so the token path is gone. The one SSH
+    # transport drives both PVE (via PveSsh) and the shell actions (bridge, etc.).
     ssh = ParamikoSsh(
         config["ssh_host"],
         config.get("ssh_port", 22),
@@ -37,7 +31,7 @@ def build_server(config: dict[str, Any]) -> RestoreServer:
         config.get("ssh_private_key", ""),
         config.get("ssh_host_key", ""),
     )
-    return RestoreServer(config, pve, ssh)
+    return RestoreServer(config, PveSsh(ssh), ssh)
 
 
 def ensure_host_key_pinned(config: dict[str, Any]) -> dict[str, Any]:
@@ -460,12 +454,11 @@ def test_connection() -> dict[str, Any]:
         checks["host"] = {"ok": True, "msg": "kein Produktions-Host / not a production host"}
     except Exception as exc:
         checks["host"] = {"ok": False, "msg": str(exc)[:200]}
-    principal = f"PVEAPIToken={config.get('api_user', '')}!{config.get('token_id', '')}"
     try:
         nodes = server.pve.get("/nodes") or []
-        checks["api"] = {"ok": True, "msg": f"{principal} · {len(nodes)} Node(s)"}
+        checks["api"] = {"ok": True, "msg": f"pvesh über root-SSH · {len(nodes)} Node(s)"}
     except Exception as exc:
-        checks["api"] = {"ok": False, "msg": f"{principal} · {str(exc)[:160]}"}
+        checks["api"] = {"ok": False, "msg": f"pvesh · {str(exc)[:160]}"}
     try:
         out = server.ssh.run("echo bsentinel-ok").strip()
         ok = "bsentinel-ok" in out
