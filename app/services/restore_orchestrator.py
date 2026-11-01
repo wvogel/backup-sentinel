@@ -718,6 +718,15 @@ def recover_stuck_runs(server: RestoreServer, config: dict[str, Any]) -> int:
         if alive:
             continue
         logger.warning("recovering stuck restore run %s: 'running' but nothing on the host", run["id"])
+        # Signal cancel first: if a resume/worker thread is still looping on this
+        # run (e.g. a post-deploy resume stuck probing a guest whose environment is
+        # already gone), its should_cancel poll makes it bail and free the restore
+        # slot. If no thread is running it, this is a harmless flag the finalize
+        # below overrides.
+        try:
+            db_restore.request_cancel(run["id"])
+        except Exception as exc:
+            logger.debug("stuck-run cancel flag (ignored): %s", exc)
         try:
             restore_worker._teardown(server, plan_from_run(run, config))  # best-effort, usually a no-op
         except Exception as exc:
