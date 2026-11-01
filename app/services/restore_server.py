@@ -664,20 +664,23 @@ class RestoreServer:
         return json.loads(raw) if raw else {}
 
     def _agent_wait_healthy(
-        self, mgmt_ip: str, *, attempts: int = 30, sleep: Callable[[float], None] = time.sleep
+        self, mgmt_ip: str, *, attempts: int = 60, sleep: Callable[[float], None] = time.sleep
     ) -> None:
-        """Wait for the just-started helper agent to answer on its management IP.
-        The app must be able to reach that IP (the point of the management leg)."""
+        """Poll the just-started helper agent on its management IP and return the
+        instant it answers — we ask it for ready rather than waiting a fixed time.
+        The app must be able to reach that IP (the point of the management leg).
+        Polls every 1s with a short per-try timeout so it proceeds as soon as the
+        agent is up (typically a few seconds after the LXC starts)."""
         import urllib.request
 
         for _ in range(attempts):
             try:
-                with urllib.request.urlopen(self._agent_url(mgmt_ip, "/health"), timeout=3) as resp:
+                with urllib.request.urlopen(self._agent_url(mgmt_ip, "/health"), timeout=2) as resp:
                     if resp.status == 200:
                         return
             except Exception as exc:
                 logger.debug("helper agent not ready yet at %s: %s", mgmt_ip, exc)
-            sleep(2.0)
+            sleep(1.0)
         raise RestoreTaskError(f"restore helper agent unreachable at {mgmt_ip} (management leg not reachable?)")
 
     def reap(self, owned_vmids: set[int]) -> list[int]:

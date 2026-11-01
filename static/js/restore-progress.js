@@ -33,15 +33,27 @@
     }
     for (const r of running) {
       const card = document.querySelector(`.running-card[data-run-id="${r.id}"]`);
-      if (!card) continue;
-      const ring = card.querySelector(".running-ring");
-      if (ring) ring.style.setProperty("--pct", r.percent);
-      const pct = card.querySelector(".js-run-pct");
-      if (pct) pct.textContent = r.percent + "%";
-      const phase = card.querySelector(".js-run-phase");
-      if (phase) phase.textContent = r.phase;
-      const prog = card.querySelector(".js-run-progress");
-      if (prog) prog.textContent = r.progress;
+      if (card) {
+        const ring = card.querySelector(".running-ring");
+        if (ring) ring.style.setProperty("--pct", r.percent);
+        const pct = card.querySelector(".js-run-pct");
+        if (pct) pct.textContent = r.percent + "%";
+        const phase = card.querySelector(".js-run-phase");
+        if (phase) phase.textContent = r.phase;
+        const prog = card.querySelector(".js-run-progress");
+        if (prog) prog.textContent = r.progress;
+      }
+      // The runs table lists the same run: update its Fortschritt cell too, so
+      // the row isn't stuck at its page-load percent while the ring climbs.
+      const row = document.querySelector(`tr[data-run-id="${r.id}"]`);
+      if (row) {
+        const rpct = row.querySelector(".js-row-pct");
+        if (rpct) rpct.textContent = r.percent + "%";
+        const rphase = row.querySelector(".js-row-phase");
+        if (rphase) rphase.textContent = "· " + r.phase;
+        const rprog = row.querySelector(".js-row-progress");
+        if (rprog) rprog.textContent = r.progress ? "· " + r.progress : "";
+      }
     }
   }
 

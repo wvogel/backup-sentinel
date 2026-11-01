@@ -154,14 +154,15 @@
     </tr></thead>
     <tbody>
     {% for run in runs %}
-      <tr>
+      <tr data-run-id="{{ run.id }}">
         <td>{{ run.cluster_name or '–' }}</td>
         <td>{{ run.vm_name or ('VM ' ~ run.vm_id) }}{% if run.vmid_src %} <span class="muted">({{ run.vmid_src }})</span>{% endif %}</td>
         <td><span class="status-badge status-{{ run.status }}">{{ run.status }}</span></td>
         <td>
           {% if run.status == 'running' %}
-            {{ run.percent or 0 }}%{% if run.eta %} · ETA {{ run.eta|datetime_local }}{% endif %}
-            {% if run.throughput_bps %} · {{ (run.throughput_bps / 1048576)|round(1) }} MiB/s{% endif %}
+            <span class="js-row-pct">{{ run.percent or 0 }}%</span>
+            <span class="js-row-phase muted">· {{ t('restore.phase_' ~ (run.phase or 'restoring')) }}</span>
+            <span class="js-row-progress muted">{% if run.throughput_bps %}· {{ (run.throughput_bps / 1048576)|round(1) }} MiB/s{% endif %}</span>
           {% elif run.checks and run.checks.get('error') %}<span class="critical-text" data-tooltip="{{ run.checks.error }}">{{ run.result or 'error' }}: {{ run.checks.error|truncate(80) }}</span>
           {% elif run.result %}{{ run.result }}
             {%- for ip, r in (run.checks or {}).items() if r is mapping and 'icmp' in r %}
