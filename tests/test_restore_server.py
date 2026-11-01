@@ -519,6 +519,32 @@ def test_helper_agent_arp_alive_reads_neighbour_table(monkeypatch):
     assert agent._arp_alive("10.254.10.10") is False
 
 
+def test_probe_netdiag_captures_sbx_arp_and_ping_state():
+    srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
+
+    def fake_run(cmd):
+        if "ip neigh" in cmd:
+            return "10.254.10.6 dev sbx lladdr 52:54:00:aa:bb:cc REACHABLE"
+        if "addr show dev sbx" in cmd:
+            return "2: sbx    inet 10.254.10.1/24 scope global sbx"
+        if "ping" in cmd:
+            raise RuntimeError("1 packets transmitted, 0 received")  # ICMP filtered
+        return ""
+
+    srv.ssh.run = fake_run
+    out = srv.probe_netdiag(9001, ["10.254.10.6"])
+    # Shows the sandbox leg's address, the resolved neighbour (L2 OK), and that
+    # ping failed → the guest firewalls ICMP but is on the segment.
+    assert "10.254.10.1/24" in out
+    assert "neigh 10.254.10.6" in out and "REACHABLE" in out
+    assert "ping 10.254.10.6: ERR" in out
+
+
+def test_probe_netdiag_empty_without_helper():
+    srv = _server({})
+    assert srv.probe_netdiag(0, ["10.0.0.1"]) == ""
+
+
 def test_apply_dnsmasq_reports_failure_without_crashing(monkeypatch, tmp_path):
     # A missing dnsmasq (or any launch failure) must come back as ok:false — NOT
     # an unhandled exception that 500s the agent (the old systemctl-fallback bug).

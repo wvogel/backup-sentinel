@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.61] — 2026-11-01
+
+### Added
+
+- **A failed/limited restore now records a network diagnosis from inside the helper** — so you can see *why* the guest was unreachable without any access to the helper container. Captured over host SSH (`pct exec`), it shows the sandbox leg's address and routes and, per guest IP, whether ARP resolves (a MAC in the neighbour table) and whether ICMP answers. `neigh … REACHABLE` with no ping ⇒ the guest is on the L2 but firewalls ICMP; `INCOMPLETE`/no entry ⇒ an L2/VLAN problem (helper and guest not actually on the same segment). It appears as the run's log.
+- **The status hover now shows ARP** (✓/✗) next to ICMP and the ports, so a guest that is alive by ARP but firewalls ICMP is obvious at a glance.
+
 ## [v3.1.60] — 2026-11-01
 
 ### Fixed

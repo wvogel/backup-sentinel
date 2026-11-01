@@ -1071,6 +1071,35 @@ class RestoreServer:
                 parts.append(f"{label}: ERR {str(exc)[:80]}")
         return "helper netdiag [" + " || ".join(parts) + "]"
 
+    def probe_netdiag(self, helper_vmid: int, guest_ips: list[str], iface: str = "sbx") -> str:
+        """Why a probe couldn't reach the guest, captured from INSIDE the helper
+        over host SSH (``pct exec`` — no helper credentials needed), for the run
+        log. Shows the sandbox leg's address + routes and, per guest IP, whether
+        ARP resolves (a MAC in the neighbour table after a poke) and whether ICMP
+        answers. ``neigh … REACHABLE/STALE`` with a lladdr but no ping ⇒ the guest
+        is on the L2 but firewalls ICMP; ``INCOMPLETE``/no entry ⇒ an L2/VLAN
+        problem (helper and guest not actually on the same segment). Never raises."""
+        if not helper_vmid:
+            return ""
+        cmds = [
+            ("sbx addr", f"pct exec {int(helper_vmid)} -- ip -4 -o addr show dev {shlex.quote(iface)}"),
+            ("routes", f"pct exec {int(helper_vmid)} -- ip route show"),
+        ]
+        for ip in list(guest_ips)[:4]:
+            q = shlex.quote(ip)
+            # ping first (populates the ARP cache even if ICMP is filtered), then
+            # read the neighbour table for the resolved MAC.
+            cmds.append((f"ping {ip}", f"pct exec {int(helper_vmid)} -- ping -c1 -W2 {q}"))
+            cmds.append((f"neigh {ip}", f"pct exec {int(helper_vmid)} -- ip neigh show to {q}"))
+        parts = []
+        for label, cmd in cmds:
+            try:
+                out = self.ssh.run(cmd).strip().replace("\n", " ")
+                parts.append(f"{label}: {out or 'OK'}")
+            except Exception as exc:  # non-zero exit (e.g. ping failed) or SSH issue
+                parts.append(f"{label}: ERR {str(exc)[:80]}")
+        return "probe netdiag [" + " || ".join(parts) + "]"
+
     def reap(self, owned_vmids: set[int]) -> list[int]:
         """Destroy every guest on the scratch host not owned by a live run
         (spec §12). Returns the destroyed vmids."""

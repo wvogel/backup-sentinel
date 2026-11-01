@@ -74,6 +74,8 @@ def restore_status_tooltip(run: dict) -> str:
             continue
         icmp = "–" if r.get("icmp") is None else ("✓" if r.get("icmp") else "✗")
         parts = [f"ICMP {icmp}"]
+        if "arp" in r:  # L2 liveness (answers even behind a guest firewall, e.g. Windows)
+            parts.append(f"ARP {'✓' if r.get('arp') else '✗'}")
         for port, ok in (r.get("ports") or {}).items():
             parts.append(f":{port} {'✓' if ok else '✗'}")
         lines.append(f"{ip}: " + " · ".join(parts))
