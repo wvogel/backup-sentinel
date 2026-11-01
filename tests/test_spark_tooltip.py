@@ -31,3 +31,32 @@ class SparkTooltipTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RestoreStatusTooltipTests(unittest.TestCase):
+    def test_lists_every_probed_ip_with_per_check_detail(self):
+        from app.web.common import restore_status_tooltip
+
+        run = {
+            "result": "limited",
+            "checks": {
+                "10.121.101.50": {"icmp": True, "ports": {"80": True, "443": False}},
+                "10.121.203.10": {"icmp": True, "ports": {"80": True, "443": True}},
+            },
+        }
+        tip = restore_status_tooltip(run)
+        lines = tip.split("\n")
+        assert lines[0] == "limited"
+        assert "10.121.101.50: ICMP ✓ · :80 ✓ · :443 ✗" in lines
+        assert "10.121.203.10: ICMP ✓ · :80 ✓ · :443 ✓" in lines
+
+    def test_error_run_shows_the_error(self):
+        from app.web.common import restore_status_tooltip
+
+        tip = restore_status_tooltip({"result": "error", "checks": {"error": "boom"}})
+        assert tip == "error\nboom"
+
+    def test_no_checks_is_just_the_word(self):
+        from app.web.common import restore_status_tooltip
+
+        assert restore_status_tooltip({"status": "queued", "checks": None}) == "queued"

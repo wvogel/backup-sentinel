@@ -56,7 +56,32 @@ def spark_tooltip(day: dict) -> str:
     return " · ".join(parts)
 
 
+def restore_status_tooltip(run: dict) -> str:
+    """Full per-check breakdown for a run's status hover: the result word, then
+    ONE line per probed IP with ICMP and each TCP port individually (✓/✗/–). So a
+    'limited' run shows exactly what worked and what didn't, across every probed
+    IP of a multi-homed guest — not just a bucket word. Rendered multi-line
+    (the tooltip CSS uses white-space: pre-line)."""
+    head = (run.get("result") or run.get("status") or "").strip()
+    checks = run.get("checks")
+    if not isinstance(checks, dict):
+        return head
+    if checks.get("error"):
+        return f"{head}\n{checks['error']}".strip()
+    lines: list[str] = []
+    for ip, r in checks.items():
+        if not isinstance(r, dict) or "icmp" not in r:
+            continue
+        icmp = "–" if r.get("icmp") is None else ("✓" if r.get("icmp") else "✗")
+        parts = [f"ICMP {icmp}"]
+        for port, ok in (r.get("ports") or {}).items():
+            parts.append(f":{port} {'✓' if ok else '✗'}")
+        lines.append(f"{ip}: " + " · ".join(parts))
+    return (head + "\n" + "\n".join(lines)).strip() if lines else head
+
+
 templates.env.filters["datetime_local"] = datetime_local
+templates.env.filters["restore_status_tooltip"] = restore_status_tooltip
 templates.env.filters["format_bytes"] = format_size
 templates.env.filters["size_coarse"] = format_size_coarse
 templates.env.filters["spark_tooltip"] = spark_tooltip
