@@ -424,35 +424,51 @@ class RestoreServer:
         """Ensure the VLAN-aware, portless (isolated) sandbox bridge actually EXISTS
         and is UP on the host (spec §6).
 
-        Create it at RUNTIME with ``ip link`` — robust where the old approach was
-        not: that wrote an ifupdown stanza and ran ``ifup`` only when the config
-        was absent, so a single failed ``ifup`` (or a reboot where
-        ``interfaces.d`` is not sourced) left the config present but the bridge
-        DOWN, and the grep-guard then never retried — the restore ran on a bridge
-        that did not exist (helper/guest NICs on a dead bridge; it also never
-        showed in the PVE GUI). Runtime creation is idempotent and needs no
-        ifupdown. A persistent stanza is still written best-effort for reboots."""
+        Create it the **PVE-native** way (``pvesh create /nodes/<node>/network`` +
+        apply) so it is written to the host's network config — persistent across
+        reboots AND visible in the PVE GUI (Node → Network). The old approach only
+        appended an ``interfaces.d`` stanza and ran ``ifup`` when the config was
+        absent, so a single failed ``ifup`` (or a reboot where ``interfaces.d`` is
+        not sourced) left the bridge missing/down and never retried — the restore
+        then ran on a bridge that did not exist, and it never showed in the GUI.
+        A runtime ``ip link`` pass then guarantees it is up right now (the config
+        apply can lag, and this also recovers a config-present-but-down bridge),
+        and a final check aborts the run with a clear error if it is still missing."""
         bridge = self.config["sandbox_bridge"]
+        node = self.node()
         b = shlex.quote(bridge)
-        stanza = (
-            f"auto {bridge}\\niface {bridge} inet manual\\n\\tbridge-ports none\\n"
-            f"\\tbridge-stp off\\n\\tbridge-fd 0\\n\\tbridge-vlan-aware yes\\n\\tbridge-vids 2-4094\\n"
-        )
-        script = (
+        qnode = shlex.quote(node)
+        # 1. Native, persistent, GUI-visible bridge. Skip if the node already has
+        #    the interface configured; create + apply otherwise. Best-effort: a
+        #    failure here still leaves the runtime pass below to make it work.
+        already = False
+        try:
+            already = bool(self.pve.get(f"/nodes/{node}/network/{bridge}"))
+        except Exception:
+            already = False
+        if not already:
+            try:
+                self.ssh.run(
+                    f"pvesh create /nodes/{qnode}/network --iface {b} --type bridge "
+                    f"--autostart 1 --bridge_vlan_aware 1 --bridge_vids 2-4094"
+                )
+                self.ssh.run(f"pvesh set /nodes/{qnode}/network")  # apply (ifreload)
+            except Exception as exc:
+                logger.warning("PVE-native creation of %s failed (will bring it up at runtime): %s", bridge, exc)
+        # 2. Guarantee it is up NOW (idempotent) regardless of the apply's timing.
+        runtime = (
             "set -e\n"
             f"if ! ip link show {b} >/dev/null 2>&1; then ip link add name {b} type bridge; fi\n"
             f"ip link set {b} type bridge vlan_filtering 1\n"
             f"ip link set {b} up\n"
-            # persist for reboots (harmless if interfaces.d is not sourced — runtime
-            # creation above is what the restore relies on)
-            f"grep -qs 'iface {bridge}' /etc/network/interfaces /etc/network/interfaces.d/* 2>/dev/null || "
-            f"printf '{stanza}' >> /etc/network/interfaces.d/{bridge}.cfg\n"
             f"ip link show {b} >/dev/null 2>&1\n"
         )
         try:
-            self.ssh.run(script)
+            self.ssh.run(runtime)
         except Exception as exc:
-            raise RestoreTaskError(f"could not create the isolated sandbox bridge {bridge}: {str(exc)[:200]}") from exc
+            raise RestoreTaskError(
+                f"could not bring up the isolated sandbox bridge {bridge}: {str(exc)[:200]}"
+            ) from exc
 
     # restore pipeline -------------------------------------------------------
 

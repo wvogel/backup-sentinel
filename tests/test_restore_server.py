@@ -578,6 +578,29 @@ def test_ensure_sandbox_bridge_creates_at_runtime():
     assert "ip link set vmbr9 up" in script
 
 
+def test_ensure_sandbox_bridge_creates_pve_native_when_absent():
+    # When the node has no vmbr9 configured, create it the PVE-native way (pvesh)
+    # so it is persistent AND visible in the GUI, then apply — plus the runtime
+    # guarantee.
+    srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
+    orig_get = srv.pve.get
+
+    def get(path):
+        if "/network/vmbr9" in path:
+            raise RuntimeError("configuration key 'vmbr9' does not exist")
+        return orig_get(path)
+
+    srv.pve.get = get
+    seen = []
+    srv.ssh.run = lambda cmd: seen.append(cmd) or ""
+    srv.ensure_sandbox_bridge()
+    joined = " ".join(seen)
+    assert "pvesh create /nodes/r1/network --iface vmbr9 --type bridge" in joined
+    assert "--bridge_vlan_aware 1" in joined and "--autostart 1" in joined
+    assert "pvesh set /nodes/r1/network" in joined  # applied (ifreload)
+    assert "ip link add name vmbr9 type bridge" in joined  # runtime guarantee too
+
+
 def test_ensure_sandbox_bridge_raises_when_host_fails():
     srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
 
