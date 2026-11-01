@@ -4,6 +4,7 @@ the runs view, and held-environment actions."""
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -200,9 +201,36 @@ def _cache_pbs_locations(entries: list) -> None:
         logger.debug("pbs locations cache failed: %s", exc)
 
 
+_RUNS_PER_PAGE = 25
+
+
 @router.get("/restore", response_class=HTMLResponse)
 def restore_runs(request: Request) -> HTMLResponse:
-    runs = db_restore.list_runs(limit=50)
+    # Server-side filtering + pagination: the runs log can grow large, so never
+    # load it all — WHERE + LIMIT/OFFSET + COUNT.
+    qp = request.query_params
+    f_status = qp.get("f_status") or None
+    f_trigger = qp.get("f_trigger") or None
+    f_cluster = qp.get("f_cluster") or None
+    f_q = (qp.get("f_q") or "").strip() or None
+    try:
+        page = max(1, int(qp.get("page", "1")))
+    except ValueError:
+        page = 1
+    total = db_restore.count_runs(status=f_status, trigger=f_trigger, cluster=f_cluster, vm_query=f_q)
+    pages = max(1, -(-total // _RUNS_PER_PAGE))  # ceil
+    page = min(page, pages)
+    runs = db_restore.list_runs(
+        limit=_RUNS_PER_PAGE,
+        offset=(page - 1) * _RUNS_PER_PAGE,
+        status=f_status,
+        trigger=f_trigger,
+        cluster=f_cluster,
+        vm_query=f_q,
+    )
+    # Running + held are shown in their own sections and must NOT depend on the
+    # table's page/filter, so fetch them separately.
+    running = db_restore.list_runs(limit=20, status="running")
     held = db_restore.list_runs(limit=50, status="held")
     host = None
     host_error = None
@@ -231,6 +259,7 @@ def restore_runs(request: Request) -> HTMLResponse:
             host_error = f"{type(exc).__name__}: {exc}"[:300]
     context = {
         "runs": runs,
+        "running": running,
         "held": held,
         "host": host,
         "host_pbs": host_pbs,
@@ -239,6 +268,26 @@ def restore_runs(request: Request) -> HTMLResponse:
         "configured": config is not None,
         "queue_paused": restore_config.queue_paused(),
         "action_error": request.query_params.get("error"),
+        # Filter + pagination state for the runs log.
+        "runs_total": total,
+        "runs_page": page,
+        "runs_pages": pages,
+        "runs_filter": {
+            "f_status": f_status or "",
+            "f_trigger": f_trigger or "",
+            "f_cluster": f_cluster or "",
+            "f_q": f_q or "",
+        },
+        "runs_has_filter": any([f_status, f_trigger, f_cluster, f_q]),
+        "cluster_options": db_restore.run_filter_clusters(),
+        # Active filter as a query string (no page) so page links keep the filter.
+        "runs_query": urlencode(
+            {
+                k: v
+                for k, v in (("f_status", f_status), ("f_trigger", f_trigger), ("f_cluster", f_cluster), ("f_q", f_q))
+                if v
+            }
+        ),
     }
     return templates.TemplateResponse(request, "restore.html", common_context(request) | context)
 

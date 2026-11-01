@@ -1738,6 +1738,33 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 /* Cancel button on the running card sits at the far right. */
 .running-cancel { margin-left: auto; }
 
+/* Runs log: server-side filter bar + pager. */
+.runs-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.runs-filter select,
+.runs-filter input[type="search"] {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-box);
+  background: var(--panel-alt);
+  color: var(--ink);
+  font: inherit;
+}
+.runs-filter input[type="search"] { min-width: 140px; }
+.runs-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.runs-pager-nav { display: inline-flex; gap: 6px; }
+
 .run-log {
   max-height: 320px;
   overflow: auto;

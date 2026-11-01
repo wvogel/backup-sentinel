@@ -45,6 +45,32 @@ class RestoreDbTestCase(unittest.TestCase):
         self.assertEqual(run["mgmt_ip"], "10.9.0.5")
         self.assertEqual(run["status"], "running")
 
+    def test_list_runs_pagination_and_filters(self) -> None:
+        db.create_cluster("Other", "other", "https://pve2.example:8006", "secret")
+        cid2 = db.get_cluster_by_slug("other")["id"]
+        db.sync_cluster_inventory(cid2, [{"name": "pve1", "status": "online"}], [_vm(200, "beta")])
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT id FROM vms WHERE cluster_id = %s AND vmid = 200", (cid2,))
+            vm2 = cur.fetchone()["id"]
+        for _ in range(3):
+            db_restore.create_run(self.vm_id, trigger="manual")  # cluster "Test"
+        for _ in range(2):
+            db_restore.create_run(vm2, trigger="scheduled")  # cluster "Other", vm name "beta"
+
+        self.assertEqual(db_restore.count_runs(), 5)
+        self.assertEqual(db_restore.count_runs(trigger="manual"), 3)
+        self.assertEqual(db_restore.count_runs(cluster="Other"), 2)
+        self.assertEqual(db_restore.count_runs(vm_query="bet"), 2)  # ILIKE on vm name
+        self.assertEqual(db_restore.count_runs(vm_query="200"), 2)  # LIKE on vmid
+
+        # Offset/limit paginate without overlap.
+        page1 = db_restore.list_runs(limit=2, offset=0)
+        page2 = db_restore.list_runs(limit=2, offset=2)
+        self.assertEqual(len(page1), 2)
+        self.assertEqual(len(page2), 2)
+        self.assertTrue({r["id"] for r in page1}.isdisjoint({r["id"] for r in page2}))
+        self.assertEqual(set(db_restore.run_filter_clusters()), {"Test", "Other"})
+
     def test_checks_jsonb_roundtrip(self) -> None:
         run_id = db_restore.create_run(self.vm_id)
         db_restore.update_run(run_id, checks={"10.0.0.1": {"icmp": True, "ports": {"443": True}}})
