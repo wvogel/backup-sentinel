@@ -191,6 +191,38 @@ def _reservations(nics: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return res
 
 
+def _mgmt_probe_pool(
+    nics: list[dict[str, Any]], mgmt_ip: str, mgmt_prefix: int, ports: list[int]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
+    """Fallback when a guest has no recorded IP: hand each of its NICs (by MAC) a
+    known address from the MANAGEMENT subnet via DHCP, so the guest still gets a
+    reachable IP and the helper's sandbox leg gets a real address (not 0.0.0.0).
+    The probe IPs are reached via a /32 route on the sandbox leg (added by the
+    agent). Returns (reservations, probe_targets, primary_ip). Addresses .254
+    (helper's per-subnet IP) and the mgmt-leg IP are skipped; guests start at
+    host .100."""
+    import ipaddress
+
+    net = ipaddress.ip_network(f"{mgmt_ip}/{mgmt_prefix}", strict=False)
+    taken = {ipaddress.ip_address(mgmt_ip), net.network_address + 254}
+    reservations: list[dict[str, Any]] = []
+    targets: list[dict[str, Any]] = []
+    host = 100
+    for nic in nics:
+        mac = nic.get("mac")
+        if not mac:
+            continue
+        while True:
+            ip = net.network_address + host
+            host += 1
+            if ip not in taken and ip != net.broadcast_address:
+                break
+        taken.add(ip)
+        reservations.append({"mac": mac, "ip": str(ip), "prefix": mgmt_prefix})
+        targets.append({"ip": str(ip), "ports": ports})
+    return reservations, targets, (targets[0]["ip"] if targets else None)
+
+
 class NotRunnable(RuntimeError):
     """A queued run cannot run and should be dequeued as an error (vs a resource
     wait, which returns None from build_plan)."""
@@ -226,6 +258,15 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
     )
     if alloc is None:
         return None  # management IP (or vmid/vlan) exhausted → caller waits
+
+    # No recorded guest IP (and no override): hand the guest a management-range IP
+    # via DHCP so it still gets a reachable address and the helper's sandbox leg
+    # is not left on 0.0.0.0. Only kicks in for the otherwise-unreachable case.
+    if not reservations and not candidate.get("probe_primary_ip"):
+        from app.services.restore_server import _prefix_from_netmask
+
+        mgmt_prefix = _prefix_from_netmask(config.get("mgmt_netmask", "255.255.255.0"))
+        reservations, targets, primary = _mgmt_probe_pool(nics, alloc.mgmt_ip, mgmt_prefix, ports)
 
     targets_sorted = sorted(
         (s for s in config.get("target_storages", []) if s.get("use", True)), key=lambda s: s.get("order", 0)
@@ -600,6 +641,16 @@ def reprovision_and_retest(run_id: int, run: dict[str, Any], config: dict[str, A
     if alloc is None:
         raise NotRunnable("no free management IP to re-provision the re-test helper")
     plan = dataclasses.replace(base, helper_vmid=alloc.helper_vmid, mgmt_ip=alloc.mgmt_ip)
+    # Rebuild the management-range probe pool against the fresh mgmt IP when the
+    # guest has no recorded IP (same fallback as build_plan), so the re-test
+    # helper's sandbox leg gets a real address and the guest a reachable IP.
+    if not plan.reservations:
+        from app.services.restore_server import _prefix_from_netmask
+
+        nics = [dict(n) for n in db_restore.get_network_interfaces(run["vm_id"])]
+        prefix = _prefix_from_netmask(config.get("mgmt_netmask", "255.255.255.0"))
+        res, targets, primary = _mgmt_probe_pool(nics, alloc.mgmt_ip, prefix, list(plan.tcp_ports))
+        plan = dataclasses.replace(plan, reservations=res, probe_targets=targets, primary_ip=primary)
     db_restore.update_run(run_id, helper_vmid=alloc.helper_vmid, mgmt_ip=alloc.mgmt_ip)
     server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
     result = restore_worker.retest_held(run_id, server, plan)
