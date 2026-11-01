@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.47] — 2026-11-01
+
+### Fixed
+
+- **Live restore progress moves again (no longer stuck at 0%).** The hybrid started the restore with `pvesh create`, which runs the restore in the **foreground** — it blocks until the whole restore finishes, so the worker never polled the task *during* the copy and the percent stayed 0 until the very end. The restore is now kicked as root in the **background** (`pvesh create` via `nohup`/`stdbuf`), its task UPID is read as soon as it appears, and that UPID is polled over the fast API token — so the percentage climbs live again.
+
 ## [v3.1.46] — 2026-11-01
 
 ### Changed
