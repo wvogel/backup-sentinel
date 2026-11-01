@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.56] — 2026-11-01
+
+### Fixed
+
+- **The restore-host RAM ring now shows what is actually free.** It read PVE's node status, whose `free` counts reclaimable buffers/cache as *used* — so the ring showed far less free RAM than the host really had (and the RAM-fit check could wrongly reject a restore). It now reads `/proc/meminfo` over SSH and reports **MemAvailable** (reclaimable cache counted as free, matching `free`'s "available"); the ring fills by truly-used RAM, and both the ring and the RAM-fit check use the honest number.
+
+### Added
+
+- **RAM breakdown on hover.** Hovering the RAM ring shows used / buffers-cache / free / available, like `free -h`.
+
 ## [v3.1.55] — 2026-11-01
 
 ### Changed

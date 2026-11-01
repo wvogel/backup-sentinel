@@ -779,6 +779,48 @@ def test_guest_agent_nics_reports_ip_and_prefix():
     assert srv.guest_agent_nics(9000) == [("10.122.202.20", 24)]
 
 
+_MEMINFO = """MemTotal:       1000 kB
+MemFree:         100 kB
+MemAvailable:    800 kB
+Buffers:          50 kB
+Cached:          600 kB
+SReclaimable:     40 kB
+"""
+
+
+def test_free_resources_ram_is_available_not_pve_free():
+    # PVE node status reports free=MemFree (buff/cache counts as used), which badly
+    # understates what's free. free_resources must report MemAvailable instead and
+    # expose the full breakdown for the hover.
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online", "memory": {"total": 1000 * 1024, "free": 100 * 1024}}],
+        "/nodes/r1/status": {"memory": {"total": 1000 * 1024, "free": 100 * 1024}},
+        "/nodes/r1/storage": [],
+    }
+    srv = _server(responses)
+    srv.ssh.run = lambda cmd: _MEMINFO if "meminfo" in cmd else ""
+    res = srv.free_resources()
+    assert res["ram_total"] == 1000 * 1024
+    assert res["ram_free"] == 800 * 1024  # MemAvailable, not MemFree (100)
+    d = res["ram_detail"]
+    assert d["available"] == 800 * 1024
+    assert d["free"] == 100 * 1024
+    assert d["buff_cache"] == (50 + 600 + 40) * 1024
+    assert d["used"] == (1000 - 100 - 690) * 1024  # total − free − buff/cache
+
+
+def test_free_resources_falls_back_to_pve_when_meminfo_unreadable():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/status": {"memory": {"total": 500, "free": 200}},
+        "/nodes/r1/storage": [],
+    }
+    srv = _server(responses)
+    srv.ssh.run = lambda cmd: ""  # no meminfo
+    res = srv.free_resources()
+    assert res["ram_total"] == 500 and res["ram_free"] == 200 and res["ram_detail"] is None
+
+
 def test_reap_destroys_unowned():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],

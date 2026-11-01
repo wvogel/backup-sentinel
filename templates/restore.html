@@ -27,9 +27,12 @@
   {%- set ram_level = 'crit' if ram_pct >= 90 else ('warn' if ram_pct >= 70 else 'ok') %}
   {%- set targets = host.stores|selectattr('images')|list %}
   <div class="store-rings">
-    {# RAM as a ring (capacity + free). #}
+    {# RAM as a ring: fill = truly used (total − available); center = available free.
+       Hover shows the full breakdown (used / buff-cache / free / available). #}
+    {%- set rd = host.ram_detail %}
     <div class="store-ring-card">
-      <div class="store-ring ring-{{ ram_level }}" style="--pct: {{ ram_pct|round(0, 'floor')|int }}">
+      <div class="store-ring ring-{{ ram_level }}" style="--pct: {{ ram_pct|round(0, 'floor')|int }}"
+        {%- if rd %} data-tooltip="{{ t('restore.ram_used') }}: {{ rd.used|size_coarse }}&#10;{{ t('restore.ram_buffcache') }}: {{ rd.buff_cache|size_coarse }}&#10;{{ t('restore.free') }}: {{ rd.free|size_coarse }}&#10;{{ t('restore.ram_available') }}: {{ rd.available|size_coarse }}"{% endif %}>
         <div class="ring-center"><strong>{{ host.ram_total|size_coarse }}</strong><span>{{ host.ram_free|size_coarse }} {{ t('restore.free')|lower }}</span></div>
       </div>
       <div class="store-ring-label">{{ t('restore.ram') }}</div>
