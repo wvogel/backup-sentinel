@@ -646,9 +646,10 @@ def test_ensure_sandbox_bridge_creates_at_runtime():
 
 
 def test_ensure_sandbox_bridge_creates_pve_native_when_absent():
-    # When the node has no vmbr9 configured, create it the PVE-native way (pvesh)
-    # so it is persistent AND visible in the GUI, then apply — plus the runtime
-    # guarantee.
+    # When the node has no vmbr9 configured, write it the PVE-native way (pvesh
+    # create) so it is persistent AND visible in the GUI, then bring it up at
+    # runtime. We must NOT apply host-wide (`pvesh set .../network` = ifreload -a),
+    # which would bounce the host's production VLAN sub-interfaces.
     srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
     orig_get = srv.pve.get
 
@@ -664,8 +665,8 @@ def test_ensure_sandbox_bridge_creates_pve_native_when_absent():
     joined = " ".join(seen)
     assert "pvesh create /nodes/r1/network --iface vmbr9 --type bridge" in joined
     assert "--bridge_vlan_aware 1" in joined and "--autostart 1" in joined
-    assert "pvesh set /nodes/r1/network" in joined  # applied (ifreload)
-    assert "ip link add name vmbr9 type bridge" in joined  # runtime guarantee too
+    assert "pvesh set /nodes/r1/network" not in joined  # no host-wide ifreload
+    assert "ip link add name vmbr9 type bridge" in joined  # runtime guarantee
 
 
 def test_ensure_sandbox_bridge_raises_when_host_fails():
