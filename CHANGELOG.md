@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.62] — 2026-11-01
+
+### Fixed
+
+- **The isolated sandbox bridge is now created robustly and verified.** It used to write an ifupdown stanza and run `ifup` only when the config was absent — so a single failed `ifup` (or a reboot where `interfaces.d` isn't sourced) left the config present but the bridge **down**, and the guard then never retried: the restore ran on a bridge that didn't exist (and it never showed in the PVE GUI). The bridge is now created at **runtime** with `ip link` (idempotent, VLAN-aware, portless/isolated, brought up), a persistent stanza is still written best-effort, and a failure now aborts the run with a clear error instead of proceeding on a dead bridge.
+
+### Added
+
+- **The failure diagnosis now covers the host side too.** A non-passing run's log additionally shows the sandbox bridge's state and the NICs attached to it (the helper veth and the restored VM's tap must both be there), the restored VM's NIC `bridge`/`tag` (a VLAN mismatch means no L2), the per-port bridge VLANs, and an explicit TCP connect to each probed port — so an L2/VLAN problem is distinguishable from a guest firewall at a glance.
+
 ## [v3.1.61] — 2026-11-01
 
 ### Added

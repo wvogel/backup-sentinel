@@ -421,15 +421,38 @@ class RestoreServer:
     # sandbox network --------------------------------------------------------
 
     def ensure_sandbox_bridge(self) -> None:
-        """Idempotently ensure a VLAN-aware, portless bridge exists (spec §6)."""
+        """Ensure the VLAN-aware, portless (isolated) sandbox bridge actually EXISTS
+        and is UP on the host (spec §6).
+
+        Create it at RUNTIME with ``ip link`` — robust where the old approach was
+        not: that wrote an ifupdown stanza and ran ``ifup`` only when the config
+        was absent, so a single failed ``ifup`` (or a reboot where
+        ``interfaces.d`` is not sourced) left the config present but the bridge
+        DOWN, and the grep-guard then never retried — the restore ran on a bridge
+        that did not exist (helper/guest NICs on a dead bridge; it also never
+        showed in the PVE GUI). Runtime creation is idempotent and needs no
+        ifupdown. A persistent stanza is still written best-effort for reboots."""
         bridge = self.config["sandbox_bridge"]
-        script = (
-            f"grep -q 'iface {bridge}' /etc/network/interfaces /etc/network/interfaces.d/* 2>/dev/null || "
-            f"(printf 'auto {bridge}\\niface {bridge} inet manual\\n\\tbridge-ports none\\n"
-            f"\\tbridge-stp off\\n\\tbridge-fd 0\\n\\tbridge-vlan-aware yes\\n\\tbridge-vids 2-4094\\n' "
-            f">> /etc/network/interfaces.d/{bridge}.cfg && ifup {bridge})"
+        b = shlex.quote(bridge)
+        stanza = (
+            f"auto {bridge}\\niface {bridge} inet manual\\n\\tbridge-ports none\\n"
+            f"\\tbridge-stp off\\n\\tbridge-fd 0\\n\\tbridge-vlan-aware yes\\n\\tbridge-vids 2-4094\\n"
         )
-        self.ssh.run(script)
+        script = (
+            "set -e\n"
+            f"if ! ip link show {b} >/dev/null 2>&1; then ip link add name {b} type bridge; fi\n"
+            f"ip link set {b} type bridge vlan_filtering 1\n"
+            f"ip link set {b} up\n"
+            # persist for reboots (harmless if interfaces.d is not sourced — runtime
+            # creation above is what the restore relies on)
+            f"grep -qs 'iface {bridge}' /etc/network/interfaces /etc/network/interfaces.d/* 2>/dev/null || "
+            f"printf '{stanza}' >> /etc/network/interfaces.d/{bridge}.cfg\n"
+            f"ip link show {b} >/dev/null 2>&1\n"
+        )
+        try:
+            self.ssh.run(script)
+        except Exception as exc:
+            raise RestoreTaskError(f"could not create the isolated sandbox bridge {bridge}: {str(exc)[:200]}") from exc
 
     # restore pipeline -------------------------------------------------------
 
@@ -1071,32 +1094,58 @@ class RestoreServer:
                 parts.append(f"{label}: ERR {str(exc)[:80]}")
         return "helper netdiag [" + " || ".join(parts) + "]"
 
-    def probe_netdiag(self, helper_vmid: int, guest_ips: list[str], iface: str = "sbx") -> str:
-        """Why a probe couldn't reach the guest, captured from INSIDE the helper
-        over host SSH (``pct exec`` — no helper credentials needed), for the run
-        log. Shows the sandbox leg's address + routes and, per guest IP, whether
-        ARP resolves (a MAC in the neighbour table after a poke) and whether ICMP
-        answers. ``neigh … REACHABLE/STALE`` with a lladdr but no ping ⇒ the guest
-        is on the L2 but firewalls ICMP; ``INCOMPLETE``/no entry ⇒ an L2/VLAN
-        problem (helper and guest not actually on the same segment). Never raises."""
+    def probe_netdiag(
+        self,
+        helper_vmid: int,
+        guest_ips: list[str],
+        *,
+        restore_vmid: int | None = None,
+        ports: list[int] | None = None,
+        iface: str = "sbx",
+    ) -> str:
+        """Why a probe couldn't reach the guest, captured over host SSH (``pct
+        exec`` / ``qm config`` — no helper credentials), for the run log:
+
+        - the isolated **sandbox bridge** state (does it exist/is it up) and the
+          NICs attached to it — the helper veth and the restored VM's tap must
+          both be there, or they are not on the same segment;
+        - the restored VM's NIC config (``bridge``/``tag``) vs the helper's — a
+          VLAN mismatch means no L2 even when both are on the bridge;
+        - the helper's sandbox leg address + routes;
+        - per guest IP: whether ARP resolves (a MAC after a poke) and whether ICMP
+          and each TCP port answer.
+
+        ``neigh … REACHABLE`` with no ping ⇒ the guest is on the L2 but firewalls
+        ICMP/ports; ``INCOMPLETE``/no entry ⇒ an L2/VLAN problem. Never raises."""
         if not helper_vmid:
             return ""
+        h = int(helper_vmid)
+        bridge = shlex.quote(self.config.get("sandbox_bridge", "vmbr9"))
         cmds = [
-            ("sbx addr", f"pct exec {int(helper_vmid)} -- ip -4 -o addr show dev {shlex.quote(iface)}"),
-            ("routes", f"pct exec {int(helper_vmid)} -- ip route show"),
+            ("bridge", f"ip -br link show {bridge}"),
+            ("bridge ports", f"ls /sys/class/net/{bridge}/brif 2>/dev/null || echo none"),
+            ("bridge vlans", "bridge vlan show 2>/dev/null | head -40"),
+        ]
+        if restore_vmid:
+            cmds.append(("vm nic", f"qm config {int(restore_vmid)} | grep -E '^net[0-9]' || true"))
+        cmds += [
+            ("sbx addr", f"pct exec {h} -- ip -4 -o addr show dev {shlex.quote(iface)}"),
+            ("routes", f"pct exec {h} -- ip route show"),
         ]
         for ip in list(guest_ips)[:4]:
             q = shlex.quote(ip)
             # ping first (populates the ARP cache even if ICMP is filtered), then
-            # read the neighbour table for the resolved MAC.
-            cmds.append((f"ping {ip}", f"pct exec {int(helper_vmid)} -- ping -c1 -W2 {q}"))
-            cmds.append((f"neigh {ip}", f"pct exec {int(helper_vmid)} -- ip neigh show to {q}"))
+            # read the neighbour table for the resolved MAC, then try the ports.
+            cmds.append((f"ping {ip}", f"pct exec {h} -- ping -c1 -W2 {q}"))
+            cmds.append((f"neigh {ip}", f"pct exec {h} -- ip neigh show to {q}"))
+            for p in list(ports or [])[:4]:
+                cmds.append((f"tcp {ip}:{int(p)}", f"pct exec {h} -- nc -z -w2 {q} {int(p)}"))
         parts = []
         for label, cmd in cmds:
             try:
                 out = self.ssh.run(cmd).strip().replace("\n", " ")
                 parts.append(f"{label}: {out or 'OK'}")
-            except Exception as exc:  # non-zero exit (e.g. ping failed) or SSH issue
+            except Exception as exc:  # non-zero exit (e.g. ping/nc failed) or SSH issue
                 parts.append(f"{label}: ERR {str(exc)[:80]}")
         return "probe netdiag [" + " || ".join(parts) + "]"
 
