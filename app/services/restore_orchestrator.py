@@ -223,6 +223,12 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
     a resource wait (no free management IP); raises NotRunnable when the VM is
     not auto-restorable or has no snapshot (those become an error, not a wait)."""
     vm_id = candidate["vm_id"]
+    # Containers (LXC) are not supported yet: the restore pipeline is QEMU-only
+    # (qmrestore / `pvesh create …/qemu -archive`), so a pbs-ct backup would fail
+    # deep in the restore with confusing config-parse errors and leave a stuck
+    # shell behind. Refuse it up front with a clear reason instead (spec: VM-only).
+    if (candidate.get("guest_type") or "qemu") != "qemu":
+        raise NotRunnable("containers (LXC) are not supported yet — VM restore only")
     match = restore_match.match_source(vm_backup_locations(vm_id), restore_host_pbs_entries(server))
     if match is None:
         raise NotRunnable("not auto-restorable (no matching local datastore)")
@@ -312,6 +318,11 @@ def enqueue_due(server: RestoreServer, config: dict[str, Any]) -> int:
     storages = restore_host_pbs_entries(server)
     count = 0
     for cand in db_restore.due_auto_restore_candidates():
+        # Skip containers — the restore pipeline is QEMU-only for now, so never
+        # queue a CT the scheduler would just fail every cycle (build_plan also
+        # refuses them, this keeps them out of the queue entirely).
+        if (cand.get("guest_type") or "qemu") != "qemu":
+            continue
         if restore_match.is_auto_restorable(vm_backup_locations(cand["vm_id"]), storages):
             db_restore.create_run(cand["vm_id"], trigger="scheduled")
             count += 1
