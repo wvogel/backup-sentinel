@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.38] — 2026-11-01
+
+### Fixed
+
+- **A restored guest with a mounted ISO no longer fails to start.** `qmrestore` puts the disks on the target storage, but a CD-ROM still pointing at an ISO on the source cluster's storage (e.g. its NAS) is kept verbatim — and `VM … Start` then fails with "storage '…' does not exist". The sandbox-boot prep now ejects every CD-ROM that still has a backing volume (set to `none,media=cdrom`) together with the NIC rewrite, before the VM is started. A restore test boots from disk and never needs the ISO.
+
 ## [v3.1.37] — 2026-11-01
 
 ### Changed

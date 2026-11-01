@@ -9,6 +9,7 @@ from app.services.restore_server import (
     RestoreTaskError,
     _stable_mac,
     dnsmasq_config,
+    eject_cdroms,
     helper_legs,
     parse_task_progress,
     rewrite_net_line,
@@ -31,6 +32,20 @@ def test_rewrite_net_line_preserves_mac_changes_bridge_and_tag():
 def test_rewrite_net_line_adds_bridge_when_missing_and_no_tag():
     out = rewrite_net_line("virtio=AA:BB:CC:DD:EE:01", "vmbr9", None)
     assert out == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9"
+
+
+def test_eject_cdroms_empties_source_isos_only():
+    config = {
+        "ide2": "nas-pve-aboe-muc:iso/virtio.iso,media=cdrom",  # source ISO → eject
+        "ide0": "local-lvm:vm-9000-cloudinit,media=cdrom",  # cloudinit cdrom → eject
+        "sata0": "none,media=cdrom",  # already empty → leave
+        "scsi0": "local:vm-9000-disk-0,size=32G",  # real disk → leave
+        "net0": "virtio=AA:BB,bridge=vmbr0",  # not a drive → leave
+    }
+    assert eject_cdroms(config) == {
+        "ide2": "none,media=cdrom",
+        "ide0": "none,media=cdrom",
+    }
 
 
 def test_select_reaper_targets():
