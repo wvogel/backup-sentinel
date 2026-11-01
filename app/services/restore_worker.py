@@ -204,7 +204,12 @@ def execute(
                 diag_ips = [ip for ip, _ in (server.guest_agent_nics(plan.restore_vmid) or [])]
                 if not diag_ips and plan.primary_ip:
                     diag_ips = [plan.primary_ip]
-                log_text = server.probe_netdiag(plan.helper_vmid, diag_ips) or None
+                log_text = (
+                    server.probe_netdiag(
+                        plan.helper_vmid, diag_ips, restore_vmid=plan.restore_vmid, ports=plan.tcp_ports
+                    )
+                    or None
+                )
             except Exception as exc:
                 logger.debug("probe netdiag failed: %s", exc)
     except RestoreCancelled as exc:

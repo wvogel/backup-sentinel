@@ -545,6 +545,50 @@ def test_probe_netdiag_empty_without_helper():
     assert srv.probe_netdiag(0, ["10.0.0.1"]) == ""
 
 
+def test_probe_netdiag_includes_bridge_vm_nic_and_tcp():
+    srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
+
+    def fake_run(cmd):
+        if "link show vmbr9" in cmd:
+            return "vmbr9 UP"
+        if "brif" in cmd:
+            return "veth9001i0\ntap9000i0"
+        if "qm config" in cmd:
+            return "net0: virtio=BC:24:11:f0:56:79,bridge=vmbr9,tag=900"
+        if "nc -z" in cmd:
+            raise RuntimeError("timed out")  # 8007 not answering
+        return ""
+
+    srv.ssh.run = fake_run
+    out = srv.probe_netdiag(9001, ["10.254.10.6"], restore_vmid=9000, ports=[8007])
+    assert "bridge: vmbr9 UP" in out  # the sandbox bridge exists/up
+    assert "veth9001i0" in out and "tap9000i0" in out  # both NICs attached to it
+    assert "bridge=vmbr9,tag=900" in out  # the restored VM's NIC + VLAN
+    assert "tcp 10.254.10.6:8007: ERR" in out  # the service port did not answer
+
+
+def test_ensure_sandbox_bridge_creates_at_runtime():
+    srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
+    seen = []
+    srv.ssh.run = lambda cmd: seen.append(cmd) or ""
+    srv.ensure_sandbox_bridge()
+    script = seen[0]
+    assert "ip link add name vmbr9 type bridge" in script
+    assert "vlan_filtering 1" in script
+    assert "ip link set vmbr9 up" in script
+
+
+def test_ensure_sandbox_bridge_raises_when_host_fails():
+    srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
+
+    def boom(cmd):
+        raise RuntimeError("Cannot find device")
+
+    srv.ssh.run = boom
+    with pytest.raises(RestoreTaskError):
+        srv.ensure_sandbox_bridge()
+
+
 def test_apply_dnsmasq_reports_failure_without_crashing(monkeypatch, tmp_path):
     # A missing dnsmasq (or any launch failure) must come back as ok:false — NOT
     # an unhandled exception that 500s the agent (the old systemctl-fallback bug).
