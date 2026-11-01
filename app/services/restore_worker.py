@@ -181,6 +181,7 @@ def execute(
             plan.target_storage,
             on_progress=lambda p: db_restore.update_run(run_id, **_progress_fields(p)),
             on_task=lambda upid: db_restore.update_run(run_id, task_upid=upid),
+            name=plan.label,
             should_cancel=should_cancel,
         )
         _checkpoint()

@@ -712,6 +712,7 @@ class RestoreServer:
         on_progress: Callable[[dict[str, Any]], None] | None = None,
         on_task: Callable[[str], None] | None = None,
         *,
+        name: str = "",
         poll_interval: float = 5.0,
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
@@ -722,7 +723,12 @@ class RestoreServer:
         adaptive stall (spec §6, §11), or an operator cancel. ``on_task`` receives
         the PVE task UPID as soon as it starts, so the caller can persist it and
         re-attach after an app restart (a deploy must not interrupt a running
-        restore)."""
+        restore).
+
+        ``name`` (cluster+VM) is applied *at creation* so the restored guest shows
+        its real name from the first moment — the restore holds a config lock for
+        its whole duration, so a rename afterwards would leave it as a bare "VM
+        9000" in the PVE UI for the entire (often long) copy."""
         node = self.node()
         # snapshot_id is the PBS volume id (e.g. "store:backup/vm/100/2026-...Z"),
         # which PVE accepts directly as the restore archive.
@@ -734,7 +740,7 @@ class RestoreServer:
         # UPID over the FAST API token for live progress. (Running `pvesh create`
         # in the foreground blocks until the whole restore finishes, which froze
         # the progress at 0% the entire time.)
-        upid = self._start_restore_task(restore_vmid, archive, target_storage, node, now=now, sleep=sleep)
+        upid = self._start_restore_task(restore_vmid, archive, target_storage, node, name=name, now=now, sleep=sleep)
         if on_task:
             on_task(upid)
         self._poll_task(
@@ -748,6 +754,7 @@ class RestoreServer:
         storage: str,
         node: str,
         *,
+        name: str = "",
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
         deadline_seconds: float = 120.0,
@@ -759,9 +766,15 @@ class RestoreServer:
         block-buffers and only flushed at the very end — freezing progress at 0%
         until completion)."""
         out = f"/tmp/bsentinel-restore-{vmid}.log"
+        # Name the guest AT CREATION (the create-from-archive endpoint accepts a
+        # name override) so it shows its cluster+VM name from the first moment —
+        # the restore holds a config lock for its whole duration, so a rename only
+        # after it finishes would leave a bare "VM {vmid}" in the PVE UI the entire
+        # (often long) copy.
+        name_arg = f"-name {shlex.quote(name)} " if name else ""
         self.ssh.run(
             f"nohup pvesh create /nodes/{shlex.quote(node)}/qemu "
-            f"-vmid {vmid} -archive {shlex.quote(archive)} -storage {shlex.quote(storage)} -live-restore 0 "
+            f"-vmid {vmid} -archive {shlex.quote(archive)} -storage {shlex.quote(storage)} {name_arg}-live-restore 0 "
             f"> {shlex.quote(out)} 2>&1 & echo kicked"
         )
         deadline = now() + deadline_seconds

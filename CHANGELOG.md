@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.2.3] — 2026-11-01
+
+### Fixed
+
+- **A wedged restore queue now self-heals even while the single restore slot is occupied.** `recover_stuck_runs` lived only inside `run_restore_queue`, which is submitted to the one-slot restore executor — so a stuck or long-running resume/worker (e.g. a post-deploy resume probing an environment that was already gone) blocked the very recovery meant to unblock the queue, and the queue sat "running" with nothing on the host and nothing progressing. Recovery now also runs on each sync tick **off** that slot, and requests cancel on the stuck run so the doomed thread bails and frees the slot; then a kick lets the freed queue drain.
+- **The restored guest is named at creation, not after.** The cluster+VM rename happened only once the restore finished, but the restore holds a config lock for its whole (often long) duration — so the guest showed as a bare "VM 9000" in the PVE UI the entire time. The name is now passed to the create-from-archive call, so the restored VM carries its `<cluster>-<vm>` name from the first moment.
+
 ## [v3.2.2] — 2026-11-01
 
 ### Added

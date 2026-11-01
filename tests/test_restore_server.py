@@ -415,6 +415,30 @@ def test_start_restore_task_discovers_running_upid_not_a_finished_one():
     assert any("pvesh create /nodes/r1/qemu" in c and "nohup" in c for c in srv.ssh.commands)
 
 
+def _restore_task_responses():
+    running = "UPID:r1:0000ABCD:00002000:qmrestore:9000:root@pam:"
+    return {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/tasks": [{"upid": running, "id": "9000", "type": "qmrestore", "starttime": 2000}],
+    }
+
+
+def test_start_restore_task_names_the_guest_at_creation():
+    # The restore holds a config lock for its whole duration, so the name must be
+    # set on the create-from-archive call — not renamed afterwards.
+    srv = _server(_restore_task_responses())
+    srv._start_restore_task(9000, "store:backup/vm/100/x", "zfs", "r1", name="prod-web", sleep=lambda s: None)
+    cmd = next(c for c in srv.ssh.commands if "pvesh create /nodes/r1/qemu" in c)
+    assert "-name prod-web " in cmd and "-archive" in cmd
+
+
+def test_start_restore_task_without_a_name_omits_the_flag():
+    srv = _server(_restore_task_responses())
+    srv._start_restore_task(9000, "store:backup/vm/100/x", "zfs", "r1", sleep=lambda s: None)
+    cmd = next(c for c in srv.ssh.commands if "pvesh create /nodes/r1/qemu" in c)
+    assert "-name" not in cmd
+
+
 def test_provision_helper_rootfs_on_first_container_capable_target():
     # The sorted-first target (restore-vms) is images-only, so the helper skips it
     # and lands on the next selected one that accepts containers (rootdir).

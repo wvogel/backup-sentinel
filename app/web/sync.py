@@ -628,8 +628,38 @@ async def auto_sync_loop() -> None:
             await asyncio.get_event_loop().run_in_executor(sync_executor, send_weekly_report_if_due)
         except Exception as exc:
             logger.error("Weekly report failed: %s", exc)
+        try:
+            await asyncio.get_event_loop().run_in_executor(sync_executor, _recover_stuck_restores)
+        except Exception as exc:
+            logger.error("Restore self-heal failed: %s", exc)
         _kick_restore_queue()
         await asyncio.sleep(interval)
+
+
+def _recover_stuck_restores() -> None:
+    """Self-heal a wedged restore queue — crucially, OFF the single-slot restore
+    executor. ``recover_stuck_runs`` also runs inside ``run_restore_queue``, but
+    that is submitted to the one restore slot, so when the slot is occupied by a
+    stuck or long resume/worker (e.g. a post-deploy resume probing an environment
+    that is already gone) the one thing that can unblock the queue is itself stuck
+    behind the block. Running it here, on a sync worker each tick, finalizes the
+    phantom 'running' row and cancels the doomed thread so the slot frees; then a
+    kick lets the freed queue drain."""
+    from app import db_restore
+    from app.services import restore_config, restore_orchestrator
+
+    # Cheap DB gate first: no 'running' row → nothing to heal, don't touch the host.
+    if not db_restore.list_runs(limit=1, status="running"):
+        return
+    config = restore_config.load()
+    if config is None:
+        return
+    config = restore_orchestrator.ensure_host_key_pinned(config)
+    server = restore_orchestrator.build_server(config)
+    recovered = restore_orchestrator.recover_stuck_runs(server, config)
+    if recovered:
+        logger.warning("Restore self-heal: recovered %d wedged run(s) off the restore slot", recovered)
+        _kick_restore_queue()
 
 
 def _kick_restore_queue() -> None:
