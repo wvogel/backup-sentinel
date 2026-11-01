@@ -160,8 +160,8 @@
   {%- set _triggers = [('manual', t('restore.trigger_manual')), ('scheduled', t('restore.trigger_scheduled'))] %}
   <table class="data-table">
     <thead><tr>
-      <th>{{ colfilter('f_cluster', t('restore.col_cluster'), cluster_options, runs_filter) }}</th>
       <th><span class="th-h">VM{% if runs_filter.f_q %}<span class="th-val">: {{ runs_filter.f_q }}</span>{% endif %}<details class="col-filter{{ ' active' if runs_filter.f_q }}"><summary aria-label="Filter"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M3 5h18l-7 8v5l-4 2v-7z"/></svg></summary><div class="col-filter-menu"><form method="get" action="/restore">{% if runs_filter.f_status %}<input type="hidden" name="f_status" value="{{ runs_filter.f_status }}">{% endif %}{% if runs_filter.f_trigger %}<input type="hidden" name="f_trigger" value="{{ runs_filter.f_trigger }}">{% endif %}{% if runs_filter.f_cluster %}<input type="hidden" name="f_cluster" value="{{ runs_filter.f_cluster }}">{% endif %}<input type="search" name="f_q" value="{{ runs_filter.f_q }}" placeholder="VM / VMID"><button type="submit" class="button-secondary">{{ t('restore.filter_apply') }}</button></form></div></details></span></th>
+      <th>{{ colfilter('f_cluster', t('restore.col_cluster'), cluster_options, runs_filter) }}</th>
       <th>{{ colfilter('f_status', t('restore.col_status'), _statuses, runs_filter) }}</th>
       <th>{{ colfilter('f_trigger', t('restore.col_trigger'), _triggers, runs_filter) }}</th>
       <th>{{ t('restore.col_queued') }}</th><th>{{ t('restore.col_duration') }}</th><th></th>
@@ -170,8 +170,8 @@
     {% if not runs %}<tr><td colspan="7" class="muted runs-nomatch">{{ t('restore.no_runs_filtered') }}</td></tr>{% endif %}
     {% for run in runs %}
       <tr data-run-id="{{ run.id }}">
-        <td>{% if run.cluster_slug %}<a href="/clusters/{{ run.cluster_slug }}">{{ run.cluster_name }}</a>{% else %}{{ run.cluster_name or '–' }}{% endif %}</td>
         <td>{% if run.cluster_slug %}<a href="/clusters/{{ run.cluster_slug }}?vm={{ run.vm_id }}">{{ run.vm_name or ('VM ' ~ run.vm_id) }}</a>{% else %}{{ run.vm_name or ('VM ' ~ run.vm_id) }}{% endif %}{% if run.vmid_src %} <span class="muted">({{ run.vmid_src }})</span>{% endif %}</td>
+        <td>{% if run.cluster_slug %}<a href="/clusters/{{ run.cluster_slug }}">{{ run.cluster_name }}</a>{% else %}{{ run.cluster_name or '–' }}{% endif %}</td>
         <td>
           {%- if run.status == 'running' -%}
             <span class="status-icon status-running js-row-status" data-tooltip="{{ t('restore.phase_' ~ (run.phase or 'restoring')) }}" aria-label="{{ run.status }}">⟳&nbsp;<span class="js-row-pct">{{ run.percent or 0 }}%</span></span>
