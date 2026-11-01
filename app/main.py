@@ -105,11 +105,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
-        # Never cache HTML pages so the browser always re-fetches them and picks
-        # up the current asset cache-buster (?v=…) after a deploy — no manual
-        # reload needed. Static assets stay cacheable, busted by their ?v=.
+        # Never cache HTML pages: use no-store (not just no-cache), so the browser
+        # also skips the back/forward cache (bfcache). With no-cache the back
+        # button could still show a STALE page from bfcache — e.g. a setting
+        # auto-saved on one page, then "back" showed its old value until a hard
+        # reload. no-store forces a fresh fetch on every navigation, so the page
+        # always reflects the current DB state (and picks up the asset
+        # cache-buster after a deploy). Static assets stay cacheable (busted by ?v=).
         if response.headers.get("content-type", "").startswith("text/html"):
-            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+            response.headers["Cache-Control"] = "no-store"
         return response
 
 
