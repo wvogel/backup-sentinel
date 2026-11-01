@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.40] — 2026-11-01
+
+### Changed
+
+- **All PVE operations now run over root SSH (`pvesh`/`qmrestore`) instead of an API token.** An API token can never set raw PCI passthrough (PVE requires the literal `root@pam` user), so a VM with `hostpciN` could not be restored at all via the token. The transport is now a thin `PveSsh` that mirrors the REST API 1:1 through `pvesh get/create/set/delete … --output-format json` over the existing root SSH — the orchestration and its whole test suite are unchanged. Consequences: the restore runs as root (`pvesh create …/qemu -archive …` = `qmrestore`, which handles `hostpci`), the helper CT template is placed by SFTP into the storage's `template/cache`, and the API-token provisioning is no longer needed.
+
+### Fixed
+
+- **A VM with PCI passthrough can be restore-tested.** After the (root) restore, every `hostpciN` is removed from the config together with the NIC rewrite and CD-ROM eject, before the VM starts — the physical device doesn't exist / isn't free on the scratch host, so the sandbox VM boots without it.
+
 ## [v3.1.39] — 2026-11-01
 
 ### Changed
