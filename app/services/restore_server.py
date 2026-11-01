@@ -597,7 +597,6 @@ class RestoreServer:
             cfg.get("mgmt_vlan"),
             cfg.get("mgmt_gateway", ""),
             sandbox_aliases,
-            reservations,
         )
         # All via the API token: a non-root token may pass an ostemplate that is a
         # storage VOLUME ID, just not an absolute filesystem path ("Only root can
@@ -664,16 +663,23 @@ class RestoreServer:
         return json.loads(raw) if raw else {}
 
     def _agent_wait_healthy(
-        self, mgmt_ip: str, *, attempts: int = 60, sleep: Callable[[float], None] = time.sleep
+        self,
+        mgmt_ip: str,
+        *,
+        deadline_seconds: float = 60.0,
+        now: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         """Poll the just-started helper agent on its management IP and return the
         instant it answers — we ask it for ready rather than waiting a fixed time.
-        The app must be able to reach that IP (the point of the management leg).
-        Polls every 1s with a short per-try timeout so it proceeds as soon as the
-        agent is up (typically a few seconds after the LXC starts)."""
+        Hard wall-clock cap (``deadline_seconds``, default 60s): if the agent isn't
+        reachable within a minute the run fails fast, so we don't sink time (or a
+        costly restore) into a helper that never came up. The cap is wall-clock,
+        not an attempt count, so slow per-try connect timeouts can't stretch it."""
         import urllib.request
 
-        for _ in range(attempts):
+        deadline = now() + deadline_seconds
+        while now() < deadline:
             try:
                 with urllib.request.urlopen(self._agent_url(mgmt_ip, "/health"), timeout=2) as resp:
                     if resp.status == 200:
@@ -681,7 +687,10 @@ class RestoreServer:
             except Exception as exc:
                 logger.debug("helper agent not ready yet at %s: %s", mgmt_ip, exc)
             sleep(1.0)
-        raise RestoreTaskError(f"restore helper agent unreachable at {mgmt_ip} (management leg not reachable?)")
+        raise RestoreTaskError(
+            f"restore helper agent not ready at {mgmt_ip} within {int(deadline_seconds)}s "
+            "(management leg not reachable?)"
+        )
 
     def reap(self, owned_vmids: set[int]) -> list[int]:
         """Destroy every guest on the scratch host not owned by a live run
@@ -750,25 +759,6 @@ def helper_subnet_addrs(reservations: list[dict[str, Any]], probe_offset: int) -
     return list(seen.values())
 
 
-def guest_in_mgmt_subnet(reservations: list[dict[str, Any]], mgmt_ip: str, mgmt_prefix: int = 24) -> bool:
-    """True when a restored guest NIC sits in the same subnet as the helper
-    management IPs. Then one leg suffices: that leg is in the guest's subnet (to
-    serve DHCP + probe) and is the management address at the same time."""
-    import ipaddress
-
-    try:
-        mgmt_net = ipaddress.ip_network(f"{mgmt_ip}/{mgmt_prefix}", strict=False)
-    except ValueError:
-        return False
-    for r in reservations:
-        try:
-            if ipaddress.ip_address(r["ip"]) in mgmt_net:
-                return True
-        except (ValueError, KeyError):
-            continue
-    return False
-
-
 def helper_legs(
     bridge: str,
     vlan_tag: int,
@@ -778,20 +768,23 @@ def helper_legs(
     mgmt_vlan: int | None,
     mgmt_gateway: str,
     sandbox_aliases: list[dict[str, Any]],
-    reservations: list[dict[str, Any]],
 ) -> tuple[dict[str, str], list[dict[str, Any]]]:
     """Decide the helper's network legs. Returns (net_ifaces, extra_alias_addrs).
 
-    Dual-homed (default): net0 on the sandbox VLAN (serves the guest) + net1 on
-    the management interface (worker reachability); extra sandbox subnets aliased.
+    Always dual-homed: net0 on the sandbox VLAN carries an address in the guest's
+    subnet (so the helper can serve DHCP and probe the guest on its isolated L2),
+    and net1 on the management interface carries the management IP + gateway (so
+    the app, which runs elsewhere, can reach the helper's agent). Extra sandbox
+    subnets are aliased onto net0.
 
-    Single-homed (spec §10 special case): when a guest NIC is already in the
-    management subnet, one leg on the sandbox VLAN carries the management IP and
-    serves both roles — no separate management leg. All sandbox offset addresses
-    are aliased so dnsmasq has its per-subnet address."""
-    if guest_in_mgmt_subnet(reservations, mgmt_ip, mgmt_prefix):
-        net0 = f"name=sbx,bridge={bridge},tag={vlan_tag},ip={mgmt_ip}/{mgmt_prefix}"
-        return {"net0": net0}, list(sandbox_aliases)
+    The two legs stay separate even when the guest's IP falls numerically in the
+    management subnet: the guest lives on the *isolated* sandbox bridge, not on
+    the management L2, so no single leg can reach both the guest and the app.
+    (A previous "single-homed" optimization collapsed onto the sandbox leg in
+    that case, which stranded the management IP on a portless bridge — the agent
+    then ran but was unreachable from the app. When the subnets do overlap, the
+    agent pins a per-guest host route onto the sandbox leg so probes still go out
+    the right interface despite the duplicate connected route.)"""
     mgmt_net = f"name=mgmt,bridge={mgmt_iface},ip={mgmt_ip}/{mgmt_prefix}"
     if mgmt_gateway:
         mgmt_net += f",gw={mgmt_gateway}"

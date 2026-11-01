@@ -8,7 +8,6 @@ from app.services.restore_server import (
     RestoreServer,
     RestoreTaskError,
     dnsmasq_config,
-    guest_in_mgmt_subnet,
     helper_legs,
     parse_task_progress,
     rewrite_net_line,
@@ -63,30 +62,25 @@ def test_stall_backstop_tolerates_slow_huge_restore():
     assert stall_exceeded(10 * 3600, percent_done=1, elapsed_seconds=3600, factor=6.0) is True
 
 
-def test_guest_in_mgmt_subnet():
-    res = [{"mac": "aa:bb:cc:dd:ee:01", "ip": "10.20.0.50", "prefix": 24}]
-    assert guest_in_mgmt_subnet(res, "10.20.0.10", 24) is True
-    assert guest_in_mgmt_subnet(res, "10.99.0.10", 24) is False
-    assert guest_in_mgmt_subnet([], "10.20.0.10", 24) is False
-
-
 def test_helper_legs_dual_homed():
     aliases = [{"ip": "10.0.0.254", "prefix": 24}]
-    res = [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}]
-    nets, extra = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "", aliases, res)
+    nets, extra = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "", aliases)
     assert "net1" in nets  # separate management leg
     assert "tag=901" in nets["net0"] and "10.0.0.254/24" in nets["net0"]
     assert "10.20.0.10/24" in nets["net1"]
     assert extra == []  # only one sandbox subnet → first used on net0
 
 
-def test_helper_legs_single_homed_when_guest_in_mgmt_subnet():
+def test_helper_legs_stays_dual_homed_when_guest_in_mgmt_subnet():
+    # Even when the guest IP is numerically in the management subnet, the helper
+    # MUST keep a real management leg (on mgmt_iface) — the guest is on the
+    # isolated sandbox bridge, so collapsing onto it would strand the mgmt IP on
+    # a portless bridge (agent runs but is unreachable from the app).
     aliases = [{"ip": "10.20.0.254", "prefix": 24}]
-    res = [{"mac": "a", "ip": "10.20.0.50", "prefix": 24}]  # guest IP in mgmt subnet
-    nets, extra = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "", aliases, res)
-    assert "net1" not in nets  # one leg only
-    assert "tag=901" in nets["net0"] and "10.20.0.10/24" in nets["net0"]  # mgmt IP on the sandbox leg
-    assert extra == aliases  # all sandbox offsets aliased so dnsmasq has its address
+    nets, _extra = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "10.20.0.1", aliases)
+    assert "net1" in nets  # management leg kept
+    assert "bridge=vmbr0" in nets["net1"] and "10.20.0.10/24" in nets["net1"] and "gw=10.20.0.1" in nets["net1"]
+    assert "bridge=vmbr9" in nets["net0"] and "10.20.0.254/24" in nets["net0"]  # sandbox leg serves the guest
 
 
 def test_dnsmasq_config_has_reservation_and_range():

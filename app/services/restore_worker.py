@@ -125,6 +125,13 @@ def execute(
         server.verify_host_identity(production_hosts)
         server.reap(owned_vmids())
         server.ensure_sandbox_bridge()
+        # Bring the helper up FIRST and fail fast (≤60s) if it can't be reached.
+        # A restore is expensive (minutes, many GB), so don't pay for it when the
+        # cheap helper — which must serve the guest's DHCP and answer probes —
+        # never comes up. (We can revert to overlapping the two with the VM boot
+        # once reachability is rock-solid.)
+        db_restore.update_run(run_id, phase="helper")
+        server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
         db_restore.update_run(run_id, phase="restoring")
         server.restore(
             plan.restore_vmid,
@@ -136,16 +143,8 @@ def execute(
         )
         db_restore.update_run(run_id, phase="network")
         server.rewrite_nics(plan.restore_vmid, plan.vlan_tag)
-        # Start the VM BEFORE provisioning the helper so the two slow waits
-        # overlap: the guest's OS boot (tens of seconds) runs while the helper
-        # LXC + dnsmasq come up (~10s). DHCP still serves in time — a guest OS
-        # doesn't request a lease until well into its boot, long after dnsmasq
-        # is up — so the helper wait disappears behind the boot instead of
-        # stacking on top of it.
         db_restore.update_run(run_id, phase="booting")
         server.start(plan.restore_vmid)
-        db_restore.update_run(run_id, phase="helper")
-        server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
         db_restore.update_run(run_id, phase="probing")
         if plan.primary_ip:
             db_restore.update_run(run_id, detected_ip=plan.primary_ip)  # recorded/override IP
