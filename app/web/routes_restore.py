@@ -498,9 +498,14 @@ def update_vm_restore_policy(
             ),
         )
         conn.commit()
-    # Enabling auto on a VM that is already due (e.g. never restore-tested) should
-    # start promptly, not wait for the next sync tick.
+    # Enabling auto on a VM that was never successfully restored should enter the
+    # queue right now (not wait for the next sync tick, and not be skipped while a
+    # restore is already running). Enqueue directly, then kick the drain.
     if auto_restore_enabled:
+        try:
+            db_restore.enqueue_if_never_passed(vm_id, trigger="scheduled")
+        except Exception as exc:
+            logger.debug("eager enqueue after policy save failed: %s", exc)
         try:
             from app.web.sync import _kick_restore_queue
 

@@ -172,6 +172,25 @@ document.addEventListener(
   true,
 );
 
+// ── Confirm-on-submit forms (.js-confirm-form): a styled lightbox, not alert() ─
+// The form carries data-confirm-title / data-confirm-body / data-confirm-ok.
+document.addEventListener("submit", (e) => {
+  const form = e.target.closest(".js-confirm-form");
+  if (!form || form.dataset.confirmed === "1") return;
+  e.preventDefault();
+  confirmModal({
+    title: form.dataset.confirmTitle || "",
+    body: form.dataset.confirmBody || T("js.confirm"),
+    confirmLabel: form.dataset.confirmOk || T("common.confirm"),
+    cancelLabel: T("common.cancel"),
+  }).then((res) => {
+    if (res.ok) {
+      form.dataset.confirmed = "1";
+      form.submit();
+    }
+  });
+});
+
 // ── Auto-save forms (.js-autosave-form): every change persists at once ────────
 function autoSaveForm(form) {
   if (!form) return;

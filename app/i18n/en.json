@@ -569,6 +569,7 @@
   "restore.retry_test": "Repeat the test for this VM",
   "restore.cancel_run": "Cancel restore",
   "restore.cancel_confirm": "Really cancel this running restore? The environment will be torn down.",
+  "restore.cancel_confirm_title": "Cancel restore?",
   "restore.err_not_restorable": "The restore server has no matching backup (local or offsite) for this VM — no restore test possible.",
   "restore.err_host": "Restore server unreachable — could not check the backups.",
   "restore.err_generic": "Action not possible.",

@@ -669,10 +669,12 @@ class RestoreServer:
             sleep(1.0)
         raise RestoreTaskError(f"VM {vmid} still locked ('{lock}') — restore not finished, not starting")
 
-    def guest_agent_ips(self, vmid: int) -> list[str]:
-        """Non-loopback IPv4 addresses the QEMU guest agent reports for the VM, or
-        [] if the agent isn't up yet or absent. Used to discover the IP of a VM
-        with no recorded/static-known address (the agent reports it after boot)."""
+    def guest_agent_nics(self, vmid: int) -> list[tuple[str, int]]:
+        """Non-loopback IPv4 (address, prefix) the QEMU guest agent reports for the
+        VM, or [] if the agent isn't up yet or absent. Used to discover the live IP
+        of a VM that kept a static address (it never took our DHCP) — we then probe
+        that IP and give the helper a host in ITS subnet. The prefix is the guest's
+        real network size (not always /24)."""
         import ipaddress
 
         try:
@@ -681,7 +683,7 @@ class RestoreServer:
             logger.debug("guest agent not ready for %s: %s", vmid, exc)
             return []
         ifaces = res.get("result") if isinstance(res, dict) else res
-        ips: list[str] = []
+        nics: list[tuple[str, int]] = []
         for iface in ifaces or []:
             for a in iface.get("ip-addresses") or []:
                 ip = a.get("ip-address", "")
@@ -692,8 +694,13 @@ class RestoreServer:
                 except ValueError:
                     continue
                 if not addr.is_loopback and not addr.is_link_local:
-                    ips.append(ip)
-        return ips
+                    prefix = a.get("prefix")
+                    nics.append((ip, int(prefix) if prefix is not None else 24))
+        return nics
+
+    def guest_agent_ips(self, vmid: int) -> list[str]:
+        """Just the addresses from :meth:`guest_agent_nics` (prefix dropped)."""
+        return [ip for ip, _ in self.guest_agent_nics(vmid)]
 
     def shutdown(self, vmid: int, *, force_after: bool = True) -> None:
         node = self.node()
