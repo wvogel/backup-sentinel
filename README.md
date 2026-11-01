@@ -89,6 +89,8 @@ For OAuth2-Proxy configuration, see [`oauth2-proxy.env.example`](oauth2-proxy.en
 
 ## Automated restore testing
 
+![Restore tests — host capacity, a live restore with progress, and the per-VM log](docs/screenshot-restore.png)
+
 Backup Sentinel can *prove* a backup restores, not just record that someone tried. It drives a **dedicated PVE-Restore scratch host** (configured under **Settings → Restore server**) that holds the production PBS datastores locally (pull-synced, per datastore+namespace). For each VM you enable it on, a global single-slot queue:
 
 1. Restores the latest **complete** snapshot onto a configurable target storage (multiple storages with disk-class labels; large VMs spill across them), tracking live progress + ETA — no fixed timeout, abort only on a genuine stall, and **cancellable** at any time with a clean teardown.
