@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.34] — 2026-11-01
+
+### Fixed
+
+- **The helper's dnsmasq setup no longer crashes the agent, and actually serves DHCP.** With the helper reachable again (v3.1.33), the `/dnsmasq` step surfaced its real problems: (1) it fell back to `systemctl`, which doesn't exist on the Alpine/openrc helper, so a missing binary raised `FileNotFoundError` and returned HTTP 500; (2) the generated `dhcp-range` used invalid syntax (`<ip>,<ip>,static,infinite`) that dnsmasq rejects, so DHCP would never have started. The agent now runs dnsmasq **directly** (no `rc-service`/`systemctl`), managing it via its own pidfile, and reports a clear `ok:false` instead of crashing if it can't start. The config uses valid **static-mode** ranges (`<subnet>,static,<netmask>,infinite`) that serve only the per-MAC reservations.
+- **dnsmasq binds the sandbox leg only (`interface=sbx`).** Now that the helper is always dual-homed, binding every interface would make it answer DHCP on the real management network whenever the guest's subnet overlaps the management subnet — a rogue DHCP server. It is now pinned to the sandbox interface.
+
+### Changed
+
+- **The helper template no longer auto-starts dnsmasq at boot.** A boot-time instance (default config) would bind the interface before the agent could start its own per-run instance; the agent now solely owns dnsmasq.
+
 ## [v3.1.33] — 2026-11-01
 
 ### Fixed

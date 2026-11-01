@@ -84,9 +84,14 @@ def test_helper_legs_stays_dual_homed_when_guest_in_mgmt_subnet():
 
 
 def test_dnsmasq_config_has_reservation_and_range():
-    conf = dnsmasq_config([{"mac": "aa:bb:cc:dd:ee:01", "ip": "10.0.0.50", "prefix": 24}], probe_offset=254)
+    conf = dnsmasq_config([{"mac": "aa:bb:cc:dd:ee:01", "ip": "10.0.0.50", "prefix": 24}])
     assert "dhcp-host=aa:bb:cc:dd:ee:01,10.0.0.50,infinite" in conf
-    assert "dhcp-range=10.0.0.254,10.0.0.254,static,infinite" in conf
+    # Static-mode range (valid dnsmasq syntax): subnet, "static", netmask, lease.
+    assert "dhcp-range=10.0.0.0,static,255.255.255.0,infinite" in conf
+    # Must bind ONLY the sandbox leg, never the management leg — otherwise a
+    # guest subnet that overlaps the mgmt subnet turns the helper into a rogue
+    # DHCP server on the real management network.
+    assert "interface=sbx" in conf
 
 
 # --- orchestration with fakes ---
@@ -244,6 +249,31 @@ def test_helper_agent_probe_targets(monkeypatch):
     assert out["10.0.0.50"]["icmp"] is True
     # Key must be "ports" (the classifier reads primary["ports"]), not "tcp".
     assert out["10.0.0.50"]["ports"] == {"443": True, "22": False}
+
+
+def test_apply_dnsmasq_reports_failure_without_crashing(monkeypatch, tmp_path):
+    # A missing dnsmasq (or any launch failure) must come back as ok:false — NOT
+    # an unhandled exception that 500s the agent (the old systemctl-fallback bug).
+    from app.services import restore_helper_agent as agent
+
+    monkeypatch.setattr(agent, "DNSMASQ_CONF", str(tmp_path / "restore.conf"))
+    monkeypatch.setattr(agent, "DNSMASQ_PID", str(tmp_path / "d.pid"))
+
+    def fake_run(cmd, **k):
+        if cmd and cmd[0] == "dnsmasq":
+            raise FileNotFoundError(2, "No such file or directory", "dnsmasq")
+
+        class R:
+            returncode = 0
+            stderr = ""
+            stdout = ""
+
+        return R()
+
+    monkeypatch.setattr(agent.subprocess, "run", fake_run)
+    out = agent.apply_dnsmasq("interface=sbx\n", [{"ip": "10.0.0.254", "prefix": 24}])
+    assert out["ok"] is False
+    assert "dnsmasq" in out["dnsmasq_error"]
 
 
 def test_helper_agent_probe_skips_malformed_port(monkeypatch):

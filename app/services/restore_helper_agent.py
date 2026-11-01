@@ -27,6 +27,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 AGENT_PORT = 8765
 SBX_IFACE = "sbx"  # the sandbox leg inside the helper
+DNSMASQ_PID = "/run/restore-dnsmasq.pid"  # pidfile of the dnsmasq we manage
+DNSMASQ_CONF = "/etc/dnsmasq.d/restore.conf"  # the per-run config we write + serve
 
 
 def _ping(ip: str, timeout: float = 2.0) -> bool:
@@ -95,25 +97,42 @@ def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
     return out
 
 
+def _stop_dnsmasq() -> None:
+    """Stop the dnsmasq we started earlier (idempotent re-apply). Uses our own
+    pidfile + os.kill so we need no service manager and no extra binary."""
+    import signal
+
+    try:
+        with open(DNSMASQ_PID) as fh:
+            pid = int(fh.read().strip())
+        os.kill(pid, signal.SIGTERM)
+    except (OSError, ValueError):
+        pass  # not running, gone, or no pidfile: nothing to stop
+
+
 def apply_dnsmasq(conf: str, aliases: list[dict]) -> dict:
-    os.makedirs("/etc/dnsmasq.d", exist_ok=True)
-    with open("/etc/dnsmasq.d/restore.conf", "w") as fh:
+    os.makedirs(os.path.dirname(DNSMASQ_CONF), exist_ok=True)
+    with open(DNSMASQ_CONF, "w") as fh:
         fh.write(conf)
     for a in aliases:
         subprocess.run(["ip", "addr", "add", f"{a['ip']}/{a['prefix']}", "dev", SBX_IFACE], capture_output=True)
-    # OpenRC first, then systemd — whichever the template ships. A failed restart
-    # means DHCP won't serve, so the guest never gets its IP: surface it in the
-    # reply (don't 500) so the run error names the real dnsmasq problem.
-    rc = subprocess.run(["rc-service", "dnsmasq", "restart"], capture_output=True, text=True)
-    if rc.returncode != 0:
-        sd = subprocess.run(["systemctl", "restart", "dnsmasq"], capture_output=True, text=True)
-        if sd.returncode != 0:
-            return {
-                "ok": False,
-                "dnsmasq_error": (rc.stderr or rc.stdout or "").strip()[:400]
-                or (sd.stderr or sd.stdout or "").strip()[:400]
-                or "dnsmasq restart failed",
-            }
+    # Run dnsmasq ourselves with our config — NO rc-service/systemctl: the
+    # container has no systemd (Alpine/openrc), and openrc inside an LXC is
+    # unreliable; the old fallback crashed on a missing `systemctl`. dnsmasq
+    # daemonizes and the parent exits 0 on success, non-zero (with stderr) on a
+    # config error. A failure means no DHCP → the guest never gets its IP, so we
+    # report it (ok:false) rather than crash the agent (500).
+    _stop_dnsmasq()
+    try:
+        r = subprocess.run(
+            ["dnsmasq", f"--conf-file={DNSMASQ_CONF}", f"--pid-file={DNSMASQ_PID}"],
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        return {"ok": False, "dnsmasq_error": f"cannot start dnsmasq: {exc}"}
+    if r.returncode != 0:
+        return {"ok": False, "dnsmasq_error": (r.stderr or r.stdout or "dnsmasq failed to start").strip()[:400]}
     return {"ok": True}
 
 

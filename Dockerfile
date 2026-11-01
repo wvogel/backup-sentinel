@@ -8,7 +8,8 @@ RUN printf '#!/sbin/openrc-run\ncommand="/usr/bin/python3"\ncommand_args="/opt/r
       > /etc/init.d/restore-helper \
  && chmod +x /etc/init.d/restore-helper \
  && rc-update add restore-helper default \
- && rc-update add dnsmasq default \
+ # dnsmasq is NOT auto-started: the agent runs it itself with the per-run config
+ # (a boot-time instance with the default config would bind the interface first).
  && rc-update add networking boot \
  # Pack the whole (configured) rootfs as the CT template; drop virtual/volatile dirs.
  && tar --exclude=./restore-helper.tar.gz --exclude=./proc --exclude=./sys --exclude=./dev \
