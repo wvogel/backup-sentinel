@@ -14,16 +14,17 @@ from typing import Any
 from app import db, db_restore
 from app.db_core import connect
 from app.services import restore_alloc, restore_config, restore_ip_collect, restore_match, restore_worker
-from app.services.restore_server import ParamikoSsh, PveSsh, RestoreServer
+from app.services.restore_server import ParamikoSsh, PveApi, PveSsh, RestoreServer
 from app.services.restore_worker import RunPlan
 
 logger = logging.getLogger(__name__)
 
 
 def build_server(config: dict[str, Any]) -> RestoreServer:
-    # All PVE operations go over root SSH (`pvesh`/`qmrestore`): an API token can
-    # never set raw PCI passthrough, so the token path is gone. The one SSH
-    # transport drives both PVE (via PveSsh) and the shell actions (bridge, etc.).
+    # Hybrid transport: the fast API token for reads + token-safe writes (status/
+    # log polling, node/storage, NICs, start/stop/destroy, helper), and pvesh over
+    # root SSH only for what a token may not do (the restore itself = qmrestore
+    # with hostpci, and deleting hostpci). SSH also drives shell actions (bridge).
     ssh = ParamikoSsh(
         config["ssh_host"],
         config.get("ssh_port", 22),
@@ -31,7 +32,13 @@ def build_server(config: dict[str, Any]) -> RestoreServer:
         config.get("ssh_private_key", ""),
         config.get("ssh_host_key", ""),
     )
-    return RestoreServer(config, PveSsh(ssh), ssh)
+    pve = PveApi(
+        config.get("api_url", ""),
+        config.get("api_user", "root@pam"),
+        config.get("token_id", ""),
+        config.get("token_secret", ""),
+    )
+    return RestoreServer(config, pve, ssh, pve_root=PveSsh(ssh))
 
 
 def ensure_host_key_pinned(config: dict[str, Any]) -> dict[str, Any]:
