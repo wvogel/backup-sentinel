@@ -84,21 +84,73 @@ def update_run(run_id: int, **fields: Any) -> None:
         conn.commit()
 
 
-def list_runs(limit: int = 50, status: str | None = None) -> list[RestoreRunRow]:
+_RUNS_JOIN = "FROM restore_runs r LEFT JOIN vms v ON v.id = r.vm_id LEFT JOIN clusters c ON c.id = v.cluster_id"
+
+
+def _runs_filter(
+    status: str | None, trigger: str | None, cluster: str | None, vm_query: str | None
+) -> tuple[str, list[Any]]:
+    """Shared WHERE clause + params for the runs list and its count, so paging and
+    the total always agree. Filtering is in SQL (never load all rows)."""
+    conds: list[str] = []
+    params: list[Any] = []
+    if status:
+        conds.append("r.status = %s")
+        params.append(status)
+    if trigger:
+        conds.append("r.trigger = %s")
+        params.append(trigger)
+    if cluster:
+        conds.append("c.name = %s")
+        params.append(cluster)
+    if vm_query:
+        conds.append("(v.name ILIKE %s OR CAST(v.vmid AS TEXT) LIKE %s)")
+        params += [f"%{vm_query}%", f"%{vm_query}%"]
+    where = (" WHERE " + " AND ".join(conds)) if conds else ""
+    return where, params
+
+
+def list_runs(
+    limit: int = 50,
+    status: str | None = None,
+    *,
+    offset: int = 0,
+    trigger: str | None = None,
+    cluster: str | None = None,
+    vm_query: str | None = None,
+) -> list[RestoreRunRow]:
     # Join the VM name/vmid so the UI shows "srv01 (100)" not an internal id.
-    base = (
-        "SELECT r.*, v.name AS vm_name, v.vmid AS vmid_src, c.name AS cluster_name "
-        "FROM restore_runs r LEFT JOIN vms v ON v.id = r.vm_id LEFT JOIN clusters c ON c.id = v.cluster_id"
-    )
+    base = f"SELECT r.*, v.name AS vm_name, v.vmid AS vmid_src, c.name AS cluster_name {_RUNS_JOIN}"
+    where, params = _runs_filter(status, trigger, cluster, vm_query)
     with connect() as conn, conn.cursor() as cur:
-        if status:
-            cur.execute(
-                f"{base} WHERE r.status = %s ORDER BY r.queued_at DESC, r.id DESC LIMIT %s",
-                (status, limit),
-            )
-        else:
-            cur.execute(f"{base} ORDER BY r.queued_at DESC, r.id DESC LIMIT %s", (limit,))
+        cur.execute(
+            f"{base}{where} ORDER BY r.queued_at DESC, r.id DESC LIMIT %s OFFSET %s",
+            (*params, limit, offset),
+        )
         return list(cur.fetchall())
+
+
+def count_runs(
+    status: str | None = None,
+    *,
+    trigger: str | None = None,
+    cluster: str | None = None,
+    vm_query: str | None = None,
+) -> int:
+    """Total rows matching the same filter as ``list_runs`` — for pagination."""
+    where, params = _runs_filter(status, trigger, cluster, vm_query)
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(f"SELECT COUNT(*) AS n {_RUNS_JOIN}{where}", params)
+        return int(cur.fetchone()["n"])
+
+
+def run_filter_clusters() -> list[str]:
+    """Distinct cluster names that have runs — populates the cluster filter."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            f"SELECT DISTINCT c.name {_RUNS_JOIN} WHERE c.name IS NOT NULL ORDER BY c.name",
+        )
+        return [row["name"] for row in cur.fetchall()]
 
 
 def active_and_held_runs() -> list[RestoreRunRow]:

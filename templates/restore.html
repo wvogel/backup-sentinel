@@ -91,7 +91,6 @@
   {% endif %}
 
   {# Running restores: live progress, ETA and the size being restored. #}
-  {%- set running = runs|selectattr('status', 'equalto', 'running')|list %}
   {% if running %}
   <div class="running-restores" data-poll="/restore/progress.json">
     <p class="eyebrow">{{ t('restore.running_now') }}</p>
@@ -147,8 +146,27 @@
 {# Runs list #}
 <section class="table-card">
   <div class="section-head"><div><p class="eyebrow">{{ t('restore.runs_title') }}</p></div></div>
+  <form class="runs-filter" method="get" action="/restore">
+    {%- set _statuses = ['passed', 'limited', 'failed', 'error', 'cancelled', 'held', 'running', 'queued'] %}
+    <select name="f_status" aria-label="{{ t('restore.col_status') }}">
+      <option value="">{{ t('restore.filter_all_status') }}</option>
+      {% for s in _statuses %}<option value="{{ s }}"{{ ' selected' if runs_filter.f_status == s }}>{{ s }}</option>{% endfor %}
+    </select>
+    <select name="f_trigger" aria-label="{{ t('restore.col_trigger') }}">
+      <option value="">{{ t('restore.filter_all_trigger') }}</option>
+      <option value="manual"{{ ' selected' if runs_filter.f_trigger == 'manual' }}>{{ t('restore.trigger_manual') }}</option>
+      <option value="scheduled"{{ ' selected' if runs_filter.f_trigger == 'scheduled' }}>{{ t('restore.trigger_scheduled') }}</option>
+    </select>
+    <select name="f_cluster" aria-label="{{ t('restore.col_cluster') }}">
+      <option value="">{{ t('restore.filter_all_cluster') }}</option>
+      {% for c in cluster_options %}<option value="{{ c }}"{{ ' selected' if runs_filter.f_cluster == c }}>{{ c }}</option>{% endfor %}
+    </select>
+    <input type="search" name="f_q" value="{{ runs_filter.f_q }}" placeholder="VM / VMID" aria-label="VM">
+    <button type="submit" class="button-secondary">{{ t('restore.filter_apply') }}</button>
+    {% if runs_has_filter %}<a class="button-secondary" href="/restore">{{ t('restore.filter_reset') }}</a>{% endif %}
+  </form>
   {% if not runs %}
-  <p class="muted">{{ t('restore.no_runs') }}</p>
+  <p class="muted">{{ t('restore.no_runs_filtered') if runs_has_filter else t('restore.no_runs') }}</p>
   {% else %}
   <table class="data-table">
     <thead><tr>
@@ -188,6 +206,15 @@
     {% endfor %}
     </tbody>
   </table>
+  <div class="runs-pager">
+    <span class="muted">{{ t('restore.page_of', page=runs_page, pages=runs_pages, total=runs_total) }}</span>
+    {% if runs_pages > 1 %}
+    <span class="runs-pager-nav">
+      {% if runs_page > 1 %}<a class="button-secondary" href="?page={{ runs_page - 1 }}{% if runs_query %}&{{ runs_query }}{% endif %}">‹</a>{% endif %}
+      {% if runs_page < runs_pages %}<a class="button-secondary" href="?page={{ runs_page + 1 }}{% if runs_query %}&{{ runs_query }}{% endif %}">›</a>{% endif %}
+    </span>
+    {% endif %}
+  </div>
   {% endif %}
 </section>
 {% endif %}

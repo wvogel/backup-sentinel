@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.43] — 2026-11-01
+
+### Added
+
+- **The restore-test log is now paginated and filterable, server-side.** The runs list shows 25 per page with prev/next and a "page X of Y · N runs" count, and a filter bar above it filters by **status**, **trigger**, **cluster** and a **VM name/VMID search** — all in SQL (`WHERE` + `LIMIT/OFFSET` + `COUNT`), so it scales to a large history instead of loading every row. Filters are carried in the URL (so paging keeps them, and the page survives the live auto-refresh). The live "running" card and the held-environments section are fetched separately, so they always show regardless of the table's page or filter.
+
 ## [v3.1.42] — 2026-11-01
 
 ### Changed
