@@ -483,10 +483,40 @@ def test_helper_agent_probe_targets(monkeypatch):
 
     monkeypatch.setattr(agent, "_ping", lambda ip, timeout=2.0: ip == "10.0.0.50")
     monkeypatch.setattr(agent, "_tcp", lambda ip, port, timeout=2.0: port == 443)
+    monkeypatch.setattr(agent, "_arp_alive", lambda ip: True)
+    monkeypatch.setattr(agent, "_ensure_reachable", lambda ip, prefix=24: None)
     out = agent.probe_targets([{"ip": "10.0.0.50", "ports": [443, 22]}], require_icmp=True)
     assert out["10.0.0.50"]["icmp"] is True
+    assert out["10.0.0.50"]["arp"] is True  # L2 liveness reported for the classifier
     # Key must be "ports" (the classifier reads primary["ports"]), not "tcp".
     assert out["10.0.0.50"]["ports"] == {"443": True, "22": False}
+
+
+def test_helper_agent_arp_alive_reads_neighbour_table(monkeypatch):
+    from app.services import restore_helper_agent as agent
+
+    calls = {}
+
+    class R:
+        def __init__(self, stdout=""):
+            self.stdout = stdout
+
+    def fake_run(cmd, **kw):
+        calls["cmd"] = cmd
+        if cmd[:2] == ["ip", "neigh"]:
+            return R("10.254.10.10 dev sbx lladdr 52:54:00:aa:bb:cc REACHABLE\n")
+        return R("")
+
+    monkeypatch.setattr(agent.subprocess, "run", fake_run)
+    assert agent._arp_alive("10.254.10.10") is True
+
+    def fake_run_incomplete(cmd, **kw):
+        if cmd[:2] == ["ip", "neigh"]:
+            return R("10.254.10.10 dev sbx  INCOMPLETE\n")
+        return R("")
+
+    monkeypatch.setattr(agent.subprocess, "run", fake_run_incomplete)
+    assert agent._arp_alive("10.254.10.10") is False
 
 
 def test_apply_dnsmasq_reports_failure_without_crashing(monkeypatch, tmp_path):
