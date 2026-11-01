@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.45] — 2026-11-01
+
+### Changed
+
+- **Hybrid transport: the fast API token for everything, root SSH only where a token can't go.** Driving every PVE call over `pvesh`/SSH made the frequent reads (task status/log polling for progress, node/storage status, guest agent) slow. Those — and all token-safe writes (NIC rewrite, CD-ROM eject, start/stop/destroy, helper LXC create, template upload, task stop) — now go back over the keep-alive API token. Only the two root-only operations use SSH: the restore itself (`qmrestore`, which sets `hostpci`) and deleting `hostpci` before the start. The restore returns a task UPID that is then polled over the fast API, so progress updates are snappy again.
+
 ## [v3.1.44] — 2026-11-01
 
 ### Fixed

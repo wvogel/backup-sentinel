@@ -124,9 +124,14 @@ def test_rewrite_nics_strips_hostpci_before_start():
     }
     srv = _server(responses)
     srv.rewrite_nics(9000, 901)
-    _path, data = srv.pve.posts[-1]
-    assert data["net0"] == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9,tag=901"
-    assert data["delete"] == "hostpci0,hostpci1"  # both passthrough devices removed
+    # NIC/CD-ROM go via the API token; the hostpci delete is a separate root call
+    # (pve_root defaults to the same fake here, so both land in srv.pve.posts).
+    cfg_posts = [d for p, d in srv.pve.posts if p == "/nodes/r1/qemu/9000/config"]
+    nic = next(d for d in cfg_posts if "net0" in d)
+    assert nic["net0"] == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9,tag=901"
+    assert "delete" not in nic  # hostpci not deleted in the token-safe update
+    delete = next(d for d in cfg_posts if "delete" in d)
+    assert delete["delete"] == "hostpci0,hostpci1"  # both passthrough devices removed via root
 
 
 def test_eject_cdroms_empties_source_isos_only():

@@ -206,9 +206,17 @@ class HostIdentityError(RuntimeError):
 
 
 class RestoreServer:
-    def __init__(self, config: dict[str, Any], pve: PveClient, ssh: SshClient) -> None:
+    def __init__(
+        self, config: dict[str, Any], pve: PveClient, ssh: SshClient, pve_root: PveClient | None = None
+    ) -> None:
         self.config = config
+        # Hybrid transport: `pve` is the fast API token (reads + token-safe writes
+        # — status/log polling, node/storage, NICs, start/stop/destroy, helper).
+        # `pve_root` is pvesh over root SSH, used ONLY for the two things a token
+        # may not do: the restore itself (qmrestore sets hostpci) and deleting
+        # hostpci before the start. Defaults to `pve` so tests inject one fake.
         self.pve = pve
+        self.pve_root = pve_root or pve
         self.ssh = ssh
         self._node: str | None = None
 
@@ -404,7 +412,9 @@ class RestoreServer:
         archive = (
             snapshot_id if ":" in snapshot_id else f"{source['storage']}:backup/vm/{source['src_vmid']}/{snapshot_id}"
         )
-        upid = self.pve.post(
+        # The restore runs as ROOT (pve_root): a token can't apply a backed-up
+        # hostpci. It returns a UPID we then poll over the fast API token.
+        upid = self.pve_root.post(
             f"/nodes/{node}/qemu",
             {"vmid": restore_vmid, "archive": archive, "storage": target_storage, "live-restore": 0},
         )
@@ -558,11 +568,13 @@ class RestoreServer:
             if re.fullmatch(r"net\d+", key) and isinstance(value, str):
                 changes[key] = rewrite_net_line(value, bridge, vlan_tag)
         changes.update(eject_cdroms(config))
-        hostpci = sorted(k for k in config if re.fullmatch(r"hostpci\d+", k))
-        if hostpci:
-            changes["delete"] = ",".join(hostpci)
         if changes:
             self.pve.post(f"/nodes/{node}/qemu/{vmid}/config", changes)
+        # Deleting hostpci is root-only (like setting it), so it goes over SSH —
+        # separately from the token-safe NIC/CD-ROM update above.
+        hostpci = sorted(k for k in config if re.fullmatch(r"hostpci\d+", k))
+        if hostpci:
+            self.pve_root.post(f"/nodes/{node}/qemu/{vmid}/config", {"delete": ",".join(hostpci)})
 
     def start(self, vmid: int) -> None:
         self.pve.post(f"/nodes/{self.node()}/qemu/{vmid}/status/start", {})
