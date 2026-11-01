@@ -43,16 +43,15 @@
         const prog = card.querySelector(".js-run-progress");
         if (prog) prog.textContent = r.progress;
       }
-      // The runs table lists the same run: update its Fortschritt cell too, so
-      // the row isn't stuck at its page-load percent while the ring climbs.
+      // The runs table lists the same run: update its status cell too, so the
+      // row isn't stuck at its page-load percent while the ring climbs. The live
+      // percent shows next to the running glyph; phase + progress go on the hover.
       const row = document.querySelector(`tr[data-run-id="${r.id}"]`);
       if (row) {
         const rpct = row.querySelector(".js-row-pct");
         if (rpct) rpct.textContent = r.percent + "%";
-        const rphase = row.querySelector(".js-row-phase");
-        if (rphase) rphase.textContent = "· " + r.phase;
-        const rprog = row.querySelector(".js-row-progress");
-        if (rprog) rprog.textContent = r.progress ? "· " + r.progress : "";
+        const rstatus = row.querySelector(".js-row-status");
+        if (rstatus) rstatus.dataset.tooltip = r.progress ? r.phase + " · " + r.progress : r.phase;
       }
     }
   }
