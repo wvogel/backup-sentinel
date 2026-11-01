@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.63] — 2026-11-01
+
+### Fixed
+
+- **The sandbox bridge is now created the PVE-native way, so it actually exists — persistent and visible in the GUI.** The previous approaches only ever appended an `interfaces.d` stanza or created the bridge at runtime, so it never appeared in the PVE GUI (Node → Network) and could silently be missing — without the isolated bridge, the helper and the restored VM have no segment to talk on and nothing can work. Now the bridge is created through `pvesh create /nodes/<node>/network` (VLAN-aware, portless/isolated, autostart) and applied, so it is written to the host config, shows in the GUI, and survives reboots. A runtime `ip link` pass still guarantees it is up immediately, and the run aborts with a clear error if the bridge cannot be brought up.
+
 ## [v3.1.62] — 2026-11-01
 
 ### Fixed
