@@ -6,6 +6,34 @@
   if (location.pathname !== "/restore") return;
   const url = "/restore/progress.json";
 
+  function setArc(sel, pct) {
+    const arc = document.querySelector(sel);
+    if (!arc) return;
+    const c = parseFloat(arc.dataset.c) || 0;
+    arc.setAttribute("stroke-dasharray", `${((pct || 0) / 100) * c} ${c}`);
+  }
+  function setText(sel, val) {
+    const el = document.querySelector(sel);
+    if (el) el.textContent = val;
+  }
+  // Update the Disk-I/O and Network rings in place from the host snapshot the
+  // poll carries — no reload, and no SSH per poll (the server reads a cached
+  // snapshot). A snapshot without a prior sample (io.have false) leaves the
+  // page-rendered "—" untouched.
+  function updateIoRings(io) {
+    if (!io || !io.have) return;
+    setArc(".js-io-disk-read", io.disk_read_pct);
+    setArc(".js-io-disk-write", io.disk_write_pct);
+    setText(".js-io-disk-ctr", io.disk_ctr);
+    setText(".js-io-disk-read-v", io.disk_read);
+    setText(".js-io-disk-write-v", io.disk_write);
+    setArc(".js-io-net-in", io.net_in_pct);
+    setArc(".js-io-net-out", io.net_out_pct);
+    setText(".js-io-net-ctr", io.net_ctr);
+    setText(".js-io-net-in-v", io.net_in);
+    setText(".js-io-net-out-v", io.net_out);
+  }
+
   async function tick() {
     let data;
     try {
@@ -15,6 +43,7 @@
     } catch {
       return; // transient; try again next tick
     }
+    updateIoRings(data.io);
     const running = data.running || [];
     const runningIds = running
       .map((r) => String(r.id))

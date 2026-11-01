@@ -356,7 +356,42 @@ def restore_progress(request: Request) -> JSONResponse:
                 "progress": progress,
             }
         )
-    return JSONResponse({"running": out})
+    # Carry the host I/O rates so the disk/network rings update live, reading the
+    # same cached snapshot the page renders from (no SSH per poll) and nudging the
+    # ~25 s background refresh when it is stale so the numbers keep moving.
+    io = None
+    config = restore_config.load()
+    if config is not None:
+        with _host_view_lock:
+            snap = dict(_host_view)
+        if snap["data"] is None or (time.monotonic() - snap["at"]) > _HOST_VIEW_TTL:
+            threading.Thread(target=_refresh_host_view, args=(config,), daemon=True).start()
+        if snap["data"]:
+            io = _io_view((snap["data"]["host"] or {}).get("io"))
+    return JSONResponse({"running": out, "io": io})
+
+
+def _io_view(io: dict | None) -> dict:
+    """Shape the raw I/O rates for the live poll: arc percents plus display
+    strings formatted exactly like the page's Jinja ``size_coarse`` filter, so a
+    live update reads identically to the server-rendered ring."""
+    from app.services.human_format import format_size_coarse as fsc
+
+    if not io or not io.get("have"):
+        return {"have": False}
+    return {
+        "have": True,
+        "disk_read_pct": io["disk_read_pct"],
+        "disk_write_pct": io["disk_write_pct"],
+        "disk_ctr": f"{io['disk_util']}%",
+        "disk_read": fsc(io["disk_read"]),
+        "disk_write": fsc(io["disk_write"]),
+        "net_in_pct": io["net_in_pct"],
+        "net_out_pct": io["net_out_pct"],
+        "net_ctr": f"{max(io['net_in_pct'], io['net_out_pct'])}%",
+        "net_in": fsc(io["net_in"]),
+        "net_out": fsc(io["net_out"]),
+    }
 
 
 @router.post("/restore/vm/{vm_id}/test")

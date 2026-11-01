@@ -7,8 +7,12 @@ from app.services.restore_server import (
     HostIdentityError,
     RestoreServer,
     RestoreTaskError,
+    _parse_diskstats,
+    _parse_netdev,
+    _parse_speeds,
     _stable_mac,
     classify_task_error,
+    compute_io_rates,
     dnsmasq_config,
     eject_cdroms,
     helper_legs,
@@ -1104,3 +1108,64 @@ def test_rewrite_net_line_trunks_tagged_vlan():
     out = rewrite_net_line("virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,tag=5", "vmbr9", 901, trunks=20)
     assert "tag=901" in out and "trunks=20" in out and "tag=5" not in out
     assert "virtio=AA:BB:CC:DD:EE:01" in out
+
+
+# --- host I/O sampling (disk / network rings) ---
+
+_DISKSTATS = """\
+ 259       0 nvme0n1 100 0 2000 50 200 0 4000 80 0 1500 130
+ 259       1 nvme0n1p1 1 0 10 1 1 0 20 1 0 30 1
+   7       0 loop0 0 0 0 0 0 0 0 0 0 0 0
+   8       0 sda 1 0 10 1 1 0 20 1 0 30 1
+"""
+
+_NETDEV = """\
+Inter-|   Receive                                                |  Transmit
+ face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+    lo: 123 1 0 0 0 0 0 0 123 1 0 0 0 0 0 0
+  eth0: 1000 5 0 0 0 0 0 0 2000 6 0 0 0 0 0 0
+"""
+
+
+def test_parse_diskstats_keeps_whole_physical_devices_only():
+    out = _parse_diskstats(_DISKSTATS)
+    assert set(out) == {"nvme0n1", "sda"}  # partition + loop dropped
+    assert out["nvme0n1"] == (2000 * 512, 4000 * 512, 1500)  # read, write bytes, busy ms
+
+
+def test_parse_netdev_skips_headers_and_loopback():
+    out = _parse_netdev(_NETDEV)
+    assert out == {"eth0": (1000, 2000)}
+
+
+def test_parse_speeds_drops_blank_and_negative():
+    out = _parse_speeds("eth0 10000\nvmbr0 \nlo -1\nbad line here\n")
+    assert out == {"eth0": 10000}
+
+
+def test_compute_io_rates_turns_counters_into_rates():
+    prev = {"t": 100.0, "disk": {"nvme0n1": (0, 0, 0)}, "net": {"eth0": (0, 0)}}
+    cur = {
+        "t": 102.0,  # dt = 2 s
+        "disk": {"nvme0n1": (500_000_000, 200_000_000, 1500)},
+        "net": {"eth0": (940_000_000, 420_000_000)},
+        "link_bps": 1_250_000_000,
+    }
+    io = compute_io_rates(prev, cur, disk_max_bps=550_000_000)
+    assert io["have"] is True
+    assert io["disk_read"] == 250_000_000 and io["disk_write"] == 100_000_000
+    assert io["disk_util"] == 75  # 1500 ms busy over 2000 ms window
+    assert io["disk_read_pct"] == 45 and io["disk_write_pct"] == 18
+    assert io["net_in"] == 470_000_000 and io["net_out"] == 210_000_000
+    assert io["net_in_pct"] == 38 and io["net_out_pct"] == 17
+
+
+def test_compute_io_rates_without_prior_sample_has_no_rate():
+    cur = {"t": 10.0, "disk": {}, "net": {}, "link_bps": 0}
+    assert compute_io_rates(None, cur, disk_max_bps=550_000_000)["have"] is False
+
+
+def test_compute_io_rates_ignores_counter_reset():
+    prev = {"t": 100.0, "disk": {"sda": (9, 9, 9)}, "net": {}}
+    cur = {"t": 110.0, "disk": {"sda": (1, 1, 1)}, "net": {}, "link_bps": 0}  # counters went backwards
+    assert compute_io_rates(prev, cur, disk_max_bps=550_000_000)["have"] is False

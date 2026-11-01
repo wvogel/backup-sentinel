@@ -5,6 +5,18 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.2.2] — 2026-11-01
+
+### Added
+
+- **Disk-I/O and Network rings in the host-capacity row.** Two dual-arc rings next to the RAM/storage rings on `/restore`: the outer arc is read / inbound, the inner arc is write / outbound. The fill is the share of a real denominator — the disk class's nominal throughput for disk, the NIC's negotiated link rate for network — the centre shows the headline percent (disk `%util`, the busier network direction), and the sub-line the live MB/s. Values come from one combined `/proc` read per ~25 s host refresh (no per-request or sub-second SSH), rates computed from the delta between samples, and the rings update live via the existing progress poll.
+
+## [v3.2.1] — 2026-11-01
+
+### Fixed
+
+- **Creating the sandbox bridge no longer reloads the whole restore host's network.** `ensure_sandbox_bridge` applied the config host-wide (`pvesh set …/network` = `ifreload -a`), which bounces every interface — including vmbr0's production VLAN sub-interfaces (the management VLAN the helper's mgmt leg rides on). A single such reload could leave those stale until a reboot, surfacing as "restore helper agent /probe unreachable … No route to host" and PBS "client error (Connect)" on otherwise-healthy runs. The bridge is now only written to the config (`pvesh create`, still persistent + GUI-visible) and brought up at runtime with `ip link`, touching nothing else.
+
 ## [v3.2.0] — 2026-11-01
 
 Milestone: automated restore testing is solid end to end. This release caps a
