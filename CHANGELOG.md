@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.67] — 2026-11-01
+
+### Fixed
+
+- **Saved settings show up without a manual reload.** HTML pages were sent with `Cache-Control: no-cache`, which still let the browser's back/forward cache (bfcache) show a stale page — e.g. toggling a VM's Auto setting saved fine, but navigating away and back showed the old value until a hard reload. HTML is now sent `no-store`, so every navigation re-fetches and reflects the current state. (Static assets stay cached, busted by their `?v=`.)
+
 ## [v3.1.66] — 2026-11-01
 
 ### Changed
