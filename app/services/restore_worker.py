@@ -38,6 +38,7 @@ class RunPlan:
     sandbox_prefix: int = 24  # the guest subnet's prefix (not always /24)
     guest_vlan: int | None = None  # the VID the guest tags internally (trunk the NIC, access the helper)
     probe_override: str | None = None  # operator-set probe IP (CIDR); when set, the prober uses exactly it (stur)
+    label: str = ""  # cluster+VM name for the restore VM and helper, so vmids 9000/9001 are identifiable
     require_icmp: bool = True
     tcp_ports: list[int] = field(default_factory=list)
     hold_on_failure: bool = False
@@ -169,6 +170,7 @@ def execute(
             plan.primary_ip,
             plan.sandbox_prefix,
             plan.guest_vlan,
+            plan.label,
         )
         _checkpoint()
         db_restore.update_run(run_id, phase="restoring")
@@ -183,7 +185,7 @@ def execute(
         )
         _checkpoint()
         db_restore.update_run(run_id, phase="network")
-        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan)
+        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan, name=plan.label)
         db_restore.update_run(run_id, phase="booting")
         # Never start while the restore still holds the config lock — a restore
         # that is still running (e.g. after an app restart resumed the tail, or a
@@ -368,7 +370,7 @@ def resume_run(
             server.destroy(plan.helper_vmid, is_lxc=True)
         except Exception as exc:
             logger.debug("resume: helper cleanup (ignored): %s", exc)
-        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan)
+        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan, name=plan.label)
         server.provision_helper(
             plan.helper_vmid,
             plan.vlan_tag,
@@ -377,6 +379,7 @@ def resume_run(
             plan.primary_ip,
             plan.sandbox_prefix,
             plan.guest_vlan,
+            plan.label,
         )
         server.wait_unlocked(plan.restore_vmid)  # the restore may still hold the lock
         try:

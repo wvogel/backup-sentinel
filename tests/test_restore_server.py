@@ -36,6 +36,17 @@ def test_rewrite_net_line_adds_bridge_when_missing_and_no_tag():
     assert out == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9"
 
 
+def test_sandbox_name_builds_hostname_from_cluster_and_vm():
+    from app.services.restore_server import sandbox_name
+
+    assert sandbox_name("Prod", "pbs-fh-muc") == "prod-pbs-fh-muc"
+    assert sandbox_name("Prod MUC", "web01.example") == "prod-muc-web01-example"
+    assert sandbox_name("Prod", "pbs-fh-muc", suffix="helper") == "prod-pbs-fh-muc-helper"
+    assert sandbox_name("", "") == "restore"  # never empty
+    long = sandbox_name("c" * 80, "v" * 80, suffix="helper")
+    assert len(long) <= 63 and long.endswith("-helper")  # suffix always preserved
+
+
 def test_rewrite_net_line_drops_firewall_keeps_other_opts():
     # firewall=1 puts the guest behind the Proxmox NIC firewall, which drops the
     # probe's ICMP/TCP — must be stripped. Other opts (queues) are preserved.
@@ -477,6 +488,40 @@ def test_rewrite_nics_trunks_guest_vlan():
     srv.rewrite_nics(9000, 901, guest_vlan=20)
     changed = next(d for p, d in srv.pve.posts if p == "/nodes/r1/qemu/9000/config")
     assert "tag=901" in changed["net0"] and "trunks=20" in changed["net0"]
+
+
+def test_rewrite_nics_renames_the_restored_vm():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/config": {"net0": "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,tag=5", "name": "pbs-fh-muc"},
+    }
+    cfg = {"ssh_host": "10.0.0.9", "api_url": "https://10.0.0.9:8006", "sandbox_bridge": "vmbr9"}
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    srv.rewrite_nics(9000, 901, name="prod-pbs-fh-muc")
+    changed = next(d for p, d in srv.pve.posts if p == "/nodes/r1/qemu/9000/config")
+    assert changed["name"] == "prod-pbs-fh-muc"  # cluster+VM, not the backup's bare name
+
+
+def test_provision_helper_names_helper_after_cluster_vm():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage": [{"storage": "restore-ct", "content": "rootdir"}],
+    }
+    cfg = {
+        "ssh_host": "10.0.0.9",
+        "api_url": "https://10.0.0.9:8006",
+        "sandbox_bridge": "vmbr9",
+        "mgmt_iface": "vmbr0",
+        "mgmt_netmask": "255.255.255.0",
+        "target_storages": [{"storage": "restore-ct", "use": True, "order": 0}],
+    }
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    srv.ensure_helper_template = lambda: "local:vztmpl/restore-helper.tar.gz"
+    srv._agent_wait_healthy = lambda ip, **k: None
+    srv._agent_post = lambda ip, path, body, **k: {}
+    srv.provision_helper(9001, 901, "10.20.0.10", "10.0.0.1", "10.0.0.50", 24, None, "prod-pbs-fh-muc")
+    create = next(d for p, d in srv.pve.posts if p == "/nodes/r1/lxc")
+    assert create["hostname"] == "prod-pbs-fh-muc-helper"
 
 
 def test_probe_calls_the_agent_over_http():

@@ -5,6 +5,19 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.2.0] — 2026-11-01
+
+Milestone: automated restore testing is solid end to end. This release caps a
+long run of hardening (v3.1.29–v3.1.67) — the isolated sandbox bridge, the
+addressing/probe model (CIDR, real subnet size, optional VLAN, ARP liveness,
+dropping the NIC firewall and pinning the probe source), live progress, cancel,
+self-healing of a wedged queue, and the fixes so the restored guest is actually
+reachable and verified.
+
+### Added
+
+- **The restore VM and its helper are now named after the cluster + VM, not just the reused vmids.** Instead of an anonymous `9000`/`9001`, the restored guest is renamed to `<cluster>-<vm>` (e.g. `prod-pbs-fh-muc`) and its helper to `<cluster>-<vm>-helper`, so it is obvious at a glance in the PVE UI what each sandbox guest currently belongs to. Names are sanitised to valid hostnames and kept within the length limit.
+
 ## [v3.1.67] — 2026-11-01
 
 ### Fixed

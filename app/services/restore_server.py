@@ -69,6 +69,21 @@ def rewrite_net_line(net_line: str, bridge: str, tag: int | None, trunks: int | 
     return ",".join(kept)
 
 
+def sandbox_name(cluster: str, vm: str, suffix: str = "") -> str:
+    """A hostname-safe name for a sandbox guest or helper, built from the cluster
+    and VM names — so an operator can tell at a glance what the reused vmids 9000
+    (restore VM) and 9001 (helper) currently belong to, instead of a bare number.
+    Lower-cased, every run of non ``[a-z0-9-]`` collapsed to a single ``-``,
+    trimmed, and kept within the 63-char hostname limit (``suffix`` — e.g.
+    ``helper`` — is always preserved)."""
+    base = "-".join(p for p in (cluster or "", vm or "") if p)
+    base = re.sub(r"[^a-z0-9-]+", "-", base.lower()).strip("-") or "restore"
+    if suffix:
+        base = base[: max(1, 63 - len(suffix) - 1)].strip("-")
+        return f"{base}-{suffix}" if base else suffix
+    return base[:63].strip("-") or "restore"
+
+
 _DRIVE_KEY = re.compile(r"(ide|sata|scsi|virtio)\d+")
 
 
@@ -729,9 +744,11 @@ class RestoreServer:
             return False
         return st.get("status") == "running"
 
-    def rewrite_nics(self, vmid: int, vlan_tag: int, guest_vlan: int | None = None) -> None:
+    def rewrite_nics(self, vmid: int, vlan_tag: int, guest_vlan: int | None = None, name: str = "") -> None:
         """Prepare the restored guest's config for an isolated sandbox boot, in one
         config update:
+        - rename it to ``name`` (cluster+VM), so it is obvious what the reused vmid
+          belongs to, instead of the backup's bare original name;
         - re-point every NIC to the sandbox bridge + this env's VLAN tag (keeping
           MACs, spec §10);
         - when the guest tags internally (``guest_vlan`` set), also carry that VID
@@ -746,6 +763,8 @@ class RestoreServer:
         config = self.pve.get(f"/nodes/{node}/qemu/{vmid}/config") or {}
         bridge = self.config["sandbox_bridge"]
         changes = {}
+        if name:
+            changes["name"] = name
         for key, value in config.items():
             if re.fullmatch(r"net\d+", key) and isinstance(value, str):
                 changes[key] = rewrite_net_line(value, bridge, vlan_tag, trunks=guest_vlan)
@@ -959,6 +978,7 @@ class RestoreServer:
         guest_ip: str,
         sandbox_prefix: int,
         guest_vlan: int | None = None,
+        label: str = "",
     ) -> None:
         """Create + start the dual-homed helper LXC: sandbox leg (this env's VLAN
         tag) running dnsmasq, management leg (static mgmt IP) for reachability.
@@ -1006,7 +1026,9 @@ class RestoreServer:
                 "vmid": helper_vmid,
                 "ostemplate": template,
                 "storage": helper_storage,
-                "hostname": f"{OWNED_TAG}-helper-{helper_vmid}",
+                # Name the helper after the cluster+VM it serves (+ '-helper'), so
+                # it is obvious what vmid 9001 belongs to; fall back to the vmid.
+                "hostname": sandbox_name(label, "", suffix="helper") if label else f"{OWNED_TAG}-helper-{helper_vmid}",
                 "memory": 256,
                 "cores": 1,
                 **net_ifaces,
