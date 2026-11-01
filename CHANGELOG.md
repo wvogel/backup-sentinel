@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.35] — 2026-11-01
+
+### Fixed
+
+- **The helper's management leg is no longer intermittently unreachable after a re-run.** The helper reuses the same management IP across runs but got a fresh random MAC each time, so the upstream gateway kept a stale ARP entry (IP → a destroyed helper's MAC) and black-holed the new helper until that entry expired — the leg was reachable on a cold cache and dead right after a prior run (the "worked once, then times out" pattern). The management leg now gets a **stable MAC derived from its IP** (`02:00:` + the address bytes), so the gateway's ARP entry stays valid across helper re-creations.
+
+### Added
+
+- **Inside-the-helper network diagnostic when the agent is unreachable.** If the management leg times out, the run error now includes a snapshot taken *inside* the container (host SSH, failure path only): its IPv4 addresses, routes, and whether it can reach its own gateway — so an unreachable helper names the actual cause (IP not applied inside vs an L2/VLAN/ARP problem) instead of a bare "not reachable".
+
 ## [v3.1.34] — 2026-11-01
 
 ### Fixed

@@ -7,6 +7,7 @@ from app.services.restore_server import (
     HostIdentityError,
     RestoreServer,
     RestoreTaskError,
+    _stable_mac,
     dnsmasq_config,
     helper_legs,
     parse_task_progress,
@@ -62,12 +63,20 @@ def test_stall_backstop_tolerates_slow_huge_restore():
     assert stall_exceeded(10 * 3600, percent_done=1, elapsed_seconds=3600, factor=6.0) is True
 
 
+def test_stable_mac_is_deterministic_and_ip_derived():
+    assert _stable_mac("10.20.0.10") == "02:00:0a:14:00:0a"
+    assert _stable_mac("10.20.0.10") == _stable_mac("10.20.0.10")  # stable across calls
+    assert _stable_mac("10.121.101.100") != _stable_mac("10.121.101.101")  # unique per IP
+
+
 def test_helper_legs_dual_homed():
     aliases = [{"ip": "10.0.0.254", "prefix": 24}]
     nets, extra = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "", aliases)
     assert "net1" in nets  # separate management leg
     assert "tag=901" in nets["net0"] and "10.0.0.254/24" in nets["net0"]
     assert "10.20.0.10/24" in nets["net1"]
+    # Stable IP-derived MAC on the mgmt leg (keeps the gateway's ARP entry valid).
+    assert "hwaddr=02:00:0a:14:00:0a" in nets["net1"]
     assert extra == []  # only one sandbox subnet → first used on net0
 
 
@@ -327,6 +336,36 @@ def test_provision_helper_fails_when_dnsmasq_setup_fails():
     srv._agent_post = lambda ip, path, body, **k: {"ok": False, "dnsmasq_error": "address in use"}
     with pytest.raises(RestoreTaskError, match="address in use"):
         srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
+
+
+def test_provision_helper_appends_netdiag_when_agent_unreachable():
+    # When the agent never answers, the run error must carry the inside-helper
+    # network snapshot (so we can tell IP-not-applied from an L2/VLAN/ARP issue).
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage": [{"storage": "restore-ct", "content": "images,rootdir"}],
+    }
+    cfg = {
+        "ssh_host": "10.0.0.9",
+        "api_url": "https://10.0.0.9:8006",
+        "sandbox_bridge": "vmbr9",
+        "mgmt_iface": "vmbr0",
+        "mgmt_netmask": "255.255.255.0",
+        "mgmt_gateway": "10.20.0.1",
+        "probe_offset": 254,
+        "target_storages": [{"storage": "restore-ct", "use": True, "order": 0}],
+    }
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    srv.ensure_helper_template = lambda: "local:vztmpl/restore-helper.tar.gz"
+
+    def boom(ip, **k):
+        raise RestoreTaskError("not ready within 60s")
+
+    srv._agent_wait_healthy = boom
+    with pytest.raises(RestoreTaskError, match="helper netdiag"):
+        srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
+    # The diagnostic went through pct exec (host SSH), targeting the helper vmid.
+    assert any("pct exec 9001" in c for c in srv.ssh.commands)
 
 
 def _helper_name(data: bytes) -> str:

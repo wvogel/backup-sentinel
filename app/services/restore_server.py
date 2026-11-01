@@ -621,7 +621,14 @@ class RestoreServer:
         # Configure the helper over its management IP — no SSH. The baked-in agent
         # (restore_helper_agent) serves DHCP and answers probes; we hand it the
         # dnsmasq config and the sandbox alias addresses once it is reachable.
-        self._agent_wait_healthy(mgmt_ip)
+        try:
+            self._agent_wait_healthy(mgmt_ip)
+        except RestoreTaskError as exc:
+            # The agent never answered on the management IP. Capture the helper's
+            # actual network state from inside (host SSH, failure path only) so the
+            # run error names the cause — IP not applied inside vs L2/VLAN/ARP —
+            # instead of a bare "not reachable".
+            raise RestoreTaskError(f"{exc} | {self._helper_netdiag(helper_vmid, cfg.get('mgmt_gateway', ''))}") from exc
         conf = dnsmasq_config(reservations)
         res = self._agent_post(mgmt_ip, "/dnsmasq", {"conf": conf, "aliases": alias_addrs})
         if isinstance(res, dict) and res.get("ok") is False:
@@ -692,6 +699,26 @@ class RestoreServer:
             "(management leg not reachable?)"
         )
 
+    def _helper_netdiag(self, vmid: int, gateway: str = "") -> str:
+        """Best-effort snapshot of the helper's network *from inside the container*
+        (host SSH via ``pct exec``), for diagnosing an unreachable management leg.
+        Shows whether the leg got its IP (IP-not-applied vs L2/VLAN/ARP) and
+        whether the helper can reach its own gateway. Never raises."""
+        cmds = [
+            ("addr", f"pct exec {vmid} -- ip -4 -o addr show"),
+            ("route", f"pct exec {vmid} -- ip route show"),
+        ]
+        if gateway:
+            cmds.append(("gw-ping", f"pct exec {vmid} -- ping -c1 -W2 {gateway}"))
+        parts = []
+        for label, cmd in cmds:
+            try:
+                out = self.ssh.run(cmd).strip().replace("\n", " ")
+                parts.append(f"{label}: {out or 'OK'}")
+            except Exception as exc:  # non-zero exit (e.g. gw unreachable) or SSH issue
+                parts.append(f"{label}: ERR {str(exc)[:80]}")
+        return "helper netdiag [" + " || ".join(parts) + "]"
+
     def reap(self, owned_vmids: set[int]) -> list[int]:
         """Destroy every guest on the scratch host not owned by a live run
         (spec §12). Returns the destroyed vmids."""
@@ -712,6 +739,17 @@ class RestoreTaskError(RuntimeError):
 def _host_of(url: str) -> str:
     m = re.search(r"https?://([^:/]+)", url or "")
     return m.group(1).lower() if m else ""
+
+
+def _stable_mac(ip: str) -> str:
+    """A deterministic, locally-administered unicast MAC derived from an IPv4
+    address (``02:00:`` + the four address bytes). Lets a helper that reuses a
+    management IP across runs keep the same MAC, so the upstream gateway's ARP
+    entry for that IP stays valid instead of pointing at a destroyed helper."""
+    import ipaddress
+
+    octets = int(ipaddress.IPv4Address(ip)).to_bytes(4, "big")
+    return "02:00:" + ":".join(f"{b:02x}" for b in octets)
 
 
 def _prefix_from_netmask(netmask: str) -> int:
@@ -796,7 +834,13 @@ def helper_legs(
     then ran but was unreachable from the app. When the subnets do overlap, the
     agent pins a per-guest host route onto the sandbox leg so probes still go out
     the right interface despite the duplicate connected route.)"""
-    mgmt_net = f"name=mgmt,bridge={mgmt_iface},ip={mgmt_ip}/{mgmt_prefix}"
+    # Stable, IP-derived MAC on the management leg: a run reusing a management IP
+    # across helper re-creations then keeps the same MAC, so the upstream
+    # gateway's ARP cache (IP→MAC) stays valid. Without it each helper gets a
+    # fresh random MAC, and the gateway black-holes the new helper's IP until its
+    # stale ARP entry expires — the management leg is then intermittently
+    # unreachable (reachable on a cold cache, dead right after a prior run).
+    mgmt_net = f"name=mgmt,bridge={mgmt_iface},hwaddr={_stable_mac(mgmt_ip)},ip={mgmt_ip}/{mgmt_prefix}"
     if mgmt_gateway:
         mgmt_net += f",gw={mgmt_gateway}"
     if mgmt_vlan:
