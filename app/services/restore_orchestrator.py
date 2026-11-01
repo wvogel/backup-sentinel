@@ -251,6 +251,9 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
     guest_ip, sandbox_ip, sandbox_prefix = _sandbox_alloc(candidate.get("probe_primary_ip"), alloc.mgmt_ip, config)
     primary = guest_ip
     targets = [{"ip": guest_ip, "ports": ports, "prefix": sandbox_prefix}] if guest_ip else []
+    from app.services.restore_server import sandbox_name
+
+    label = sandbox_name(candidate.get("cluster_name") or "", candidate.get("vm_name") or "")
 
     targets_sorted = sorted(
         (s for s in config.get("target_storages", []) if s.get("use", True)), key=lambda s: s.get("order", 0)
@@ -283,6 +286,7 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         sandbox_prefix=sandbox_prefix,
         guest_vlan=candidate.get("probe_vlan"),
         probe_override=candidate.get("probe_primary_ip") or None,
+        label=label,
         require_icmp=candidate.get("probe_require_icmp", True),
         tcp_ports=ports,
         hold_on_failure=candidate.get("hold_on_failure", False),
@@ -417,11 +421,13 @@ def _candidate_for_vm(vm_id: int) -> dict[str, Any] | None:
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT v.id AS vm_id, v.vmid, v.node_name, v.guest_type,
+            SELECT v.id AS vm_id, v.vmid, v.node_name, v.guest_type, v.name AS vm_name,
+                   c.name AS cluster_name,
                    p.hold_on_failure, p.probe_primary_ip, p.probe_vlan, p.probe_tcp_ports, p.probe_require_icmp,
                    p.restore_retry_days, p.probe_window_seconds, p.probe_first_delay_seconds,
                    p.probe_interval_seconds
-            FROM vms v LEFT JOIN vm_policies p ON p.vm_id = v.id WHERE v.id = %s
+            FROM vms v LEFT JOIN clusters c ON c.id = v.cluster_id
+                 LEFT JOIN vm_policies p ON p.vm_id = v.id WHERE v.id = %s
             """,
             (vm_id,),
         )
@@ -579,6 +585,8 @@ def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
     primary, sandbox_ip, sandbox_prefix = _sandbox_alloc(cand.get("probe_primary_ip"), run.get("mgmt_ip"), config)
     targets = [{"ip": primary, "ports": ports, "prefix": sandbox_prefix}] if primary else []
     tgt = (run.get("target_storages") or [""])[0]
+    from app.services.restore_server import sandbox_name
+
     return RunPlan(
         vm_id=run["vm_id"],
         restore_vmid=run.get("restore_vmid") or 0,
@@ -601,6 +609,7 @@ def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
         sandbox_prefix=sandbox_prefix,
         guest_vlan=cand.get("probe_vlan"),
         probe_override=cand.get("probe_primary_ip") or None,
+        label=sandbox_name(cand.get("cluster_name") or "", cand.get("vm_name") or ""),
         require_icmp=cand.get("probe_require_icmp", True),
         tcp_ports=ports,
         hold_on_failure=cand.get("hold_on_failure", False),
@@ -655,6 +664,7 @@ def reprovision_and_retest(run_id: int, run: dict[str, Any], config: dict[str, A
         plan.primary_ip,
         plan.sandbox_prefix,
         plan.guest_vlan,
+        plan.label,
     )
     result = restore_worker.retest_held(run_id, server, plan)
     if result != "passed":

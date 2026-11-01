@@ -134,6 +134,8 @@ class OrchestratorTest(unittest.TestCase):
         self.assertEqual(plan.sandbox_ip, "10.9.0.254")
         self.assertEqual(plan.sandbox_prefix, 24)
         self.assertIsNone(plan.probe_override)
+        # Name the sandbox env after cluster+VM so the reused vmids are identifiable.
+        self.assertEqual(plan.label, "prod-web")
         self.assertEqual(plan.target_storage, "zfs")
         self.assertEqual(plan.reservations, [])
 
