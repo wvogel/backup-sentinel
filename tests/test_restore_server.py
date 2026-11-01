@@ -252,6 +252,59 @@ def test_helper_agent_probe_targets(monkeypatch):
     assert out["10.0.0.50"]["ports"] == {"443": True, "22": False}
 
 
+def test_helper_agent_probe_skips_malformed_port(monkeypatch):
+    # A bad port must be skipped, never fail the whole probe (→ a bare agent 500).
+    from app.services import restore_helper_agent as agent
+
+    monkeypatch.setattr(agent, "_ping", lambda ip, timeout=2.0: True)
+    monkeypatch.setattr(agent, "_tcp", lambda ip, port, timeout=2.0: True)
+    out = agent.probe_targets([{"ip": "10.0.0.50", "ports": [443, "x", None]}], require_icmp=False)
+    assert out["10.0.0.50"]["ports"] == {"443": True}
+
+
+def test_agent_post_surfaces_error_body(monkeypatch):
+    # The agent returns {"error", "trace"} with a 500; urllib raises a bare
+    # HTTPError whose str() is only "HTTP Error 500: Internal Server Error".
+    # _agent_post must read the body and surface the agent's real reason.
+    import io
+    import urllib.error
+
+    srv = _server({})
+
+    def boom(req, timeout=15.0):
+        raise urllib.error.HTTPError(
+            req.full_url, 500, "Internal Server Error", {}, io.BytesIO(b'{"error": "boom in apply_dnsmasq"}')
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", boom)
+    with pytest.raises(RestoreTaskError) as exc:
+        srv._agent_post("10.9.0.10", "/dnsmasq", {"conf": "x"})
+    assert "boom in apply_dnsmasq" in str(exc.value)
+    assert "/dnsmasq" in str(exc.value)
+
+
+def test_provision_helper_fails_when_dnsmasq_setup_fails():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage": [{"storage": "restore-ct", "content": "images,rootdir"}],
+    }
+    cfg = {
+        "ssh_host": "10.0.0.9",
+        "api_url": "https://10.0.0.9:8006",
+        "sandbox_bridge": "vmbr9",
+        "mgmt_iface": "vmbr0",
+        "mgmt_netmask": "255.255.255.0",
+        "probe_offset": 254,
+        "target_storages": [{"storage": "restore-ct", "use": True, "order": 0}],
+    }
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    srv.ensure_helper_template = lambda: "local:vztmpl/restore-helper.tar.gz"
+    srv._agent_wait_healthy = lambda ip, **k: None
+    srv._agent_post = lambda ip, path, body, **k: {"ok": False, "dnsmasq_error": "address in use"}
+    with pytest.raises(RestoreTaskError, match="address in use"):
+        srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
+
+
 def _helper_name(data: bytes) -> str:
     import hashlib
 

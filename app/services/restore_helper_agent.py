@@ -19,8 +19,10 @@ The module is self-contained so it can be copied verbatim into the template.
 from __future__ import annotations
 
 import json
+import os
 import socket
 import subprocess
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 AGENT_PORT = 8765
@@ -72,23 +74,42 @@ def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
         if not ip:
             continue
         _ensure_reachable(ip)
+        ports: dict[str, bool] = {}
+        for p in t.get("ports") or []:
+            try:
+                port = int(p)
+            except (TypeError, ValueError):
+                continue  # a malformed port must not fail the whole probe
+            ports[str(port)] = _tcp(ip, port)
         # Key is "ports" (not "tcp"): the classifier reads primary["ports"].
         out[ip] = {
             "icmp": _ping(ip) if require_icmp else None,
-            "ports": {str(p): _tcp(ip, int(p)) for p in (t.get("ports") or [])},
+            "ports": ports,
             "ts": int(time.time()),
         }
     return out
 
 
-def apply_dnsmasq(conf: str, aliases: list[dict]) -> None:
+def apply_dnsmasq(conf: str, aliases: list[dict]) -> dict:
+    os.makedirs("/etc/dnsmasq.d", exist_ok=True)
     with open("/etc/dnsmasq.d/restore.conf", "w") as fh:
         fh.write(conf)
     for a in aliases:
         subprocess.run(["ip", "addr", "add", f"{a['ip']}/{a['prefix']}", "dev", SBX_IFACE], capture_output=True)
-    # OpenRC first, then systemd — whichever the template ships.
-    if subprocess.run(["rc-service", "dnsmasq", "restart"], capture_output=True).returncode != 0:
-        subprocess.run(["systemctl", "restart", "dnsmasq"], capture_output=True)
+    # OpenRC first, then systemd — whichever the template ships. A failed restart
+    # means DHCP won't serve, so the guest never gets its IP: surface it in the
+    # reply (don't 500) so the run error names the real dnsmasq problem.
+    rc = subprocess.run(["rc-service", "dnsmasq", "restart"], capture_output=True, text=True)
+    if rc.returncode != 0:
+        sd = subprocess.run(["systemctl", "restart", "dnsmasq"], capture_output=True, text=True)
+        if sd.returncode != 0:
+            return {
+                "ok": False,
+                "dnsmasq_error": (rc.stderr or rc.stdout or "").strip()[:400]
+                or (sd.stderr or sd.stdout or "").strip()[:400]
+                or "dnsmasq restart failed",
+            }
+    return {"ok": True}
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -114,15 +135,17 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             if self.path == "/dnsmasq":
                 b = self._body()
-                apply_dnsmasq(b.get("conf", ""), b.get("aliases") or [])
-                self._send(200, {"ok": True})
+                self._send(200, apply_dnsmasq(b.get("conf", ""), b.get("aliases") or []))
             elif self.path == "/probe":
                 b = self._body()
                 self._send(200, probe_targets(b.get("targets") or [], b.get("require_icmp", True)))
             else:
                 self._send(404, {"error": "not found"})
         except Exception as exc:  # never crash the agent on a bad request
-            self._send(500, {"error": str(exc)})
+            # Include the traceback: the app surfaces this body verbatim, so an
+            # unexpected agent-side failure names its exact cause in the run error
+            # instead of a bare "HTTP 500".
+            self._send(500, {"error": str(exc), "trace": traceback.format_exc()[-1200:]})
 
     def log_message(self, *args) -> None:
         pass

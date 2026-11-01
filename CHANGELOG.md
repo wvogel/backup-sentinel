@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.30] — 2026-11-01
+
+### Fixed
+
+- **A failing restore now names the real reason instead of a bare "HTTP Error 500: Internal Server Error".** The helper agent catches its own exceptions and returns the cause (plus a short traceback) with a 500, but the app's agent client used raw `urllib` and discarded that body — so any agent-side failure surfaced as an opaque HTTP 500. The client now reads the agent's response body and raises it verbatim (naming the endpoint, `/dnsmasq` or `/probe`), the same way the PVE/PBS API client already surfaces Proxmox error bodies.
+
+### Changed
+
+- **Helper agent hardened.** `/etc/dnsmasq.d` is created if missing before the DHCP config is written; a malformed TCP port is skipped instead of failing the whole probe; a failed `dnsmasq` restart is reported back (`{"ok": false, "dnsmasq_error": …}`) and surfaced as a clear run error ("helper dnsmasq setup failed: …") rather than being swallowed, since without DHCP the guest never gets its IP.
+
 ## [v3.1.29] — 2026-11-01
 
 ### Changed
