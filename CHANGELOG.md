@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.59] — 2026-11-01
+
+### Changed
+
+- **Probing now follows the guest at runtime instead of guessing one IP up front.** The helper always starts on the management LAN running DHCP (unless an override is set). Then, with no override, before every attempt the prober checks what the guest agent reports: while it reports nothing, it tries the DHCP-assigned management-range IP (a DHCP guest answers there); once the agent reports IPv4(s), it probes **every** reported address — the helper reaches each over the first free host it adds in that address's own subnet — and a check counts green if it passed on **any** of them, until the first attempt where every check is green. This fixes a static guest (whose IP the agent only reports after boot) being left probed on the management IP.
+- **An operator override (CIDR, optionally with a VLAN) is now used rigidly.** When set, the helper is pinned to that subnet (first free host, dnsmasq hands the configured IP) and the prober uses exactly that IP, ignoring the guest agent.
+
 ## [v3.1.58] — 2026-11-01
 
 ### Fixed

@@ -185,40 +185,32 @@ def matched_vms_by_location(locations: list[str]) -> dict[str, list[str]]:
 
 def _sandbox_alloc(
     override: str | None,
-    nics: list[dict[str, Any]],
     mgmt_ip: str | None,
     config: dict[str, Any],
-) -> tuple[str | None, str | None, int, str]:
-    """Decide the sandbox addressing: ``(guest_ip, helper_sandbox_ip, prefix, source)``
-    where ``source`` is ``"override"``, ``"recorded"``, ``"fallback"`` or ``"none"``.
+) -> tuple[str | None, str | None, int]:
+    """Decide how the helper is provisioned: ``(guest_ip, helper_sandbox_ip, prefix)``.
 
-    Order of preference, none of which depends on the restored running VM:
-    1. Operator override ``probe_primary_ip`` (now ``ip[/prefix]``): probe that IP;
-       the helper takes any other host in that subnet. A bare IP means /24.
-    2. A recorded guest-agent IP from production: probe it with ITS prefix
-       (networks are not always /24); the helper takes any other host in it.
-    3. Fallback: the fixed management-range scheme — dnsmasq hands the guest a
-       management-range address (.200) and the helper takes .254. This is a guess
-       (the guest may be static and ignore DHCP), so the prober treats it as a
-       last resort and waits for the live guest-agent IP first.
+    - With an operator **override** (``probe_primary_ip`` as ``ip[/prefix]``): the
+      helper is pinned to that subnet — dnsmasq hands that IP and the helper takes
+      the first free host in its net. A bare IP means /24. The prober then uses
+      exactly this IP (``stur``), ignoring the guest agent.
+    - Without an override: the helper starts on the **management LAN** and runs
+      DHCP from the management range (dnsmasq hands ``.200``, the helper takes
+      ``.254``). The prober then adapts at runtime to whatever IP(s) the guest
+      agent reports, reaching each over a host it adds in that IP's own subnet.
 
-    ``source`` is ``"none"`` only when there is no management IP."""
+    ``(None, None, mgmt_prefix)`` only when there is no management IP."""
     from app.services.restore_server import _prefix_from_netmask, parse_cidr, sandbox_addrs, sandbox_host_ip
 
     mgmt_prefix = _prefix_from_netmask(config.get("mgmt_netmask", "255.255.255.0"))
     parsed = parse_cidr(override) if override else None
     if parsed:
         guest_ip, prefix = parsed
-        return guest_ip, sandbox_host_ip(guest_ip, prefix), prefix, "override"
-    for nic in sorted(nics, key=lambda r: r.get("nic_index", 0)):
-        if nic.get("ip_addresses"):
-            guest_ip = nic["ip_addresses"][0]
-            prefix = nic.get("prefix") or 24
-            return guest_ip, sandbox_host_ip(guest_ip, prefix), prefix, "recorded"
+        return guest_ip, sandbox_host_ip(guest_ip, prefix), prefix
     if mgmt_ip:
         helper_ip, guest_ip, _ = sandbox_addrs(mgmt_ip, mgmt_prefix)
-        return guest_ip, helper_ip, mgmt_prefix, "fallback"
-    return None, None, mgmt_prefix, "none"
+        return guest_ip, helper_ip, mgmt_prefix
+    return None, None, mgmt_prefix
 
 
 class NotRunnable(RuntimeError):
@@ -253,14 +245,10 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
     if alloc is None:
         return None  # management IP (or vmid/vlan) exhausted → caller waits
 
-    # Decide the sandbox addressing (guest probe IP, helper's own sandbox IP, and
-    # the subnet prefix) from the guest's known IP — recorded or operator override,
-    # honouring its prefix — or the management-range fallback. Never derived from
-    # the restored, running VM.
-    nics = [dict(n) for n in db_restore.get_network_interfaces(vm_id)]
-    guest_ip, sandbox_ip, sandbox_prefix, ip_source = _sandbox_alloc(
-        candidate.get("probe_primary_ip"), nics, alloc.mgmt_ip, config
-    )
+    # How the helper is provisioned: pinned to an operator override's subnet, else
+    # the management-LAN + DHCP default (the prober adapts to the live guest-agent
+    # IPs at runtime). Never derived from the restored, running VM.
+    guest_ip, sandbox_ip, sandbox_prefix = _sandbox_alloc(candidate.get("probe_primary_ip"), alloc.mgmt_ip, config)
     primary = guest_ip
     targets = [{"ip": guest_ip, "ports": ports, "prefix": sandbox_prefix}] if guest_ip else []
 
@@ -295,7 +283,6 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         sandbox_prefix=sandbox_prefix,
         guest_vlan=candidate.get("probe_vlan"),
         probe_override=candidate.get("probe_primary_ip") or None,
-        probe_is_fallback=(ip_source == "fallback"),
         require_icmp=candidate.get("probe_require_icmp", True),
         tcp_ports=ports,
         hold_on_failure=candidate.get("hold_on_failure", False),
@@ -589,10 +576,7 @@ def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
     """Reconstruct a RunPlan from a stored (held) run for reap/retest/promote."""
     cand = _candidate_for_vm(run["vm_id"]) or {}
     ports = list(cand.get("probe_tcp_ports") or [])
-    nics = [dict(n) for n in db_restore.get_network_interfaces(run["vm_id"])]
-    primary, sandbox_ip, sandbox_prefix, ip_source = _sandbox_alloc(
-        cand.get("probe_primary_ip"), nics, run.get("mgmt_ip"), config
-    )
+    primary, sandbox_ip, sandbox_prefix = _sandbox_alloc(cand.get("probe_primary_ip"), run.get("mgmt_ip"), config)
     targets = [{"ip": primary, "ports": ports, "prefix": sandbox_prefix}] if primary else []
     tgt = (run.get("target_storages") or [""])[0]
     return RunPlan(
@@ -617,7 +601,6 @@ def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
         sandbox_prefix=sandbox_prefix,
         guest_vlan=cand.get("probe_vlan"),
         probe_override=cand.get("probe_primary_ip") or None,
-        probe_is_fallback=(ip_source == "fallback"),
         require_icmp=cand.get("probe_require_icmp", True),
         tcp_ports=ports,
         hold_on_failure=cand.get("hold_on_failure", False),
@@ -652,10 +635,7 @@ def reprovision_and_retest(run_id: int, run: dict[str, Any], config: dict[str, A
     # management-range fallback depends on it; a recorded/override guest IP does
     # not), so the re-test helper and its dnsmasq are set up the same way.
     cand = _candidate_for_vm(run["vm_id"]) or {}
-    nics = [dict(n) for n in db_restore.get_network_interfaces(run["vm_id"])]
-    primary, sandbox_ip, sandbox_prefix, ip_source = _sandbox_alloc(
-        cand.get("probe_primary_ip"), nics, alloc.mgmt_ip, config
-    )
+    primary, sandbox_ip, sandbox_prefix = _sandbox_alloc(cand.get("probe_primary_ip"), alloc.mgmt_ip, config)
     targets = [{"ip": primary, "ports": list(base.tcp_ports), "prefix": sandbox_prefix}] if primary else []
     plan = dataclasses.replace(
         base,
@@ -665,7 +645,6 @@ def reprovision_and_retest(run_id: int, run: dict[str, Any], config: dict[str, A
         primary_ip=primary,
         sandbox_ip=sandbox_ip,
         sandbox_prefix=sandbox_prefix,
-        probe_is_fallback=(ip_source == "fallback"),
     )
     db_restore.update_run(run_id, helper_vmid=alloc.helper_vmid, mgmt_ip=alloc.mgmt_ip)
     server.provision_helper(
