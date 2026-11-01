@@ -872,10 +872,11 @@ def test_sandbox_alloc_override_cidr_honours_prefix():
 
     # Manual override as CIDR: probe that IP with its own prefix (not /24); the
     # helper takes another host in the same subnet (the lowest non-guest host).
-    guest, helper, prefix = _sandbox_alloc("10.0.5.3/26", [], "10.9.0.10", {})
+    guest, helper, prefix, source = _sandbox_alloc("10.0.5.3/26", [], "10.9.0.10", {})
     assert guest == "10.0.5.3"
     assert prefix == 26
     assert helper == "10.0.5.1"  # a host in 10.0.5.0/26 that is not the guest
+    assert source == "override"
 
 
 def test_sandbox_alloc_detected_ip_uses_recorded_prefix():
@@ -883,10 +884,11 @@ def test_sandbox_alloc_detected_ip_uses_recorded_prefix():
 
     # No override → the recorded guest-agent IP with ITS prefix.
     nics = [{"nic_index": 0, "ip_addresses": ["10.0.5.5"], "prefix": 26}]
-    guest, helper, prefix = _sandbox_alloc(None, nics, "10.9.0.10", {})
+    guest, helper, prefix, source = _sandbox_alloc(None, nics, "10.9.0.10", {})
     assert guest == "10.0.5.5"
     assert prefix == 26
     assert helper == "10.0.5.1"
+    assert source == "recorded"
 
 
 def test_sandbox_alloc_falls_back_to_management_range():
@@ -895,16 +897,18 @@ def test_sandbox_alloc_falls_back_to_management_range():
     # No override and no recorded IP → management-range fallback (guest .200,
     # helper .254) derived from the mgmt IP.
     config = {"mgmt_netmask": "255.255.255.0"}
-    guest, helper, prefix = _sandbox_alloc(None, [], "10.121.101.100", config)
+    guest, helper, prefix, source = _sandbox_alloc(None, [], "10.121.101.100", config)
     assert (guest, helper, prefix) == ("10.121.101.200", "10.121.101.254", 24)
+    assert source == "fallback"
 
 
 def test_sandbox_alloc_bare_override_means_slash_24():
     from app.services.restore_orchestrator import _sandbox_alloc
 
-    guest, helper, prefix = _sandbox_alloc("10.0.0.50", [], "10.9.0.10", {})
+    guest, helper, prefix, source = _sandbox_alloc("10.0.0.50", [], "10.9.0.10", {})
     assert (guest, prefix) == ("10.0.0.50", 24)
     assert helper == "10.0.0.1"
+    assert source == "override"
 
 
 def test_parse_cidr_and_sandbox_host_ip():

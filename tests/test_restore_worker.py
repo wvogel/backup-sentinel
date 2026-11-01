@@ -294,6 +294,82 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(res, "passed")
         self.assertEqual(probed["targets"][0]["ip"], "10.0.0.50")
 
+    def test_probe_waits_for_guest_agent_instead_of_probing_the_fallback(self):
+        # The guest agent reports its IP only after a few polls (slow boot). The
+        # loop must WAIT for it — never probe the fallback .200 meanwhile — and
+        # then target the agent's IP (so the helper reaches the right subnet).
+        from app.services.restore_worker import _probe_loop
+
+        state = {"polls": 0, "probed": []}
+
+        class Srv:
+            def guest_agent_nics(self, vmid):
+                state["polls"] += 1
+                return [("10.254.10.6", 24)] if state["polls"] >= 3 else []
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+
+        clock = {"t": 0.0}
+
+        def now():
+            return clock["t"]
+
+        def sleep(s):
+            clock["t"] += s
+
+        def probe_fn(s, hv, targets):
+            state["probed"].append(targets[0]["ip"])
+            return {targets[0]["ip"]: {"icmp": True, "ports": {"443": True}}}
+
+        plan = _plan(
+            self.vm_id,
+            primary_ip="10.9.0.200",
+            probe_override=None,
+            probe_is_fallback=True,
+            first_delay=0,
+            interval=10,
+            window=300,
+        )
+        res, _ = _probe_loop(Srv(), plan, now=now, sleep=sleep, probe_fn=probe_fn)
+        self.assertEqual(res, "passed")
+        self.assertEqual(state["probed"][0], "10.254.10.6")  # first probe is the agent IP
+        self.assertNotIn("10.9.0.200", state["probed"])  # fallback never probed while waiting
+
+    def test_probe_falls_back_to_planned_ip_at_deadline_without_agent(self):
+        # A DHCP guest with no guest agent: the agent never reports, so at the
+        # window's end we probe the planned (management-range) IP once.
+        from app.services.restore_worker import _probe_loop
+
+        probed = []
+
+        class Srv:
+            def guest_agent_nics(self, vmid):
+                return []  # no agent ever
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+
+        clock = {"t": 0.0}
+        plan = _plan(
+            self.vm_id,
+            primary_ip="10.9.0.200",
+            probe_override=None,
+            probe_is_fallback=True,
+            first_delay=0,
+            interval=10,
+            window=20,
+        )
+        res, _ = _probe_loop(
+            Srv(),
+            plan,
+            now=lambda: clock["t"],
+            sleep=lambda s: clock.__setitem__("t", clock["t"] + s),
+            probe_fn=lambda s, hv, t: probed.append(t[0]["ip"]) or {t[0]["ip"]: {"icmp": True, "ports": {"443": True}}},
+        )
+        self.assertEqual(probed, ["10.9.0.200"])  # only the final fallback probe
+        self.assertEqual(res, "passed")
+
     def test_host_identity_failure_is_error(self):
         run_id = self._run()
         srv = FakeServer()
