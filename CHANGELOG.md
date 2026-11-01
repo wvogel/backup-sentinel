@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.2.8] — 2026-11-01
+
+### Changed
+
+- **Proper pagination for the restore runs log.** The pager was just a bare ‹ / › with no way to jump. It now shows first/previous, a windowed set of numbered pages (first, last and a window around the current page, with … for gaps), next/last, and a **"per page" selector** (25 / 50 / 100 / 200) that remembers the choice in a cookie across visits. The page size and all active column filters are preserved across every page and filter link.
+
 ## [v3.2.7] — 2026-11-01
 
 ### Fixed

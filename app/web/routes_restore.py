@@ -249,7 +249,35 @@ def _refresh_host_view(config: dict) -> None:
         _host_view_refreshing.clear()
 
 
-_RUNS_PER_PAGE = 25
+_RUNS_PER_PAGE_OPTIONS = (25, 50, 100, 200)
+_RUNS_PER_PAGE_DEFAULT = 25
+_PER_PAGE_COOKIE = "restore_per_page"
+
+
+def _clamp_per_page(raw: str | None, fallback: int) -> int:
+    """A valid page size from ``raw`` (query or cookie), else ``fallback``."""
+    try:
+        v = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return fallback
+    return v if v in _RUNS_PER_PAGE_OPTIONS else fallback
+
+
+def _page_window(page: int, pages: int, radius: int = 2) -> list[int | None]:
+    """The page numbers to show in the pager: first, last and a window of
+    ``radius`` around the current page, sorted, with ``None`` marking a gap (…)."""
+    if pages <= 1:
+        return [1]
+    want = {1, pages, page} | {page + d for d in range(-radius, radius + 1)}
+    nums = sorted(p for p in want if 1 <= p <= pages)
+    out: list[int | None] = []
+    prev = 0
+    for p in nums:
+        if prev and p - prev > 1:
+            out.append(None)  # gap → ellipsis
+        out.append(p)
+        prev = p
+    return out
 
 
 @router.get("/restore", response_class=HTMLResponse)
@@ -265,12 +293,18 @@ def restore_runs(request: Request) -> HTMLResponse:
         page = max(1, int(qp.get("page", "1")))
     except ValueError:
         page = 1
+    # Page size: an explicit ?per= wins (and is remembered in a cookie); otherwise
+    # the last remembered choice, else the default.
+    per_explicit = qp.get("per")
+    per = _clamp_per_page(
+        per_explicit if per_explicit is not None else request.cookies.get(_PER_PAGE_COOKIE), _RUNS_PER_PAGE_DEFAULT
+    )
     total = db_restore.count_runs(status=f_status, trigger=f_trigger, cluster=f_cluster, vm_query=f_q)
-    pages = max(1, -(-total // _RUNS_PER_PAGE))  # ceil
+    pages = max(1, -(-total // per))  # ceil
     page = min(page, pages)
     runs = db_restore.list_runs(
-        limit=_RUNS_PER_PAGE,
-        offset=(page - 1) * _RUNS_PER_PAGE,
+        limit=per,
+        offset=(page - 1) * per,
         status=f_status,
         trigger=f_trigger,
         cluster=f_cluster,
@@ -312,6 +346,9 @@ def restore_runs(request: Request) -> HTMLResponse:
         "runs_total": total,
         "runs_page": page,
         "runs_pages": pages,
+        "runs_per": per,
+        "runs_per_options": _RUNS_PER_PAGE_OPTIONS,
+        "runs_page_window": _page_window(page, pages),
         "runs_filter": {
             "f_status": f_status or "",
             "f_trigger": f_trigger or "",
@@ -320,16 +357,27 @@ def restore_runs(request: Request) -> HTMLResponse:
         },
         "runs_has_filter": any([f_status, f_trigger, f_cluster, f_q]),
         "cluster_options": db_restore.run_filter_clusters(),
-        # Active filter as a query string (no page) so page links keep the filter.
+        # Active filter + page size as a query string (no page) so page links keep
+        # both; per is omitted when it is the default to keep URLs clean.
         "runs_query": urlencode(
             {
                 k: v
-                for k, v in (("f_status", f_status), ("f_trigger", f_trigger), ("f_cluster", f_cluster), ("f_q", f_q))
+                for k, v in (
+                    ("f_status", f_status),
+                    ("f_trigger", f_trigger),
+                    ("f_cluster", f_cluster),
+                    ("f_q", f_q),
+                    ("per", per if per != _RUNS_PER_PAGE_DEFAULT else None),
+                )
                 if v
             }
         ),
     }
-    return templates.TemplateResponse(request, "restore.html", common_context(request) | context)
+    resp = templates.TemplateResponse(request, "restore.html", common_context(request) | context)
+    # Remember an explicit page-size choice across visits (per-browser).
+    if per_explicit is not None:
+        resp.set_cookie(_PER_PAGE_COOKIE, str(per), max_age=60 * 60 * 24 * 365, samesite="lax")
+    return resp
 
 
 @router.get("/restore/progress.json")
