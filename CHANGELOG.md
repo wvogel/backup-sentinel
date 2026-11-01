@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.64] — 2026-11-01
+
+### Fixed
+
+- **A restored guest with the Proxmox NIC firewall enabled is now actually reachable.** When the backed-up NIC had `firewall=1`, the restored VM hung off the Proxmox firewall bridge (fwbr/fwpr) on the sandbox, whose rules silently dropped the probe's ICMP and TCP — ARP still resolved, so the guest looked "reachable but dead" (a Proxmox Backup Server answering fine in production couldn't be probed in the sandbox). The sandbox is already isolated by its portless bridge, so `rewrite_nics` now strips `firewall=` from the restored NICs, attaching them straight to the sandbox bridge. Other NIC options (model, MAC, queues) are preserved.
+
 ## [v3.1.63] — 2026-11-01
 
 ### Fixed
