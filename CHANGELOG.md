@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.2.6] — 2026-11-01
+
+### Changed
+
+- **Dropped the (impossible) attempts to name the restore VM *during* the restore.** `qmrestore` holds a file lock on the VM config for the whole restore, and `qm set --skiplock` only skips the config *property* lock, not that file lock — so the earlier `-name`-on-create (v3.2.3, ignored by PVE) and `qm set --skiplock` (v3.2.5) just failed/timed out and wasted ~15 s per run. While a restore runs, PVE shows the still-nameless guest as its default "VM {vmid}"; the running sandbox is identifiable by its **helper**, which is named throughout. The restore VM is renamed to `<cluster>-<vm>` by `rewrite_nics` right after the restore, before it is started — so a guest that is held after a failure carries its real name.
+
 ## [v3.2.5] — 2026-11-01
 
 ### Fixed
