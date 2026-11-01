@@ -149,6 +149,7 @@ def execute(
     )
     result = "error"
     checks: dict[str, Any] = {}
+    log_text: str | None = None
     try:
         server.verify_host_identity(production_hosts)
         server.reap(owned_vmids())
@@ -196,6 +197,16 @@ def execute(
         result, checks = _probe_loop(
             server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id, should_cancel=should_cancel
         )
+        if result != "passed":
+            # Capture WHY from inside the helper (over host SSH, no helper creds)
+            # before teardown destroys it — ARP/route/ICMP state per guest IP.
+            try:
+                diag_ips = [ip for ip, _ in (server.guest_agent_nics(plan.restore_vmid) or [])]
+                if not diag_ips and plan.primary_ip:
+                    diag_ips = [plan.primary_ip]
+                log_text = server.probe_netdiag(plan.helper_vmid, diag_ips) or None
+            except Exception as exc:
+                logger.debug("probe netdiag failed: %s", exc)
     except RestoreCancelled as exc:
         logger.info("restore run %s cancelled: %s", run_id, exc)
         result = "cancelled"
@@ -206,10 +217,12 @@ def execute(
         checks = {"error": str(exc)}
 
     duration = int(now() - start)
-    return _finalize(run_id, plan, result, checks, duration, server)
+    return _finalize(run_id, plan, result, checks, duration, server, log=log_text)
 
 
-def _finalize(run_id: int, plan: RunPlan, result: str, checks: dict, duration: int, server: Any) -> str:
+def _finalize(
+    run_id: int, plan: RunPlan, result: str, checks: dict, duration: int, server: Any, log: str | None = None
+) -> str:
     if result != "passed" and plan.hold_on_failure and result in ("failed", "error"):
         # Keep the restored VM for inspection, but DISCARD the helper: it is cheap
         # and its only scarce resource — the management IP — would otherwise be
@@ -223,14 +236,14 @@ def _finalize(run_id: int, plan: RunPlan, result: str, checks: dict, duration: i
             except Exception as exc:
                 logger.warning("held: discarding helper %s failed: %s", plan.helper_vmid, exc)
         db_restore.record_run_result(
-            run_id, plan.vm_id, result, duration_seconds=duration, checks=checks, status="held"
+            run_id, plan.vm_id, result, duration_seconds=duration, checks=checks, log=log, status="held"
         )
         db_restore.update_run(run_id, helper_vmid=None, mgmt_ip=None)
         return "held"
 
     # Teardown (passed/limited, or failed without hold): reap this env.
     _teardown(server, plan)
-    db_restore.record_run_result(run_id, plan.vm_id, result, duration_seconds=duration, checks=checks)
+    db_restore.record_run_result(run_id, plan.vm_id, result, duration_seconds=duration, checks=checks, log=log)
     if result in ("failed", "error"):
         db_restore.schedule_retry(plan.vm_id, plan.retry_days)
     else:
