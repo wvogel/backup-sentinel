@@ -245,10 +245,45 @@ class RestoreServer:
 
     # capacity ---------------------------------------------------------------
 
+    def _host_memory(self) -> dict[str, int] | None:
+        """Real host memory from ``/proc/meminfo`` (root SSH): total, free,
+        buff/cache, used and — crucially — AVAILABLE. PVE's node status reports
+        ``free`` as MemFree (buff/cache counts as used), which badly understates
+        what is actually free for a restore; MemAvailable is the honest number
+        (reclaimable cache counts as free), matching ``free``'s 'available'.
+        Returns bytes, or None if the read/parse fails (caller falls back)."""
+        try:
+            out = self.ssh.run("cat /proc/meminfo")
+        except Exception as exc:
+            logger.debug("meminfo read failed: %s", exc)
+            return None
+        kb: dict[str, int] = {}
+        for line in out.splitlines():
+            key, _, rest = line.partition(":")
+            parts = rest.strip().split()
+            if parts and parts[0].isdigit():
+                kb[key.strip()] = int(parts[0]) * 1024  # meminfo is in kB
+        if "MemTotal" not in kb:
+            return None
+        total = kb["MemTotal"]
+        free = kb.get("MemFree", 0)
+        buff_cache = kb.get("Buffers", 0) + kb.get("Cached", 0) + kb.get("SReclaimable", 0)
+        available = kb.get("MemAvailable", free + buff_cache)
+        return {
+            "total": total,
+            "free": free,
+            "buff_cache": buff_cache,
+            "available": available,
+            "used": max(0, total - free - buff_cache),
+        }
+
     def free_resources(self) -> dict[str, Any]:
         node = self.node()
         status = self.pve.get(f"/nodes/{node}/status") or {}
         mem = status.get("memory", {})
+        # Prefer the host's real figures (incl. MemAvailable) over PVE's node
+        # status, whose "free" treats reclaimable buff/cache as used.
+        mem_detail = self._host_memory()
         cfg_targets = self.config.get("target_storages", [])
         classes = {s["storage"]: s.get("disk_class") for s in cfg_targets}
         # Operator's configured preference order, so the UI is stable across
@@ -282,7 +317,13 @@ class RestoreServer:
                 }
             )
         stores.sort(key=lambda s: (s["order"], s["storage"]))
-        return {"ram_free": mem.get("free"), "ram_total": mem.get("total"), "stores": stores}
+        if mem_detail:
+            # ram_free = AVAILABLE (what a restore can really use); the ring and the
+            # RAM-fit check both read ram_free, so both become honest.
+            ram_total, ram_free = mem_detail["total"], mem_detail["available"]
+        else:
+            ram_total, ram_free = mem.get("total"), mem.get("free")
+        return {"ram_free": ram_free, "ram_total": ram_total, "ram_detail": mem_detail, "stores": stores}
 
     def list_pbs_storages(self) -> list[dict[str, Any]]:
         """The restore host's PBS storages with the fields needed to resolve their
