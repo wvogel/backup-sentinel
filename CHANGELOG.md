@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.57] — 2026-11-01
+
+### Fixed
+
+- **The restore queue now un-wedges itself when a run is stuck.** One run left in status `running` blocks the whole single-slot queue — and a crash/kill mid-run, or a resume that failed before it could finalize, could leave a run `running` with nothing on the host, so the queue never advanced. On every queue pass the orchestrator now finalizes such a run automatically: past a grace period, with no running PVE task and neither its restore VM nor its helper present on the host, it is marked error and the queue proceeds. If the host is unreachable it does nothing (a transient outage is never mistaken for an empty host), and a real, still-running restore (VM/helper present or task running) is never touched.
+
 ## [v3.1.56] — 2026-11-01
 
 ### Fixed

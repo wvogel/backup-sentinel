@@ -662,6 +662,28 @@ class RestoreServer:
             return False
         return any(int(g.get("vmid", -1)) == int(vmid) for g in guests)
 
+    def present_vmids(self) -> set[int]:
+        """Every guest vmid (qemu + lxc) on the host. Raises if the host is
+        unreachable (so a caller can tell 'host down' from 'nothing there' and not
+        mistake a transient outage for an empty host)."""
+        node = self.node()
+        out: set[int] = set()
+        for kind in ("qemu", "lxc"):
+            for g in self.pve.get(f"/nodes/{node}/{kind}") or []:
+                try:
+                    out.add(int(g.get("vmid")))
+                except (TypeError, ValueError):
+                    continue
+        return out
+
+    def task_running(self, upid: str, node: str | None = None) -> bool:
+        """Whether a PVE task (by UPID) is still running. Unreachable/unknown → False."""
+        try:
+            st = self.pve.get(f"/nodes/{node or self.node()}/tasks/{upid}/status") or {}
+        except Exception:
+            return False
+        return st.get("status") == "running"
+
     def rewrite_nics(self, vmid: int, vlan_tag: int, guest_vlan: int | None = None) -> None:
         """Prepare the restored guest's config for an isolated sandbox boot, in one
         config update:
