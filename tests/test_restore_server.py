@@ -355,15 +355,19 @@ def test_restore_completes_on_ok_status():
     assert any(p.get("percent") == 100 for p in seen)
 
 
-def test_start_restore_task_returns_upid_from_background_output():
-    upid_line = "UPID:pve:0000ABCD:00001234:qmrestore:9000:root@pam:"
-    ssh = _RecSsh(replies={"cat ": upid_line + "\nstarting restore..."})
-    srv = RestoreServer({"ssh_host": "x", "sandbox_bridge": "vmbr9"}, FakePve({}), ssh)
-    upid = srv._start_restore_task(9000, "store:backup/vm/100/x", "zfs", "r1", sleep=lambda s: None)
-    assert upid == upid_line
-    # Started in the background as root via pvesh (so hostpci applies), not waited on.
-    assert any("pvesh create /nodes/r1/qemu" in c and "nohup" in c for c in ssh.commands)
-    assert any("-archive store:backup/vm/100/x" in c for c in ssh.commands)
+def test_start_restore_task_discovers_upid_via_task_list():
+    upid = "UPID:r1:0000ABCD:00001234:qmrestore:9000:root@pam:"
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/tasks": [{"upid": upid, "id": "9000", "type": "qmrestore"}],
+    }
+    srv = _server(responses)
+    got = srv._start_restore_task(9000, "store:backup/vm/100/x", "zfs", "r1", sleep=lambda s: None)
+    assert got == upid
+    # Kicked in the background as root via pvesh (so hostpci applies); UPID found
+    # via the API task list, not pvesh stdout.
+    assert any("pvesh create /nodes/r1/qemu" in c and "nohup" in c for c in srv.ssh.commands)
+    assert any("-archive store:backup/vm/100/x" in c for c in srv.ssh.commands)
 
 
 def test_provision_helper_rootfs_on_first_container_capable_target():
