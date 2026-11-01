@@ -624,7 +624,9 @@ class RestoreServer:
         # dnsmasq config and the sandbox alias addresses once it is reachable.
         self._agent_wait_healthy(mgmt_ip)
         conf = dnsmasq_config(reservations, probe_offset)
-        self._agent_post(mgmt_ip, "/dnsmasq", {"conf": conf, "aliases": alias_addrs})
+        res = self._agent_post(mgmt_ip, "/dnsmasq", {"conf": conf, "aliases": alias_addrs})
+        if isinstance(res, dict) and res.get("ok") is False:
+            raise RestoreTaskError(f"helper dnsmasq setup failed: {res.get('dnsmasq_error', 'unknown error')}")
 
     def start_lxc(self, vmid: int) -> None:
         self.pve.post(f"/nodes/{self.node()}/lxc/{vmid}/status/start", {})
@@ -640,14 +642,25 @@ class RestoreServer:
         return f"http://{mgmt_ip}:{AGENT_PORT}{path}"
 
     def _agent_post(self, mgmt_ip: str, path: str, body: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
+        import urllib.error
         import urllib.request
 
         data = json.dumps(body).encode()
         req = urllib.request.Request(
             self._agent_url(mgmt_ip, path), data=data, headers={"Content-Type": "application/json"}, method="POST"
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read()
+        except urllib.error.HTTPError as exc:
+            # The agent catches its own exceptions and returns {"error", "trace"}
+            # with a 500. urllib turns that into a bare HTTPError whose str() is
+            # just "HTTP Error 500: Internal Server Error" — so read the body and
+            # surface the agent's actual reason instead of discarding it.
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RestoreTaskError(f"restore helper agent {path} returned HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise RestoreTaskError(f"restore helper agent {path} unreachable at {mgmt_ip}: {exc.reason}") from exc
         return json.loads(raw) if raw else {}
 
     def _agent_wait_healthy(
