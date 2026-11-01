@@ -712,7 +712,6 @@ class RestoreServer:
         on_progress: Callable[[dict[str, Any]], None] | None = None,
         on_task: Callable[[str], None] | None = None,
         *,
-        name: str = "",
         poll_interval: float = 5.0,
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
@@ -725,10 +724,12 @@ class RestoreServer:
         re-attach after an app restart (a deploy must not interrupt a running
         restore).
 
-        ``name`` (cluster+VM) is applied *at creation* so the restored guest shows
-        its real name from the first moment — the restore holds a config lock for
-        its whole duration, so a rename afterwards would leave it as a bare "VM
-        9000" in the PVE UI for the entire (often long) copy."""
+        The guest is NOT named here. ``qmrestore`` holds a flock on the config for
+        the restore's whole duration (``qm set --skiplock`` only skips the config
+        *property* lock, not the file lock, so it just times out), and ``qmrestore``
+        has no ``--name``/ignores a name override — so a nameless VM shows as PVE's
+        default "VM {vmid}" until the restore finishes. ``rewrite_nics`` sets the
+        ``<cluster>-<vm>`` name right after, once the lock clears."""
         node = self.node()
         # snapshot_id is the PBS volume id (e.g. "store:backup/vm/100/2026-...Z"),
         # which PVE accepts directly as the restore archive.
@@ -740,11 +741,9 @@ class RestoreServer:
         # UPID over the FAST API token for live progress. (Running `pvesh create`
         # in the foreground blocks until the whole restore finishes, which froze
         # the progress at 0% the entire time.)
-        upid = self._start_restore_task(restore_vmid, archive, target_storage, node, name=name, now=now, sleep=sleep)
+        upid = self._start_restore_task(restore_vmid, archive, target_storage, node, now=now, sleep=sleep)
         if on_task:
             on_task(upid)
-        if name:
-            self._name_guest_early(restore_vmid, name, sleep=sleep)
         self._poll_task(
             node, upid, on_progress, poll_interval=poll_interval, now=now, sleep=sleep, should_cancel=should_cancel
         )
@@ -756,7 +755,6 @@ class RestoreServer:
         storage: str,
         node: str,
         *,
-        name: str = "",
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
         deadline_seconds: float = 120.0,
@@ -768,15 +766,11 @@ class RestoreServer:
         block-buffers and only flushed at the very end — freezing progress at 0%
         until completion)."""
         out = f"/tmp/bsentinel-restore-{vmid}.log"
-        # Name the guest AT CREATION (the create-from-archive endpoint accepts a
-        # name override) so it shows its cluster+VM name from the first moment —
-        # the restore holds a config lock for its whole duration, so a rename only
-        # after it finishes would leave a bare "VM {vmid}" in the PVE UI the entire
-        # (often long) copy.
-        name_arg = f"-name {shlex.quote(name)} " if name else ""
+        # No name override here: PVE ignores it on an archive restore, and the VM
+        # is renamed by rewrite_nics once the restore lock clears (see restore()).
         self.ssh.run(
             f"nohup pvesh create /nodes/{shlex.quote(node)}/qemu "
-            f"-vmid {vmid} -archive {shlex.quote(archive)} -storage {shlex.quote(storage)} {name_arg}-live-restore 0 "
+            f"-vmid {vmid} -archive {shlex.quote(archive)} -storage {shlex.quote(storage)} -live-restore 0 "
             f"> {shlex.quote(out)} 2>&1 & echo kicked"
         )
         deadline = now() + deadline_seconds
@@ -803,35 +797,6 @@ class RestoreServer:
         except Exception as exc:
             logger.debug("restore log tail failed: %s", exc)
         raise RestoreTaskError(f"restore task for VM {vmid} did not appear; log: {tail[:300]}")
-
-    def _name_guest_early(
-        self,
-        vmid: int,
-        name: str,
-        *,
-        sleep: Callable[[float], None] = time.sleep,
-        attempts: int = 15,
-    ) -> None:
-        """Set the restored guest's name AS SOON AS its config exists, bypassing
-        the restore's config lock (root ``qm set --skiplock``), so it shows its
-        ``<cluster>-<vm>`` name for the whole restore instead of a bare "VM
-        {vmid}". PVE ignores a ``name`` override on the archive-restore create
-        itself, and the config is locked for the restore's entire (often long)
-        duration, so this is the only way to name it live. ``--name`` touches only
-        the config's name field, never a disk. Best-effort: the config can lag the
-        task by a second or two (retry), and ``rewrite_nics`` sets the name again
-        after the restore as the durable guarantee, so a failure here is not
-        fatal."""
-        cmd = f"qm set {int(vmid)} --name {shlex.quote(name)} --skiplock"
-        for _ in range(attempts):
-            try:
-                self.ssh.run(cmd)
-                logger.info("named restore guest %s %r during the restore", vmid, name)
-                return
-            except Exception as exc:
-                logger.debug("early guest rename not ready yet (%s); retrying", str(exc)[:120])
-                sleep(1.0)
-        logger.info("could not name guest %s early; will be set after the restore", vmid)
 
     def stop_task(
         self, upid: str, node: str | None = None, *, wait: bool = True, sleep: Callable[[float], None] = time.sleep
