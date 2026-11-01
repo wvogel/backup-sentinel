@@ -52,9 +52,15 @@ def rewrite_net_line(net_line: str, bridge: str, tag: int | None, trunks: int | 
     ``trunks`` carries an extra tagged VLAN through the port (for a guest that tags
     internally, e.g. its IP is on ``eth0.20``): the env's ``tag`` stays the PVID
     (per-env isolation for untagged traffic) and ``trunks=20`` lets the guest's
-    tagged frames pass. ``...,tag=901,trunks=20``."""
+    tagged frames pass. ``...,tag=901,trunks=20``.
+
+    Also drop ``firewall=1``: with the Proxmox NIC firewall enabled the guest hangs
+    off a firewall bridge (fwbr/fwpr) whose rules silently drop the probe's ICMP
+    and TCP (ARP still resolves, so it looks "reachable but dead"). The sandbox is
+    already isolated by the portless bridge, so the per-NIC firewall only gets in
+    the way — omitting it leaves PVE's default (off)."""
     parts = [p for p in net_line.split(",") if p]
-    kept = [p for p in parts if not p.startswith(("bridge=", "tag=", "trunks="))]
+    kept = [p for p in parts if not p.startswith(("bridge=", "tag=", "trunks=", "firewall="))]
     kept.append(f"bridge={bridge}")
     if tag is not None:
         kept.append(f"tag={tag}")

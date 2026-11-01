@@ -36,6 +36,15 @@ def test_rewrite_net_line_adds_bridge_when_missing_and_no_tag():
     assert out == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9"
 
 
+def test_rewrite_net_line_drops_firewall_keeps_other_opts():
+    # firewall=1 puts the guest behind the Proxmox NIC firewall, which drops the
+    # probe's ICMP/TCP — must be stripped. Other opts (queues) are preserved.
+    out = rewrite_net_line("virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,firewall=1,queues=4,tag=5", "vmbr9", 901)
+    assert "firewall=1" not in out and "firewall=" not in out
+    assert "queues=4" in out
+    assert "bridge=vmbr9" in out and "tag=901" in out
+
+
 def test_classify_task_error_wrong_key():
     tail = "Error: unable to load encryption key - decryption failed\nTASK ERROR"
     msg = classify_task_error("command '/usr/bin/proxmox-backup-client restore ...' failed: exit code 255", tail)
