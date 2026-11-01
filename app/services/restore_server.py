@@ -445,23 +445,33 @@ class RestoreServer:
         """Ensure the VLAN-aware, portless (isolated) sandbox bridge actually EXISTS
         and is UP on the host (spec §6).
 
-        Create it the **PVE-native** way (``pvesh create /nodes/<node>/network`` +
-        apply) so it is written to the host's network config — persistent across
-        reboots AND visible in the PVE GUI (Node → Network). The old approach only
-        appended an ``interfaces.d`` stanza and ran ``ifup`` when the config was
-        absent, so a single failed ``ifup`` (or a reboot where ``interfaces.d`` is
-        not sourced) left the bridge missing/down and never retried — the restore
-        then ran on a bridge that did not exist, and it never showed in the GUI.
-        A runtime ``ip link`` pass then guarantees it is up right now (the config
-        apply can lag, and this also recovers a config-present-but-down bridge),
-        and a final check aborts the run with a clear error if it is still missing."""
+        Create it the **PVE-native** way (``pvesh create /nodes/<node>/network``,
+        config only) so it is written to the host's network config — persistent
+        across reboots AND visible in the PVE GUI (Node → Network). The old
+        approach only appended an ``interfaces.d`` stanza and ran ``ifup`` when the
+        config was absent, so a single failed ``ifup`` (or a reboot where
+        ``interfaces.d`` is not sourced) left the bridge missing/down and never
+        retried — the restore then ran on a bridge that did not exist, and it
+        never showed in the GUI.
+
+        We deliberately do **not** apply the config host-wide here (no
+        ``pvesh set /nodes/<node>/network``): that runs ``ifreload -a``, which
+        bounces *every* interface on the restore host — including vmbr0's
+        production VLAN sub-interfaces (e.g. the management VLAN the helper's mgmt
+        leg lives on). A single such reload could leave those sub-interfaces stale
+        ("No route to host" to the helper, PBS "client error (Connect)") until the
+        host is rebooted. The runtime ``ip link`` pass below makes vmbr9 live right
+        now without touching anything else; the operator can apply the pending GUI
+        change (or a reboot picks it up) at a calm moment. A final check aborts the
+        run with a clear error if the bridge is still missing."""
         bridge = self.config["sandbox_bridge"]
         node = self.node()
         b = shlex.quote(bridge)
         qnode = shlex.quote(node)
-        # 1. Native, persistent, GUI-visible bridge. Skip if the node already has
-        #    the interface configured; create + apply otherwise. Best-effort: a
-        #    failure here still leaves the runtime pass below to make it work.
+        # 1. Native, persistent, GUI-visible bridge (config only — NO host-wide
+        #    apply; see the docstring: an ``ifreload -a`` would bounce the host's
+        #    production VLANs). Skip if the node already has it configured.
+        #    Best-effort: the runtime pass below makes it work regardless.
         already = False
         try:
             already = bool(self.pve.get(f"/nodes/{node}/network/{bridge}"))
@@ -473,7 +483,6 @@ class RestoreServer:
                     f"pvesh create /nodes/{qnode}/network --iface {b} --type bridge "
                     f"--autostart 1 --bridge_vlan_aware 1 --bridge_vids 2-4094"
                 )
-                self.ssh.run(f"pvesh set /nodes/{qnode}/network")  # apply (ifreload)
             except Exception as exc:
                 logger.warning("PVE-native creation of %s failed (will bring it up at runtime): %s", bridge, exc)
         # 2. Guarantee it is up NOW (idempotent) regardless of the apply's timing.
