@@ -761,6 +761,24 @@ def test_guest_agent_ips_parses_and_filters():
     assert srv.guest_agent_ips(9000) == ["10.0.0.77"]  # loopback + ipv6 filtered out
 
 
+def test_guest_agent_nics_reports_ip_and_prefix():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/agent/network-get-interfaces": {
+            "result": [
+                {"name": "lo", "ip-addresses": [{"ip-address": "127.0.0.1", "ip-address-type": "ipv4", "prefix": 8}]},
+                {
+                    "name": "eth0",
+                    "ip-addresses": [{"ip-address": "10.122.202.20", "ip-address-type": "ipv4", "prefix": 24}],
+                },
+            ]
+        },
+    }
+    srv = _server(responses)
+    # The guest's real IP with its real prefix (not always /24), loopback filtered.
+    assert srv.guest_agent_nics(9000) == [("10.122.202.20", 24)]
+
+
 def test_reap_destroys_unowned():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],

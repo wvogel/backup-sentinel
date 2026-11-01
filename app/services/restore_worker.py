@@ -37,6 +37,7 @@ class RunPlan:
     sandbox_ip: str | None = None  # the helper's own sandbox-leg IP (a host in the guest subnet, or fallback)
     sandbox_prefix: int = 24  # the guest subnet's prefix (not always /24)
     guest_vlan: int | None = None  # the VID the guest tags internally (trunk the NIC, access the helper)
+    probe_override: str | None = None  # operator-set probe IP (CIDR); when set, the live agent IP never overrides it
     require_icmp: bool = True
     tcp_ports: list[int] = field(default_factory=list)
     hold_on_failure: bool = False
@@ -69,24 +70,30 @@ def _probe_loop(
 ) -> tuple[str, dict[str, Any]]:
     """Poll until success or the window elapses. Returns (result, checks).
 
-    The target IP is resolved per iteration: the recorded/override IP if known,
-    otherwise discovered from the restored VM's guest agent (which only answers
-    once it has booted). So a VM whose IP we don't have recorded is no longer an
-    instant "limited" — we wait for the agent within the window and then probe."""
+    The target IP is resolved per iteration. An operator override always wins.
+    Otherwise we trust the restored VM's **live guest-agent IP** (with its own
+    prefix): a static guest keeps its address and never takes our DHCP, so the
+    agent's report is the truth — we probe that IP and the helper reaches it over
+    a host it adds in the same subnet. Only if the agent reports nothing do we
+    fall back to the planned IP (recorded, or the management-range address)."""
     sleep(plan.first_delay)
     deadline = now() + plan.window
-    target_ip = plan.primary_ip  # override or recorded; may be None
     checks: dict[str, Any] = {}
     result = "limited"
     while True:
         if should_cancel and should_cancel():
             raise RestoreCancelled("restore cancelled by operator")
-        if not target_ip:
-            target_ip = next(iter(server.guest_agent_ips(plan.restore_vmid) or []), None)
-            if target_ip and run_id is not None:
-                db_restore.update_run(run_id, detected_ip=target_ip)
+        target_ip, prefix = plan.primary_ip, plan.sandbox_prefix
+        if not plan.probe_override:
+            # No explicit override → the live agent IP is authoritative (handles a
+            # static guest that kept its own IP in a subnet we didn't plan for).
+            nic = next(iter(server.guest_agent_nics(plan.restore_vmid) or []), None)
+            if nic:
+                target_ip, prefix = nic
+        if target_ip and run_id is not None:
+            db_restore.update_run(run_id, detected_ip=target_ip)
         if target_ip:
-            targets = plan.probe_targets if plan.primary_ip else [{"ip": target_ip, "ports": plan.tcp_ports}]
+            targets = [{"ip": target_ip, "ports": plan.tcp_ports, "prefix": prefix}]
             checks = probe_fn(server, plan.mgmt_ip, targets)
             result = restore_probe.classify(
                 checks.get(target_ip), require_icmp=plan.require_icmp, tcp_ports=plan.tcp_ports, had_ip=True

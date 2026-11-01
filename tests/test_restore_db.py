@@ -45,6 +45,28 @@ class RestoreDbTestCase(unittest.TestCase):
         self.assertEqual(run["mgmt_ip"], "10.9.0.5")
         self.assertEqual(run["status"], "running")
 
+    def test_enqueue_if_never_passed(self) -> None:
+        # Fresh VM, never restored → enqueues one queued run.
+        rid = db_restore.enqueue_if_never_passed(self.vm_id)
+        self.assertIsNotNone(rid)
+        self.assertEqual(db_restore.get_run(rid)["status"], "queued")
+        # Already has an active (queued) run → skipped.
+        self.assertIsNone(db_restore.enqueue_if_never_passed(self.vm_id))
+
+    def test_enqueue_if_never_passed_skips_after_a_pass(self) -> None:
+        db_restore.record_run_result(
+            db_restore.create_run(self.vm_id), self.vm_id, "passed", duration_seconds=1, status="passed"
+        )
+        # A VM that has already passed is not re-queued on enable.
+        self.assertIsNone(db_restore.enqueue_if_never_passed(self.vm_id))
+
+    def test_enqueue_if_never_passed_requeues_after_only_failures(self) -> None:
+        db_restore.record_run_result(
+            db_restore.create_run(self.vm_id), self.vm_id, "error", duration_seconds=1, status="error"
+        )
+        # Only failed/errored before (never passed) and nothing active → enqueues.
+        self.assertIsNotNone(db_restore.enqueue_if_never_passed(self.vm_id))
+
     def test_list_runs_pagination_and_filters(self) -> None:
         db.create_cluster("Other", "other", "https://pve2.example:8006", "secret")
         cid2 = db.get_cluster_by_slug("other")["id"]

@@ -569,6 +569,7 @@
   "restore.retry_test": "Test für diese VM wiederholen",
   "restore.cancel_run": "Restore abbrechen",
   "restore.cancel_confirm": "Diesen laufenden Restore wirklich abbrechen? Die Umgebung wird abgeräumt.",
+  "restore.cancel_confirm_title": "Restore abbrechen?",
   "restore.err_not_restorable": "Für diese VM kennt der Restore-Server kein passendes Backup (lokal oder offsite) — kein Restore-Test möglich.",
   "restore.err_host": "Restore-Server nicht erreichbar — konnte die Backups nicht prüfen.",
   "restore.err_generic": "Aktion nicht möglich.",

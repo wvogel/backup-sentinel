@@ -224,9 +224,9 @@ class WorkerTest(unittest.TestCase):
         run_id = self._run()
 
         class Srv(FakeServer):
-            def guest_agent_ips(self, vmid):
-                self.calls.append("guest_agent_ips")
-                return ["10.0.0.77"]
+            def guest_agent_nics(self, vmid):
+                self.calls.append("guest_agent_nics")
+                return [("10.0.0.77", 24)]
 
         srv = Srv()
         res = execute(
@@ -239,7 +239,60 @@ class WorkerTest(unittest.TestCase):
             probe_fn=lambda s, ip, t: {"10.0.0.77": {"icmp": True, "ports": {"443": True}}},
         )
         self.assertEqual(res, "passed")  # IP discovered from the agent, then probed
-        self.assertIn("guest_agent_ips", srv.calls)
+        self.assertIn("guest_agent_nics", srv.calls)
+
+    def test_live_agent_ip_overrides_the_planned_ip(self):
+        # A static guest kept its own IP and never took our DHCP: the live agent IP
+        # (in a subnet we did not plan for) is probed, not the planned fallback.
+        run_id = self._run()
+
+        class Srv(FakeServer):
+            def guest_agent_nics(self, vmid):
+                return [("10.122.202.20", 24)]
+
+        probed = {}
+
+        def probe_fn(s, hv, targets):
+            probed["targets"] = targets
+            return {"10.122.202.20": {"icmp": True, "ports": {"443": True}}}
+
+        res = execute(
+            run_id,
+            _plan(self.vm_id, primary_ip="10.9.0.200", sandbox_prefix=24, probe_override=None),
+            Srv(),
+            production_hosts=set(),
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=probe_fn,
+        )
+        self.assertEqual(res, "passed")
+        self.assertEqual(probed["targets"], [{"ip": "10.122.202.20", "ports": [443], "prefix": 24}])
+
+    def test_operator_override_is_not_replaced_by_the_agent_ip(self):
+        # When the operator set an override, the agent IP must NOT win.
+        run_id = self._run()
+
+        class Srv(FakeServer):
+            def guest_agent_nics(self, vmid):
+                return [("10.122.202.20", 24)]
+
+        probed = {}
+
+        def probe_fn(s, hv, targets):
+            probed["targets"] = targets
+            return {"10.0.0.50": {"icmp": True, "ports": {"443": True}}}
+
+        res = execute(
+            run_id,
+            _plan(self.vm_id, primary_ip="10.0.0.50", probe_override="10.0.0.50/24"),
+            Srv(),
+            production_hosts=set(),
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=probe_fn,
+        )
+        self.assertEqual(res, "passed")
+        self.assertEqual(probed["targets"][0]["ip"], "10.0.0.50")
 
     def test_host_identity_failure_is_error(self):
         run_id = self._run()

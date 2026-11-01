@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.55] — 2026-11-01
+
+### Changed
+
+- **A restored VM that kept its own static IP is now reached at that IP, honouring its subnet.** When the guest agent of the restored VM reports an address (e.g. `10.122.202.20/24`) — a VM that never took our DHCP because it is statically configured — the probe now targets **that** IP with **its** prefix, and the helper reaches it over the **first free host in that subnet**. The live agent IP wins over the planned address; an operator override still wins over both.
+- **Cancelling a restore now asks in a styled lightbox, not a browser `alert`.** Both cancel controls (live card + runs list) open the app's confirm dialog.
+
+### Fixed
+
+- **Switching a VM to automatic restore now queues it immediately when it was never successfully restored.** Previously the enqueue was skipped while another restore was running (so it waited for the next sync tick); now the run is queued the moment auto-restore is enabled (if the VM has no active run and has never passed), then the queue is kicked.
+
 ## [v3.1.54] — 2026-11-01
 
 ### Fixed

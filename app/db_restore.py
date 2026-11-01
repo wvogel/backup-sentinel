@@ -63,6 +63,28 @@ def create_run(vm_id: int, trigger: str = "scheduled") -> int:
         return cur.fetchone()["id"]
 
 
+def enqueue_if_never_passed(vm_id: int, trigger: str = "scheduled") -> int | None:
+    """Queue a run for ``vm_id`` only if it has NO active run (queued/running/held)
+    and has NEVER had a passed run. Atomic (one INSERT…SELECT), so it is safe to
+    call eagerly — e.g. the moment auto-restore is switched on for a VM that was
+    never successfully restored, so it enters the queue at once instead of waiting
+    for the next sync tick. Returns the new run id, or None if it was skipped."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO restore_runs (vm_id, trigger, status)
+            SELECT %s, %s, 'queued'
+            WHERE NOT EXISTS (SELECT 1 FROM restore_runs WHERE vm_id = %s AND status = ANY(%s))
+              AND NOT EXISTS (SELECT 1 FROM restore_runs WHERE vm_id = %s AND result = 'passed')
+            RETURNING id
+            """,
+            (vm_id, trigger, vm_id, list(LIVE_RUN_STATUSES), vm_id),
+        )
+        row = cur.fetchone()
+        conn.commit()
+        return row["id"] if row else None
+
+
 def get_run(run_id: int) -> RestoreRunRow | None:
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT * FROM restore_runs WHERE id = %s", (run_id,))
