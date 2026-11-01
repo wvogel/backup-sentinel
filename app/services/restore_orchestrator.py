@@ -678,14 +678,72 @@ def reprovision_and_retest(run_id: int, run: dict[str, Any], config: dict[str, A
     return result, plan
 
 
+# A real restore has its helper and/or restore VM on the host within seconds of
+# going 'running' (the helper CT is created first, the restore VM moments later).
+# So a run that has been 'running' this long with NOTHING on the host is wedged.
+STUCK_RUN_GRACE_SECONDS = 600
+
+
+def recover_stuck_runs(server: RestoreServer, config: dict[str, Any]) -> int:
+    """Self-heal a wedged queue. One run in status 'running' blocks the whole
+    single-slot queue (``has_active_run``). A crash/SIGKILL mid-run, or a resume
+    that raised before it could finalize, can leave a run 'running' with nothing
+    on the host — and then the queue never advances. Finalize any such run: past
+    the grace period, with no running PVE task and neither its restore VM nor its
+    helper present on the host. Host unreachable → do nothing (don't mistake an
+    outage for an empty host). Returns the count recovered."""
+    import datetime as _dt
+
+    running = db_restore.list_runs(limit=500, status="running")
+    if not running:
+        return 0
+    try:
+        present = server.present_vmids()  # ground truth; raises if the host is down
+    except Exception as exc:
+        logger.debug("stuck-run recovery skipped (host unreachable): %s", exc)
+        return 0
+
+    now = _dt.datetime.now(_dt.UTC)
+    recovered = 0
+    for run in running:
+        started = run.get("started_at")
+        if started is not None:
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=_dt.UTC)
+            if (now - started).total_seconds() < STUCK_RUN_GRACE_SECONDS:
+                continue  # too fresh — may still be provisioning
+        rv, hv, upid = run.get("restore_vmid"), run.get("helper_vmid"), run.get("task_upid")
+        alive = (rv and int(rv) in present) or (hv and int(hv) in present)
+        if not alive and upid:
+            alive = server.task_running(upid)
+        if alive:
+            continue
+        logger.warning("recovering stuck restore run %s: 'running' but nothing on the host", run["id"])
+        try:
+            restore_worker._teardown(server, plan_from_run(run, config))  # best-effort, usually a no-op
+        except Exception as exc:
+            logger.debug("stuck-run teardown (ignored): %s", exc)
+        db_restore.record_run_result(
+            run["id"],
+            run["vm_id"],
+            "error",
+            duration_seconds=0,
+            checks={"error": "recovered: run was stuck 'running' with no environment on the host"},
+            status="error",
+        )
+        recovered += 1
+    return recovered
+
+
 def run_restore_queue() -> None:
-    """Entry point for the auto-sync loop: enqueue due + drain. Defensive."""
+    """Entry point for the auto-sync loop: recover wedged runs, enqueue due, drain."""
     try:
         config = restore_config.load()
         if config is None:
             return
         config = ensure_host_key_pinned(config)
         server = build_server(config)
+        recover_stuck_runs(server, config)
         enqueue_due(server, config)
         drain(config, server)
     except Exception as exc:

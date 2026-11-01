@@ -244,6 +244,89 @@ class DrainSkipTest(unittest.TestCase):
         self.assertNotEqual(db_restore.get_run(small)["status"], "queued")  # executed
 
 
+class _RecoverServer:
+    """Fake server for the stuck-run self-heal: reports which vmids are present on
+    the host (present_vmids), or raises when unreachable."""
+
+    def __init__(self, present=(), task_running=False, reachable=True):
+        self._present = set(present)
+        self._task_running = task_running
+        self._reachable = reachable
+
+    def present_vmids(self):
+        if not self._reachable:
+            raise RuntimeError("host unreachable")
+        return set(self._present)
+
+    def task_running(self, upid, node=None):
+        return self._task_running
+
+    def exists(self, vmid, is_lxc=False):
+        return int(vmid) in self._present
+
+    def __getattr__(self, name):
+        return lambda *a, **k: None
+
+
+class RecoverStuckRunsTest(unittest.TestCase):
+    def setUp(self):
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("TRUNCATE clusters RESTART IDENTITY CASCADE")
+            conn.commit()
+        db.create_cluster("Prod", "prod", "https://pve.prod.example:8006", "secret")
+        cid = db.get_cluster_by_slug("prod")["id"]
+        db.sync_cluster_inventory(
+            cid,
+            [{"name": "pve1", "status": "online"}],
+            [{"node_name": "pve1", "vmid": 100, "name": "web", "backup_kind": "daily", "last_backup_at": None}],
+        )
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT id FROM vms WHERE vmid = 100")
+            self.vm_id = cur.fetchone()["id"]
+
+    def _running(self, *, age_min, restore_vmid=9000, helper_vmid=9001, task_upid=None):
+        rid = db_restore.create_run(self.vm_id)
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE restore_runs SET status='running', restore_vmid=%s, helper_vmid=%s, task_upid=%s, "
+                "started_at = NOW() - (%s || ' minutes')::interval WHERE id=%s",
+                (restore_vmid, helper_vmid, task_upid, age_min, rid),
+            )
+            conn.commit()
+        return rid
+
+    def test_recovers_a_phantom_running_run(self):
+        rid = self._running(age_min=20)  # older than the 10-min grace
+        n = orch.recover_stuck_runs(_RecoverServer(present=()), CONFIG)  # nothing on host
+        self.assertEqual(n, 1)
+        self.assertEqual(db_restore.get_run(rid)["status"], "error")
+        self.assertFalse(db_restore.has_active_run())  # queue unblocked
+
+    def test_keeps_a_run_whose_vm_is_present(self):
+        rid = self._running(age_min=20)
+        n = orch.recover_stuck_runs(_RecoverServer(present={9000}), CONFIG)  # restore VM still there
+        self.assertEqual(n, 0)
+        self.assertEqual(db_restore.get_run(rid)["status"], "running")
+
+    def test_keeps_a_fresh_run_still_provisioning(self):
+        rid = self._running(age_min=1)  # within grace
+        n = orch.recover_stuck_runs(_RecoverServer(present=()), CONFIG)
+        self.assertEqual(n, 0)
+        self.assertEqual(db_restore.get_run(rid)["status"], "running")
+
+    def test_does_nothing_when_host_unreachable(self):
+        rid = self._running(age_min=20)
+        n = orch.recover_stuck_runs(_RecoverServer(reachable=False), CONFIG)
+        self.assertEqual(n, 0)
+        self.assertEqual(db_restore.get_run(rid)["status"], "running")  # not mistaken for empty
+
+    def test_keeps_a_run_with_a_still_running_task(self):
+        rid = self._running(age_min=20, task_upid="UPID:pve1:restore:100")
+        n = orch.recover_stuck_runs(_RecoverServer(present=(), task_running=True), CONFIG)
+        self.assertEqual(n, 0)
+        self.assertEqual(db_restore.get_run(rid)["status"], "running")
+
+
 def test_target_storages_from_rows():
     from app.web.routes_restore import _target_storages_from_rows
 
