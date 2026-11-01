@@ -54,6 +54,28 @@ def rewrite_net_line(net_line: str, bridge: str, tag: int | None) -> str:
     return ",".join(kept)
 
 
+_DRIVE_KEY = re.compile(r"(ide|sata|scsi|virtio)\d+")
+
+
+def eject_cdroms(config: dict[str, Any]) -> dict[str, str]:
+    """Config changes that let a restored guest boot in the isolated sandbox:
+    eject every CD-ROM that still points at a backing volume (an ISO on the
+    SOURCE cluster's storage, e.g. its NAS). That storage doesn't exist on the
+    restore host, so ``VM ... Start`` fails with "storage '…' does not exist"
+    until the drive is emptied. A restore test boots from disk and never needs
+    the ISO, so each such drive is set to ``none,media=cdrom``."""
+    changes: dict[str, str] = {}
+    for key, value in config.items():
+        if not isinstance(value, str) or not _DRIVE_KEY.fullmatch(key):
+            continue
+        if "media=cdrom" not in value:
+            continue
+        first = value.split(",", 1)[0].strip()
+        if first and first not in ("none", "cdrom"):
+            changes[key] = "none,media=cdrom"
+    return changes
+
+
 def select_reaper_targets(guests: list[dict[str, Any]], owned_vmids: set[int]) -> list[dict[str, Any]]:
     """Guests to destroy: everything on the scratch host that is NOT owned by a
     live (active/held) run. With no owned vmids, that is everything."""
@@ -426,8 +448,11 @@ class RestoreServer:
         return any(int(g.get("vmid", -1)) == int(vmid) for g in guests)
 
     def rewrite_nics(self, vmid: int, vlan_tag: int) -> None:
-        """Re-point every NIC to the sandbox bridge + this env's VLAN tag,
-        keeping MACs (spec §10)."""
+        """Prepare the restored guest's config for an isolated sandbox boot:
+        re-point every NIC to the sandbox bridge + this env's VLAN tag (keeping
+        MACs, spec §10) AND eject any CD-ROM still backed by a source-cluster ISO
+        (whose storage doesn't exist here, which would fail the start). Both are
+        applied in one config update."""
         node = self.node()
         config = self.pve.get(f"/nodes/{node}/qemu/{vmid}/config") or {}
         bridge = self.config["sandbox_bridge"]
@@ -435,6 +460,7 @@ class RestoreServer:
         for key, value in config.items():
             if re.fullmatch(r"net\d+", key) and isinstance(value, str):
                 changes[key] = rewrite_net_line(value, bridge, vlan_tag)
+        changes.update(eject_cdroms(config))
         if changes:
             self.pve.post(f"/nodes/{node}/qemu/{vmid}/config", changes)
 
