@@ -86,6 +86,36 @@ def classify(
     return "limited"
 
 
+def classify_multi(
+    checks: dict[str, Any],
+    ips: list[str],
+    *,
+    require_icmp: bool,
+    tcp_ports: list[int],
+    had_ip: bool,
+) -> RestoreResult:
+    """Classify a run across SEVERAL candidate IPs (the guest agent may report
+    more than one IPv4). A check counts as green if **any** IP satisfied it:
+
+    - ``passed``  — ICMP green on some IP (unless not required) AND every port
+      green on some IP.
+    - ``failed``  — nothing answered on any IP.
+    - ``limited`` — no IP to probe, or something answered but not all required.
+
+    This is the union across IPs; the caller keeps retrying until the first pass
+    where every check is green (or the window elapses)."""
+    if not had_ip or not ips:
+        return "limited"
+    results = [checks.get(ip) or {} for ip in ips]
+    icmp_any = any(bool(r.get("icmp")) for r in results)
+    icmp_ok = icmp_any or not require_icmp
+    ports_ok = all(any((r.get("ports") or {}).get(str(p), False) for r in results) for p in tcp_ports)
+    if icmp_ok and ports_ok:
+        return "passed"
+    reachable_anything = icmp_any or any((r.get("ports") or {}).get(str(p), False) for r in results for p in tcp_ports)
+    return "limited" if reachable_anything else "failed"
+
+
 def probe_once(
     mgmt_ip: str,
     token: str,

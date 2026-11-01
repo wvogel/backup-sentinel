@@ -37,8 +37,7 @@ class RunPlan:
     sandbox_ip: str | None = None  # the helper's own sandbox-leg IP (a host in the guest subnet, or fallback)
     sandbox_prefix: int = 24  # the guest subnet's prefix (not always /24)
     guest_vlan: int | None = None  # the VID the guest tags internally (trunk the NIC, access the helper)
-    probe_override: str | None = None  # operator-set probe IP (CIDR); when set, the live agent IP never overrides it
-    probe_is_fallback: bool = False  # primary_ip is the management-range guess, not a known/recorded IP
+    probe_override: str | None = None  # operator-set probe IP (CIDR); when set, the prober uses exactly it (stur)
     require_icmp: bool = True
     tcp_ports: list[int] = field(default_factory=list)
     hold_on_failure: bool = False
@@ -71,16 +70,15 @@ def _probe_loop(
 ) -> tuple[str, dict[str, Any]]:
     """Poll until success or the window elapses. Returns (result, checks).
 
-    Target resolution, re-done every pass:
-    - An operator override always wins.
-    - Otherwise we WAIT for the restored VM's **live guest-agent IP** (with its own
-      prefix) and probe that — a static guest keeps its own address, never takes
-      our DHCP, and only reports it once it has booted. We do not probe a useless
-      fallback while the agent is still coming up (that left the helper stuck on
-      the management IP): no agent IP yet simply means keep waiting.
-    - Only if the agent never reports within the window do we fall back once to
-      the planned IP (a DHCP guest at the management-range address that has no
-      guest agent to ask)."""
+    Targets are resolved fresh every pass:
+    - **Operator override** (CIDR [+ VLAN]): the prober uses exactly that one IP,
+      rigidly — it never consults the guest agent.
+    - **Otherwise**: before every test it checks what IPv4(s) the guest agent
+      reports. None yet → it tries the IP dnsmasq hands out from the management
+      range (a DHCP guest answers there). As soon as the agent reports IP(s), it
+      probes **every** reported IPv4 — the helper reaches each over the first free
+      host it adds in that IP's own subnet — and a check counts green if it passed
+      on any of them, until the first pass where every check is green."""
     sleep(plan.first_delay)
     deadline = now() + plan.window
     checks: dict[str, Any] = {}
@@ -88,32 +86,28 @@ def _probe_loop(
     while True:
         if should_cancel and should_cancel():
             raise RestoreCancelled("restore cancelled by operator")
-        past_deadline = now() >= deadline
-        target_ip, prefix = None, plan.sandbox_prefix
         if plan.probe_override:
-            target_ip, prefix = plan.primary_ip, plan.sandbox_prefix
+            targets = [{"ip": plan.primary_ip, "ports": plan.tcp_ports, "prefix": plan.sandbox_prefix}]
+            ips = [plan.primary_ip] if plan.primary_ip else []
         else:
-            # Check the guest agent before every test; the live IP is authoritative.
-            nic = next(iter(server.guest_agent_nics(plan.restore_vmid) or []), None)
-            if nic:
-                target_ip, prefix = nic
-            elif plan.primary_ip and (not plan.probe_is_fallback or past_deadline):
-                # A known/recorded IP is probed right away; the management-range
-                # GUESS (fallback) only as a last resort at the deadline — while the
-                # agent is still coming up we wait rather than probe a useless IP
-                # (which left the helper stuck on the management subnet).
-                target_ip, prefix = plan.primary_ip, plan.sandbox_prefix
-        if target_ip:
+            nics = server.guest_agent_nics(plan.restore_vmid) or []
+            if nics:
+                targets = [{"ip": ip, "ports": plan.tcp_ports, "prefix": pfx} for ip, pfx in nics]
+                ips = [ip for ip, _ in nics]
+            else:
+                # No agent IP yet → try the DHCP-assigned management-range IP.
+                targets = [{"ip": plan.primary_ip, "ports": plan.tcp_ports, "prefix": plan.sandbox_prefix}]
+                ips = [plan.primary_ip] if plan.primary_ip else []
+        if ips:
             if run_id is not None:
-                db_restore.update_run(run_id, detected_ip=target_ip)
-            targets = [{"ip": target_ip, "ports": plan.tcp_ports, "prefix": prefix}]
+                db_restore.update_run(run_id, detected_ip=ips[0])
             checks = probe_fn(server, plan.mgmt_ip, targets)
-            result = restore_probe.classify(
-                checks.get(target_ip), require_icmp=plan.require_icmp, tcp_ports=plan.tcp_ports, had_ip=True
+            result = restore_probe.classify_multi(
+                checks, ips, require_icmp=plan.require_icmp, tcp_ports=plan.tcp_ports, had_ip=True
             )
         else:
-            result, checks = "limited", {"note": "waiting for the guest agent to report an IP"}
-        if result == "passed" or past_deadline:
+            result, checks = "limited", {"note": "no target IP yet (no DHCP address, override, or guest agent)"}
+        if result == "passed" or now() >= deadline:
             return result, checks
         sleep(plan.interval)
 

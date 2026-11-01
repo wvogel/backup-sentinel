@@ -294,10 +294,10 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(res, "passed")
         self.assertEqual(probed["targets"][0]["ip"], "10.0.0.50")
 
-    def test_probe_waits_for_guest_agent_instead_of_probing_the_fallback(self):
-        # The guest agent reports its IP only after a few polls (slow boot). The
-        # loop must WAIT for it — never probe the fallback .200 meanwhile — and
-        # then target the agent's IP (so the helper reaches the right subnet).
+    def test_probes_dhcp_ip_until_the_agent_reports_then_switches(self):
+        # No override: while the guest agent has no IP we probe the DHCP-assigned
+        # management-range IP (.200); as soon as the agent reports its own IP we
+        # switch to that (the helper reaches it in its own subnet).
         from app.services.restore_worker import _probe_loop
 
         state = {"polls": 0, "probed": []}
@@ -312,63 +312,55 @@ class WorkerTest(unittest.TestCase):
 
         clock = {"t": 0.0}
 
-        def now():
-            return clock["t"]
-
-        def sleep(s):
-            clock["t"] += s
-
         def probe_fn(s, hv, targets):
             state["probed"].append(targets[0]["ip"])
-            return {targets[0]["ip"]: {"icmp": True, "ports": {"443": True}}}
+            # .200 never answers (static guest); the agent IP does.
+            return {targets[0]["ip"]: {"icmp": targets[0]["ip"] == "10.254.10.6", "ports": {"443": True}}}
 
-        plan = _plan(
-            self.vm_id,
-            primary_ip="10.9.0.200",
-            probe_override=None,
-            probe_is_fallback=True,
-            first_delay=0,
-            interval=10,
-            window=300,
-        )
-        res, _ = _probe_loop(Srv(), plan, now=now, sleep=sleep, probe_fn=probe_fn)
-        self.assertEqual(res, "passed")
-        self.assertEqual(state["probed"][0], "10.254.10.6")  # first probe is the agent IP
-        self.assertNotIn("10.9.0.200", state["probed"])  # fallback never probed while waiting
-
-    def test_probe_falls_back_to_planned_ip_at_deadline_without_agent(self):
-        # A DHCP guest with no guest agent: the agent never reports, so at the
-        # window's end we probe the planned (management-range) IP once.
-        from app.services.restore_worker import _probe_loop
-
-        probed = []
-
-        class Srv:
-            def guest_agent_nics(self, vmid):
-                return []  # no agent ever
-
-            def __getattr__(self, name):
-                return lambda *a, **k: None
-
-        clock = {"t": 0.0}
-        plan = _plan(
-            self.vm_id,
-            primary_ip="10.9.0.200",
-            probe_override=None,
-            probe_is_fallback=True,
-            first_delay=0,
-            interval=10,
-            window=20,
-        )
+        plan = _plan(self.vm_id, primary_ip="10.9.0.200", probe_override=None, first_delay=0, interval=10, window=300)
         res, _ = _probe_loop(
             Srv(),
             plan,
             now=lambda: clock["t"],
             sleep=lambda s: clock.__setitem__("t", clock["t"] + s),
-            probe_fn=lambda s, hv, t: probed.append(t[0]["ip"]) or {t[0]["ip"]: {"icmp": True, "ports": {"443": True}}},
+            probe_fn=probe_fn,
         )
-        self.assertEqual(probed, ["10.9.0.200"])  # only the final fallback probe
         self.assertEqual(res, "passed")
+        self.assertEqual(state["probed"][0], "10.9.0.200")  # DHCP IP tried while waiting
+        self.assertIn("10.254.10.6", state["probed"])  # switched to the agent IP
+
+    def test_probes_all_agent_ipv4s_and_greens_across_them(self):
+        # The agent reports two IPv4s in different subnets. The prober probes BOTH
+        # (the helper adds the first host of each subnet); a check is green if it
+        # passed on any IP — here ICMP on one, the port on the other.
+        from app.services.restore_worker import _probe_loop
+
+        seen = {}
+
+        class Srv:
+            def guest_agent_nics(self, vmid):
+                return [("10.254.10.6", 24), ("10.9.9.9", 25)]
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+
+        def probe_fn(s, hv, targets):
+            seen["targets"] = targets
+            return {
+                "10.254.10.6": {"icmp": True, "ports": {"443": False}},
+                "10.9.9.9": {"icmp": False, "ports": {"443": True}},
+            }
+
+        plan = _plan(self.vm_id, primary_ip="10.9.0.200", probe_override=None, first_delay=0, interval=0, window=0)
+        res, _ = _probe_loop(Srv(), plan, now=lambda: 0.0, sleep=lambda s: None, probe_fn=probe_fn)
+        self.assertEqual(res, "passed")  # icmp green on .6, port green on .9.9 → all checks green
+        self.assertEqual(
+            seen["targets"],
+            [
+                {"ip": "10.254.10.6", "ports": [443], "prefix": 24},
+                {"ip": "10.9.9.9", "ports": [443], "prefix": 25},
+            ],
+        )
 
     def test_host_identity_failure_is_error(self):
         run_id = self._run()

@@ -127,14 +127,14 @@ class OrchestratorTest(unittest.TestCase):
         self.assertEqual(plan.helper_vmid, 9001)
         self.assertEqual(plan.vlan_tag, 900)
         self.assertEqual(plan.mgmt_ip, "10.9.0.10")
-        # The VM has a recorded guest-agent IP (10.0.0.50/24): probe it with its
-        # own prefix; the helper takes another host in that subnet (.1). Neither
-        # depends on the restored, running VM.
-        self.assertEqual(plan.primary_ip, "10.0.0.50")
-        self.assertEqual(plan.sandbox_ip, "10.0.0.1")
+        # No operator override → the helper starts on the management LAN + DHCP
+        # (guest .200, helper .254). The live guest-agent IPs are used at probe
+        # time, not baked into the plan here.
+        self.assertEqual(plan.primary_ip, "10.9.0.200")
+        self.assertEqual(plan.sandbox_ip, "10.9.0.254")
         self.assertEqual(plan.sandbox_prefix, 24)
+        self.assertIsNone(plan.probe_override)
         self.assertEqual(plan.target_storage, "zfs")
-        # No per-NIC DHCP reservations any more: a single-address dynamic range.
         self.assertEqual(plan.reservations, [])
 
     def test_build_plan_without_target_storage_raises(self):
