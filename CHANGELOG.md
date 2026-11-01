@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.42] — 2026-11-01
+
+### Changed
+
+- **The status hover now spells out every probed IP, check by check.** Hovering a run's status icon shows the result word and then one line per probed IP with ICMP and each TCP port individually (`✓`/`✗`/`–`) — so a `limited` result shows exactly what worked and what didn't, across every IP of a multi-homed guest, instead of just the bucket word. (Previously the hover showed only the decisive IP's one line.)
+
 ## [v3.1.41] — 2026-11-01
 
 ### Added

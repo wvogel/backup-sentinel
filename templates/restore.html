@@ -164,17 +164,11 @@
           {%- if run.status == 'running' -%}
             <span class="status-icon status-running js-row-status" data-tooltip="{{ t('restore.phase_' ~ (run.phase or 'restoring')) }}" aria-label="{{ run.status }}">⟳&nbsp;<span class="js-row-pct">{{ run.percent or 0 }}%</span></span>
           {%- else -%}
-            {#- One decisive line per test: the primary/detected IP (the one that
-                decides pass/fail). A multi-homed guest is probed on several IPs;
-                only the decisive one feeds the hover. Fallback: first IP result. -#}
-            {%- set _checks = run.checks or {} -%}
-            {%- set _ns = namespace(primary=none) -%}
-            {%- set _byip = _checks.get(run.detected_ip) if run.detected_ip else none -%}
-            {%- if _byip is mapping and 'icmp' in _byip %}{% set _ns.primary = _byip %}
-            {%- else %}{% for _ip, _r in _checks.items() if _r is mapping and 'icmp' in _r %}{% if _ns.primary is none %}{% set _ns.primary = _r %}{% endif %}{% endfor %}{% endif -%}
-            {%- set _tip %}{{ run.result or run.status }}{% if _checks.get('error') %} — {{ _checks.error }}{% elif _ns.primary %} — ICMP {{ '–' if _ns.primary.icmp is none else ('✓' if _ns.primary.icmp else '✗') }}{% for port, ok in (_ns.primary.ports or {}).items() %} · :{{ port }} {{ '✓' if ok else '✗' }}{% endfor %}{% endif %}{% endset -%}
+            {#- The icon is the bucket; the hover spells out every probed IP with
+                ICMP + each port individually, so "limited" shows exactly what
+                worked and what didn't (restore_status_tooltip, multi-line). -#}
             {%- set _icon = {'passed': '✓', 'failed': '✗', 'error': '!', 'limited': '◐', 'held': '‖', 'queued': '…', 'planned': '…', 'cancelled': '⊘'}.get(run.status, '•') -%}
-            <span class="status-icon status-{{ run.status }}" data-tooltip="{{ _tip|trim }}" aria-label="{{ _tip|trim }}">{{ _icon }}</span>
+            <span class="status-icon status-{{ run.status }}" data-tooltip="{{ run|restore_status_tooltip }}" aria-label="{{ run.status }}">{{ _icon }}</span>
           {%- endif -%}
         </td>
         <td>
