@@ -344,3 +344,10 @@ window.copyText = copyText;
   document.addEventListener("focusout", hide);
   window.addEventListener("scroll", hide, { passive: true, capture: true });
 })();
+
+// ── Auto-submit a <select> on change (e.g. the runs "per page" picker) ────────
+// Lets a GET form re-navigate without an extra button, CSP-safe (no inline JS).
+document.addEventListener("change", (event) => {
+  const sel = event.target.closest?.("select[data-autosubmit]");
+  if (sel && sel.form) sel.form.submit();
+});

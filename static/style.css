@@ -1760,10 +1760,37 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px 16px;
   margin-top: 12px;
 }
-.runs-pager-nav { display: inline-flex; gap: 6px; }
+.runs-pager-nav { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.pg-btn, .pg-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.85rem;
+  background: var(--panel);
+}
+.pg-btn:hover, .pg-num:hover { background: var(--chip); border-color: var(--chip-border); }
+.pg-num.current {
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  border-color: var(--accent-fill);
+  font-weight: 600;
+}
+.pg-btn.disabled { color: var(--muted); background: transparent; border-color: var(--line); opacity: 0.5; pointer-events: none; }
+.pg-gap { display: inline-flex; align-items: center; padding: 0 2px; color: var(--muted); }
+.runs-per { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.runs-per label { color: var(--muted); font-size: 0.85rem; }
+.runs-per select { height: 30px; padding: 0 6px; }
 
 /* Excel-style per-column header filters. */
 .th-h { display: inline-flex; align-items: center; gap: 4px; }

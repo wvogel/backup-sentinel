@@ -183,7 +183,7 @@
 {# Runs list — Excel-style per-column header filters (a funnel in the header;
    the column lights up when a filter is on it). Filtering is server-side. #}
 {% macro colfilter(key, label, options, filt) -%}
-<span class="th-h">{{ label }}{% if filt[key] %}<span class="th-val">: {{ filt[key] }}</span>{% endif %}<details class="col-filter{{ ' active' if filt[key] }}"><summary aria-label="Filter"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M3 5h18l-7 8v5l-4 2v-7z"/></svg></summary><div class="col-filter-menu"><a class="{{ 'sel' if not filt[key] else '' }}" href="{{ runs_filter_href(filt, key, '') }}">{{ t('restore.filter_all') }}</a>{% for opt in options %}{% set val = opt if opt is string else opt[0] %}{% set disp = opt if opt is string else opt[1] %}<a class="{{ 'sel' if filt[key] == val else '' }}" href="{{ runs_filter_href(filt, key, val) }}">{{ disp }}</a>{% endfor %}</div></details></span>
+<span class="th-h">{{ label }}{% if filt[key] %}<span class="th-val">: {{ filt[key] }}</span>{% endif %}<details class="col-filter{{ ' active' if filt[key] }}"><summary aria-label="Filter"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M3 5h18l-7 8v5l-4 2v-7z"/></svg></summary><div class="col-filter-menu"><a class="{{ 'sel' if not filt[key] else '' }}" href="{{ runs_filter_href(filt, key, '', runs_per) }}">{{ t('restore.filter_all') }}</a>{% for opt in options %}{% set val = opt if opt is string else opt[0] %}{% set disp = opt if opt is string else opt[1] %}<a class="{{ 'sel' if filt[key] == val else '' }}" href="{{ runs_filter_href(filt, key, val, runs_per) }}">{{ disp }}</a>{% endfor %}</div></details></span>
 {%- endmacro %}
 <section class="table-card">
   <div class="section-head"><div><p class="eyebrow">{{ t('restore.runs_title') }}</p></div>{% if runs_has_filter %}<a class="button-secondary" href="/restore">{{ t('restore.filter_reset') }}</a>{% endif %}</div>
@@ -234,14 +234,40 @@
     {% endfor %}
     </tbody>
   </table>
+  {%- macro page_href(p) -%}?page={{ p }}{% if runs_query %}&{{ runs_query }}{% endif %}{%- endmacro -%}
   <div class="runs-pager">
     <span class="muted">{{ t('restore.page_of', page=runs_page, pages=runs_pages, total=runs_total) }}</span>
     {% if runs_pages > 1 %}
-    <span class="runs-pager-nav">
-      {% if runs_page > 1 %}<a class="button-secondary" href="?page={{ runs_page - 1 }}{% if runs_query %}&{{ runs_query }}{% endif %}">‹</a>{% endif %}
-      {% if runs_page < runs_pages %}<a class="button-secondary" href="?page={{ runs_page + 1 }}{% if runs_query %}&{{ runs_query }}{% endif %}">›</a>{% endif %}
-    </span>
+    <nav class="runs-pager-nav" aria-label="{{ t('restore.pagination') }}">
+      {% if runs_page > 1 %}
+      <a class="pg-btn" href="{{ page_href(1) }}" aria-label="{{ t('restore.first_page') }}">«</a>
+      <a class="pg-btn" href="{{ page_href(runs_page - 1) }}" aria-label="{{ t('restore.prev_page') }}">‹</a>
+      {% else %}
+      <span class="pg-btn disabled" aria-hidden="true">«</span>
+      <span class="pg-btn disabled" aria-hidden="true">‹</span>
+      {% endif %}
+      {% for p in runs_page_window %}
+        {% if p is none %}<span class="pg-gap">…</span>
+        {% elif p == runs_page %}<span class="pg-num current" aria-current="page">{{ p }}</span>
+        {% else %}<a class="pg-num" href="{{ page_href(p) }}">{{ p }}</a>{% endif %}
+      {% endfor %}
+      {% if runs_page < runs_pages %}
+      <a class="pg-btn" href="{{ page_href(runs_page + 1) }}" aria-label="{{ t('restore.next_page') }}">›</a>
+      <a class="pg-btn" href="{{ page_href(runs_pages) }}" aria-label="{{ t('restore.last_page') }}">»</a>
+      {% else %}
+      <span class="pg-btn disabled" aria-hidden="true">›</span>
+      <span class="pg-btn disabled" aria-hidden="true">»</span>
+      {% endif %}
+    </nav>
     {% endif %}
+    <form class="runs-per" method="get" action="/restore">
+      {% for k, v in runs_filter.items() %}{% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+      <label for="per-select">{{ t('restore.per_page') }}</label>
+      <select id="per-select" name="per" data-autosubmit>
+        {% for n in runs_per_options %}<option value="{{ n }}" {{ 'selected' if n == runs_per else '' }}>{{ n }}</option>{% endfor %}
+      </select>
+      <noscript><button type="submit" class="pg-btn">OK</button></noscript>
+    </form>
   </div>
   {% endif %}
 </section>

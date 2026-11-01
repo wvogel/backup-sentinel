@@ -104,15 +104,18 @@ def _parse_footer_links(s: str) -> list[dict[str, str]]:
 _footer_links = _parse_footer_links(FOOTER_LINKS)
 
 
-def runs_filter_href(filt: dict, key: str, value: str) -> str:
+def runs_filter_href(filt: dict, key: str, value: str, per: int | None = None) -> str:
     """URL for the restore runs log with ``key`` set to ``value`` (empty clears
     it) and all OTHER active filters preserved — for the per-column (Excel-style)
-    header filter menus. Page is dropped, so a filter change returns to page 1."""
+    header filter menus. Page is dropped, so a filter change returns to page 1;
+    the chosen page size (``per``) is kept when it is not the default."""
     from urllib.parse import urlencode
 
     params = {k: v for k, v in (filt or {}).items() if v and k != key}
     if value:
         params[key] = value
+    if per and per != 25:
+        params["per"] = per
     qs = urlencode(params)
     return "/restore?" + qs if qs else "/restore"
 
