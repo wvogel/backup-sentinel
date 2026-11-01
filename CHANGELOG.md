@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.2.7] — 2026-11-01
+
+### Fixed
+
+- **Containers (LXC) are no longer sent through the VM-only restore and failing.** The restore pipeline is QEMU-only (`qmrestore`), so a `pbs-ct` backup failed deep in the restore ("unknown setting 'features'/'hostname'/'rootfs'", "got unexpected backup format 'pbs-ct'") and left a stuck shell behind. A due container is now skipped at enqueue, and any CT that still reaches the queue (e.g. a manual run) is refused up front by `build_plan` with a clear "containers (LXC) are not supported yet — VM restore only" instead of the confusing parse errors. Full LXC restore support is tracked as separate work.
+
 ## [v3.2.6] — 2026-11-01
 
 ### Changed
