@@ -73,6 +73,25 @@ def _ensure_reachable(ip: str, prefix: int = 24) -> None:
         pass
 
 
+def _arp_alive(ip: str) -> bool:
+    """Whether the guest answers ARP for ``ip`` — proof it booted and is on the
+    sandbox L2 even when its firewall drops ICMP and TCP. A Windows guest on an
+    'unidentified' (public) network blocks inbound ICMP/ports but still answers
+    ARP (that is below the firewall). Sending any packet makes the kernel resolve
+    ARP first, so we poke the IP and then read the neighbour table for a MAC."""
+    try:
+        subprocess.run(["ping", "-c", "1", "-W", "1", ip], capture_output=True, timeout=3)
+    except Exception:
+        pass  # the ICMP reply may be firewalled; we only want the ARP it triggers
+    try:
+        out = subprocess.run(
+            ["ip", "neigh", "show", "to", ip], capture_output=True, text=True, timeout=3
+        ).stdout.lower()
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "lladdr" in out and "failed" not in out and "incomplete" not in out
+
+
 def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
     import time
 
@@ -92,6 +111,7 @@ def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
         # Key is "ports" (not "tcp"): the classifier reads primary["ports"].
         out[ip] = {
             "icmp": _ping(ip) if require_icmp else None,
+            "arp": _arp_alive(ip),  # L2 liveness that survives a guest firewall (Windows)
             "ports": ports,
             "ts": int(time.time()),
         }

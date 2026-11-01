@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.60] — 2026-11-01
+
+### Fixed
+
+- **Windows guests can now be verified even though they block ICMP.** A freshly restored Windows VM sits on an isolated sandbox with no gateway/internet, so Windows marks it an "unidentified" (public) network and its firewall drops inbound ICMP and most ports — the ICMP probe then failed although the VM was healthy. The helper now also does an **ARP** liveness check (ARP is answered below the firewall, so a live Windows guest always replies). ARP counts as "alive" in place of ICMP: a run passes when the guest is alive (ARP or ICMP) on any reported IP and the configured TCP ports are open; ICMP is no longer required for such guests. ("no internet" / "unidentified network" inside the restored guest is expected — the sandbox is deliberately isolated.)
+
 ## [v3.1.59] — 2026-11-01
 
 ### Changed

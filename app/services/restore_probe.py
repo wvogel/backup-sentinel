@@ -73,14 +73,16 @@ def classify(
     if not had_ip or primary_result is None:
         return "limited"
 
-    icmp_ok = bool(primary_result.get("icmp")) or not require_icmp
+    # Liveness is ICMP or ARP (ARP survives a guest firewall that drops ICMP).
+    alive = bool(primary_result.get("icmp")) or bool(primary_result.get("arp"))
+    live_ok = alive or not require_icmp
     ports = primary_result.get("ports", {})
     ports_ok = all(ports.get(str(p), False) for p in tcp_ports)
 
-    if icmp_ok and ports_ok:
+    if live_ok and ports_ok:
         return "passed"
 
-    reachable_anything = bool(primary_result.get("icmp")) or any(ports.get(str(p), False) for p in tcp_ports)
+    reachable_anything = alive or any(ports.get(str(p), False) for p in tcp_ports)
     if not reachable_anything:
         return "failed"
     return "limited"
@@ -97,9 +99,9 @@ def classify_multi(
     """Classify a run across SEVERAL candidate IPs (the guest agent may report
     more than one IPv4). A check counts as green if **any** IP satisfied it:
 
-    - ``passed``  — ICMP green on some IP (unless not required) AND every port
-      green on some IP.
-    - ``failed``  — nothing answered on any IP.
+    - ``passed``  — alive (ICMP or ARP) on some IP (unless liveness not required)
+      AND every port green on some IP.
+    - ``failed``  — nothing answered on any IP (no ARP, no ICMP, no port).
     - ``limited`` — no IP to probe, or something answered but not all required.
 
     This is the union across IPs; the caller keeps retrying until the first pass
@@ -107,12 +109,15 @@ def classify_multi(
     if not had_ip or not ips:
         return "limited"
     results = [checks.get(ip) or {} for ip in ips]
-    icmp_any = any(bool(r.get("icmp")) for r in results)
-    icmp_ok = icmp_any or not require_icmp
+    # Liveness = ICMP *or* ARP: a guest that answers ARP is up and on the L2 even
+    # when its firewall drops ICMP (a Windows guest on a public network). ARP thus
+    # satisfies the ``require_icmp`` liveness gate; TCP ports are checked as well.
+    alive = any(bool(r.get("icmp")) or bool(r.get("arp")) for r in results)
+    live_ok = alive or not require_icmp
     ports_ok = all(any((r.get("ports") or {}).get(str(p), False) for r in results) for p in tcp_ports)
-    if icmp_ok and ports_ok:
+    if live_ok and ports_ok:
         return "passed"
-    reachable_anything = icmp_any or any((r.get("ports") or {}).get(str(p), False) for r in results for p in tcp_ports)
+    reachable_anything = alive or any((r.get("ports") or {}).get(str(p), False) for r in results for p in tcp_ports)
     return "limited" if reachable_anything else "failed"
 
 
