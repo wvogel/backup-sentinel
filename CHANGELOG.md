@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.44] — 2026-11-01
+
+### Fixed
+
+- **`/restore` is fast again, and the live progress updates reliably.** Since the switch to root SSH, the page fetched the restore host's live data (RAM ring, PBS entries, VM-match diagnostics) with several `pvesh` calls over SSH *synchronously on every load* — seconds per page, and the SSH contention also starved the worker's progress polling. Those host queries now run in a background thread with a short-lived in-process snapshot: the page renders instantly from the last snapshot and refreshes out of band, so nothing blocks on SSH. (Right after a deploy the host tile appears a second late on the first load, then stays warm.)
+
 ## [v3.1.43] — 2026-11-01
 
 ### Added
