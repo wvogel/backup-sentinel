@@ -43,17 +43,23 @@ class SshClient(Protocol):
 # --- pure helpers ------------------------------------------------------------
 
 
-def rewrite_net_line(net_line: str, bridge: str, tag: int | None) -> str:
+def rewrite_net_line(net_line: str, bridge: str, tag: int | None, trunks: int | None = None) -> str:
     """Rewrite a PVE ``netN`` config value to a new bridge (+ optional VLAN tag)
-    while **preserving the MAC address and model** and dropping any old tag.
+    while **preserving the MAC address and model** and dropping any old tag/trunks.
 
     ``virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,tag=5`` → ``...,bridge=vmbr9,tag=901``
-    """
+
+    ``trunks`` carries an extra tagged VLAN through the port (for a guest that tags
+    internally, e.g. its IP is on ``eth0.20``): the env's ``tag`` stays the PVID
+    (per-env isolation for untagged traffic) and ``trunks=20`` lets the guest's
+    tagged frames pass. ``...,tag=901,trunks=20``."""
     parts = [p for p in net_line.split(",") if p]
-    kept = [p for p in parts if not p.startswith(("bridge=", "tag="))]
+    kept = [p for p in parts if not p.startswith(("bridge=", "tag=", "trunks="))]
     kept.append(f"bridge={bridge}")
     if tag is not None:
         kept.append(f"tag={tag}")
+    if trunks is not None:
+        kept.append(f"trunks={trunks}")
     return ",".join(kept)
 
 
@@ -597,11 +603,13 @@ class RestoreServer:
             return False
         return any(int(g.get("vmid", -1)) == int(vmid) for g in guests)
 
-    def rewrite_nics(self, vmid: int, vlan_tag: int) -> None:
+    def rewrite_nics(self, vmid: int, vlan_tag: int, guest_vlan: int | None = None) -> None:
         """Prepare the restored guest's config for an isolated sandbox boot, in one
         config update:
         - re-point every NIC to the sandbox bridge + this env's VLAN tag (keeping
           MACs, spec §10);
+        - when the guest tags internally (``guest_vlan`` set), also carry that VID
+          as a trunk on the port so the guest's tagged frames reach the helper;
         - eject any CD-ROM still backed by a source-cluster ISO (whose storage
           doesn't exist here, which would fail the start);
         - drop every ``hostpciN`` PCI passthrough: the physical device doesn't
@@ -614,7 +622,7 @@ class RestoreServer:
         changes = {}
         for key, value in config.items():
             if re.fullmatch(r"net\d+", key) and isinstance(value, str):
-                changes[key] = rewrite_net_line(value, bridge, vlan_tag)
+                changes[key] = rewrite_net_line(value, bridge, vlan_tag, trunks=guest_vlan)
         changes.update(eject_cdroms(config))
         if changes:
             self.pve.post(f"/nodes/{node}/qemu/{vmid}/config", changes)
@@ -798,13 +806,26 @@ class RestoreServer:
         helper_vmid: int,
         vlan_tag: int,
         mgmt_ip: str,
-        reservations: list[dict[str, Any]],
+        sandbox_ip: str,
+        guest_ip: str,
+        sandbox_prefix: int,
+        guest_vlan: int | None = None,
     ) -> None:
         """Create + start the dual-homed helper LXC: sandbox leg (this env's VLAN
         tag) running dnsmasq, management leg (static mgmt IP) for reachability.
         The helper never forwards between legs (spec §10). Its rootfs goes on the
         first selected target storage that accepts containers — no separate
-        storage to configure."""
+        storage to configure.
+
+        ``sandbox_ip``/``guest_ip``/``sandbox_prefix`` are decided by the
+        orchestrator from the guest's known IP (recorded or operator override,
+        honouring its prefix) or the management-range fallback — so the sandbox
+        addressing never depends on the restored, running VM.
+
+        When the guest tags internally (``guest_vlan`` set), the sandbox leg sits
+        on that VID as an access port: PVE strips/adds the tag at the bridge, so
+        the guest's tagged frames reach the helper and no in-container VLAN
+        sub-interface is needed. Otherwise it stays on this env's isolated 9xx."""
         node = self.node()
         cfg = self.config
         helper_storage = self._lxc_storage()
@@ -812,16 +833,18 @@ class RestoreServer:
             raise RuntimeError("no selected target storage accepts LXC containers (content 'rootdir')")
         bridge = cfg["sandbox_bridge"]
         mgmt_prefix = _prefix_from_netmask(cfg["mgmt_netmask"])
-        sandbox_ip, guest_ip, netmask = sandbox_addrs(mgmt_ip, mgmt_prefix)
+        netmask = _netmask_from_prefix(sandbox_prefix)
+        sbx_tag = guest_vlan or vlan_tag
         net_ifaces = helper_legs(
             bridge,
-            vlan_tag,
+            sbx_tag,
             cfg["mgmt_iface"],
             mgmt_ip,
             mgmt_prefix,
             cfg.get("mgmt_vlan"),
             cfg.get("mgmt_gateway", ""),
             sandbox_ip,
+            sandbox_prefix,
         )
         # All via the API token: a non-root token may pass an ostemplate that is a
         # storage VOLUME ID, just not an absolute filesystem path ("Only root can
@@ -990,6 +1013,57 @@ def _prefix_from_netmask(netmask: str) -> int:
         return 24
 
 
+def _netmask_from_prefix(prefix: int) -> str:
+    import ipaddress
+
+    try:
+        return str(ipaddress.ip_network(f"0.0.0.0/{int(prefix)}").netmask)
+    except (ValueError, TypeError):
+        return "255.255.255.0"
+
+
+def parse_cidr(text: str, default_prefix: int = 24) -> tuple[str, int] | None:
+    """Parse an operator-entered ``ip`` or ``ip/prefix`` into (ip, prefix). A bare
+    IP gets ``default_prefix`` (operators who set only an IP mean a /24 — existing
+    values are migrated to an explicit /24). Returns None for anything unparseable
+    so a bad override is ignored rather than crashing the plan."""
+    import ipaddress
+
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    ip_part, _, prefix_part = raw.partition("/")
+    try:
+        ip = str(ipaddress.IPv4Address(ip_part.strip()))
+    except ipaddress.AddressValueError:
+        return None
+    if prefix_part.strip():
+        try:
+            prefix = int(prefix_part.strip())
+        except ValueError:
+            return None
+        if not 0 <= prefix <= 32:
+            return None
+    else:
+        prefix = default_prefix
+    return ip, prefix
+
+
+def sandbox_host_ip(guest_ip: str, prefix: int) -> str:
+    """The helper's own address on the sandbox leg: any usable host in the GUEST's
+    subnet that is not the guest IP itself (the lowest such host, deterministically).
+    Both legs live alone on the isolated sandbox L2, so any non-guest host is free.
+    Falls back to ``guest_ip + 1`` for a degenerate subnet with no other host."""
+    import ipaddress
+
+    net = ipaddress.ip_network(f"{guest_ip}/{prefix}", strict=False)
+    guest = ipaddress.IPv4Address(guest_ip)
+    for host in net.hosts():
+        if host != guest:
+            return str(host)
+    return str(guest + 1)
+
+
 SANDBOX_HELPER_HOST = 254  # the helper's own address on the sandbox leg
 SANDBOX_GUEST_HOST = 200  # the address dnsmasq hands the restored guest
 
@@ -1039,11 +1113,14 @@ def helper_legs(
     mgmt_vlan: int | None,
     mgmt_gateway: str,
     sandbox_ip: str,
+    sandbox_prefix: int,
 ) -> dict[str, str]:
     """The helper's two network legs. net1 (mgmt, on the real interface) carries
     the management IP + gateway so the app can reach the agent; net0 (sbx, on the
-    sandbox VLAN) carries a FIXED management-range address so the helper can serve
-    DHCP and probe on the isolated L2 — independent of the restored guest.
+    sandbox VLAN) carries the helper's own address in the GUEST's subnet (guest
+    IP + 1, with the guest's own prefix — networks are not always /24) so the
+    helper can serve DHCP and probe the guest on the isolated L2. For a guest with
+    no known IP the sandbox address falls back to a fixed management-range host.
 
     The management leg gets a stable, IP-derived MAC so that a run reusing a
     management IP keeps the same MAC and the upstream gateway's ARP entry stays
@@ -1054,7 +1131,7 @@ def helper_legs(
         mgmt_net += f",gw={mgmt_gateway}"
     if mgmt_vlan:
         mgmt_net += f",tag={mgmt_vlan}"
-    net0 = f"name=sbx,bridge={bridge},tag={vlan_tag},ip={sandbox_ip}/{mgmt_prefix}"
+    net0 = f"name=sbx,bridge={bridge},tag={vlan_tag},ip={sandbox_ip}/{sandbox_prefix}"
     return {"net0": net0, "net1": mgmt_net}
 
 

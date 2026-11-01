@@ -120,7 +120,7 @@ def list_runs(
     vm_query: str | None = None,
 ) -> list[RestoreRunRow]:
     # Join the VM name/vmid so the UI shows "srv01 (100)" not an internal id.
-    base = f"SELECT r.*, v.name AS vm_name, v.vmid AS vmid_src, c.name AS cluster_name {_RUNS_JOIN}"
+    base = f"SELECT r.*, v.name AS vm_name, v.vmid AS vmid_src, c.name AS cluster_name, c.slug AS cluster_slug {_RUNS_JOIN}"
     where, params = _runs_filter(status, trigger, cluster, vm_query)
     with connect() as conn, conn.cursor() as cur:
         cur.execute(

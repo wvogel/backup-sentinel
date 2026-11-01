@@ -80,7 +80,7 @@ def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
         ip = t.get("ip")
         if not ip:
             continue
-        _ensure_reachable(ip)
+        _ensure_reachable(ip, int(t.get("prefix") or 24))
         ports: dict[str, bool] = {}
         for p in t.get("ports") or []:
             try:

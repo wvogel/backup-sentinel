@@ -167,8 +167,8 @@
     {% if not runs %}<tr><td colspan="7" class="muted runs-nomatch">{{ t('restore.no_runs_filtered') }}</td></tr>{% endif %}
     {% for run in runs %}
       <tr data-run-id="{{ run.id }}">
-        <td>{{ run.cluster_name or '–' }}</td>
-        <td>{{ run.vm_name or ('VM ' ~ run.vm_id) }}{% if run.vmid_src %} <span class="muted">({{ run.vmid_src }})</span>{% endif %}</td>
+        <td>{% if run.cluster_slug %}<a href="/clusters/{{ run.cluster_slug }}">{{ run.cluster_name }}</a>{% else %}{{ run.cluster_name or '–' }}{% endif %}</td>
+        <td>{% if run.cluster_slug %}<a href="/clusters/{{ run.cluster_slug }}?vm={{ run.vm_id }}">{{ run.vm_name or ('VM ' ~ run.vm_id) }}</a>{% else %}{{ run.vm_name or ('VM ' ~ run.vm_id) }}{% endif %}{% if run.vmid_src %} <span class="muted">({{ run.vmid_src }})</span>{% endif %}</td>
         <td>
           {%- if run.status == 'running' -%}
             <span class="status-icon status-running js-row-status" data-tooltip="{{ t('restore.phase_' ~ (run.phase or 'restoring')) }}" aria-label="{{ run.status }}">⟳&nbsp;<span class="js-row-pct">{{ run.percent or 0 }}%</span></span>

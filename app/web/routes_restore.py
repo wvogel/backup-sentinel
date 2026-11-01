@@ -458,6 +458,7 @@ def update_vm_restore_policy(
     auto_restore_enabled: str = Form(default=""),
     restore_cadence: str = Form(default="half_year"),
     probe_primary_ip: str = Form(default=""),
+    probe_vlan: str = Form(default=""),
     probe_tcp_ports: str = Form(default=""),
     probe_require_icmp: str = Form(default=""),
     hold_on_failure: str = Form(default=""),
@@ -466,17 +467,19 @@ def update_vm_restore_policy(
     ajax: str = Form(default=""),
 ):
     ports = [int(p) for p in probe_tcp_ports.replace(",", " ").split() if p.strip().isdigit()]
+    vlan = int(probe_vlan) if probe_vlan.strip().isdigit() else None
     with db.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO vm_policies
                 (vm_id, owner_name, criticality, rpo_hours, auto_restore_enabled, restore_cadence,
-                 probe_primary_ip, probe_tcp_ports, probe_require_icmp, hold_on_failure, restore_retry_days)
-            VALUES (%s, 'unassigned', 'medium', 24, %s, %s, NULLIF(%s, ''), %s, %s, %s, %s)
+                 probe_primary_ip, probe_vlan, probe_tcp_ports, probe_require_icmp, hold_on_failure, restore_retry_days)
+            VALUES (%s, 'unassigned', 'medium', 24, %s, %s, NULLIF(%s, ''), %s, %s, %s, %s, %s)
             ON CONFLICT (vm_id) DO UPDATE SET
                 auto_restore_enabled = EXCLUDED.auto_restore_enabled,
                 restore_cadence = EXCLUDED.restore_cadence,
                 probe_primary_ip = EXCLUDED.probe_primary_ip,
+                probe_vlan = EXCLUDED.probe_vlan,
                 probe_tcp_ports = EXCLUDED.probe_tcp_ports,
                 probe_require_icmp = EXCLUDED.probe_require_icmp,
                 hold_on_failure = EXCLUDED.hold_on_failure,
@@ -487,6 +490,7 @@ def update_vm_restore_policy(
                 bool(auto_restore_enabled),
                 restore_cadence,
                 probe_primary_ip,
+                vlan,
                 ports,
                 bool(probe_require_icmp),
                 bool(hold_on_failure),

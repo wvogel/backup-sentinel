@@ -32,8 +32,11 @@ class RunPlan:
     snapshot_id: str
     target_storage: str
     reservations: list[dict[str, Any]]  # {mac, ip, prefix}
-    probe_targets: list[dict[str, Any]]  # {ip, ports}
-    primary_ip: str | None
+    probe_targets: list[dict[str, Any]]  # {ip, ports, prefix}
+    primary_ip: str | None  # the guest IP we probe (recorded / override / fallback)
+    sandbox_ip: str | None = None  # the helper's own sandbox-leg IP (a host in the guest subnet, or fallback)
+    sandbox_prefix: int = 24  # the guest subnet's prefix (not always /24)
+    guest_vlan: int | None = None  # the VID the guest tags internally (trunk the NIC, access the helper)
     require_icmp: bool = True
     tcp_ports: list[int] = field(default_factory=list)
     hold_on_failure: bool = False
@@ -143,7 +146,15 @@ def execute(
         # once reachability is rock-solid.)
         _checkpoint()
         db_restore.update_run(run_id, phase="helper")
-        server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
+        server.provision_helper(
+            plan.helper_vmid,
+            plan.vlan_tag,
+            plan.mgmt_ip,
+            plan.sandbox_ip,
+            plan.primary_ip,
+            plan.sandbox_prefix,
+            plan.guest_vlan,
+        )
         _checkpoint()
         db_restore.update_run(run_id, phase="restoring")
         server.restore(
@@ -157,7 +168,7 @@ def execute(
         )
         _checkpoint()
         db_restore.update_run(run_id, phase="network")
-        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag)
+        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan)
         db_restore.update_run(run_id, phase="booting")
         # Never start while the restore still holds the config lock — a restore
         # that is still running (e.g. after an app restart resumed the tail, or a
@@ -325,8 +336,16 @@ def resume_run(
             server.destroy(plan.helper_vmid, is_lxc=True)
         except Exception as exc:
             logger.debug("resume: helper cleanup (ignored): %s", exc)
-        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag)
-        server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
+        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan)
+        server.provision_helper(
+            plan.helper_vmid,
+            plan.vlan_tag,
+            plan.mgmt_ip,
+            plan.sandbox_ip,
+            plan.primary_ip,
+            plan.sandbox_prefix,
+            plan.guest_vlan,
+        )
         server.wait_unlocked(plan.restore_vmid)  # the restore may still hold the lock
         try:
             server.start(plan.restore_vmid)

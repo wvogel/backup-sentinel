@@ -195,12 +195,12 @@ def test_sandbox_addrs_fixed_hosts_in_mgmt_subnet():
 
 
 def test_helper_legs_dual_homed():
-    sandbox_ip = "10.20.0.254"
-    nets = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "", sandbox_ip)
+    # net0 (sbx) carries the helper's own address in the GUEST's subnet, with the
+    # guest's prefix (not always /24) — here a /26.
+    nets = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "", "10.0.5.1", 26)
     assert "net1" in nets  # separate management leg
-    # net0 is the sandbox leg on the VLAN, carrying the fixed sandbox IP.
     assert "name=sbx" in nets["net0"]
-    assert "tag=901" in nets["net0"] and "10.20.0.254/24" in nets["net0"]
+    assert "tag=901" in nets["net0"] and "10.0.5.1/26" in nets["net0"]
     assert "10.20.0.10/24" in nets["net1"]
     # Stable IP-derived MAC on the mgmt leg (keeps the gateway's ARP entry valid).
     assert "hwaddr=02:00:0a:14:00:0a" in nets["net1"]
@@ -209,9 +209,8 @@ def test_helper_legs_dual_homed():
 def test_helper_legs_mgmt_leg_carries_gateway_and_vlan():
     # The management leg must stay on the real interface (vmbr0) with the mgmt IP,
     # gateway and VLAN tag so the app can reach the agent; the sandbox leg (net0)
-    # stays on the isolated bridge with the fixed sandbox IP.
-    sandbox_ip = "10.20.0.254"
-    nets = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, 1010, "10.20.0.1", sandbox_ip)
+    # stays on the isolated bridge with the guest-subnet sandbox IP.
+    nets = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, 1010, "10.20.0.1", "10.20.0.254", 24)
     assert "bridge=vmbr0" in nets["net1"] and "10.20.0.10/24" in nets["net1"]
     assert "gw=10.20.0.1" in nets["net1"] and "tag=1010" in nets["net1"]
     assert "bridge=vmbr9" in nets["net0"] and "10.20.0.254/24" in nets["net0"]
@@ -420,7 +419,7 @@ def test_provision_helper_rootfs_on_first_container_capable_target():
     srv.ensure_helper_template = lambda: "local:vztmpl/restore-helper.tar.gz"
     srv._agent_wait_healthy = lambda ip, **k: None  # no real HTTP in the test
     srv._agent_post = lambda ip, path, body, **k: posted.append((ip, path, body)) or {}
-    srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
+    srv.provision_helper(9001, 901, "10.20.0.10", "10.0.0.1", "10.0.0.50", 24)
     # Container created via the API token; rootfs on the first container-capable
     # selected target (images-only "restore-vms" skipped); dnsmasq config pushed
     # to the agent over the management IP (no SSH).
@@ -430,6 +429,45 @@ def test_provision_helper_rootfs_on_first_container_capable_target():
     assert create[0]["ostemplate"] == "local:vztmpl/restore-helper.tar.gz"
     assert any(ip == "10.20.0.10" and path == "/dnsmasq" for ip, path, _ in posted)
     assert not any(c.startswith("pct ") for c in srv.ssh.commands)  # no pct exec
+
+
+def test_provision_helper_sandbox_leg_on_guest_vlan_when_guest_tags():
+    # Guest tags internally (guest_vlan set): the helper's sandbox leg becomes an
+    # access port on THAT VID (not the env's 9xx) so PVE delivers the guest's
+    # tagged frames to the helper untagged — no in-container sub-interface needed.
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage": [{"storage": "restore-ct", "content": "rootdir"}],
+    }
+    cfg = {
+        "ssh_host": "10.0.0.9",
+        "api_url": "https://10.0.0.9:8006",
+        "sandbox_bridge": "vmbr9",
+        "mgmt_iface": "vmbr0",
+        "mgmt_netmask": "255.255.255.0",
+        "helper_template": "local:vztmpl/alpine.tar.zst",
+        "target_storages": [{"storage": "restore-ct", "use": True, "order": 0}],
+    }
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    srv.ensure_helper_template = lambda: "local:vztmpl/restore-helper.tar.gz"
+    srv._agent_wait_healthy = lambda ip, **k: None
+    srv._agent_post = lambda ip, path, body, **k: {}
+    srv.provision_helper(9001, 901, "10.20.0.10", "10.0.5.1", "10.0.5.3", 26, 20)
+    create = next(d for p, d in srv.pve.posts if p == "/nodes/r1/lxc")
+    assert "tag=20" in create["net0"] and "tag=901" not in create["net0"]
+    assert "10.0.5.1/26" in create["net0"]
+
+
+def test_rewrite_nics_trunks_guest_vlan():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/config": {"net0": "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,tag=5"},
+    }
+    cfg = {"ssh_host": "10.0.0.9", "api_url": "https://10.0.0.9:8006", "sandbox_bridge": "vmbr9"}
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    srv.rewrite_nics(9000, 901, guest_vlan=20)
+    changed = next(d for p, d in srv.pve.posts if p == "/nodes/r1/qemu/9000/config")
+    assert "tag=901" in changed["net0"] and "trunks=20" in changed["net0"]
 
 
 def test_probe_calls_the_agent_over_http():
@@ -526,7 +564,7 @@ def test_provision_helper_fails_when_dnsmasq_setup_fails():
     srv._agent_wait_healthy = lambda ip, **k: None
     srv._agent_post = lambda ip, path, body, **k: {"ok": False, "dnsmasq_error": "address in use"}
     with pytest.raises(RestoreTaskError, match="address in use"):
-        srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
+        srv.provision_helper(9001, 901, "10.20.0.10", "10.0.0.1", "10.0.0.50", 24)
 
 
 def test_provision_helper_appends_netdiag_when_agent_unreachable():
@@ -554,7 +592,7 @@ def test_provision_helper_appends_netdiag_when_agent_unreachable():
 
     srv._agent_wait_healthy = boom
     with pytest.raises(RestoreTaskError, match="helper netdiag"):
-        srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
+        srv.provision_helper(9001, 901, "10.20.0.10", "10.0.0.1", "10.0.0.50", 24)
     # The diagnostic went through pct exec (host SSH), targeting the helper vmid.
     assert any("pct exec 9001" in c for c in srv.ssh.commands)
 
@@ -635,7 +673,7 @@ def test_provision_helper_fails_clearly_when_no_target_accepts_containers():
     }
     srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
     with pytest.raises(RuntimeError, match="rootdir"):
-        srv.provision_helper(9001, 901, "10.20.0.10", [{"mac": "a", "ip": "10.0.0.50", "prefix": 24}])
+        srv.provision_helper(9001, 901, "10.20.0.10", "10.0.0.1", "10.0.0.50", 24)
 
 
 def test_free_resources_shows_only_selected_storages():
@@ -740,23 +778,60 @@ def test_build_server_tolerates_missing_api_block():
     assert server.ssh is not None and server.pve is not None
 
 
-def test_probe_ip_uses_fixed_guest_sandbox_address():
-    from app.services.restore_orchestrator import _probe_ip
+def test_sandbox_alloc_override_cidr_honours_prefix():
+    from app.services.restore_orchestrator import _sandbox_alloc
 
-    # No override → the fixed management-range address dnsmasq hands the guest
-    # (.200), derived from the mgmt IP and netmask, independent of the guest.
+    # Manual override as CIDR: probe that IP with its own prefix (not /24); the
+    # helper takes another host in the same subnet (the lowest non-guest host).
+    guest, helper, prefix = _sandbox_alloc("10.0.5.3/26", [], "10.9.0.10", {})
+    assert guest == "10.0.5.3"
+    assert prefix == 26
+    assert helper == "10.0.5.1"  # a host in 10.0.5.0/26 that is not the guest
+
+
+def test_sandbox_alloc_detected_ip_uses_recorded_prefix():
+    from app.services.restore_orchestrator import _sandbox_alloc
+
+    # No override → the recorded guest-agent IP with ITS prefix.
+    nics = [{"nic_index": 0, "ip_addresses": ["10.0.5.5"], "prefix": 26}]
+    guest, helper, prefix = _sandbox_alloc(None, nics, "10.9.0.10", {})
+    assert guest == "10.0.5.5"
+    assert prefix == 26
+    assert helper == "10.0.5.1"
+
+
+def test_sandbox_alloc_falls_back_to_management_range():
+    from app.services.restore_orchestrator import _sandbox_alloc
+
+    # No override and no recorded IP → management-range fallback (guest .200,
+    # helper .254) derived from the mgmt IP.
     config = {"mgmt_netmask": "255.255.255.0"}
-    assert _probe_ip(None, "10.121.101.100", config) == "10.121.101.200"
+    guest, helper, prefix = _sandbox_alloc(None, [], "10.121.101.100", config)
+    assert (guest, helper, prefix) == ("10.121.101.200", "10.121.101.254", 24)
 
 
-def test_probe_ip_honours_static_override():
-    from app.services.restore_orchestrator import _probe_ip
+def test_sandbox_alloc_bare_override_means_slash_24():
+    from app.services.restore_orchestrator import _sandbox_alloc
 
-    # An operator-set static override wins over the DHCP address.
-    assert _probe_ip("10.121.101.42", "10.121.101.100", {}) == "10.121.101.42"
+    guest, helper, prefix = _sandbox_alloc("10.0.0.50", [], "10.9.0.10", {})
+    assert (guest, prefix) == ("10.0.0.50", 24)
+    assert helper == "10.0.0.1"
 
 
-def test_probe_ip_none_without_mgmt_ip():
-    from app.services.restore_orchestrator import _probe_ip
+def test_parse_cidr_and_sandbox_host_ip():
+    from app.services.restore_server import parse_cidr, sandbox_host_ip
 
-    assert _probe_ip(None, None, {}) is None
+    assert parse_cidr("10.0.5.3/26") == ("10.0.5.3", 26)
+    assert parse_cidr("10.0.5.3") == ("10.0.5.3", 24)  # bare → /24
+    assert parse_cidr("") is None
+    assert parse_cidr("nonsense") is None
+    # The helper takes the lowest usable host that is not the guest.
+    assert sandbox_host_ip("10.0.5.3", 26) == "10.0.5.1"
+    assert sandbox_host_ip("10.0.5.1", 26) == "10.0.5.2"  # guest is .1 → next host
+
+
+def test_rewrite_net_line_trunks_tagged_vlan():
+    # A guest that tags internally: keep the env PVID (tag) and trunk the guest VID.
+    out = rewrite_net_line("virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,tag=5", "vmbr9", 901, trunks=20)
+    assert "tag=901" in out and "trunks=20" in out and "tag=5" not in out
+    assert "virtio=AA:BB:CC:DD:EE:01" in out
