@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.36] — 2026-11-01
+
+### Fixed
+
+- **Old helper CT templates are cleaned up instead of piling up.** Every agent change uploads a new content-hashed template (`restore-helper-<hash>.tar.gz`); the previous ones were never removed and accumulated on the restore host's storage. Provisioning now prunes stale helper templates, keeping only the current one — it only ever deletes volumes matching `restore-helper-<hash>.tar.gz`, never other templates. The existing pile is cleared on the next restore run (the prune runs early in provisioning, even if the run later fails).
+
 ## [v3.1.35] — 2026-11-01
 
 ### Fixed
