@@ -183,18 +183,39 @@ def matched_vms_by_location(locations: list[str]) -> dict[str, list[str]]:
     return out
 
 
-def _probe_ip(override: str | None, mgmt_ip: str | None, config: dict[str, Any]) -> str | None:
-    """The IP to probe on the restored guest: a static override if the operator
-    set one, else the fixed management-range address the helper's dnsmasq hands
-    the guest on the sandbox leg (independent of the guest's own config)."""
-    if override:
-        return override
-    if not mgmt_ip:
-        return None
-    from app.services.restore_server import _prefix_from_netmask, sandbox_addrs
+def _sandbox_alloc(
+    override: str | None,
+    nics: list[dict[str, Any]],
+    mgmt_ip: str | None,
+    config: dict[str, Any],
+) -> tuple[str | None, str | None, int]:
+    """Decide the sandbox addressing: ``(guest_ip, helper_sandbox_ip, prefix)``.
 
-    prefix = _prefix_from_netmask(config.get("mgmt_netmask", "255.255.255.0"))
-    return sandbox_addrs(mgmt_ip, prefix)[1]
+    Order of preference, none of which depends on the restored running VM:
+    1. Operator override ``probe_primary_ip`` (now ``ip[/prefix]``): probe that IP;
+       the helper takes any other host in that subnet. A bare IP means /24.
+    2. A recorded guest-agent IP from production: probe it with ITS prefix
+       (networks are not always /24); the helper takes any other host in it.
+    3. Fallback: the fixed management-range scheme — dnsmasq hands the guest a
+       management-range address (.200) and the helper takes .254.
+
+    Returns ``(None, None, mgmt_prefix)`` only when there is no management IP."""
+    from app.services.restore_server import _prefix_from_netmask, parse_cidr, sandbox_addrs, sandbox_host_ip
+
+    mgmt_prefix = _prefix_from_netmask(config.get("mgmt_netmask", "255.255.255.0"))
+    parsed = parse_cidr(override) if override else None
+    if parsed:
+        guest_ip, prefix = parsed
+        return guest_ip, sandbox_host_ip(guest_ip, prefix), prefix
+    for nic in sorted(nics, key=lambda r: r.get("nic_index", 0)):
+        if nic.get("ip_addresses"):
+            guest_ip = nic["ip_addresses"][0]
+            prefix = nic.get("prefix") or 24
+            return guest_ip, sandbox_host_ip(guest_ip, prefix), prefix
+    if mgmt_ip:
+        helper_ip, guest_ip, _ = sandbox_addrs(mgmt_ip, mgmt_prefix)
+        return guest_ip, helper_ip, mgmt_prefix
+    return None, None, mgmt_prefix
 
 
 class NotRunnable(RuntimeError):
@@ -229,11 +250,16 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
     if alloc is None:
         return None  # management IP (or vmid/vlan) exhausted → caller waits
 
-    # The guest is reached at a fixed management-range IP that the helper's dnsmasq
-    # hands it on the sandbox leg (independent of the guest's own config) — or at a
-    # static override IP if the operator set one.
-    primary = _probe_ip(candidate.get("probe_primary_ip"), alloc.mgmt_ip, config)
-    targets = [{"ip": primary, "ports": ports}]
+    # Decide the sandbox addressing (guest probe IP, helper's own sandbox IP, and
+    # the subnet prefix) from the guest's known IP — recorded or operator override,
+    # honouring its prefix — or the management-range fallback. Never derived from
+    # the restored, running VM.
+    nics = [dict(n) for n in db_restore.get_network_interfaces(vm_id)]
+    guest_ip, sandbox_ip, sandbox_prefix = _sandbox_alloc(
+        candidate.get("probe_primary_ip"), nics, alloc.mgmt_ip, config
+    )
+    primary = guest_ip
+    targets = [{"ip": guest_ip, "ports": ports, "prefix": sandbox_prefix}] if guest_ip else []
 
     targets_sorted = sorted(
         (s for s in config.get("target_storages", []) if s.get("use", True)), key=lambda s: s.get("order", 0)
@@ -262,6 +288,9 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         reservations=[],
         probe_targets=targets,
         primary_ip=primary,
+        sandbox_ip=sandbox_ip,
+        sandbox_prefix=sandbox_prefix,
+        guest_vlan=candidate.get("probe_vlan"),
         require_icmp=candidate.get("probe_require_icmp", True),
         tcp_ports=ports,
         hold_on_failure=candidate.get("hold_on_failure", False),
@@ -397,7 +426,7 @@ def _candidate_for_vm(vm_id: int) -> dict[str, Any] | None:
         cur.execute(
             """
             SELECT v.id AS vm_id, v.vmid, v.node_name, v.guest_type,
-                   p.hold_on_failure, p.probe_primary_ip, p.probe_tcp_ports, p.probe_require_icmp,
+                   p.hold_on_failure, p.probe_primary_ip, p.probe_vlan, p.probe_tcp_ports, p.probe_require_icmp,
                    p.restore_retry_days, p.probe_window_seconds, p.probe_first_delay_seconds,
                    p.probe_interval_seconds
             FROM vms v LEFT JOIN vm_policies p ON p.vm_id = v.id WHERE v.id = %s
@@ -555,8 +584,9 @@ def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
     """Reconstruct a RunPlan from a stored (held) run for reap/retest/promote."""
     cand = _candidate_for_vm(run["vm_id"]) or {}
     ports = list(cand.get("probe_tcp_ports") or [])
-    primary = _probe_ip(cand.get("probe_primary_ip"), run.get("mgmt_ip"), config)
-    targets = [{"ip": primary, "ports": ports}] if primary else []
+    nics = [dict(n) for n in db_restore.get_network_interfaces(run["vm_id"])]
+    primary, sandbox_ip, sandbox_prefix = _sandbox_alloc(cand.get("probe_primary_ip"), nics, run.get("mgmt_ip"), config)
+    targets = [{"ip": primary, "ports": ports, "prefix": sandbox_prefix}] if primary else []
     tgt = (run.get("target_storages") or [""])[0]
     return RunPlan(
         vm_id=run["vm_id"],
@@ -576,6 +606,9 @@ def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
         reservations=[],
         probe_targets=targets,
         primary_ip=primary,
+        sandbox_ip=sandbox_ip,
+        sandbox_prefix=sandbox_prefix,
+        guest_vlan=cand.get("probe_vlan"),
         require_icmp=cand.get("probe_require_icmp", True),
         tcp_ports=ports,
         hold_on_failure=cand.get("hold_on_failure", False),
@@ -606,16 +639,32 @@ def reprovision_and_retest(run_id: int, run: dict[str, Any], config: dict[str, A
     )
     if alloc is None:
         raise NotRunnable("no free management IP to re-provision the re-test helper")
-    # Recompute the probe IP against the FRESH mgmt IP (the fixed guest address
-    # the re-test helper's dnsmasq will hand out), unless a static override is set.
+    # Recompute the sandbox addressing against the FRESH mgmt IP (only the
+    # management-range fallback depends on it; a recorded/override guest IP does
+    # not), so the re-test helper and its dnsmasq are set up the same way.
     cand = _candidate_for_vm(run["vm_id"]) or {}
-    primary = _probe_ip(cand.get("probe_primary_ip"), alloc.mgmt_ip, config)
-    targets = [{"ip": primary, "ports": list(base.tcp_ports)}] if primary else []
+    nics = [dict(n) for n in db_restore.get_network_interfaces(run["vm_id"])]
+    primary, sandbox_ip, sandbox_prefix = _sandbox_alloc(cand.get("probe_primary_ip"), nics, alloc.mgmt_ip, config)
+    targets = [{"ip": primary, "ports": list(base.tcp_ports), "prefix": sandbox_prefix}] if primary else []
     plan = dataclasses.replace(
-        base, helper_vmid=alloc.helper_vmid, mgmt_ip=alloc.mgmt_ip, probe_targets=targets, primary_ip=primary
+        base,
+        helper_vmid=alloc.helper_vmid,
+        mgmt_ip=alloc.mgmt_ip,
+        probe_targets=targets,
+        primary_ip=primary,
+        sandbox_ip=sandbox_ip,
+        sandbox_prefix=sandbox_prefix,
     )
     db_restore.update_run(run_id, helper_vmid=alloc.helper_vmid, mgmt_ip=alloc.mgmt_ip)
-    server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
+    server.provision_helper(
+        plan.helper_vmid,
+        plan.vlan_tag,
+        plan.mgmt_ip,
+        plan.sandbox_ip,
+        plan.primary_ip,
+        plan.sandbox_prefix,
+        plan.guest_vlan,
+    )
     result = restore_worker.retest_held(run_id, server, plan)
     if result != "passed":
         # Still not good: keep the VM held, discard the fresh helper, free its IP.

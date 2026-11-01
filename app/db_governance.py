@@ -90,6 +90,7 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             COALESCE(p.hold_on_failure, FALSE) AS hold_on_failure,
             COALESCE(p.restore_retry_days, 7) AS restore_retry_days,
             p.probe_primary_ip,
+            p.probe_vlan,
             COALESCE(p.probe_tcp_ports, '{}') AS probe_tcp_ports,
             rt.tested_at AS last_restore_tested_at,
             rt.result AS last_restore_result,

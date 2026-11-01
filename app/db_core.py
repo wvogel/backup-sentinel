@@ -153,6 +153,16 @@ def init_db() -> None:
                 "ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS restore_cadence TEXT NOT NULL DEFAULT 'half_year'"
             )
             cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_primary_ip TEXT")
+            # probe_primary_ip is now an IP or IP/prefix (CIDR) — networks are not
+            # always /24. Existing bare-IP overrides mean a /24, so make that explicit.
+            cur.execute(
+                "UPDATE vm_policies SET probe_primary_ip = probe_primary_ip || '/24' "
+                "WHERE probe_primary_ip IS NOT NULL AND probe_primary_ip <> '' "
+                "AND probe_primary_ip NOT LIKE '%/%'"
+            )
+            # Optional VLAN the guest tags internally (its IP is on a VLAN
+            # sub-interface): trunk it through to the sandbox so it stays reachable.
+            cur.execute("ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_vlan INTEGER")
             cur.execute(
                 "ALTER TABLE vm_policies ADD COLUMN IF NOT EXISTS probe_tcp_ports INTEGER[] NOT NULL DEFAULT '{}'"
             )

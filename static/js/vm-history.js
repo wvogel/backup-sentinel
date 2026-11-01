@@ -177,6 +177,20 @@
     if (row) open(row);
   }
 
+  // Deep link from the restore log (?vm=<id>): expand that VM for its settings
+  // and scroll it into view. Drop the param so a reload doesn't re-trigger it.
+  const wanted = new URLSearchParams(location.search).get("vm");
+  if (wanted) {
+    const row = table.querySelector(`tr[data-vm-id="${CSS.escape(wanted)}"]`);
+    if (row && !row.classList.contains("is-expanded")) {
+      open(row);
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    const url = new URL(location.href);
+    url.searchParams.delete("vm");
+    history.replaceState(null, "", url);
+  }
+
   // A detail row follows its VM row when filters hide or show it.
   new MutationObserver(() => {
     for (const detail of table.querySelectorAll(".vm-detail-row")) {

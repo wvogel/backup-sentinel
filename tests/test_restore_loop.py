@@ -127,10 +127,12 @@ class OrchestratorTest(unittest.TestCase):
         self.assertEqual(plan.helper_vmid, 9001)
         self.assertEqual(plan.vlan_tag, 900)
         self.assertEqual(plan.mgmt_ip, "10.9.0.10")
-        # Probe the fixed management-range address the helper's dnsmasq hands the
-        # guest on the sandbox leg (mgmt .10 → guest .200), not the guest's own
-        # config IP — independent of the restored VM.
-        self.assertEqual(plan.primary_ip, "10.9.0.200")
+        # The VM has a recorded guest-agent IP (10.0.0.50/24): probe it with its
+        # own prefix; the helper takes another host in that subnet (.1). Neither
+        # depends on the restored, running VM.
+        self.assertEqual(plan.primary_ip, "10.0.0.50")
+        self.assertEqual(plan.sandbox_ip, "10.0.0.1")
+        self.assertEqual(plan.sandbox_prefix, 24)
         self.assertEqual(plan.target_storage, "zfs")
         # No per-NIC DHCP reservations any more: a single-address dynamic range.
         self.assertEqual(plan.reservations, [])

@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.53] — 2026-11-01
+
+### Changed
+
+- **The sandbox honours the guest's real network size (no longer assumes /24), and the helper takes a free host in the guest's own subnet.** When a guest's IP is known — recorded from its guest agent, or set as an operator override — the restore now probes that IP with **its actual prefix**, and the helper's sandbox leg takes any host in that subnet that isn't the guest (not a fixed `+1` or a management-range address). The per-VM override field is now a **CIDR** (`ip` or `ip/prefix`, e.g. `10.0.5.3/26`); existing bare-IP overrides are migrated to an explicit `/24`. A guest with no known IP still falls back to the management-range DHCP scheme (helper `.254`, guest `.200`).
+
+### Added
+
+- **Optional per-VM VLAN for guests that tag internally.** When a guest's IP lives on a VLAN sub-interface (e.g. `eth0.20`), set the VLAN in the VM's restore settings: the restored guest's NIC keeps the env's isolated 9xx PVID and **trunks** that VID, and the helper's sandbox leg sits on it as an access port — so the guest's tagged frames reach the helper (PVE handles the tagging at the bridge; no in-container VLAN sub-interface needed). Left empty, nothing changes.
+- **Clickable cluster and VM in the restore log.** Each row's cluster links to its cluster page; the VM links straight to that cluster page **with the VM expanded** for its restore settings.
+
 ## [v3.1.52] — 2026-11-01
 
 ### Changed
