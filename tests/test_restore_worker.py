@@ -166,7 +166,7 @@ class WorkerTest(unittest.TestCase):
         self.assertIn("destroy", srv.calls)  # environment torn down
         self.assertEqual(db_restore.get_run(run_id)["status"], "cancelled")
 
-    def test_failed_with_hold_keeps_env_no_row(self):
+    def test_failed_with_hold_keeps_vm_discards_helper(self):
         run_id = self._run()
         srv = FakeServer()
         res = execute(
@@ -180,8 +180,13 @@ class WorkerTest(unittest.TestCase):
         )
         self.assertEqual(res, "held")
         self.assertEqual(self._restore_test_count(), 0)
-        self.assertNotIn("destroy", srv.calls)  # environment kept
         self.assertEqual(db_restore.get_run(run_id)["status"], "held")
+        # The helper is discarded (its mgmt IP freed) but the VM is kept: the run
+        # no longer reserves a helper_vmid / mgmt_ip.
+        self.assertIn("destroy", srv.calls)
+        run = db_restore.get_run(run_id)
+        self.assertIsNone(run["helper_vmid"])
+        self.assertIsNone(run["mgmt_ip"])
 
     def test_failed_without_hold_tears_down_and_schedules_retry(self):
         run_id = self._run()

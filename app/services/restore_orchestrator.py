@@ -579,6 +579,40 @@ def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
     )
 
 
+def reprovision_and_retest(run_id: int, run: dict[str, Any], config: dict[str, Any], server: RestoreServer):
+    """Re-test a held environment. Its helper was discarded when it was held (to
+    free the management IP), so allocate + provision a FRESH helper, re-probe,
+    then tear the helper back down and free its IP again — unless it passed, in
+    which case the caller promotes (which tears down VM + helper). Returns
+    ``(result, plan)``; the plan carries the fresh helper for the teardown."""
+    import dataclasses
+
+    base = plan_from_run(run, config)
+    alloc = restore_alloc.allocate(
+        vmid_from=config["restore_vmid_from"],
+        vmid_to=config["restore_vmid_to"],
+        vlan_from=config["sandbox_vlan_from"],
+        vlan_to=config["sandbox_vlan_to"],
+        ip_from=config["mgmt_ip_from"],
+        ip_to=config["mgmt_ip_to"],
+        owned=[dict(r) for r in db_restore.active_and_held_runs()],
+    )
+    if alloc is None:
+        raise NotRunnable("no free management IP to re-provision the re-test helper")
+    plan = dataclasses.replace(base, helper_vmid=alloc.helper_vmid, mgmt_ip=alloc.mgmt_ip)
+    db_restore.update_run(run_id, helper_vmid=alloc.helper_vmid, mgmt_ip=alloc.mgmt_ip)
+    server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
+    result = restore_worker.retest_held(run_id, server, plan)
+    if result != "passed":
+        # Still not good: keep the VM held, discard the fresh helper, free its IP.
+        try:
+            server.destroy(plan.helper_vmid, is_lxc=True)
+        except Exception as exc:
+            logger.warning("retest: helper teardown failed: %s", exc)
+        db_restore.update_run(run_id, helper_vmid=None, mgmt_ip=None)
+    return result, plan
+
+
 def run_restore_queue() -> None:
     """Entry point for the auto-sync loop: enqueue due + drain. Defensive."""
     try:
