@@ -8,6 +8,7 @@ from app.services.restore_server import (
     RestoreServer,
     RestoreTaskError,
     _stable_mac,
+    classify_task_error,
     dnsmasq_config,
     eject_cdroms,
     helper_legs,
@@ -32,6 +33,29 @@ def test_rewrite_net_line_preserves_mac_changes_bridge_and_tag():
 def test_rewrite_net_line_adds_bridge_when_missing_and_no_tag():
     out = rewrite_net_line("virtio=AA:BB:CC:DD:EE:01", "vmbr9", None)
     assert out == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9"
+
+
+def test_classify_task_error_wrong_key():
+    tail = "Error: unable to load encryption key - decryption failed\nTASK ERROR"
+    msg = classify_task_error("command '/usr/bin/proxmox-backup-client restore ...' failed: exit code 255", tail)
+    assert "decryption failed" in msg and "key" in msg.lower()
+
+
+def test_classify_task_error_no_false_positive_on_crypt_mode():
+    # The command line always carries --crypt-mode=encrypt for encrypted backups;
+    # a failure whose tail is a PERMISSION error must NOT be reported as a key
+    # mismatch just because the command mentions encryption.
+    exitstatus = "command '/usr/bin/proxmox-backup-client restore '--crypt-mode=encrypt' ...' failed: exit code 255"
+    tail = "Error: permission check failed - missing Datastore.Read on /datastore/nas-off/ns/fh-muc"
+    msg = classify_task_error(exitstatus, tail)
+    assert "permission denied" in msg
+    assert "decryption" not in msg.lower()
+
+
+def test_classify_task_error_falls_back_to_detail():
+    msg = classify_task_error("exit code 255", "something unrecognised went wrong")
+    assert msg.startswith("restore task failed:")
+    assert "unrecognised" in msg
 
 
 def test_eject_cdroms_empties_source_isos_only():

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.39] — 2026-11-01
+
+### Changed
+
+- **A failed restore now names the real reason instead of a bare "exit code 255".** Proxmox exits 255 for almost everything, with the actual error on the stderr lines above the "command … failed" line. The restore poller now keeps the task-log tail and includes it in the run error, and recognises the common causes with a plain-language lead: a **wrong PBS encryption key** ("backup decryption failed — the key on the restore host does not match this backup"), a missing **PBS permission**, a **certificate/fingerprint** mismatch, or **connectivity**. The decryption case is matched on the client's stderr, not on the command line (which always carries `--crypt-mode=encrypt`), so an unrelated failure of an encrypted backup isn't mislabelled.
+
 ## [v3.1.38] — 2026-11-01
 
 ### Fixed
