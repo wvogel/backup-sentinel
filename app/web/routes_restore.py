@@ -4,6 +4,8 @@ the runs view, and held-environment actions."""
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, Request
@@ -201,6 +203,52 @@ def _cache_pbs_locations(entries: list) -> None:
         logger.debug("pbs locations cache failed: %s", exc)
 
 
+# Live restore-host data (RAM ring, PBS entries, VM-match diagnostics) is fetched
+# over root SSH now, where each `pvesh` call costs an SSH round-trip + Perl
+# startup. Doing several of them synchronously on every /restore load made the
+# page slow. So we keep the computed view in-process and refresh it in a
+# background thread: the page always renders instantly from the last snapshot,
+# and a stale snapshot triggers a refresh that the next load picks up.
+_HOST_VIEW_TTL = 25.0  # seconds a snapshot is considered fresh
+_host_view: dict = {"at": 0.0, "data": None, "error": None}
+_host_view_lock = threading.Lock()
+_host_view_refreshing = threading.Event()
+
+
+def _compute_host_view(config: dict) -> dict:
+    server = restore_orchestrator.build_server(config)
+    host = server.free_resources()
+    host_pbs = restore_orchestrator.restore_host_pbs_entries(server)
+    matched = restore_orchestrator.matched_vms_by_location([e["location"] for e in host_pbs])
+    for e in host_pbs:
+        e["vms"] = matched.get(e["location"], [])
+    host_locs = {e["location"] for e in host_pbs}
+    vm_locations = restore_orchestrator.all_vm_backup_locations()
+    for v in vm_locations:
+        v["matched"] = v["location"] in host_locs
+    return {"host": host, "host_pbs": host_pbs, "vm_locations": vm_locations}
+
+
+def _refresh_host_view(config: dict) -> None:
+    """Recompute the host view over SSH and cache it. Runs in a daemon thread so
+    it never blocks a page render; only one refresh runs at a time."""
+    if _host_view_refreshing.is_set():
+        return
+    _host_view_refreshing.set()
+    try:
+        data = _compute_host_view(config)
+        with _host_view_lock:
+            _host_view.update(at=time.monotonic(), data=data, error=None)
+        _cache_host_snapshot(data["host"])
+        _cache_pbs_locations(data["host_pbs"])
+    except Exception as exc:
+        logger.warning("restore host view refresh failed: %s", exc)
+        with _host_view_lock:
+            _host_view.update(at=time.monotonic(), error=f"{type(exc).__name__}: {exc}"[:300])
+    finally:
+        _host_view_refreshing.clear()
+
+
 _RUNS_PER_PAGE = 25
 
 
@@ -238,25 +286,17 @@ def restore_runs(request: Request) -> HTMLResponse:
     vm_locations: list = []
     config = restore_config.load()
     if config is not None:
-        try:
-            server = restore_orchestrator.build_server(config)
-            host = server.free_resources()
-            _cache_host_snapshot(host)
-            host_pbs = restore_orchestrator.restore_host_pbs_entries(server)
-            _cache_pbs_locations(host_pbs)
-            matched = restore_orchestrator.matched_vms_by_location([e["location"] for e in host_pbs])
-            for e in host_pbs:
-                e["vms"] = matched.get(e["location"], [])
-            # Show the VM-side locations next to the host ones so the exact string
-            # difference is visible when something doesn't match (no guessing).
-            host_locs = {e["location"] for e in host_pbs}
-            vm_locations = restore_orchestrator.all_vm_backup_locations()
-            for v in vm_locations:
-                v["matched"] = v["location"] in host_locs
-        except Exception as exc:
-            # Surface the real reason instead of a bare "host unreachable".
-            logger.warning("free_resources failed: %s", exc)
-            host_error = f"{type(exc).__name__}: {exc}"[:300]
+        # Render from the in-process snapshot (instant); refresh over SSH in the
+        # background when it is stale, so the page never blocks on pvesh calls.
+        with _host_view_lock:
+            snap = dict(_host_view)
+        if snap["data"] is None or (time.monotonic() - snap["at"]) > _HOST_VIEW_TTL:
+            threading.Thread(target=_refresh_host_view, args=(config,), daemon=True).start()
+        if snap["data"]:
+            host = snap["data"]["host"]
+            host_pbs = snap["data"]["host_pbs"]
+            vm_locations = snap["data"]["vm_locations"]
+        host_error = snap["error"] if snap["data"] is None else None
     context = {
         "runs": runs,
         "running": running,
