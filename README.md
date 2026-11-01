@@ -102,6 +102,8 @@ Backup Sentinel can *prove* a backup restores, not just record that someone trie
 
 Results (`passed` / `limited` / `failed`) and the complete log — including an **in-helper network diagnosis** when a run doesn't pass — go into the existing restore-test store, so coverage, dashboards and reports keep working. A failed test does **not** reset the due clock and re-queues on a retry cadence (default 1 week). Optionally a failed environment is **held** for manual inspection (re-test after a fix, then promote to a documented success); a held env keeps only the VM — its helper is discarded to free the management IP — and multiple holds coexist, bounded by host RAM/disk.
 
+The `/restore` page also shows **live host capacity**: rings for RAM and each target storage, plus **Disk I/O** and **Network** as dual-arc rings (outer = read / inbound, inner = write / outbound) — filled against the disk class's nominal throughput and the NIC's link rate, centre showing `%util` / link usage and the live MB/s. All of it comes from one combined `/proc` read per background refresh, so the host is never hammered.
+
 **Operator prerequisites:** a dedicated, empty scratch PVE host (nothing else may live on it or its target storage); local-only PBS datastores mirroring production (names/namespaces must match exactly); an API token **and** an SSH key for the scratch host; the production cluster API tokens need `VM.GuestAgent.Audit` (or `VM.Monitor`) for IP discovery (otherwise set the primary IP manually per VM, as `ip` or `ip/prefix`); a reachable management IP range for the helpers. The design and operational details are in [the design doc](docs/superpowers/specs/2026-10-30-automated-restore-testing-design.md).
 
 ## Deployment

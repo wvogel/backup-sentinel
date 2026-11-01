@@ -17,6 +17,7 @@ import json
 import logging
 import re
 import shlex
+import threading
 import time
 from collections.abc import Callable
 from typing import Any, Protocol
@@ -26,6 +27,171 @@ logger = logging.getLogger(__name__)
 
 OWNED_TAG = "bsentinel-restore"
 HELPER_IMAGE_NAME = "restore-helper.tar.gz"  # the app-built helper CT template
+
+# Nominal sustained throughput per disk class (bytes/s), the denominator for the
+# Disk-I/O ring's read/write arcs. These are rough tier figures, not measured —
+# the ring's arcs are "share of what this tier can do", and the %util in the
+# centre is the measured truth. Tunable later from the settings UI.
+DISK_CLASS_MAX_BPS = {
+    "enterprise-ssd": 2000 * 1_000_000,
+    "standard-ssd": 550 * 1_000_000,
+    "sas-hdd": 250 * 1_000_000,
+    "sata-hdd": 180 * 1_000_000,
+}
+_DISK_CLASS_FALLBACK_BPS = DISK_CLASS_MAX_BPS["standard-ssd"]
+
+# Whole physical block devices only — never partitions (…p1 / sda1), dm-*, loop,
+# md or zd, so a device and its slices aren't double-counted.
+_PHYS_DISK_RE = re.compile(r"^(nvme\d+n\d+|sd[a-z]+|vd[a-z]+|xvd[a-z]+)$")
+_SECTOR_BYTES = 512
+
+# Last host counter sample per node, so the next refresh can turn the monotonic
+# /proc counters into rates. Keyed by node name; guarded because refreshes may
+# overlap. Written only from free_resources().
+_IO_SAMPLE_CACHE: dict[str, dict[str, Any]] = {}
+_IO_SAMPLE_LOCK = threading.Lock()
+
+
+def _parse_meminfo(text: str) -> dict[str, int] | None:
+    """/proc/meminfo → bytes dict with total/free/buff_cache/available/used, or
+    None if MemTotal is absent."""
+    kb: dict[str, int] = {}
+    for line in text.splitlines():
+        key, _, rest = line.partition(":")
+        parts = rest.strip().split()
+        if parts and parts[0].isdigit():
+            kb[key.strip()] = int(parts[0]) * 1024  # meminfo is in kB
+    if "MemTotal" not in kb:
+        return None
+    total = kb["MemTotal"]
+    free = kb.get("MemFree", 0)
+    buff_cache = kb.get("Buffers", 0) + kb.get("Cached", 0) + kb.get("SReclaimable", 0)
+    return {
+        "total": total,
+        "free": free,
+        "buff_cache": buff_cache,
+        "available": kb.get("MemAvailable", free + buff_cache),
+        "used": max(0, total - free - buff_cache),
+    }
+
+
+def _parse_diskstats(text: str) -> dict[str, tuple[int, int, int]]:
+    """/proc/diskstats → {device: (bytes_read, bytes_written, busy_ms)} for whole
+    physical devices only. Fields (1-based): 3=name, 6=sectors read, 10=sectors
+    written, 13=io_ticks (ms the device was busy)."""
+    out: dict[str, tuple[int, int, int]] = {}
+    for line in text.splitlines():
+        f = line.split()
+        if len(f) < 14 or not _PHYS_DISK_RE.match(f[2]):
+            continue
+        try:
+            out[f[2]] = (int(f[5]) * _SECTOR_BYTES, int(f[9]) * _SECTOR_BYTES, int(f[12]))
+        except ValueError:
+            continue
+    return out
+
+
+def _parse_netdev(text: str) -> dict[str, tuple[int, int]]:
+    """/proc/net/dev → {iface: (rx_bytes, tx_bytes)}. Skips the two header lines
+    and loopback. rx is the 1st column after the colon, tx the 9th."""
+    out: dict[str, tuple[int, int]] = {}
+    for line in text.splitlines():
+        name, sep, rest = line.partition(":")
+        name = name.strip()
+        if not sep or name == "lo":
+            continue
+        cols = rest.split()
+        if len(cols) < 16:
+            continue
+        try:
+            out[name] = (int(cols[0]), int(cols[8]))
+        except ValueError:
+            continue
+    return out
+
+
+def _parse_speeds(text: str) -> dict[str, int]:
+    """ "<iface> <speed-mbit>" lines → {iface: mbit}. A blank/invalid/negative
+    speed (bridges, taps, down links report -1 or nothing) is dropped, so only
+    real uplinks with a negotiated speed remain."""
+    out: dict[str, int] = {}
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            try:
+                mbit = int(parts[1])
+            except ValueError:
+                continue
+            if mbit > 0:
+                out[parts[0]] = mbit
+    return out
+
+
+def compute_io_rates(
+    prev: dict[str, Any] | None,
+    cur: dict[str, Any],
+    disk_max_bps: int,
+) -> dict[str, Any]:
+    """Turn two counter samples into rates. ``cur``/``prev`` carry ``t`` (host
+    uptime seconds — monotonic, immune to SSH latency), ``disk`` and ``net``.
+    Returns zeros with ``have=False`` when there is no usable prior sample or a
+    counter went backwards (reboot / wrap)."""
+    zero = {
+        "have": False,
+        "disk_read": 0,
+        "disk_write": 0,
+        "disk_util": 0,
+        "disk_read_pct": 0,
+        "disk_write_pct": 0,
+        "net_in": 0,
+        "net_out": 0,
+        "net_in_pct": 0,
+        "net_out_pct": 0,
+        "net_link": cur.get("link_bps", 0),
+    }
+    if not prev:
+        return zero
+    dt = cur["t"] - prev["t"]
+    if dt <= 0:
+        return zero  # reboot or clock went backwards — reset, no rate this round
+
+    disk_read = disk_write = 0
+    util_pct = 0.0
+    for dev, (r, w, busy) in cur["disk"].items():
+        if dev not in prev["disk"]:
+            continue
+        pr, pw, pbusy = prev["disk"][dev]
+        if r < pr or w < pw or busy < pbusy:
+            return zero  # counter reset — don't emit a bogus spike
+        disk_read += (r - pr) / dt
+        disk_write += (w - pw) / dt
+        util_pct = max(util_pct, (busy - pbusy) / (dt * 1000.0) * 100.0)
+
+    net_in = net_out = 0
+    for iface, (rx, tx) in cur["net"].items():
+        if iface not in prev["net"]:
+            continue
+        prx, ptx = prev["net"][iface]
+        if rx < prx or tx < ptx:
+            return zero
+        net_in += (rx - prx) / dt
+        net_out += (tx - ptx) / dt
+
+    link = cur.get("link_bps", 0)
+    pct = lambda v, cap: min(100, round(v / cap * 100)) if cap else 0  # noqa: E731
+    return {
+        "have": True,
+        "disk_read": round(disk_read),
+        "disk_write": round(disk_write),
+        "disk_util": min(100, round(util_pct)),
+        "disk_read_pct": pct(disk_read, disk_max_bps),
+        "disk_write_pct": pct(disk_write, disk_max_bps),
+        "net_in": round(net_in),
+        "net_out": round(net_out),
+        "net_in_pct": pct(net_in, link),
+        "net_out_pct": pct(net_out, link),
+        "net_link": link,
+    }
 
 
 class PveClient(Protocol):
@@ -266,45 +432,68 @@ class RestoreServer:
 
     # capacity ---------------------------------------------------------------
 
-    def _host_memory(self) -> dict[str, int] | None:
-        """Real host memory from ``/proc/meminfo`` (root SSH): total, free,
-        buff/cache, used and — crucially — AVAILABLE. PVE's node status reports
-        ``free`` as MemFree (buff/cache counts as used), which badly understates
-        what is actually free for a restore; MemAvailable is the honest number
-        (reclaimable cache counts as free), matching ``free``'s 'available'.
-        Returns bytes, or None if the read/parse fails (caller falls back)."""
+    def _host_sample(self) -> dict[str, Any] | None:
+        """One root-SSH round-trip for the whole host snapshot: memory, disk and
+        network counters, NIC link speeds and the host's uptime clock. Reading all
+        of it in a single ``cat`` keeps the host gentle — one exec per ~25 s host
+        refresh, never a per-request or sub-second poll. Returns parsed sections,
+        or None if the read fails (caller falls back to PVE's node status)."""
+        cmd = (
+            "cat /proc/meminfo; echo '@@DISK'; cat /proc/diskstats; "
+            "echo '@@NET'; cat /proc/net/dev; echo '@@SPEED'; "
+            'for d in /sys/class/net/*; do echo "$(basename "$d") $(cat "$d/speed" 2>/dev/null)"; done; '
+            "echo '@@UP'; cat /proc/uptime"
+        )
         try:
-            out = self.ssh.run("cat /proc/meminfo")
+            out = self.ssh.run(cmd)
         except Exception as exc:
-            logger.debug("meminfo read failed: %s", exc)
+            logger.debug("host sample read failed: %s", exc)
             return None
-        kb: dict[str, int] = {}
+        sections: dict[str, list[str]] = {"MEM": []}
+        cur = "MEM"
         for line in out.splitlines():
-            key, _, rest = line.partition(":")
-            parts = rest.strip().split()
-            if parts and parts[0].isdigit():
-                kb[key.strip()] = int(parts[0]) * 1024  # meminfo is in kB
-        if "MemTotal" not in kb:
+            if line.startswith("@@"):
+                cur = line[2:]
+                sections[cur] = []
+            else:
+                sections.setdefault(cur, []).append(line)
+        mem = _parse_meminfo("\n".join(sections.get("MEM", [])))
+        if mem is None:
             return None
-        total = kb["MemTotal"]
-        free = kb.get("MemFree", 0)
-        buff_cache = kb.get("Buffers", 0) + kb.get("Cached", 0) + kb.get("SReclaimable", 0)
-        available = kb.get("MemAvailable", free + buff_cache)
+        up_parts = " ".join(sections.get("UP", [])).split()
+        try:
+            uptime = float(up_parts[0]) if up_parts else time.monotonic()
+        except ValueError:
+            uptime = time.monotonic()
+        speeds = _parse_speeds("\n".join(sections.get("SPEED", [])))
+        net = _parse_netdev("\n".join(sections.get("NET", [])))
+        # Only uplinks with a negotiated speed count toward the Network ring, so
+        # bridges/taps/veth are ignored and the link denominator is real.
+        net_uplinks = {i: v for i, v in net.items() if i in speeds}
         return {
-            "total": total,
-            "free": free,
-            "buff_cache": buff_cache,
-            "available": available,
-            "used": max(0, total - free - buff_cache),
+            "t": uptime,
+            "mem": mem,
+            "disk": _parse_diskstats("\n".join(sections.get("DISK", []))),
+            "net": net_uplinks or net,  # fall back to all ifaces if none has a speed
+            "link_bps": sum(speeds[i] for i in net_uplinks) * 1_000_000 // 8,
         }
+
+    def _disk_ceiling_bps(self, classes: dict[str, str | None], selected: set[str]) -> int:
+        """Denominator for the disk read/write arcs: the fastest tier among the
+        selected target storages (so the arcs read as 'share of the best disk we
+        restore onto'). Falls back to standard-ssd."""
+        vals = [DISK_CLASS_MAX_BPS[c] for s in selected if (c := classes.get(s)) in DISK_CLASS_MAX_BPS]
+        return max(vals) if vals else _DISK_CLASS_FALLBACK_BPS
 
     def free_resources(self) -> dict[str, Any]:
         node = self.node()
         status = self.pve.get(f"/nodes/{node}/status") or {}
         mem = status.get("memory", {})
         # Prefer the host's real figures (incl. MemAvailable) over PVE's node
-        # status, whose "free" treats reclaimable buff/cache as used.
-        mem_detail = self._host_memory()
+        # status, whose "free" treats reclaimable buff/cache as used. One SSH read
+        # also carries the disk/net counters for the I/O rings.
+        sample = self._host_sample()
+        mem_detail = sample["mem"] if sample else None
         cfg_targets = self.config.get("target_storages", [])
         classes = {s["storage"]: s.get("disk_class") for s in cfg_targets}
         # Operator's configured preference order, so the UI is stable across
@@ -344,7 +533,19 @@ class RestoreServer:
             ram_total, ram_free = mem_detail["total"], mem_detail["available"]
         else:
             ram_total, ram_free = mem.get("total"), mem.get("free")
-        return {"ram_free": ram_free, "ram_total": ram_total, "ram_detail": mem_detail, "stores": stores}
+        io = self._io_rates(node, sample, self._disk_ceiling_bps(classes, selected))
+        return {"ram_free": ram_free, "ram_total": ram_total, "ram_detail": mem_detail, "stores": stores, "io": io}
+
+    def _io_rates(self, node: str, sample: dict[str, Any] | None, disk_max_bps: int) -> dict[str, Any]:
+        """Disk/net rates from this sample vs. the previous one for this node.
+        Updates the per-node counter cache. The first refresh has no prior sample,
+        so it reports have=False (the rings show '—' until the next tick)."""
+        if sample is None:
+            return compute_io_rates(None, {"disk": {}, "net": {}, "t": 0, "link_bps": 0}, disk_max_bps)
+        with _IO_SAMPLE_LOCK:
+            prev = _IO_SAMPLE_CACHE.get(node)
+            _IO_SAMPLE_CACHE[node] = {"t": sample["t"], "disk": sample["disk"], "net": sample["net"]}
+        return compute_io_rates(prev, sample, disk_max_bps)
 
     def list_pbs_storages(self) -> list[dict[str, Any]]:
         """The restore host's PBS storages with the fields needed to resolve their

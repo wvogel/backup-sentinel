@@ -3509,6 +3509,32 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 .store-ring-label .store-name { overflow-wrap: anywhere; }
 
+/* — /restore: Disk-I/O + Network dual-arc rings — */
+.io-ring { position: relative; width: 92px; height: 92px; }
+.io-ring-svg { width: 92px; height: 92px; display: block; }
+.io-track { fill: none; stroke: color-mix(in srgb, var(--ink) 16%, transparent); stroke-width: 7; }
+.io-arc { fill: none; stroke-width: 7; stroke-linecap: round; transition: stroke-dasharray .4s ease; }
+.io-arc.io-read { stroke: var(--running); }
+.io-arc.io-write { stroke: var(--ok); }
+.io-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.io-center strong { font-size: 0.95rem; }
+.io-sub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.io-dot { width: 7px; height: 7px; border-radius: 2px; display: inline-block; margin-right: 1px; }
+.io-dot.io-read { background: var(--running); }
+.io-dot.io-write { background: var(--ok); }
+
 /* — /restore: running-restore cards — */
 .running-card {
   display: flex;
