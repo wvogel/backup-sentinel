@@ -391,6 +391,26 @@ def test_restore_completes_on_ok_status():
     assert any(p.get("percent") == 100 for p in seen)
 
 
+def test_restore_names_the_guest_early_bypassing_the_restore_lock():
+    # PVE ignores a name override on the archive-restore create, and the config is
+    # locked for the restore's duration — so the guest is named live via a root
+    # `qm set --skiplock`, not left as a bare "VM 9000" until the restore ends.
+    state = {"calls": 0}
+
+    def status(path):
+        state["calls"] += 1
+        return {"status": "running"} if state["calls"] < 2 else {"status": "stopped", "exitstatus": "OK"}
+
+    responses = {
+        "/nodes/r1/tasks": lambda p: status(p) if p.endswith("status") else [{"t": "progress 100% (1B of 1B)"}],
+        "/nodes": [{"node": "r1", "status": "online"}],
+    }
+    srv = _server(responses)
+    srv._start_restore_task = lambda *a, **k: "UPID:restore:task"
+    srv.restore(9000, {"storage": "pbs", "src_vmid": 100}, "snap", "zfs", name="prod-web", sleep=lambda s: None)
+    assert any("qm set 9000 --name prod-web --skiplock" in c for c in srv.ssh.commands)
+
+
 def test_start_restore_task_discovers_running_upid_not_a_finished_one():
     running = "UPID:r1:0000ABCD:00002000:qmrestore:9000:root@pam:"
     responses = {

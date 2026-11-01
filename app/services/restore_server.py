@@ -743,6 +743,8 @@ class RestoreServer:
         upid = self._start_restore_task(restore_vmid, archive, target_storage, node, name=name, now=now, sleep=sleep)
         if on_task:
             on_task(upid)
+        if name:
+            self._name_guest_early(restore_vmid, name, sleep=sleep)
         self._poll_task(
             node, upid, on_progress, poll_interval=poll_interval, now=now, sleep=sleep, should_cancel=should_cancel
         )
@@ -801,6 +803,35 @@ class RestoreServer:
         except Exception as exc:
             logger.debug("restore log tail failed: %s", exc)
         raise RestoreTaskError(f"restore task for VM {vmid} did not appear; log: {tail[:300]}")
+
+    def _name_guest_early(
+        self,
+        vmid: int,
+        name: str,
+        *,
+        sleep: Callable[[float], None] = time.sleep,
+        attempts: int = 15,
+    ) -> None:
+        """Set the restored guest's name AS SOON AS its config exists, bypassing
+        the restore's config lock (root ``qm set --skiplock``), so it shows its
+        ``<cluster>-<vm>`` name for the whole restore instead of a bare "VM
+        {vmid}". PVE ignores a ``name`` override on the archive-restore create
+        itself, and the config is locked for the restore's entire (often long)
+        duration, so this is the only way to name it live. ``--name`` touches only
+        the config's name field, never a disk. Best-effort: the config can lag the
+        task by a second or two (retry), and ``rewrite_nics`` sets the name again
+        after the restore as the durable guarantee, so a failure here is not
+        fatal."""
+        cmd = f"qm set {int(vmid)} --name {shlex.quote(name)} --skiplock"
+        for _ in range(attempts):
+            try:
+                self.ssh.run(cmd)
+                logger.info("named restore guest %s %r during the restore", vmid, name)
+                return
+            except Exception as exc:
+                logger.debug("early guest rename not ready yet (%s); retrying", str(exc)[:120])
+                sleep(1.0)
+        logger.info("could not name guest %s early; will be set after the restore", vmid)
 
     def stop_task(
         self, upid: str, node: str | None = None, *, wait: bool = True, sleep: Callable[[float], None] = time.sleep
