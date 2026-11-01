@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.2.5] — 2026-11-01
+
+### Fixed
+
+- **The restored guest really is named during the restore now, not just after.** v3.2.3 passed `-name` to the archive-restore create, but PVE ignores a name override there — and the config is locked for the restore's whole duration, so the guest still sat as a bare "VM 9000" in the PVE UI the entire (often long) copy. The name is now set the moment the config exists via a root `qm set --name <cluster>-<vm> --skiplock` that bypasses the restore lock (name is pure metadata, never touches a disk), with a short retry; `rewrite_nics` still sets it after the restore as the durable guarantee.
+
 ## [v3.2.4] — 2026-11-01
 
 ### Fixed
