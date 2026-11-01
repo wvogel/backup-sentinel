@@ -175,7 +175,7 @@
         <td>{{ run.trigger }}</td>
         <td>{{ run.queued_at|datetime_local }}</td>
         <td>{% if run.duration_seconds %}{{ (run.duration_seconds // 60) }}m {{ run.duration_seconds % 60 }}s{% else %}–{% endif %}</td>
-        <td class="run-actions">{% if run.status == 'queued' %}<form action="/restore/runs/{{ run.id }}/delete" method="post" class="inline-form"><button type="submit" class="icon-button" title="{{ t('restore.delete_run') }}" aria-label="{{ t('restore.delete_run') }}">✕</button></form>{% endif %}</td>
+        <td class="run-actions">{% if run.status == 'queued' %}<form action="/restore/runs/{{ run.id }}/delete" method="post" class="inline-form"><button type="submit" class="icon-button" title="{{ t('restore.delete_run') }}" aria-label="{{ t('restore.delete_run') }}">✕</button></form>{% elif run.status not in ('running', 'held') and run.result in ('failed', 'error', 'limited') %}<form action="/restore/vm/{{ run.vm_id }}/test" method="post" class="inline-form"><button type="submit" class="icon-button icon-retry" title="{{ t('restore.retry_test') }}" aria-label="{{ t('restore.retry_test') }}">↻</button></form>{% endif %}</td>
       </tr>
       {% if run.log %}
       <tr class="run-log-row"><td colspan="7"><details><summary>{{ t('restore.show_log') }}</summary><pre class="run-log">{{ run.log }}</pre></details></td></tr>

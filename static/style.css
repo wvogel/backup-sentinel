@@ -434,6 +434,15 @@ td .icon-button {
   margin-right: 8px;
 }
 
+/* Re-run a VM's restore test from the runs log: blue (the "running" accent)
+   so it reads as "start a run", distinct from the muted delete ✕. */
+.icon-button.icon-retry {
+  font-size: 1.2rem;
+}
+.icon-button.icon-retry:hover {
+  color: var(--running);
+}
+
 .cluster-stat {
   padding: var(--pad-box);
   background: var(--panel-alt);
