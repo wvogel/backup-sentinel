@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.46] — 2026-11-01
+
+### Changed
+
+- **Filters moved into the column headers, Excel-style.** Instead of a separate filter bar, each filterable column (Cluster, VM, Status, Trigger) has a small funnel in its header that opens a menu; the column header **lights up and shows the active value** when a filter is on it (e.g. "Status: limited"). A "Reset" clears all. Filtering stays server-side (`WHERE`+`LIMIT/OFFSET`+`COUNT`) and the selection is carried in the URL, so paging and the live auto-refresh keep it.
+
 ## [v3.1.45] — 2026-11-01
 
 ### Changed

@@ -143,37 +143,28 @@
 </section>
 {% endif %}
 
-{# Runs list #}
+{# Runs list — Excel-style per-column header filters (a funnel in the header;
+   the column lights up when a filter is on it). Filtering is server-side. #}
+{% macro colfilter(key, label, options, filt) -%}
+<span class="th-h">{{ label }}{% if filt[key] %}<span class="th-val">: {{ filt[key] }}</span>{% endif %}<details class="col-filter{{ ' active' if filt[key] }}"><summary aria-label="Filter"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M3 5h18l-7 8v5l-4 2v-7z"/></svg></summary><div class="col-filter-menu"><a class="{{ 'sel' if not filt[key] else '' }}" href="{{ runs_filter_href(filt, key, '') }}">{{ t('restore.filter_all') }}</a>{% for opt in options %}{% set val = opt if opt is string else opt[0] %}{% set disp = opt if opt is string else opt[1] %}<a class="{{ 'sel' if filt[key] == val else '' }}" href="{{ runs_filter_href(filt, key, val) }}">{{ disp }}</a>{% endfor %}</div></details></span>
+{%- endmacro %}
 <section class="table-card">
-  <div class="section-head"><div><p class="eyebrow">{{ t('restore.runs_title') }}</p></div></div>
-  <form class="runs-filter" method="get" action="/restore">
-    {%- set _statuses = ['passed', 'limited', 'failed', 'error', 'cancelled', 'held', 'running', 'queued'] %}
-    <select name="f_status" aria-label="{{ t('restore.col_status') }}">
-      <option value="">{{ t('restore.filter_all_status') }}</option>
-      {% for s in _statuses %}<option value="{{ s }}"{{ ' selected' if runs_filter.f_status == s }}>{{ s }}</option>{% endfor %}
-    </select>
-    <select name="f_trigger" aria-label="{{ t('restore.col_trigger') }}">
-      <option value="">{{ t('restore.filter_all_trigger') }}</option>
-      <option value="manual"{{ ' selected' if runs_filter.f_trigger == 'manual' }}>{{ t('restore.trigger_manual') }}</option>
-      <option value="scheduled"{{ ' selected' if runs_filter.f_trigger == 'scheduled' }}>{{ t('restore.trigger_scheduled') }}</option>
-    </select>
-    <select name="f_cluster" aria-label="{{ t('restore.col_cluster') }}">
-      <option value="">{{ t('restore.filter_all_cluster') }}</option>
-      {% for c in cluster_options %}<option value="{{ c }}"{{ ' selected' if runs_filter.f_cluster == c }}>{{ c }}</option>{% endfor %}
-    </select>
-    <input type="search" name="f_q" value="{{ runs_filter.f_q }}" placeholder="VM / VMID" aria-label="VM">
-    <button type="submit" class="button-secondary">{{ t('restore.filter_apply') }}</button>
-    {% if runs_has_filter %}<a class="button-secondary" href="/restore">{{ t('restore.filter_reset') }}</a>{% endif %}
-  </form>
-  {% if not runs %}
-  <p class="muted">{{ t('restore.no_runs_filtered') if runs_has_filter else t('restore.no_runs') }}</p>
+  <div class="section-head"><div><p class="eyebrow">{{ t('restore.runs_title') }}</p></div>{% if runs_has_filter %}<a class="button-secondary" href="/restore">{{ t('restore.filter_reset') }}</a>{% endif %}</div>
+  {% if not runs and not runs_has_filter %}
+  <p class="muted">{{ t('restore.no_runs') }}</p>
   {% else %}
+  {%- set _statuses = ['passed', 'limited', 'failed', 'error', 'cancelled', 'held', 'running', 'queued'] %}
+  {%- set _triggers = [('manual', t('restore.trigger_manual')), ('scheduled', t('restore.trigger_scheduled'))] %}
   <table class="data-table">
     <thead><tr>
-      <th>{{ t('restore.col_cluster') }}</th><th>VM</th><th>{{ t('restore.col_status') }}</th>
-      <th>{{ t('restore.col_trigger') }}</th><th>{{ t('restore.col_queued') }}</th><th>{{ t('restore.col_duration') }}</th><th></th>
+      <th>{{ colfilter('f_cluster', t('restore.col_cluster'), cluster_options, runs_filter) }}</th>
+      <th><span class="th-h">VM{% if runs_filter.f_q %}<span class="th-val">: {{ runs_filter.f_q }}</span>{% endif %}<details class="col-filter{{ ' active' if runs_filter.f_q }}"><summary aria-label="Filter"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M3 5h18l-7 8v5l-4 2v-7z"/></svg></summary><div class="col-filter-menu"><form method="get" action="/restore">{% if runs_filter.f_status %}<input type="hidden" name="f_status" value="{{ runs_filter.f_status }}">{% endif %}{% if runs_filter.f_trigger %}<input type="hidden" name="f_trigger" value="{{ runs_filter.f_trigger }}">{% endif %}{% if runs_filter.f_cluster %}<input type="hidden" name="f_cluster" value="{{ runs_filter.f_cluster }}">{% endif %}<input type="search" name="f_q" value="{{ runs_filter.f_q }}" placeholder="VM / VMID"><button type="submit" class="button-secondary">{{ t('restore.filter_apply') }}</button></form></div></details></span></th>
+      <th>{{ colfilter('f_status', t('restore.col_status'), _statuses, runs_filter) }}</th>
+      <th>{{ colfilter('f_trigger', t('restore.col_trigger'), _triggers, runs_filter) }}</th>
+      <th>{{ t('restore.col_queued') }}</th><th>{{ t('restore.col_duration') }}</th><th></th>
     </tr></thead>
     <tbody>
+    {% if not runs %}<tr><td colspan="7" class="muted runs-nomatch">{{ t('restore.no_runs_filtered') }}</td></tr>{% endif %}
     {% for run in runs %}
       <tr data-run-id="{{ run.id }}">
         <td>{{ run.cluster_name or '–' }}</td>
