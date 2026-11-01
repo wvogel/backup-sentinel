@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.49] — 2026-11-01
+
+### Fixed
+
+- **Live progress really moves now (not just a jump to 100% at the end).** Reading the restore task's UPID from the backgrounded `pvesh` output was unreliable (its stdout block-buffers and only flushed at completion), so the poll started too late. The UPID is now discovered from the **API task list** right after the restore is kicked, and polled over the fast API from the start — the percentage climbs during the copy.
+
+### Added
+
+- **Confirmation before cancelling a running restore.** The stop controls (live card + runs list) now ask "really cancel? the environment will be torn down" before aborting.
+
 ## [v3.1.48] — 2026-11-01
 
 ### Changed

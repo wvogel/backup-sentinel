@@ -437,23 +437,30 @@ class RestoreServer:
     ) -> str:
         """Kick the restore as root in the background (so hostpci is applied) and
         return its PVE task UPID as soon as it appears — without waiting for the
-        restore to finish. ``pvesh create`` runs it as a worker task and prints the
-        UPID as its first line; ``stdbuf -oL`` forces that line out immediately."""
-        out = f"/tmp/bsentinel-restore-{vmid}.out"
+        restore to finish, so we can poll it live over the fast API. The UPID is
+        found via the API task list (robust; no parsing of pvesh's stdout, which
+        block-buffers and only flushed at the very end — freezing progress at 0%
+        until completion)."""
+        out = f"/tmp/bsentinel-restore-{vmid}.log"
         self.ssh.run(
-            f"rm -f {shlex.quote(out)}; nohup stdbuf -oL -eL pvesh create /nodes/{shlex.quote(node)}/qemu "
+            f"nohup pvesh create /nodes/{shlex.quote(node)}/qemu "
             f"-vmid {vmid} -archive {shlex.quote(archive)} -storage {shlex.quote(storage)} -live-restore 0 "
             f"> {shlex.quote(out)} 2>&1 & echo kicked"
         )
         deadline = now() + deadline_seconds
-        seen = ""
         while now() < deadline:
-            seen = self.ssh.run(f"cat {shlex.quote(out)} 2>/dev/null || true")
-            m = re.search(r"UPID:\S+", seen)
-            if m:
-                return m.group(0).rstrip('"')
+            for tk in self.pve.get(f"/nodes/{node}/tasks?vmid={vmid}&limit=50") or []:
+                upid = tk.get("upid")
+                if str(tk.get("id")) == str(vmid) and "restore" in str(tk.get("type") or "").lower() and upid:
+                    logger.info("restore task for VM %s: %s", vmid, upid)
+                    return upid
             sleep(2.0)
-        raise RestoreTaskError(f"restore did not start (no task UPID): {seen.strip()[:300]}")
+        tail = ""
+        try:
+            tail = self.ssh.run(f"tail -c 400 {shlex.quote(out)} 2>/dev/null || true").strip()
+        except Exception as exc:
+            logger.debug("restore log tail failed: %s", exc)
+        raise RestoreTaskError(f"restore task for VM {vmid} did not appear; log: {tail[:300]}")
 
     def stop_task(self, upid: str, node: str | None = None) -> None:
         """Ask PVE to stop a running task (used to abort an in-flight restore on
