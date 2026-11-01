@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.48] — 2026-11-01
+
+### Changed
+
+- **A held (failed-but-kept) environment now discards its helper and keeps only the VM, freeing the management IP.** The helper is just a DHCP/probe sidecar; holding it for the whole retry window tied up the scarce management IP (the queue's gating resource). On hold the helper is now torn down and the run's `helper_vmid`/`mgmt_ip` are cleared, so the IP (and helper vmid) return to the pool immediately — only the VM's vmid and sandbox VLAN stay reserved. **Re-test** of a held env re-provisions a fresh helper (allocates an IP, provisions, probes) and tears it back down afterwards; a green re-test promotes as before. Inspect a held VM via the PVE console; a re-test gives it a networked helper again.
+
 ## [v3.1.47] — 2026-11-01
 
 ### Fixed

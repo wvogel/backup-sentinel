@@ -186,10 +186,21 @@ def execute(
 
 def _finalize(run_id: int, plan: RunPlan, result: str, checks: dict, duration: int, server: Any) -> str:
     if result != "passed" and plan.hold_on_failure and result in ("failed", "error"):
-        # Keep the environment up for manual inspection; the queue continues.
+        # Keep the restored VM for inspection, but DISCARD the helper: it is cheap
+        # and its only scarce resource — the management IP — would otherwise be
+        # tied up for the whole hold window (spec §15). A re-test re-provisions a
+        # fresh helper. The VM's vmid + sandbox VLAN stay reserved; helper_vmid +
+        # mgmt_ip are cleared so the allocator frees them.
+        if plan.helper_vmid:
+            try:
+                if server.exists(plan.helper_vmid, is_lxc=True):
+                    server.destroy(plan.helper_vmid, is_lxc=True)
+            except Exception as exc:
+                logger.warning("held: discarding helper %s failed: %s", plan.helper_vmid, exc)
         db_restore.record_run_result(
             run_id, plan.vm_id, result, duration_seconds=duration, checks=checks, status="held"
         )
+        db_restore.update_run(run_id, helper_vmid=None, mgmt_ip=None)
         return "held"
 
     # Teardown (passed/limited, or failed without hold): reap this env.

@@ -442,9 +442,11 @@ def _held_action(run_id: int, action: str) -> None:
         elif action == "promote":
             restore_worker.promote_held(run_id, plan, server)
         elif action == "retest":
-            result = restore_worker.retest_held(run_id, server, plan)
+            # A held env has no helper (discarded to free its IP); re-provision a
+            # fresh one, re-probe, and promote if it is green.
+            result, fresh_plan = restore_orchestrator.reprovision_and_retest(run_id, run, config, server)
             if result == "passed":
-                restore_worker.promote_held(run_id, plan, server)
+                restore_worker.promote_held(run_id, fresh_plan, server)
     except Exception as exc:
         logger.warning("held action %s on run %s failed: %s", action, run_id, exc)
 
