@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.50] — 2026-11-01
+
+### Fixed
+
+- **A guest with no recorded IP can be reached and probed (the sandbox leg is no longer stranded on 0.0.0.0).** When there were no DHCP reservations, the helper's sandbox leg fell back to `0.0.0.0/24` — so it could neither serve DHCP nor probe anything. Now, when a guest has no recorded IP (and no override), each of its NICs is handed a known address from the **management range** by MAC via DHCP; the helper's sandbox leg gets a real management-subnet address, and the guest's assigned IP is probed over a `/32` route on the sandbox leg. (dnsmasq still binds only the sandbox interface, so it never serves the real management network.) Guests with a recorded IP or an override are unchanged; a purely static guest that ignores DHCP remains the guest-agent/recorded-IP case.
+
 ## [v3.1.49] — 2026-11-01
 
 ### Fixed

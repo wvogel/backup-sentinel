@@ -716,3 +716,25 @@ def test_build_server_tolerates_missing_api_block():
         {"ssh_host": "10.0.0.9", "ssh_private_key": "", "sandbox_bridge": "vmbr9"}
     )
     assert server.ssh is not None and server.pve is not None
+
+
+def test_mgmt_probe_pool_assigns_mgmt_range_ips_by_mac():
+    from app.services.restore_orchestrator import _mgmt_probe_pool
+
+    nics = [
+        {"mac": "aa:bb:cc:dd:ee:01", "ip_addresses": []},
+        {"mac": "aa:bb:cc:dd:ee:02", "ip_addresses": []},
+        {"mac": None, "ip_addresses": []},  # no MAC → skipped
+    ]
+    res, targets, primary = _mgmt_probe_pool(nics, "10.121.101.100", 24, [80, 443])
+    # Guests get management-subnet IPs by MAC, skipping the mgmt-leg (.100) and
+    # the helper's per-subnet address (.254); start at .101.
+    assert res == [
+        {"mac": "aa:bb:cc:dd:ee:01", "ip": "10.121.101.101", "prefix": 24},
+        {"mac": "aa:bb:cc:dd:ee:02", "ip": "10.121.101.102", "prefix": 24},
+    ]
+    assert targets == [
+        {"ip": "10.121.101.101", "ports": [80, 443]},
+        {"ip": "10.121.101.102", "ports": [80, 443]},
+    ]
+    assert primary == "10.121.101.101"
