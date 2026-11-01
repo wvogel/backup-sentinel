@@ -533,17 +533,41 @@ class RestoreServer:
         data = self._helper_image_bytes()
         name = f"restore-helper-{hashlib.sha256(data).hexdigest()[:8]}.tar.gz"
         stores = [s for s in (self.pve.get(f"/nodes/{node}/storage") or []) if "vztmpl" in (s.get("content") or "")]
+        if not stores:
+            raise RestoreTaskError("no vztmpl-capable storage on the restore host to hold the helper template")
+        current = None
         for s in stores:
             for vol in self.pve.get(f"/nodes/{node}/storage/{s['storage']}/content?content=vztmpl") or []:
                 if str(vol.get("volid", "")).rsplit("/", 1)[-1] == name:
-                    return vol["volid"]
-        if not stores:
-            raise RestoreTaskError("no vztmpl-capable storage on the restore host to hold the helper template")
-        storage = stores[0]["storage"]
-        upid = self.pve.upload(node, storage, name, data)
-        if isinstance(upid, str) and upid.startswith("UPID"):
-            self._wait_task(node, upid)
-        return f"{storage}:vztmpl/{name}"
+                    current = vol["volid"]
+        if current is None:
+            storage = stores[0]["storage"]
+            upid = self.pve.upload(node, storage, name, data)
+            if isinstance(upid, str) and upid.startswith("UPID"):
+                self._wait_task(node, upid)
+            current = f"{storage}:vztmpl/{name}"
+        # Every agent change uploads a new content-hashed template; prune the old
+        # ones so they don't pile up on the restore host (keep only the current).
+        self._prune_helper_templates(node, stores, keep=name)
+        return current
+
+    def _prune_helper_templates(self, node: str, stores: list[dict[str, Any]], keep: str) -> None:
+        """Delete stale helper CT templates (previous content hashes) so they don't
+        accumulate on the restore host — keep only ``keep`` (the current one).
+        Best-effort, and only ever touches our own ``restore-helper-<hash>.tar.gz``
+        volumes, never other templates the operator keeps."""
+        ours = re.compile(r"^restore-helper-[0-9a-f]{8}\.tar\.gz$")
+        for s in stores:
+            for vol in self.pve.get(f"/nodes/{node}/storage/{s['storage']}/content?content=vztmpl") or []:
+                volid = str(vol.get("volid", ""))
+                base = volid.rsplit("/", 1)[-1]
+                if base == keep or not ours.match(base):
+                    continue
+                try:
+                    self.pve.delete(f"/nodes/{node}/storage/{s['storage']}/content/{volid}")
+                    logger.info("pruned stale helper template %s", volid)
+                except Exception as exc:
+                    logger.warning("could not delete stale helper template %s: %s", volid, exc)
 
     def _helper_image_bytes(self) -> bytes:
         from pathlib import Path

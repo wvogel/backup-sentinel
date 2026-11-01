@@ -389,6 +389,30 @@ def test_ensure_helper_template_returns_existing_volid_without_upload(tmp_path):
     assert srv.pve.uploads == []  # already present (same content hash) → no upload
 
 
+def test_ensure_helper_template_prunes_stale_templates(tmp_path):
+    img = tmp_path / "restore-helper.tar.gz"
+    img.write_bytes(b"ROOTFS")
+    name = _helper_name(b"ROOTFS")
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage": [{"storage": "local", "content": "vztmpl"}],
+        "/nodes/r1/storage/local/content": [
+            {"volid": f"local:vztmpl/{name}"},  # current → kept
+            {"volid": "local:vztmpl/restore-helper-deadbeef.tar.gz"},  # stale → deleted
+            {"volid": "local:vztmpl/restore-helper-cafebabe.tar.gz"},  # stale → deleted
+            {"volid": "local:vztmpl/alpine-3.20.tar.zst"},  # not ours → kept
+        ],
+    }
+    cfg = {"ssh_host": "10.0.0.9", "api_url": "https://10.0.0.9:8006", "helper_image_path": str(img)}
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    assert srv.ensure_helper_template() == f"local:vztmpl/{name}"
+    assert srv.pve.uploads == []  # current already present → no upload
+    assert sorted(srv.pve.deletes) == [
+        "/nodes/r1/storage/local/content/local:vztmpl/restore-helper-cafebabe.tar.gz",
+        "/nodes/r1/storage/local/content/local:vztmpl/restore-helper-deadbeef.tar.gz",
+    ]
+
+
 def test_ensure_helper_template_uploads_when_absent(tmp_path):
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],
