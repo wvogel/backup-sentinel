@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.65] — 2026-11-01
+
+### Fixed
+
+- **A guest that answered ARP but not ICMP/TCP is now actually reachable (the probe no longer leaves from the wrong source address).** The helper's sandbox leg carries two subnets (its management-range address plus the guest-subnet address it adds), so the `/32` route to the guest had no fixed source and the kernel could send the probe FROM the management address. The guest then answered ARP (L2) but routed its IP reply to that wrong source via its own default gateway — which doesn't exist in the isolated sandbox — so the reply was lost and the guest looked "ARP-reachable but ICMP/TCP-dead". The host route now pins `src` to the helper's address in the guest's own subnet, so the guest replies straight back and ICMP/TCP work.
+
 ## [v3.1.64] — 2026-11-01
 
 ### Fixed
