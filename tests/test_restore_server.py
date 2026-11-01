@@ -712,6 +712,35 @@ def test_destroy_stops_a_running_guest_before_deleting():
     assert any("/nodes/r1/lxc/9001?purge=1" in d for d in srv.pve.deletes)
 
 
+def test_destroy_clears_the_lock_first():
+    # A cancelled restore leaves the target VM locked ('create'), which blocks the
+    # stop and the delete. destroy() must clear the lock (qm unlock) first.
+    responses = {"/nodes": [{"node": "r1", "status": "online"}]}
+    srv = _server(responses)
+    srv.destroy(9000, sleep=lambda s: None)
+    assert "qm unlock 9000" in srv.ssh.commands
+    # and the unlock comes before the destroy DELETE
+    assert any("/nodes/r1/qemu/9000?purge=1" in d for d in srv.pve.deletes)
+
+
+def test_destroy_lxc_uses_pct_unlock():
+    srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
+    srv.destroy(9001, is_lxc=True, sleep=lambda s: None)
+    assert "pct unlock 9001" in srv.ssh.commands
+
+
+def test_stop_task_waits_until_the_task_is_stopped():
+    # Aborting the qmrestore and tearing down immediately raced the lock release;
+    # stop_task now DELETEs the task and waits until it actually reports stopped.
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/tasks/UPID:x/status": {"status": "stopped", "exitstatus": "OK"},
+    }
+    srv = _server(responses)
+    srv.stop_task("UPID:x", "r1", sleep=lambda s: None)
+    assert any("/tasks/UPID:x" in d for d in srv.pve.deletes)
+
+
 def test_guest_agent_ips_parses_and_filters():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],

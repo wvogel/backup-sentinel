@@ -478,10 +478,28 @@ class RestoreServer:
             logger.debug("restore log tail failed: %s", exc)
         raise RestoreTaskError(f"restore task for VM {vmid} did not appear; log: {tail[:300]}")
 
-    def stop_task(self, upid: str, node: str | None = None) -> None:
+    def stop_task(
+        self, upid: str, node: str | None = None, *, wait: bool = True, sleep: Callable[[float], None] = time.sleep
+    ) -> None:
         """Ask PVE to stop a running task (used to abort an in-flight restore on
-        cancel). Best-effort; the caller tears the environment down afterwards."""
-        self.pve.delete(f"/nodes/{node or self.node()}/tasks/{upid}")
+        cancel), then wait until it is actually stopped. Waiting matters: an
+        aborted ``qmrestore`` keeps the target VM's config ``lock`` until the task
+        finishes unwinding, and tearing down before then fails with "VM is locked
+        (create)". Best-effort; the caller tears the environment down afterwards
+        (``destroy`` also clears a leftover lock, so a timeout here is not fatal)."""
+        node = node or self.node()
+        self.pve.delete(f"/nodes/{node}/tasks/{upid}")
+        if not wait:
+            return
+        for _ in range(30):
+            try:
+                status = self.pve.get(f"/nodes/{node}/tasks/{upid}/status") or {}
+            except Exception as exc:
+                logger.debug("stop_task status poll (ignored): %s", exc)
+                return
+            if status.get("status") == "stopped":
+                return
+            sleep(1.0)
 
     def poll_task(
         self,
@@ -526,7 +544,7 @@ class RestoreServer:
         while True:
             if should_cancel and should_cancel():
                 try:
-                    self.stop_task(upid, node)  # abort the qmrestore on the host
+                    self.stop_task(upid, node, sleep=sleep)  # abort the qmrestore + wait for it to stop
                 except Exception as exc:
                     logger.debug("stop_task on cancel (ignored): %s", exc)
                 raise RestoreCancelled("restore cancelled by operator")
@@ -693,13 +711,29 @@ class RestoreServer:
             return False
         return isinstance(st, dict) and st.get("status") == "running"
 
+    def unlock(self, vmid: int, *, is_lxc: bool = False) -> None:
+        """Clear a guest's config ``lock`` over root SSH (``qm``/``pct unlock``).
+        A cancelled/aborted ``qmrestore`` leaves the target VM locked ('create'),
+        which blocks the stop and the destroy ("VM is locked (create)"). Clearing
+        the lock needs root (skiplock), which we have on this dedicated host.
+        Best-effort: no lock, or already gone, is not an error."""
+        tool = "pct" if is_lxc else "qm"
+        try:
+            self.ssh.run(f"{tool} unlock {int(vmid)}")
+        except Exception as exc:
+            logger.debug("unlock %s %s (ignored): %s", tool, vmid, exc)
+
     def destroy(self, vmid: int, *, is_lxc: bool = False, sleep: Callable[[float], None] = time.sleep) -> None:
         """Destroy a guest. PVE refuses to destroy a *running* one, so ALWAYS stop
         first and wait until it is actually down before purging. The stop is not
         gated on a status read: right after a start the status can still read
-        non-running, which previously skipped the stop and made the delete fail."""
+        non-running, which previously skipped the stop and made the delete fail.
+
+        First clear any config lock: a cancelled restore leaves the target VM
+        locked ('create'), which would otherwise fail the stop and the delete."""
         kind = "lxc" if is_lxc else "qemu"
         node = self.node()
+        self.unlock(vmid, is_lxc=is_lxc)
         try:
             self.pve.post(f"/nodes/{node}/{kind}/{vmid}/status/stop", {})
         except Exception as exc:

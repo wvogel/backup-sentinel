@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.54] — 2026-11-01
+
+### Fixed
+
+- **Cancelling a restore while it runs no longer fails with "VM is locked (create)".** Aborting the `qmrestore` left the target VM with a config lock, and the teardown then couldn't stop or destroy it. Now the abort **waits** for the restore task to actually stop, and the teardown **clears the config lock** (`qm`/`pct unlock`, root) before stopping and purging — so the environment is torn down cleanly.
+
 ## [v3.1.53] — 2026-11-01
 
 ### Changed
