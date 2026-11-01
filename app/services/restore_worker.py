@@ -439,9 +439,12 @@ def _progress_fields(p: dict[str, Any]) -> dict[str, Any]:
         out["percent"] = p["percent"]
         # The data copy is done at 100% but the task keeps running: Proxmox then
         # rescans volumes and the slow target flushes its write cache (can take
-        # minutes). Show that as its own step instead of a frozen 100%.
-        if p["percent"] >= 100:
-            out["phase"] = "finalizing"
+        # minutes). Show that as its own step instead of a frozen 100%. Derive the
+        # phase from the CURRENT percent every time, not just set it once at 100:
+        # PBS logs "progress 100%" per disk, so a multi-disk guest hits 100 on its
+        # first disk early — the phase must fall back to "restoring" while the next
+        # disk copies, and only read "finalizing" once the last line is a true 100%.
+        out["phase"] = "finalizing" if p["percent"] >= 100 else "restoring"
     if "bytes_done" in p:
         out["bytes_done"] = p["bytes_done"]
     if "bytes_total" in p:

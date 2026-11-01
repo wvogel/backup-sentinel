@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.2.4] — 2026-11-01
+
+### Fixed
+
+- **Restore progress phase no longer sticks at "Finalizing volumes (cache flush)".** PBS logs `progress 100%` per disk, so a multi-disk guest reaches 100 on its first disk early; `_progress_fields` set the phase to `finalizing` at ≥100 but never reset it, so the card showed "Finalizing volumes (cache flush)" at e.g. 4% while later disks were still copying. The phase is now derived from the current percent on every update — "Restoring" below 100, "Finalizing" only at a true, sustained 100%.
+
 ## [v3.2.3] — 2026-11-01
 
 ### Fixed
