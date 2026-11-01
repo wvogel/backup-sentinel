@@ -55,10 +55,17 @@ def _ensure_reachable(ip: str, prefix: int = 24) -> None:
     """Give the sandbox leg the FIRST available host in the target's subnet so the
     helper can reach it — needed when the IP was discovered after boot (agent/ARP)
     and the helper wasn't pre-configured for that subnet (a static guest that kept
-    its own IP). Also pin a /32 host route for the target via the sandbox leg: when
-    the guest's subnet overlaps the management subnet, both legs carry a connected
-    route for it, and the pin forces probe traffic out the sandbox leg (where the
-    guest actually lives) instead of the management leg. Idempotent; errors ignored."""
+    its own IP). Pin a /32 host route for the target via the sandbox leg WITH an
+    explicit ``src`` of that host address.
+
+    The ``src`` is essential: the sandbox leg carries more than one subnet (its
+    management-range address plus this guest-subnet address), so without a pinned
+    source the kernel may send the probe FROM the wrong (management) address. The
+    guest then answers ARP (L2) but routes its IP reply to that wrong source via
+    its own default gateway — which does not exist in the isolated sandbox — so
+    the reply is lost and the guest looks ARP-reachable but ICMP/TCP-dead. Pinning
+    ``src`` to the guest-subnet host makes the guest reply straight back to us.
+    Idempotent; errors ignored."""
     import ipaddress
 
     try:
@@ -68,7 +75,7 @@ def _ensure_reachable(ip: str, prefix: int = 24) -> None:
         if host is None:  # degenerate subnet with no other host
             host = target + 1
         subprocess.run(["ip", "addr", "add", f"{host}/{prefix}", "dev", SBX_IFACE], capture_output=True)
-        subprocess.run(["ip", "route", "replace", f"{ip}/32", "dev", SBX_IFACE], capture_output=True)
+        subprocess.run(["ip", "route", "replace", f"{ip}/32", "dev", SBX_IFACE, "src", str(host)], capture_output=True)
     except (ValueError, OSError):
         pass
 

@@ -501,6 +501,19 @@ def test_helper_agent_probe_targets(monkeypatch):
     assert out["10.0.0.50"]["ports"] == {"443": True, "22": False}
 
 
+def test_helper_agent_ensure_reachable_pins_route_source(monkeypatch):
+    from app.services import restore_helper_agent as agent
+
+    calls = []
+    monkeypatch.setattr(agent.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+    agent._ensure_reachable("10.254.10.6", 24)
+    # Adds a host in the guest's subnet and a /32 route pinned to that source, so
+    # the probe never leaves from the helper's other (management) address.
+    assert ["ip", "addr", "add", "10.254.10.1/24", "dev", "sbx"] in calls
+    route = next(c for c in calls if c[:3] == ["ip", "route", "replace"])
+    assert route == ["ip", "route", "replace", "10.254.10.6/32", "dev", "sbx", "src", "10.254.10.1"]
+
+
 def test_helper_agent_arp_alive_reads_neighbour_table(monkeypatch):
     from app.services import restore_helper_agent as agent
 
