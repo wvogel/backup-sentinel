@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.37] — 2026-11-01
+
+### Changed
+
+- **Compact runs table: Status and Trigger are now icons with hover detail; no column wraps.** The wide "Fortschritt" column is gone. **Status** is a single glyph (✓ passed, ✗ failed, ! error, ◐ limited, ‖ held, … queued, ⟳ + live % running), colored by state, with a hover tooltip carrying the decisive check breakdown (`passed — ICMP ✓ · :80 ✓ · :443 ✓`) or the error message. **Trigger** is an icon (pointer = manual, clock = scheduled) with a hover label. Cells no longer wrap, so cluster names and timestamps stay on one line.
+- **One check line per test, not one per IP.** A multi-homed guest (e.g. a firewall) is probed on several IPs, but the result is decided by the primary/detected IP; the table (now the Status hover) shows only that decisive line instead of one row per IP.
+
 ## [v3.1.36] — 2026-11-01
 
 ### Fixed

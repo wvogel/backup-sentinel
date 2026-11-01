@@ -149,7 +149,7 @@
   {% else %}
   <table class="data-table">
     <thead><tr>
-      <th>{{ t('restore.col_cluster') }}</th><th>VM</th><th>{{ t('restore.col_status') }}</th><th>{{ t('restore.col_progress') }}</th>
+      <th>{{ t('restore.col_cluster') }}</th><th>VM</th><th>{{ t('restore.col_status') }}</th>
       <th>{{ t('restore.col_trigger') }}</th><th>{{ t('restore.col_queued') }}</th><th>{{ t('restore.col_duration') }}</th><th></th>
     </tr></thead>
     <tbody>
@@ -157,23 +157,30 @@
       <tr data-run-id="{{ run.id }}">
         <td>{{ run.cluster_name or '–' }}</td>
         <td>{{ run.vm_name or ('VM ' ~ run.vm_id) }}{% if run.vmid_src %} <span class="muted">({{ run.vmid_src }})</span>{% endif %}</td>
-        <td><span class="status-badge status-{{ run.status }}">{{ run.status }}</span></td>
         <td>
-          {% if run.status == 'running' %}
-            <span class="js-row-pct">{{ run.percent or 0 }}%</span>
-            <span class="js-row-phase muted">· {{ t('restore.phase_' ~ (run.phase or 'restoring')) }}</span>
-            <span class="js-row-progress muted">{% if run.throughput_bps %}· {{ (run.throughput_bps / 1048576)|round(1) }} MiB/s{% endif %}</span>
-          {% elif run.checks and run.checks.get('error') %}<span class="critical-text" data-tooltip="{{ run.checks.error }}">{{ run.result or 'error' }}: {{ run.checks.error|truncate(80) }}</span>
-          {% elif run.result %}{{ run.result }}
-            {%- for ip, r in (run.checks or {}).items() if r is mapping and 'icmp' in r %}
-            <div class="muted check-detail">
-              <span class="chk chk-{{ 'na' if r.icmp is none else ('ok' if r.icmp else 'bad') }}">ICMP {{ '–' if r.icmp is none else ('✓' if r.icmp else '✗') }}</span>
-              {%- for port, ok in (r.ports or {}).items() %} <span class="chk chk-{{ 'ok' if ok else 'bad' }}">:{{ port }} {{ '✓' if ok else '✗' }}</span>{% endfor %}
-            </div>
-            {%- endfor %}
-          {% else %}–{% endif %}
+          {%- if run.status == 'running' -%}
+            <span class="status-icon status-running js-row-status" data-tooltip="{{ t('restore.phase_' ~ (run.phase or 'restoring')) }}" aria-label="{{ run.status }}">⟳&nbsp;<span class="js-row-pct">{{ run.percent or 0 }}%</span></span>
+          {%- else -%}
+            {#- One decisive line per test: the primary/detected IP (the one that
+                decides pass/fail). A multi-homed guest is probed on several IPs;
+                only the decisive one feeds the hover. Fallback: first IP result. -#}
+            {%- set _checks = run.checks or {} -%}
+            {%- set _ns = namespace(primary=none) -%}
+            {%- set _byip = _checks.get(run.detected_ip) if run.detected_ip else none -%}
+            {%- if _byip is mapping and 'icmp' in _byip %}{% set _ns.primary = _byip %}
+            {%- else %}{% for _ip, _r in _checks.items() if _r is mapping and 'icmp' in _r %}{% if _ns.primary is none %}{% set _ns.primary = _r %}{% endif %}{% endfor %}{% endif -%}
+            {%- set _tip %}{{ run.result or run.status }}{% if _checks.get('error') %} — {{ _checks.error }}{% elif _ns.primary %} — ICMP {{ '–' if _ns.primary.icmp is none else ('✓' if _ns.primary.icmp else '✗') }}{% for port, ok in (_ns.primary.ports or {}).items() %} · :{{ port }} {{ '✓' if ok else '✗' }}{% endfor %}{% endif %}{% endset -%}
+            {%- set _icon = {'passed': '✓', 'failed': '✗', 'error': '!', 'limited': '◐', 'held': '‖', 'queued': '…', 'planned': '…'}.get(run.status, '•') -%}
+            <span class="status-icon status-{{ run.status }}" data-tooltip="{{ _tip|trim }}" aria-label="{{ _tip|trim }}">{{ _icon }}</span>
+          {%- endif -%}
         </td>
-        <td>{{ run.trigger }}</td>
+        <td>
+          {%- if run.trigger == 'scheduled' -%}
+            <span class="trigger-icon" data-tooltip="{{ t('restore.trigger_scheduled') }}" aria-label="{{ t('restore.trigger_scheduled') }}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg></span>
+          {%- else -%}
+            <span class="trigger-icon" data-tooltip="{{ t('restore.trigger_manual') }}" aria-label="{{ t('restore.trigger_manual') }}"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M5 2.5l6.6 16.8 2.3-6.7 6.7-2.3z"/></svg></span>
+          {%- endif -%}
+        </td>
         <td>{{ run.queued_at|datetime_local }}</td>
         <td>{% if run.duration_seconds %}{{ (run.duration_seconds // 60) }}m {{ run.duration_seconds % 60 }}s{% else %}–{% endif %}</td>
         <td class="run-actions">{% if run.status == 'queued' %}<form action="/restore/runs/{{ run.id }}/delete" method="post" class="inline-form"><button type="submit" class="icon-button" title="{{ t('restore.delete_run') }}" aria-label="{{ t('restore.delete_run') }}">✕</button></form>{% elif run.status not in ('running', 'held') and run.result in ('failed', 'error', 'limited') %}<form action="/restore/vm/{{ run.vm_id }}/test" method="post" class="inline-form"><button type="submit" class="icon-button icon-retry" title="{{ t('restore.retry_test') }}" aria-label="{{ t('restore.retry_test') }}">↻</button></form>{% endif %}</td>

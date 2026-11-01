@@ -624,6 +624,8 @@
   "restore.col_status": "Status",
   "restore.col_progress": "Fortschritt",
   "restore.col_trigger": "Auslöser",
+  "restore.trigger_manual": "Manuell gestartet",
+  "restore.trigger_scheduled": "Automatisch (geplant)",
   "restore.col_queued": "Eingereiht",
   "restore.col_duration": "Dauer",
   "restore.show_log": "Log anzeigen",
