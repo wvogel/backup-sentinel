@@ -10,8 +10,12 @@ GIB = 1024**3
 
 
 class ProgressFieldsTest(unittest.TestCase):
-    def test_under_100_has_no_phase(self):
-        self.assertEqual(_progress_fields({"percent": 42, "bytes_done": 5}), {"percent": 42, "bytes_done": 5})
+    def test_under_100_is_restoring(self):
+        # PBS logs "progress 100%" per disk, so a multi-disk guest briefly reads
+        # 100 on its first disk; the phase must fall back to "restoring" while the
+        # next disk copies — never stick at finalizing.
+        out = _progress_fields({"percent": 42, "bytes_done": 5})
+        self.assertEqual(out, {"percent": 42, "bytes_done": 5, "phase": "restoring"})
 
     def test_100_percent_marks_finalizing(self):
         # Copy done but task still running (volume rescan / cache flush).
