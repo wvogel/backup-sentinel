@@ -412,17 +412,48 @@ class RestoreServer:
         archive = (
             snapshot_id if ":" in snapshot_id else f"{source['storage']}:backup/vm/{source['src_vmid']}/{snapshot_id}"
         )
-        # The restore runs as ROOT (pve_root): a token can't apply a backed-up
-        # hostpci. It returns a UPID we then poll over the fast API token.
-        upid = self.pve_root.post(
-            f"/nodes/{node}/qemu",
-            {"vmid": restore_vmid, "archive": archive, "storage": target_storage, "live-restore": 0},
-        )
+        # Start the restore as ROOT (a token can't apply a backed-up hostpci) but
+        # in the BACKGROUND, returning the task UPID immediately — then poll that
+        # UPID over the FAST API token for live progress. (Running `pvesh create`
+        # in the foreground blocks until the whole restore finishes, which froze
+        # the progress at 0% the entire time.)
+        upid = self._start_restore_task(restore_vmid, archive, target_storage, node, now=now, sleep=sleep)
         if on_task:
             on_task(upid)
         self._poll_task(
             node, upid, on_progress, poll_interval=poll_interval, now=now, sleep=sleep, should_cancel=should_cancel
         )
+
+    def _start_restore_task(
+        self,
+        vmid: int,
+        archive: str,
+        storage: str,
+        node: str,
+        *,
+        now: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+        deadline_seconds: float = 120.0,
+    ) -> str:
+        """Kick the restore as root in the background (so hostpci is applied) and
+        return its PVE task UPID as soon as it appears — without waiting for the
+        restore to finish. ``pvesh create`` runs it as a worker task and prints the
+        UPID as its first line; ``stdbuf -oL`` forces that line out immediately."""
+        out = f"/tmp/bsentinel-restore-{vmid}.out"
+        self.ssh.run(
+            f"rm -f {shlex.quote(out)}; nohup stdbuf -oL -eL pvesh create /nodes/{shlex.quote(node)}/qemu "
+            f"-vmid {vmid} -archive {shlex.quote(archive)} -storage {shlex.quote(storage)} -live-restore 0 "
+            f"> {shlex.quote(out)} 2>&1 & echo kicked"
+        )
+        deadline = now() + deadline_seconds
+        seen = ""
+        while now() < deadline:
+            seen = self.ssh.run(f"cat {shlex.quote(out)} 2>/dev/null || true")
+            m = re.search(r"UPID:\S+", seen)
+            if m:
+                return m.group(0).rstrip('"')
+            sleep(2.0)
+        raise RestoreTaskError(f"restore did not start (no task UPID): {seen.strip()[:300]}")
 
     def stop_task(self, upid: str, node: str | None = None) -> None:
         """Ask PVE to stop a running task (used to abort an in-flight restore on

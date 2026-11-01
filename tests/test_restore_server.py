@@ -299,6 +299,7 @@ def test_restore_raises_on_task_error():
         "/nodes": [{"node": "r1", "status": "online"}],
     }
     srv = _server(responses)
+    srv._start_restore_task = lambda *a, **k: "UPID:restore:task"  # don't shell out in the test
     with pytest.raises(RestoreTaskError):
         srv.restore(9000, {"storage": "pbs", "src_vmid": 100}, "snap", "zfs", sleep=lambda s: None)
 
@@ -328,6 +329,7 @@ def test_restore_cancel_stops_task_and_raises():
         "/nodes/r1/tasks": lambda p: {"status": "running"} if p.endswith("status") else [],
     }
     srv = _server(responses)
+    srv._start_restore_task = lambda *a, **k: "UPID:restore:task"
     with pytest.raises(RestoreCancelled):
         srv.restore(
             9000, {"storage": "pbs", "src_vmid": 100}, "snap", "zfs", sleep=lambda s: None, should_cancel=lambda: True
@@ -347,9 +349,21 @@ def test_restore_completes_on_ok_status():
         "/nodes": [{"node": "r1", "status": "online"}],
     }
     srv = _server(responses)
+    srv._start_restore_task = lambda *a, **k: "UPID:restore:task"
     seen = []
     srv.restore(9000, {"storage": "pbs", "src_vmid": 100}, "snap", "zfs", on_progress=seen.append, sleep=lambda s: None)
     assert any(p.get("percent") == 100 for p in seen)
+
+
+def test_start_restore_task_returns_upid_from_background_output():
+    upid_line = "UPID:pve:0000ABCD:00001234:qmrestore:9000:root@pam:"
+    ssh = _RecSsh(replies={"cat ": upid_line + "\nstarting restore..."})
+    srv = RestoreServer({"ssh_host": "x", "sandbox_bridge": "vmbr9"}, FakePve({}), ssh)
+    upid = srv._start_restore_task(9000, "store:backup/vm/100/x", "zfs", "r1", sleep=lambda s: None)
+    assert upid == upid_line
+    # Started in the background as root via pvesh (so hostpci applies), not waited on.
+    assert any("pvesh create /nodes/r1/qemu" in c and "nohup" in c for c in ssh.commands)
+    assert any("-archive store:backup/vm/100/x" in c for c in ssh.commands)
 
 
 def test_provision_helper_rootfs_on_first_container_capable_target():
