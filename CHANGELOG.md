@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.33] — 2026-11-01
+
+### Fixed
+
+- **The helper is no longer unreachable when the guest's IP falls in the management subnet.** `helper_legs` had a "single-homed" shortcut: when a restored guest NIC was numerically in the management subnet, the helper got **only** a sandbox-VLAN leg (the isolated, portless bridge) carrying the management IP — so the container ran but its management IP was stranded on a bridge the app can't reach ("agent unreachable although it's running"). The shortcut conflated IP-subnet with L2 segment; the guest lives on the isolated sandbox VLAN, so a single leg can never reach both guest and app. The helper is now **always dual-homed** (sandbox leg serves the guest, management leg on the real interface carries the mgmt IP + gateway). When the subnets overlap, the in-container agent pins a `/32` host route for each probe target onto the sandbox leg, so probes still egress the right interface despite the duplicate connected route.
+
+### Changed
+
+- **The helper is provisioned first and must be reachable within 60 s, before the restore starts.** A restore is expensive (minutes, many GB); there's no point paying for it if the helper that has to serve the guest's DHCP and answer probes never comes up. The pipeline now brings the helper up first and fails fast if its agent isn't reachable within a hard 60-second wall-clock cap (previously the wait could stretch, and the restore ran before the helper was known-good). This reverses v3.1.32's VM-boot/helper overlap; the overlap can return once reachability is proven solid.
+
 ## [v3.1.32] — 2026-11-01
 
 ### Changed

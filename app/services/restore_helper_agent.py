@@ -52,7 +52,11 @@ def _tcp(ip: str, port: int, timeout: float = 2.0) -> bool:
 def _ensure_reachable(ip: str, prefix: int = 24) -> None:
     """Give the sandbox leg an address in the target's subnet so the helper can
     reach it — needed when the IP was discovered after boot (agent/ARP) and the
-    helper wasn't pre-configured for that subnet. Idempotent; errors ignored."""
+    helper wasn't pre-configured for that subnet. Also pin a /32 host route for
+    the target via the sandbox leg: when the guest's subnet overlaps the
+    management subnet, both legs carry a connected route for it, and the pin
+    forces probe traffic out the sandbox leg (where the guest actually lives)
+    instead of the management leg. Idempotent; errors ignored."""
     import ipaddress
 
     try:
@@ -61,6 +65,7 @@ def _ensure_reachable(ip: str, prefix: int = 24) -> None:
         if str(host) == ip:
             host = net.network_address + 249
         subprocess.run(["ip", "addr", "add", f"{host}/{prefix}", "dev", SBX_IFACE], capture_output=True)
+        subprocess.run(["ip", "route", "replace", f"{ip}/32", "dev", SBX_IFACE], capture_output=True)
     except (ValueError, OSError):
         pass
 
