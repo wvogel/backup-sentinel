@@ -305,6 +305,15 @@ def delete_run(request: Request, run_id: int) -> RedirectResponse:
     return RedirectResponse("/restore", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/restore/runs/{run_id}/cancel")
+def cancel_run(request: Request, run_id: int) -> RedirectResponse:
+    """Ask the worker to abort a running run. It polls the flag in its long loops,
+    stops the in-flight restore task, tears the environment (VM + helper) down
+    cleanly, and records the run as cancelled."""
+    db_restore.request_cancel(run_id)
+    return RedirectResponse("/restore", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.post("/restore/queue/pause")
 def pause_queue(request: Request, paused: str = Form(default="1")) -> RedirectResponse:
     restore_config.set_queue_paused(paused == "1")

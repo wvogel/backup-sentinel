@@ -106,6 +106,9 @@
           {%- if run.bytes_done %}{{ run.bytes_done|size_coarse }} {{ t('restore.read_label') }}{% endif %}
           {%- if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
       </div>
+      <form action="/restore/runs/{{ run.id }}/cancel" method="post" class="inline-form running-cancel">
+        <button type="submit" class="button-secondary" title="{{ t('restore.cancel_run') }}">⏹ {{ t('restore.cancel_run') }}</button>
+      </form>
     </div>
     {% endfor %}
   </div>
@@ -170,7 +173,7 @@
             {%- if _byip is mapping and 'icmp' in _byip %}{% set _ns.primary = _byip %}
             {%- else %}{% for _ip, _r in _checks.items() if _r is mapping and 'icmp' in _r %}{% if _ns.primary is none %}{% set _ns.primary = _r %}{% endif %}{% endfor %}{% endif -%}
             {%- set _tip %}{{ run.result or run.status }}{% if _checks.get('error') %} — {{ _checks.error }}{% elif _ns.primary %} — ICMP {{ '–' if _ns.primary.icmp is none else ('✓' if _ns.primary.icmp else '✗') }}{% for port, ok in (_ns.primary.ports or {}).items() %} · :{{ port }} {{ '✓' if ok else '✗' }}{% endfor %}{% endif %}{% endset -%}
-            {%- set _icon = {'passed': '✓', 'failed': '✗', 'error': '!', 'limited': '◐', 'held': '‖', 'queued': '…', 'planned': '…'}.get(run.status, '•') -%}
+            {%- set _icon = {'passed': '✓', 'failed': '✗', 'error': '!', 'limited': '◐', 'held': '‖', 'queued': '…', 'planned': '…', 'cancelled': '⊘'}.get(run.status, '•') -%}
             <span class="status-icon status-{{ run.status }}" data-tooltip="{{ _tip|trim }}" aria-label="{{ _tip|trim }}">{{ _icon }}</span>
           {%- endif -%}
         </td>
@@ -183,7 +186,7 @@
         </td>
         <td>{{ run.queued_at|datetime_local }}</td>
         <td>{% if run.duration_seconds %}{{ (run.duration_seconds // 60) }}m {{ run.duration_seconds % 60 }}s{% else %}–{% endif %}</td>
-        <td class="run-actions">{% if run.status == 'queued' %}<form action="/restore/runs/{{ run.id }}/delete" method="post" class="inline-form"><button type="submit" class="icon-button" title="{{ t('restore.delete_run') }}" aria-label="{{ t('restore.delete_run') }}">✕</button></form>{% elif run.status not in ('running', 'held') and run.result in ('failed', 'error', 'limited') %}<form action="/restore/vm/{{ run.vm_id }}/test" method="post" class="inline-form"><button type="submit" class="icon-button icon-retry" title="{{ t('restore.retry_test') }}" aria-label="{{ t('restore.retry_test') }}">↻</button></form>{% endif %}</td>
+        <td class="run-actions">{% if run.status == 'queued' %}<form action="/restore/runs/{{ run.id }}/delete" method="post" class="inline-form"><button type="submit" class="icon-button" title="{{ t('restore.delete_run') }}" aria-label="{{ t('restore.delete_run') }}">✕</button></form>{% elif run.status == 'running' %}<form action="/restore/runs/{{ run.id }}/cancel" method="post" class="inline-form"><button type="submit" class="icon-button icon-cancel" title="{{ t('restore.cancel_run') }}" aria-label="{{ t('restore.cancel_run') }}">⏹</button></form>{% elif run.status not in ('held',) and run.result in ('failed', 'error', 'limited', 'cancelled') %}<form action="/restore/vm/{{ run.vm_id }}/test" method="post" class="inline-form"><button type="submit" class="icon-button icon-retry" title="{{ t('restore.retry_test') }}" aria-label="{{ t('restore.retry_test') }}">↻</button></form>{% endif %}</td>
       </tr>
       {% if run.log %}
       <tr class="run-log-row"><td colspan="7"><details><summary>{{ t('restore.show_log') }}</summary><pre class="run-log">{{ run.log }}</pre></details></td></tr>

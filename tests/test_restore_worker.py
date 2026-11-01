@@ -148,6 +148,24 @@ class WorkerTest(unittest.TestCase):
         self.assertIn("destroy", srv.calls)
         self.assertIsNone(self._next_run())
 
+    def test_cancel_tears_down_and_records_cancelled(self):
+        run_id = self._run()
+        srv = FakeServer()
+        res = execute(
+            run_id,
+            _plan(self.vm_id, hold_on_failure=True),  # hold must NOT keep a cancelled env
+            srv,
+            production_hosts=set(),
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {},
+            should_cancel=lambda: True,
+        )
+        self.assertEqual(res, "cancelled")
+        self.assertEqual(self._restore_test_count(), 0)  # no test row for a cancel
+        self.assertIn("destroy", srv.calls)  # environment torn down
+        self.assertEqual(db_restore.get_run(run_id)["status"], "cancelled")
+
     def test_failed_with_hold_keeps_env_no_row(self):
         run_id = self._run()
         srv = FakeServer()
