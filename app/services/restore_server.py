@@ -449,11 +449,21 @@ class RestoreServer:
         )
         deadline = now() + deadline_seconds
         while now() < deadline:
-            for tk in self.pve.get(f"/nodes/{node}/tasks?vmid={vmid}&limit=50") or []:
-                upid = tk.get("upid")
-                if str(tk.get("id")) == str(vmid) and "restore" in str(tk.get("type") or "").lower() and upid:
-                    logger.info("restore task for VM %s: %s", vmid, upid)
-                    return upid
+            # Only a RUNNING restore task for this vmid — not a finished one from a
+            # previous restore of the same (reused) vmid, which would make us poll
+            # an already-stopped task and jump straight to "booting/100%".
+            running = [
+                tk
+                for tk in self.pve.get(f"/nodes/{node}/tasks?vmid={vmid}&source=active&limit=50") or []
+                if str(tk.get("id")) == str(vmid)
+                and "restore" in str(tk.get("type") or "").lower()
+                and not tk.get("endtime")
+                and tk.get("upid")
+            ]
+            if running:
+                upid = max(running, key=lambda t: t.get("starttime", 0))["upid"]
+                logger.info("restore task for VM %s: %s", vmid, upid)
+                return upid
             sleep(2.0)
         tail = ""
         try:

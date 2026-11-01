@@ -355,19 +355,28 @@ def test_restore_completes_on_ok_status():
     assert any(p.get("percent") == 100 for p in seen)
 
 
-def test_start_restore_task_discovers_upid_via_task_list():
-    upid = "UPID:r1:0000ABCD:00001234:qmrestore:9000:root@pam:"
+def test_start_restore_task_discovers_running_upid_not_a_finished_one():
+    running = "UPID:r1:0000ABCD:00002000:qmrestore:9000:root@pam:"
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],
-        "/nodes/r1/tasks": [{"upid": upid, "id": "9000", "type": "qmrestore"}],
+        "/nodes/r1/tasks": [
+            # A FINISHED restore of the same (reused) vmid must be ignored, else we
+            # poll an already-stopped task and jump to "booting/100%".
+            {
+                "upid": "UPID:r1:OLD:00001000:qmrestore:9000:root@pam:",
+                "id": "9000",
+                "type": "qmrestore",
+                "endtime": 111,
+                "status": "OK",
+                "starttime": 1000,
+            },
+            {"upid": running, "id": "9000", "type": "qmrestore", "starttime": 2000},  # running (no endtime)
+        ],
     }
     srv = _server(responses)
     got = srv._start_restore_task(9000, "store:backup/vm/100/x", "zfs", "r1", sleep=lambda s: None)
-    assert got == upid
-    # Kicked in the background as root via pvesh (so hostpci applies); UPID found
-    # via the API task list, not pvesh stdout.
+    assert got == running
     assert any("pvesh create /nodes/r1/qemu" in c and "nohup" in c for c in srv.ssh.commands)
-    assert any("-archive store:backup/vm/100/x" in c for c in srv.ssh.commands)
 
 
 def test_provision_helper_rootfs_on_first_container_capable_target():

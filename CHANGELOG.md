@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.51] — 2026-11-01
+
+### Fixed
+
+- **Live progress no longer jumps straight to "booting/100%".** When discovering the restore's task UPID from the API task list, a *finished* restore task from a previous run of the same (reused) VMID could be matched — so the poller attached to an already-stopped task and the run raced to the booting phase at 100% while the real restore was still copying. Only a **running** restore task (no end time, newest) for that VMID is now matched, so the live percentage tracks the actual data copy.
+
 ## [v3.1.50] — 2026-11-01
 
 ### Fixed
