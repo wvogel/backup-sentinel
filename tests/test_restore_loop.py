@@ -127,9 +127,13 @@ class OrchestratorTest(unittest.TestCase):
         self.assertEqual(plan.helper_vmid, 9001)
         self.assertEqual(plan.vlan_tag, 900)
         self.assertEqual(plan.mgmt_ip, "10.9.0.10")
-        self.assertEqual(plan.primary_ip, "10.0.0.50")
+        # Probe the fixed management-range address the helper's dnsmasq hands the
+        # guest on the sandbox leg (mgmt .10 → guest .200), not the guest's own
+        # config IP — independent of the restored VM.
+        self.assertEqual(plan.primary_ip, "10.9.0.200")
         self.assertEqual(plan.target_storage, "zfs")
-        self.assertEqual(plan.reservations, [{"mac": "aa:bb:cc:dd:ee:01", "ip": "10.0.0.50", "prefix": 24}])
+        # No per-NIC DHCP reservations any more: a single-address dynamic range.
+        self.assertEqual(plan.reservations, [])
 
     def test_build_plan_without_target_storage_raises(self):
         # No ticked target storage must not reach PVE as an empty storage id.

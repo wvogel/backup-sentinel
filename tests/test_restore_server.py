@@ -14,6 +14,7 @@ from app.services.restore_server import (
     helper_legs,
     parse_task_progress,
     rewrite_net_line,
+    sandbox_addrs,
     select_reaper_targets,
     stall_exceeded,
 )
@@ -184,34 +185,46 @@ def test_stable_mac_is_deterministic_and_ip_derived():
     assert _stable_mac("10.121.101.100") != _stable_mac("10.121.101.101")  # unique per IP
 
 
+def test_sandbox_addrs_fixed_hosts_in_mgmt_subnet():
+    # Fixed sandbox addresses derived from the management subnet, independent of
+    # the restored guest: helper .254, guest .200, plus the netmask.
+    helper_ip, guest_ip, netmask = sandbox_addrs("10.121.101.100", 24)
+    assert helper_ip == "10.121.101.254"
+    assert guest_ip == "10.121.101.200"
+    assert netmask == "255.255.255.0"
+
+
 def test_helper_legs_dual_homed():
-    aliases = [{"ip": "10.0.0.254", "prefix": 24}]
-    nets, extra = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "", aliases)
+    sandbox_ip = "10.20.0.254"
+    nets = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "", sandbox_ip)
     assert "net1" in nets  # separate management leg
-    assert "tag=901" in nets["net0"] and "10.0.0.254/24" in nets["net0"]
+    # net0 is the sandbox leg on the VLAN, carrying the fixed sandbox IP.
+    assert "name=sbx" in nets["net0"]
+    assert "tag=901" in nets["net0"] and "10.20.0.254/24" in nets["net0"]
     assert "10.20.0.10/24" in nets["net1"]
     # Stable IP-derived MAC on the mgmt leg (keeps the gateway's ARP entry valid).
     assert "hwaddr=02:00:0a:14:00:0a" in nets["net1"]
-    assert extra == []  # only one sandbox subnet → first used on net0
 
 
-def test_helper_legs_stays_dual_homed_when_guest_in_mgmt_subnet():
-    # Even when the guest IP is numerically in the management subnet, the helper
-    # MUST keep a real management leg (on mgmt_iface) — the guest is on the
-    # isolated sandbox bridge, so collapsing onto it would strand the mgmt IP on
-    # a portless bridge (agent runs but is unreachable from the app).
-    aliases = [{"ip": "10.20.0.254", "prefix": 24}]
-    nets, _extra = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "10.20.0.1", aliases)
-    assert "net1" in nets  # management leg kept
-    assert "bridge=vmbr0" in nets["net1"] and "10.20.0.10/24" in nets["net1"] and "gw=10.20.0.1" in nets["net1"]
-    assert "bridge=vmbr9" in nets["net0"] and "10.20.0.254/24" in nets["net0"]  # sandbox leg serves the guest
+def test_helper_legs_mgmt_leg_carries_gateway_and_vlan():
+    # The management leg must stay on the real interface (vmbr0) with the mgmt IP,
+    # gateway and VLAN tag so the app can reach the agent; the sandbox leg (net0)
+    # stays on the isolated bridge with the fixed sandbox IP.
+    sandbox_ip = "10.20.0.254"
+    nets = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, 1010, "10.20.0.1", sandbox_ip)
+    assert "bridge=vmbr0" in nets["net1"] and "10.20.0.10/24" in nets["net1"]
+    assert "gw=10.20.0.1" in nets["net1"] and "tag=1010" in nets["net1"]
+    assert "bridge=vmbr9" in nets["net0"] and "10.20.0.254/24" in nets["net0"]
 
 
-def test_dnsmasq_config_has_reservation_and_range():
-    conf = dnsmasq_config([{"mac": "aa:bb:cc:dd:ee:01", "ip": "10.0.0.50", "prefix": 24}])
-    assert "dhcp-host=aa:bb:cc:dd:ee:01,10.0.0.50,infinite" in conf
-    # Static-mode range (valid dnsmasq syntax): subnet, "static", netmask, lease.
-    assert "dhcp-range=10.0.0.0,static,255.255.255.0,infinite" in conf
+def test_dnsmasq_config_single_mgmt_range_ip_on_sandbox_leg():
+    guest_ip, netmask = "10.0.0.200", "255.255.255.0"
+    conf = dnsmasq_config(guest_ip, netmask)
+    # Bound to the sandbox leg only, never the real management network.
+    assert "interface=sbx" in conf
+    assert "bind-interfaces" in conf
+    # One-address dynamic range: whatever NIC asks first gets the guest IP.
+    assert "dhcp-range=10.0.0.200,10.0.0.200,255.255.255.0,infinite" in conf
     # Must bind ONLY the sandbox leg, never the management leg — otherwise a
     # guest subnet that overlaps the mgmt subnet turns the helper into a rogue
     # DHCP server on the real management network.
@@ -727,23 +740,23 @@ def test_build_server_tolerates_missing_api_block():
     assert server.ssh is not None and server.pve is not None
 
 
-def test_mgmt_probe_pool_assigns_mgmt_range_ips_by_mac():
-    from app.services.restore_orchestrator import _mgmt_probe_pool
+def test_probe_ip_uses_fixed_guest_sandbox_address():
+    from app.services.restore_orchestrator import _probe_ip
 
-    nics = [
-        {"mac": "aa:bb:cc:dd:ee:01", "ip_addresses": []},
-        {"mac": "aa:bb:cc:dd:ee:02", "ip_addresses": []},
-        {"mac": None, "ip_addresses": []},  # no MAC → skipped
-    ]
-    res, targets, primary = _mgmt_probe_pool(nics, "10.121.101.100", 24, [80, 443])
-    # Guests get management-subnet IPs by MAC, skipping the mgmt-leg (.100) and
-    # the helper's per-subnet address (.254); start at .101.
-    assert res == [
-        {"mac": "aa:bb:cc:dd:ee:01", "ip": "10.121.101.101", "prefix": 24},
-        {"mac": "aa:bb:cc:dd:ee:02", "ip": "10.121.101.102", "prefix": 24},
-    ]
-    assert targets == [
-        {"ip": "10.121.101.101", "ports": [80, 443]},
-        {"ip": "10.121.101.102", "ports": [80, 443]},
-    ]
-    assert primary == "10.121.101.101"
+    # No override → the fixed management-range address dnsmasq hands the guest
+    # (.200), derived from the mgmt IP and netmask, independent of the guest.
+    config = {"mgmt_netmask": "255.255.255.0"}
+    assert _probe_ip(None, "10.121.101.100", config) == "10.121.101.200"
+
+
+def test_probe_ip_honours_static_override():
+    from app.services.restore_orchestrator import _probe_ip
+
+    # An operator-set static override wins over the DHCP address.
+    assert _probe_ip("10.121.101.42", "10.121.101.100", {}) == "10.121.101.42"
+
+
+def test_probe_ip_none_without_mgmt_ip():
+    from app.services.restore_orchestrator import _probe_ip
+
+    assert _probe_ip(None, None, {}) is None

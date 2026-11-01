@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.52] — 2026-11-01
+
+### Changed
+
+- **The restore helper's sandbox addressing no longer depends on the restored guest.** Previously the helper's sandbox leg took its address from the guest's recorded IP (or a per-MAC management-range pool), which left the leg on `0.0.0.0` whenever the guest had no usable IP yet — the exact chicken-and-egg the DHCP helper is meant to solve. Now both sandbox addresses are **fixed, derived from the management subnet**: the helper's own sandbox-leg IP is host `.254` and dnsmasq hands the restored guest a single management-range IP at host `.200`, over a one-address dynamic range bound to the sandbox interface only (never the real management network). The host reaches the guest at `.200` via a `/32` route on the sandbox leg, so probing works regardless of what the guest's own config says. Only one restore environment is live at a time (held environments drop their helper), so the fixed hosts never collide. A static probe override, when set, still wins.
+
 ## [v3.1.51] — 2026-11-01
 
 ### Fixed
