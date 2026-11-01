@@ -16,6 +16,7 @@ from typing import Any
 
 from app import db_restore
 from app.services import restore_probe
+from app.services.restore_server import RestoreCancelled
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ def _probe_loop(
     sleep: Callable[[float], None],
     probe_fn: Callable[[Any, str, list[dict[str, Any]]], dict[str, Any]],
     run_id: int | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Poll until success or the window elapses. Returns (result, checks).
 
@@ -74,6 +76,8 @@ def _probe_loop(
     checks: dict[str, Any] = {}
     result = "limited"
     while True:
+        if should_cancel and should_cancel():
+            raise RestoreCancelled("restore cancelled by operator")
         if not target_ip:
             target_ip = next(iter(server.guest_agent_ips(plan.restore_vmid) or []), None)
             if target_ip and run_id is not None:
@@ -100,10 +104,17 @@ def execute(
     now: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     probe_fn: Callable[[Any, str, list[dict[str, Any]]], dict[str, Any]] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> str:
     """Run the full pipeline for ``run_id`` and persist the outcome. Returns the
-    final status (passed/limited/failed/error/held)."""
+    final status (passed/limited/failed/error/held/cancelled)."""
     probe_fn = probe_fn or (lambda s, ip, t: s.probe(ip, t, plan.require_icmp))
+    should_cancel = should_cancel or (lambda: db_restore.cancel_requested(run_id))
+
+    def _checkpoint() -> None:
+        if should_cancel():
+            raise RestoreCancelled("restore cancelled by operator")
+
     start = now()
     db_restore.update_run(
         run_id,
@@ -130,8 +141,10 @@ def execute(
         # cheap helper — which must serve the guest's DHCP and answer probes —
         # never comes up. (We can revert to overlapping the two with the VM boot
         # once reachability is rock-solid.)
+        _checkpoint()
         db_restore.update_run(run_id, phase="helper")
         server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
+        _checkpoint()
         db_restore.update_run(run_id, phase="restoring")
         server.restore(
             plan.restore_vmid,
@@ -140,15 +153,28 @@ def execute(
             plan.target_storage,
             on_progress=lambda p: db_restore.update_run(run_id, **_progress_fields(p)),
             on_task=lambda upid: db_restore.update_run(run_id, task_upid=upid),
+            should_cancel=should_cancel,
         )
+        _checkpoint()
         db_restore.update_run(run_id, phase="network")
         server.rewrite_nics(plan.restore_vmid, plan.vlan_tag)
         db_restore.update_run(run_id, phase="booting")
+        # Never start while the restore still holds the config lock — a restore
+        # that is still running (e.g. after an app restart resumed the tail, or a
+        # stale task) would make the start fail with "can't lock file". Wait for
+        # the lock to clear, then start.
+        server.wait_unlocked(plan.restore_vmid)
         server.start(plan.restore_vmid)
         db_restore.update_run(run_id, phase="probing")
         if plan.primary_ip:
             db_restore.update_run(run_id, detected_ip=plan.primary_ip)  # recorded/override IP
-        result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id)
+        result, checks = _probe_loop(
+            server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id, should_cancel=should_cancel
+        )
+    except RestoreCancelled as exc:
+        logger.info("restore run %s cancelled: %s", run_id, exc)
+        result = "cancelled"
+        checks = {"note": "cancelled by operator"}
     except Exception as exc:
         logger.warning("restore run %s failed: %s", run_id, exc)
         result = "error"
@@ -259,19 +285,28 @@ def resume_run(
     now: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     probe_fn: Callable[[Any, str, list[dict[str, Any]]], dict[str, Any]] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> str:
     """Resume a restore whose app process restarted mid-run. Re-attaches to the
-    PVE restore task (by UPID) if still running, then re-runs the tail
-    idempotently (fresh helper, NICs, start, probe). The restore VM is preserved;
-    only the cheap helper is rebuilt. Returns the final status."""
+    PVE restore task (by UPID) and WAITS for it (plus the config lock) before
+    re-running the tail idempotently (fresh helper, NICs, start, probe). Waiting
+    for the lock is essential: the original restore task can still be running on
+    the host, and starting the VM then fails with "can't lock file". The restore
+    VM itself is preserved; only the cheap helper is rebuilt. Returns the final
+    status."""
     probe_fn = probe_fn or (lambda s, ip, t: s.probe(ip, t, plan.require_icmp))
+    should_cancel = should_cancel or (lambda: db_restore.cancel_requested(run_id))
     start = now()
     result = "error"
     checks: dict[str, Any] = {}
     try:
         if upid:
             server.poll_task(
-                upid, on_progress=lambda p: db_restore.update_run(run_id, **_progress_fields(p)), now=now, sleep=sleep
+                upid,
+                on_progress=lambda p: db_restore.update_run(run_id, **_progress_fields(p)),
+                now=now,
+                sleep=sleep,
+                should_cancel=should_cancel,
             )
         # The helper may be half-provisioned or gone; rebuild it fresh. The
         # restore VM itself is never destroyed here.
@@ -281,11 +316,18 @@ def resume_run(
             logger.debug("resume: helper cleanup (ignored): %s", exc)
         server.rewrite_nics(plan.restore_vmid, plan.vlan_tag)
         server.provision_helper(plan.helper_vmid, plan.vlan_tag, plan.mgmt_ip, plan.reservations)
+        server.wait_unlocked(plan.restore_vmid)  # the restore may still hold the lock
         try:
             server.start(plan.restore_vmid)
         except Exception as exc:
             logger.debug("resume: start (maybe already running): %s", exc)
-        result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id)
+        result, checks = _probe_loop(
+            server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id, should_cancel=should_cancel
+        )
+    except RestoreCancelled as exc:
+        logger.info("restore run %s cancelled during resume: %s", run_id, exc)
+        result = "cancelled"
+        checks = {"note": "cancelled by operator"}
     except Exception as exc:
         logger.warning("restore run %s resume failed: %s", run_id, exc)
         result = "error"

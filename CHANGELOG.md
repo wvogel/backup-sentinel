@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.1.41] — 2026-11-01
+
+### Added
+
+- **Cancel a running restore.** Each running run has a stop control (on the live card and in the runs list) that aborts it cleanly: the worker polls the request in its long loops, stops the in-flight `qmrestore` task, tears the environment (VM + helper) down, and records the run as `cancelled` (no retry armed, no test row).
+
+### Fixed
+
+- **Never start (or tear down) a VM while its restore still holds the config lock.** A restore that is still running — e.g. after an app restart (deploy) resumed the tail, or a stale/duplicate task — made `VM … Start/Stop/Destroy` fail with "can't lock file" and could leave a powered-off VM behind. The pipeline (and the resume path) now wait for the VM's config lock to clear before starting; a cancel stops the task first so the lock releases and teardown succeeds.
+
 ## [v3.1.40] — 2026-11-01
 
 ### Changed

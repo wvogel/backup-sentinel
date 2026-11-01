@@ -149,6 +149,27 @@ def delete_run(run_id: int) -> bool:
     return deleted
 
 
+def request_cancel(run_id: int) -> bool:
+    """Flag a running run for cancellation. The worker's long loops poll this and
+    abort with a clean teardown. Only a 'running' run can be cancelled."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE restore_runs SET cancel_requested = TRUE WHERE id = %s AND status = 'running'",
+            (run_id,),
+        )
+        ok = cur.rowcount > 0
+        conn.commit()
+    return ok
+
+
+def cancel_requested(run_id: int) -> bool:
+    """Whether a cancel was requested for this run (polled by the worker loops)."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT cancel_requested FROM restore_runs WHERE id = %s", (run_id,))
+        row = cur.fetchone()
+        return bool(row and row["cancel_requested"])
+
+
 def queue_state() -> str:
     """One word for the top-bar indicator: 'running' if a restore is active,
     'queued' if runs are waiting, else 'idle'. (Pause is tracked separately.)"""

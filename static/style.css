@@ -1712,7 +1712,7 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 .status-failed, .status-error { color: var(--critical); }
 .status-held, .status-limited { color: var(--warn); }
 .status-running { color: var(--running); }
-.status-queued, .status-planned { color: var(--muted); }
+.status-queued, .status-planned, .status-cancelled { color: var(--muted); }
 
 /* Runs table: compact icon columns, nothing wraps. Status + trigger are glyphs
    with a hover tooltip (data-tooltip) carrying the check breakdown / error. */
@@ -1734,6 +1734,9 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   cursor: default;
 }
 .trigger-icon svg { display: block; }
+.icon-button.icon-cancel:hover { color: var(--critical); }
+/* Cancel button on the running card sits at the far right. */
+.running-cancel { margin-left: auto; }
 
 .run-log {
   max-height: 320px;

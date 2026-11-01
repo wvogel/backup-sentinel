@@ -567,6 +567,7 @@
   "restore.vm_no_match": "Der Restore-Server kennt für diese VM kein Backup (lokal oder offsite) — Auto-Restore nicht möglich.",
   "restore.delete_run": "Aus Queue entfernen",
   "restore.retry_test": "Test für diese VM wiederholen",
+  "restore.cancel_run": "Restore abbrechen",
   "restore.err_not_restorable": "Für diese VM kennt der Restore-Server kein passendes Backup (lokal oder offsite) — kein Restore-Test möglich.",
   "restore.err_host": "Restore-Server nicht erreichbar — konnte die Backups nicht prüfen.",
   "restore.err_generic": "Aktion nicht möglich.",

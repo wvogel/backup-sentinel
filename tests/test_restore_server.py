@@ -298,6 +298,38 @@ def test_restore_raises_on_task_error():
         srv.restore(9000, {"storage": "pbs", "src_vmid": 100}, "snap", "zfs", sleep=lambda s: None)
 
 
+def test_wait_unlocked_returns_when_no_lock():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/config": {"name": "web"},  # no 'lock'
+    }
+    _server(responses).wait_unlocked(9000, attempts=3, sleep=lambda s: None)  # returns, no raise
+
+
+def test_wait_unlocked_raises_when_still_locked():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/config": {"lock": "create"},  # restore still holds the lock
+    }
+    with pytest.raises(RestoreTaskError, match="locked"):
+        _server(responses).wait_unlocked(9000, attempts=2, sleep=lambda s: None)
+
+
+def test_restore_cancel_stops_task_and_raises():
+    from app.services.restore_server import RestoreCancelled
+
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/tasks": lambda p: {"status": "running"} if p.endswith("status") else [],
+    }
+    srv = _server(responses)
+    with pytest.raises(RestoreCancelled):
+        srv.restore(
+            9000, {"storage": "pbs", "src_vmid": 100}, "snap", "zfs", sleep=lambda s: None, should_cancel=lambda: True
+        )
+    assert any("/tasks/" in d for d in srv.pve.deletes)  # stop_task issued a task DELETE
+
+
 def test_restore_completes_on_ok_status():
     state = {"calls": 0}
 

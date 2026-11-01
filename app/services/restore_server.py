@@ -390,12 +390,14 @@ class RestoreServer:
         poll_interval: float = 5.0,
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> None:
         """Restore a snapshot to ``restore_vmid`` on the target storage, tracking
-        live progress. Liveness is the task status; abort only on task error or
-        an adaptive stall (spec §6, §11). ``on_task`` receives the PVE task UPID
-        as soon as it starts, so the caller can persist it and re-attach after an
-        app restart (a deploy must not interrupt a running restore)."""
+        live progress. Liveness is the task status; abort only on task error, an
+        adaptive stall (spec §6, §11), or an operator cancel. ``on_task`` receives
+        the PVE task UPID as soon as it starts, so the caller can persist it and
+        re-attach after an app restart (a deploy must not interrupt a running
+        restore)."""
         node = self.node()
         # snapshot_id is the PBS volume id (e.g. "store:backup/vm/100/2026-...Z"),
         # which PVE accepts directly as the restore archive.
@@ -408,7 +410,14 @@ class RestoreServer:
         )
         if on_task:
             on_task(upid)
-        self._poll_task(node, upid, on_progress, poll_interval=poll_interval, now=now, sleep=sleep)
+        self._poll_task(
+            node, upid, on_progress, poll_interval=poll_interval, now=now, sleep=sleep, should_cancel=should_cancel
+        )
+
+    def stop_task(self, upid: str, node: str | None = None) -> None:
+        """Ask PVE to stop a running task (used to abort an in-flight restore on
+        cancel). Best-effort; the caller tears the environment down afterwards."""
+        self.pve.delete(f"/nodes/{node or self.node()}/tasks/{upid}")
 
     def poll_task(
         self,
@@ -418,11 +427,20 @@ class RestoreServer:
         poll_interval: float = 5.0,
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> None:
         """Re-attach to an existing PVE task (by UPID) and poll it to completion —
         used to resume a restore whose app process was restarted mid-run. A task
         that already finished returns at once; a failed one raises RestoreTaskError."""
-        self._poll_task(self.node(), upid, on_progress, poll_interval=poll_interval, now=now, sleep=sleep)
+        self._poll_task(
+            self.node(),
+            upid,
+            on_progress,
+            poll_interval=poll_interval,
+            now=now,
+            sleep=sleep,
+            should_cancel=should_cancel,
+        )
 
     def _poll_task(
         self,
@@ -433,6 +451,7 @@ class RestoreServer:
         poll_interval: float,
         now: Callable[[], float],
         sleep: Callable[[float], None],
+        should_cancel: Callable[[], bool] | None = None,
     ) -> None:
         start = now()
         last_progress_at = start
@@ -441,6 +460,12 @@ class RestoreServer:
         recent_lines: list[str] = []  # tail of the task log, for the failure message
         factor = float(self.config.get("stall_backstop_factor") or 6.0)
         while True:
+            if should_cancel and should_cancel():
+                try:
+                    self.stop_task(upid, node)  # abort the qmrestore on the host
+                except Exception as exc:
+                    logger.debug("stop_task on cancel (ignored): %s", exc)
+                raise RestoreCancelled("restore cancelled by operator")
             try:
                 status = self.pve.get(f"/nodes/{node}/tasks/{upid}/status") or {}
                 # Page from the last line seen: the task-log API caps at ~50 lines
@@ -541,6 +566,22 @@ class RestoreServer:
 
     def start(self, vmid: int) -> None:
         self.pve.post(f"/nodes/{self.node()}/qemu/{vmid}/status/start", {})
+
+    def wait_unlocked(self, vmid: int, *, attempts: int = 120, sleep: Callable[[float], None] = time.sleep) -> None:
+        """Wait until the VM has no config ``lock``. A still-running restore holds
+        a lock, and starting a locked VM fails with "can't lock file" — which is
+        what happens if the restore task is still in progress (e.g. an app restart
+        resumed the tail, or a stale/duplicate task). Bounded; raises if it never
+        clears."""
+        node = self.node()
+        lock = None
+        for _ in range(attempts):
+            cfg = self.pve.get(f"/nodes/{node}/qemu/{vmid}/config") or {}
+            lock = cfg.get("lock")
+            if not lock:
+                return
+            sleep(1.0)
+        raise RestoreTaskError(f"VM {vmid} still locked ('{lock}') — restore not finished, not starting")
 
     def guest_agent_ips(self, vmid: int) -> list[str]:
         """Non-loopback IPv4 addresses the QEMU guest agent reports for the VM, or
@@ -859,6 +900,10 @@ class RestoreServer:
 
 class RestoreTaskError(RuntimeError):
     pass
+
+
+class RestoreCancelled(RuntimeError):
+    """Raised inside the pipeline when the operator asked to abort the run."""
 
 
 def _host_of(url: str) -> str:
