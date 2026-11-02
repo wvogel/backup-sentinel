@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.3.1] — 2026-11-02
+
+### Fixed
+
+- **The restore helper is reachable on its management leg again (no more "/probe unreachable … No route to host").** The helper is dual-homed — a sandbox leg on the isolated bridge (to serve/probe the guest) and a management leg on the real interface (so the app reaches its agent). But the sandbox leg's DHCP fallback (used when no guest IP is known at provision) was addressed **from the management subnet** (`…/24` host .254), so the helper ended up with two interfaces in the *same* `/24` — one real, one isolated. That is textbook Linux ARP flux + ambiguous egress: the host's ARP for the management IP could be answered on the wrong leg, and the helper's replies could leave via the isolated sandbox leg (no uplink), so the management IP went intermittently unreachable. The sandbox leg's fallback now uses a dedicated, isolated range (`100.64.0.0/24`, RFC 6598 CGNAT — reserved, practically never on a LAN) that cannot overlap the management subnet, so the two legs stay cleanly separated and the management leg is always reachable. An operator override (`probe_primary_ip`) already pinned the sandbox leg to the guest's own subnet and was never affected.
+
 ## [v3.3.0] — 2026-11-02
 
 ### Fixed
