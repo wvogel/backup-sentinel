@@ -17,14 +17,20 @@
 
 The dashboard (`/`) provides a high-level overview of all monitored Proxmox clusters.
 
-### KPI Cards
+### Restore Tests
 
-At the top, four key figures about restore tests:
+At the top, one box titled *Restore tests* (the whole box links to `/restore`). On the right, six tiles as wide as the cluster rows' tiles:
 
-- **Restore coverage** -- A ring with the share of VMs that have a documented restore test (e.g. "12/83"). The color changes from green (>= 80 %) to yellow (>= 50 %) to red (< 50 %).
-- **Restore tests due** -- VMs whose restore-test interval has expired or is about to.
-- **Restore critically overdue** -- VMs whose restore test is well overdue.
-- **Restore tests this month** -- Restore tests recorded in the current calendar month.
+- **Queue** -- Restore tests waiting in the queue.
+- **Coverage** -- Share of VMs with a documented restore test. Green (>= 80 %), yellow (>= 50 %), red (< 50 %).
+- **Tested** -- VMs with a restore test out of those that need one (e.g. "12/83").
+- **Due** -- VMs whose restore-test interval has expired or is about to.
+- **Critical** -- VMs whose restore test is well overdue.
+- **This month** -- Restore tests recorded in the current calendar month.
+
+Below on the left, the running restore with the same ring and details as on `/restore` (VM, phase, data read, throughput, ETA), updated live; with nothing running, the queue state. On the right, the restore server's RAM and storage rings.
+
+At the bottom, *Recovery evidence* lists the latest restore tests.
 
 ### Cluster Rows
 

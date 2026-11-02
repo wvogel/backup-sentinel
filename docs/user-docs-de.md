@@ -17,14 +17,20 @@
 
 Das Dashboard (`/`) bietet eine Gesamt-Übersicht über alle überwachten Proxmox-Cluster.
 
-### KPI-Karten
+### Restore-Tests
 
-Oben stehen vier Kennzahlen zu den Restore-Tests:
+Oben steht ein Kasten *Restore-Tests* (der ganze Kasten führt zu `/restore`). Rechts sechs Kacheln, so breit wie die der Cluster-Zeilen:
 
-- **Restore-Abdeckung** -- Ein Ring mit dem Anteil der VMs, die einen dokumentierten Restore-Test haben (z. B. „12/83“). Die Farbe wechselt von Grün (>= 80 %) über Gelb (>= 50 %) zu Rot (< 50 %).
-- **Restore-Tests fällig** -- VMs, deren Restore-Test-Intervall abgelaufen ist oder bald abläuft.
-- **Restore kritisch überfällig** -- VMs, deren Restore-Test deutlich überfällig ist.
-- **Restore-Tests im Monat** -- Im laufenden Kalendermonat dokumentierte Restore-Tests.
+- **Queue** -- Restore-Tests, die in der Warteschlange stehen.
+- **Abdeckung** -- Anteil der VMs mit dokumentiertem Restore-Test. Grün (>= 80 %), Gelb (>= 50 %), Rot (< 50 %).
+- **Getestet** -- VMs mit Restore-Test von denen, die einen brauchen (z. B. „12/83“).
+- **Fällig** -- VMs, deren Restore-Test-Intervall abgelaufen ist oder bald abläuft.
+- **Kritisch** -- VMs, deren Restore-Test deutlich überfällig ist.
+- **Diesen Monat** -- Im laufenden Kalendermonat dokumentierte Restore-Tests.
+
+Darunter links der laufende Restore mit demselben Ring und denselben Details wie auf `/restore` (VM, Phase, gelesene Daten, Durchsatz, ETA), live aktualisiert; läuft nichts, der Zustand der Queue. Rechts die Ringe für RAM und Storages des Restore-Servers.
+
+Ganz unten listet *Wiederherstellungs-Nachweise* die letzten Restore-Tests.
 
 ### Cluster-Zeilen
 

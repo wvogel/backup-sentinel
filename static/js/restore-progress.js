@@ -1,9 +1,11 @@
 // Live-refresh the running-restore card on /restore. Polls unconditionally
 // while on the page — so a restore that starts *after* the page loaded (the
 // queue wasn't active yet) still shows up without a manual reload — and updates
-// progress in place once its card is present.
+// progress in place once its card is present. The dashboard shows the same
+// card for the one running restore and polls only while it is there.
 (function () {
-  if (location.pathname !== "/restore") return;
+  const onDashboard = location.pathname === "/";
+  if (location.pathname !== "/restore" && !(onDashboard && document.querySelector(".running-card"))) return;
   const url = "/restore/progress.json";
 
   function setArc(sel, pct) {
@@ -44,7 +46,8 @@
       return; // transient; try again next tick
     }
     updateIoRings(data.io);
-    const running = data.running || [];
+    // The dashboard card shows only the first running restore.
+    const running = onDashboard ? (data.running || []).slice(0, 1) : data.running || [];
     const runningIds = running
       .map((r) => String(r.id))
       .sort()

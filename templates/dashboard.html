@@ -5,81 +5,94 @@
 {% import "_storage_icons.html" as sicons with context %}
 {% set recovery_type_labels = {"full": t('cluster.recovery_full'), "partial": t('cluster.recovery_partial'), "file": t('cluster.recovery_file')} %}
 
-{# ── Restore-Tests KPI group ─────────────────────────────────────────── #}
-<section class="summary-grid report-grid">
-  {# Restore-test coverage as a ring KPI #}
-  <div class="summary-card kpi-ring-card">
-    <div class="kpi-ring-row">
-      <svg class="kpi-ring" viewBox="0 0 40 40" width="48" height="48">
-        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--line)" stroke-width="3.5"/>
-        <circle cx="20" cy="20" r="16" fill="none"
-                stroke="{% if restore_coverage.pct >= 80 %}var(--ok){% elif restore_coverage.pct >= 50 %}var(--warn){% else %}var(--critical){% endif %}"
-                stroke-width="3.5" stroke-linecap="round"
-                stroke-dasharray="{{ (restore_coverage.pct / 100 * 100.53)|round(1) }} 100.53"
-                transform="rotate(-90 20 20)"/>
-        <text x="20" y="20" text-anchor="middle" dominant-baseline="central"
-              fill="var(--ink)" font-size="9" font-weight="700">{{ restore_coverage.pct|int }}%</text>
-      </svg>
-      <div>
-        <h3 class="kpi-ring-value">{{ restore_coverage.ok }}/{{ restore_coverage.required }}</h3>
-        <p class="muted">{{ t('dashboard.restore_coverage') }}</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="summary-card">
-    <h3>{{ compliance_summary.restore_overdue }}</h3>
-    <p class="muted">{{ t('dashboard.restore_overdue') }}</p>
-  </div>
-  <div class="summary-card">
-    <h3>{{ compliance_summary.restore_critical }}</h3>
-    <p class="muted">{{ t('dashboard.restore_critical') }}</p>
-  </div>
-  <div class="summary-card">
-    <h3>{{ compliance_summary.tested_this_month }}</h3>
-    <p class="muted">{{ t('dashboard.restore_month') }}</p>
-  </div>
-</section>
-
-{# ── Restore-server status: one card, queue state left + utilization rings ─── #}
-{% if restore_panel %}
+{# ── Restore tests: one box, heading in the border — KPI tiles on top like a
+   cluster row's; below, the running restore left, utilization rings right. ── #}
+{%- set rc = restore_coverage %}
+{%- set cov_cls = 'is-ok' if rc.pct >= 80 else ('is-warn' if rc.pct >= 50 else 'is-critical') %}
 {%- set rp = restore_panel %}
-{%- set qcls = 'paused' if rp.paused else ('running' if rp.state in ['running', 'queued'] else 'idle') %}
-<section class="summary-grid">
-  <div class="summary-card restore-server-card">
-    <a class="rss-queue store-ring-card" href="/restore">
-      <span class="queue-glyph queue-{{ qcls }}" aria-hidden="true"><svg class="queue-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 103-7.7L3 8"/></svg></span>
-      <div class="store-ring-label">
-        {% if rp.paused %}{{ t('restore.queue_paused') }}
-        {% elif rp.run %}VM {{ rp.run.vm_id }} · {{ rp.run.percent or 0 }}%{% if rp.run.eta %} · ETA {{ rp.run.eta|datetime_local }}{% endif %}
-        {% elif rp.queued %}{{ t('restore.queued_waiting', n=rp.queued) }}
-        {% else %}{{ t('restore.queue_idle') }}{% endif %}
-      </div>
-    </a>
-    {% if rp.ram_total %}
-    <div class="store-rings rss-rings">
-      {%- set rused = (rp.ram_total - rp.ram_free) if rp.ram_free is not none else 0 %}
-      {%- set rpct = (rused / rp.ram_total * 100) if rp.ram_total else 0 %}
-      {%- set rlvl = 'crit' if rpct >= 90 else ('warn' if rpct >= 70 else 'ok') %}
-      <div class="store-ring-card">
-        <div class="store-ring ring-{{ rlvl }}" style="--pct: {{ rpct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ rp.ram_total|size_coarse }}</strong><span>{{ rp.ram_free|size_coarse }} {{ t('restore.free')|lower }}</span></div></div>
-        <div class="store-ring-label">{{ t('restore.ram') }}</div>
-      </div>
-      {% for s in rp.stores %}
-      {%- set upct = (s.used / s.total * 100) if (s.used is not none and s.total) else 0 %}
-      {%- set ulvl = 'crit' if upct >= 90 else ('warn' if upct >= 70 else 'ok') %}
-      <div class="store-ring-card">
-        <div class="store-ring ring-{{ ulvl }}" style="--pct: {{ upct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ s.total|size_coarse }}</strong><span>{{ s.used|size_coarse }}</span></div></div>
-        <div class="store-ring-label">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span class="store-name">{{ s.storage }}</span></div>
-      </div>
-      {% endfor %}
+{#- The whole box links to /restore (an <a> around it; nothing inside is interactive). #}
+<a class="dash-section-link" href="/restore">
+<fieldset class="dash-section restore-server-card">
+  <legend>{{ t('dashboard.restore_group') }}</legend>
+  {#- Six tiles, as many and as wide as a cluster row's, right-aligned on top. #}
+  <div class="cluster-row-stats">
+    <div class="cluster-stat">
+      <strong>{{ rp.queued if rp else 0 }}</strong>
+      <span>{{ t('restore.queue') }}</span>
     </div>
-    {% else %}
-    <p class="muted">{{ t('restore.host_unreachable') }}</p>
-    {% endif %}
+    <div class="cluster-stat {{ cov_cls }}">
+      <strong>{{ rc.pct|int }}%</strong>
+      <span>{{ t('dashboard.restore_coverage') }}</span>
+    </div>
+    <div class="cluster-stat">
+      <strong>{{ rc.ok }}/{{ rc.required }}</strong>
+      <span>{{ t('dashboard.restore_tested') }}</span>
+    </div>
+    <div class="cluster-stat {{ 'is-warn' if compliance_summary.restore_overdue }}">
+      <strong>{{ compliance_summary.restore_overdue }}</strong>
+      <span>{{ t('dashboard.restore_overdue') }}</span>
+    </div>
+    <div class="cluster-stat {{ 'is-critical' if compliance_summary.restore_critical }}">
+      <strong>{{ compliance_summary.restore_critical }}</strong>
+      <span>{{ t('dashboard.restore_critical') }}</span>
+    </div>
+    <div class="cluster-stat">
+      <strong>{{ compliance_summary.tested_this_month }}</strong>
+      <span>{{ t('dashboard.restore_month') }}</span>
+    </div>
   </div>
-</section>
-{% endif %}
+  {% if rp and rp.run %}
+  {#- Same ring and details as /restore's running card, live via restore-progress.js. #}
+  {%- set run = rp.run %}
+  {%- set pct = run.percent or 0 %}
+  <div class="running-card" data-run-id="{{ run.id }}">
+    <div class="store-ring ring-ok running-ring" style="--pct: {{ pct }}"><div class="ring-center"><strong class="js-run-pct">{{ pct }}%</strong></div></div>
+    <div class="running-info">
+      <strong>{{ (run.cluster_name ~ ':' ~ run.vm_name) if run.vm_name else ('VM ' ~ (run.vmid_src or run.vm_id)) }}</strong>
+      <span class="muted js-run-phase">{{ t('restore.phase_' ~ run.phase) if run.phase else t('restore.phase_restoring') }}</span>
+      <span class="muted js-run-progress">
+        {%- if run.bytes_done %}{{ run.bytes_done|size_coarse }} {{ t('restore.read_label') }}{% endif %}
+        {%- if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
+      {%- set _eta = run|restore_eta %}
+      <span class="run-eta js-run-eta" data-eta-label="{{ t('restore.eta_label') }}"{% if not _eta %} hidden{% endif %}>{{ (t('restore.eta_label') ~ ' ' ~ _eta) if _eta else '' }}</span>
+    </div>
+  </div>
+  {% elif rp %}
+  {%- set qcls = 'paused' if rp.paused else ('running' if rp.state in ['running', 'queued'] else 'idle') %}
+  <div class="rss-queue store-ring-card">
+    <span class="queue-glyph queue-{{ qcls }}" aria-hidden="true"><svg class="queue-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 103-7.7L3 8"/></svg></span>
+    <div class="store-ring-label">
+      {% if rp.paused %}{{ t('restore.queue_paused') }}
+      {% elif rp.queued %}{{ t('restore.queued_waiting', n=rp.queued) }}
+      {% else %}{{ t('restore.queue_idle') }}{% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% if rp %}
+  {% if rp.ram_total %}
+  <div class="store-rings rss-rings">
+    {%- set rused = (rp.ram_total - rp.ram_free) if rp.ram_free is not none else 0 %}
+    {%- set rpct = (rused / rp.ram_total * 100) if rp.ram_total else 0 %}
+    {%- set rlvl = 'crit' if rpct >= 90 else ('warn' if rpct >= 70 else 'ok') %}
+    <div class="store-ring-card">
+      <div class="store-ring ring-{{ rlvl }}" style="--pct: {{ rpct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ rp.ram_total|size_coarse }}</strong><span>{{ rp.ram_free|size_coarse }} {{ t('restore.free')|lower }}</span></div></div>
+      <div class="store-ring-label">{{ t('restore.ram') }}</div>
+    </div>
+    {% for s in rp.stores %}
+    {%- set upct = (s.used / s.total * 100) if (s.used is not none and s.total) else 0 %}
+    {%- set ulvl = 'crit' if upct >= 90 else ('warn' if upct >= 70 else 'ok') %}
+    <div class="store-ring-card">
+      <div class="store-ring ring-{{ ulvl }}" style="--pct: {{ upct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ s.total|size_coarse }}</strong><span>{{ s.used|size_coarse }}</span></div></div>
+      <div class="store-ring-label">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span class="store-name">{{ s.storage }}</span></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">{{ t('restore.host_unreachable') }}</p>
+  {% endif %}
+  {% endif %}
+</fieldset>
+</a>
 
 <section class="cluster-list">
   {% for cluster in clusters %}
@@ -139,13 +152,8 @@
   {% endfor %}
 </section>
 
-<section class="table-card">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow">{{ t('dashboard.last_restore_tests') }}</p>
-      <h2>{{ t('dashboard.recovery_evidence') }}</h2>
-    </div>
-  </div>
+<fieldset class="dash-section">
+  <legend>{{ t('dashboard.recovery_evidence') }}</legend>
   <ul class="plain-list">
     {% for restore in restore_tests %}
     <li>
@@ -157,5 +165,22 @@
     <li class="muted">{{ t('dashboard.no_restore_tests') }}</li>
     {% endfor %}
   </ul>
-</section>
+</fieldset>
+<script>
+  // One tile width for every row (restore box and clusters): the widest tile's.
+  (function () {
+    const root = document.documentElement;
+    function equalize() {
+      root.style.removeProperty("--stat-w");
+      let w = 0;
+      document.querySelectorAll(".cluster-row-stats > *").forEach((el) => {
+        w = Math.max(w, el.getBoundingClientRect().width);
+      });
+      if (w) root.style.setProperty("--stat-w", Math.ceil(w) + "px");
+    }
+    equalize();
+    if (document.fonts) document.fonts.ready.then(equalize);
+    window.addEventListener("resize", equalize);
+  })();
+</script>
 {% endblock %}

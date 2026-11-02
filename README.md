@@ -22,7 +22,7 @@ Compliance-focused monitoring for Proxmox backup infrastructure. Track backup st
 
 ## Features
 
-- **Overview** — Restore-test KPIs and one row per cluster: PVE and PBS sync state as colored symbols, running backups and replications, tiles for nodes, VMs, critical, warnings, encryption and restore tests due
+- **Overview** — A *Restore tests* box (queue, coverage, due, critical, the running restore live, restore-server capacity) and one row per cluster: PVE and PBS sync state as colored symbols, running backups and replications, tiles for nodes, VMs, critical, warnings, encryption and restore tests due
 - **Cluster detail** — Per-VM backup status with 30-day history bars, protection (PBS copies, offsite), backup policy overrides, encryption audit
 - **Backup topology** — Diagram of where backups go: PVE → PBS datastores → replicas (pull, push, local sync jobs), with datastore usage, fill-up forecast, per-namespace copy counts and live animation while data moves
 - **Live progress** — Running backups (percent, ETA, throughput, "slow" hint) and running PBS replications, refreshed every 30 s without reloading
