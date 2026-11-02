@@ -23,6 +23,8 @@ from collections.abc import Callable
 from typing import Any, Protocol
 from urllib.parse import parse_qsl, urlsplit
 
+from app.services.netdiag_format import format_netdiag
+
 logger = logging.getLogger(__name__)
 
 OWNED_TAG = "bsentinel-restore"
@@ -1454,7 +1456,8 @@ class RestoreServer:
         cmds = [
             ("bridge", f"ip -br link show {bridge}"),
             ("bridge ports", f"ls /sys/class/net/{bridge}/brif 2>/dev/null || echo none"),
-            ("bridge vlans", "bridge vlan show 2>/dev/null | head -40"),
+            # Compressed ranges, all ports — the formatter keeps only this bridge's.
+            ("bridge vlans", "bridge -c vlan show 2>/dev/null | head -300"),
         ]
         if restore_vmid:
             cmds.append(("vm nic", f"qm config {int(restore_vmid)} | grep -E '^net[0-9]' || true"))
@@ -1470,14 +1473,13 @@ class RestoreServer:
             cmds.append((f"neigh {ip}", f"pct exec {h} -- ip neigh show to {q}"))
             for p in list(ports or [])[:4]:
                 cmds.append((f"tcp {ip}:{int(p)}", f"pct exec {h} -- nc -z -w2 {q} {int(p)}"))
-        parts = []
+        parts: list[tuple[str, str]] = []
         for label, cmd in cmds:
             try:
-                out = self.ssh.run(cmd).strip().replace("\n", " ")
-                parts.append(f"{label}: {out or 'OK'}")
+                parts.append((label, self.ssh.run(cmd).strip()))
             except Exception as exc:  # non-zero exit (e.g. ping/nc failed) or SSH issue
-                parts.append(f"{label}: ERR {str(exc)[:80]}")
-        return "probe netdiag [" + " || ".join(parts) + "]"
+                parts.append((label, f"ERR {str(exc)[:80]}"))
+        return format_netdiag(parts)
 
     def reap(self, owned_vmids: set[int]) -> list[int]:
         """Destroy every guest on the scratch host not owned by a live run

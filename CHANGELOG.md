@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.5.3] — 2026-11-02
+
+### Changed
+
+- **`/restore`: the run log is readable.** The network diagnosis captured when a test doesn't fully pass was one long line (`probe netdiag [… || …]`). It is now a short report, one fact per line: the **sandbox bridge** (state, attached NICs, their VLANs), the **restored VM's NIC**, the **helper's sandbox leg** (addresses, one route per line) and per **guest IP** ICMP (with round-trip time), ARP (MAC + state) and each TCP port as *open* / *no answer*. VLAN lists are compressed to ranges and limited to the sandbox bridge's own ports — the old capture was cut off after 40 lines and showed only the host uplink. Logs of earlier runs are re-rendered the same way.
+- **The *Show log* row stays in the table's columns:** it starts in the VM column, and opening it no longer widens the table or shifts the columns.
+
 ## [v3.5.2] — 2026-11-02
 
 ### Changed

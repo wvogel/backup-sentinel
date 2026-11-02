@@ -618,8 +618,9 @@ def test_probe_netdiag_captures_sbx_arp_and_ping_state():
     # Shows the sandbox leg's address, the resolved neighbour (L2 OK), and that
     # ping failed → the guest firewalls ICMP but is on the segment.
     assert "10.254.10.1/24" in out
-    assert "neigh 10.254.10.6" in out and "REACHABLE" in out
-    assert "ping 10.254.10.6: ERR" in out
+    assert "Guest 10.254.10.6" in out
+    assert "52:54:00:aa:bb:cc  REACHABLE" in out
+    assert "ICMP       no answer" in out
 
 
 def test_probe_netdiag_empty_without_helper():
@@ -643,10 +644,11 @@ def test_probe_netdiag_includes_bridge_vm_nic_and_tcp():
 
     srv.ssh.run = fake_run
     out = srv.probe_netdiag(9001, ["10.254.10.6"], restore_vmid=9000, ports=[8007])
-    assert "bridge: vmbr9 UP" in out  # the sandbox bridge exists/up
-    assert "veth9001i0" in out and "tap9000i0" in out  # both NICs attached to it
-    assert "bridge=vmbr9,tag=900" in out  # the restored VM's NIC + VLAN
-    assert "tcp 10.254.10.6:8007: ERR" in out  # the service port did not answer
+    assert "Sandbox bridge vmbr9: UP" in out  # the sandbox bridge exists/up
+    assert "veth9001i0, tap9000i0" in out  # both NICs attached to it
+    assert "bridge=vmbr9, tag=900" in out  # the restored VM's NIC + VLAN
+    assert "TCP 8007   no answer" in out  # the service port did not answer
+    assert "||" not in out  # one fact per line, not one long line
 
 
 def test_ensure_sandbox_bridge_creates_at_runtime():
