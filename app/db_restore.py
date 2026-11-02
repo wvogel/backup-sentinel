@@ -146,9 +146,12 @@ def list_runs(
     where, params = _runs_filter(status, trigger, cluster, vm_query)
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
-            f"{base}{where} ORDER BY (r.status = 'queued') DESC, "
+            # Queued on top in the order the drainer takes them (manual sort_order,
+            # then FIFO), then the running one, then finished runs newest first.
+            f"{base}{where} ORDER BY CASE r.status WHEN 'queued' THEN 0 WHEN 'running' THEN 1 ELSE 2 END, "
             "CASE WHEN r.status = 'queued' THEN r.sort_order END ASC NULLS LAST, "
-            "r.queued_at DESC, r.id DESC LIMIT %s OFFSET %s",
+            "CASE WHEN r.status = 'queued' THEN r.queued_at END ASC, "
+            "COALESCE(r.finished_at, r.started_at, r.queued_at) DESC, r.id DESC LIMIT %s OFFSET %s",
             (*params, limit, offset),
         )
         return list(cur.fetchall())

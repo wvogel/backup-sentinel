@@ -1066,7 +1066,9 @@ pre {
 .cluster-row-stats {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(80px, 1fr); /* all as wide as the widest */
+  /* All as wide as the widest; the dashboard sets --stat-w so every row's
+     tiles (restore box and clusters) share one width. */
+  grid-auto-columns: var(--stat-w, minmax(80px, 1fr));
   gap: var(--gap);
   flex: none;
 }
@@ -2100,7 +2102,6 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 }
 .cluster-name-link:hover {
   color: var(--ok);
-  text-decoration: underline;
 }
 
 /* ── Lightbox ────────────────────────────────────────────────────────── */
@@ -2410,24 +2411,6 @@ details[open] > .encryption-alert-summary::before {
 .encryption-alert-body {
   border-top: 1px solid var(--line);
   padding: 0 var(--pad-card) var(--pad-card);
-}
-
-/* ── Restore coverage ring ───────────────────────────────────────────── */
-.kpi-ring-card {
-  display: flex;
-  align-items: center;
-}
-.kpi-ring-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.kpi-ring {
-  flex-shrink: 0;
-}
-.summary-card .kpi-ring-value {
-  font-size: 1.3rem;
-  margin: 0;
 }
 
 /* ── Toggle switch ───────────────────────────────────────────────────── */
@@ -3609,18 +3592,47 @@ html[data-theme="dark"] .node-filter-button.is-active {
   .settings-cluster-sublist { margin-right: 0; }
 }
 
+/* — Dashboard sections: card box, heading breaking the top border — */
+.dash-section {
+  min-width: 0;
+  margin: 0 0 var(--gap);
+  padding: 6px var(--pad-card) var(--pad-card);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+.dash-section > legend {
+  padding: 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
 /* — Dashboard restore-server status: queue state (column card) left, rings right,
      all built from .store-ring-card so they read exactly like /restore. — */
 .restore-server-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 24px;
-  flex-wrap: wrap;
-  padding: 18px;
+  gap: var(--gap) 24px;
 }
-.rss-queue { color: inherit; text-decoration: none; }
-.rss-queue:hover .store-ring-label { text-decoration: underline; }
-.rss-rings { margin-left: auto; }
+.restore-server-card > .cluster-row-stats { grid-column: 1 / -1; justify-self: end; }
+.restore-server-card > .rss-queue { justify-self: start; }
+/* The whole box is the link to /restore: hover like a cluster row. */
+.dash-section-link { display: block; color: inherit; }
+.dash-section-link > .dash-section { transition: border-color 0.15s, box-shadow 0.15s; }
+.dash-section-link:hover > .dash-section {
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(20, 20, 80, 0.1);
+}
+/* Running restore: /restore's ring + details, without that page's row rule. */
+.restore-server-card .running-card { padding: 0; border-top: 0; min-width: 0; }
+.restore-server-card .running-info { min-width: 0; }
+.restore-server-card .running-info > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rss-rings { margin-top: 0; justify-content: flex-end; }
 .rss-queue .queue-glyph {
   width: 72px;
   height: 72px;
@@ -3636,8 +3648,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
   animation: queue-spin 1.6s linear infinite;
 }
 @media (max-width: 760px) {
-  .restore-server-card { gap: 16px; }
-  .rss-rings { margin-left: 0; }
+  .restore-server-card { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .rss-rings { justify-content: flex-start; }
 }
 
 /* — /restore queue pause/resume as a ring control — */

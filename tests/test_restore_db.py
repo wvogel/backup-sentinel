@@ -93,6 +93,18 @@ class RestoreDbTestCase(unittest.TestCase):
         self.assertTrue({r["id"] for r in page1}.isdisjoint({r["id"] for r in page2}))
         self.assertEqual(set(db_restore.run_filter_clusters()), {"Test", "Other"})
 
+    def test_list_runs_orders_queued_then_running_then_finished(self) -> None:
+        done_old = db_restore.create_run(self.vm_id)
+        db_restore.update_run(done_old, status="passed", finished_at="2026-11-01T08:00:00+00:00")
+        running = db_restore.create_run(self.vm_id)
+        db_restore.update_run(running, status="running", started_at="2026-11-01T09:00:00+00:00")
+        done_new = db_restore.create_run(self.vm_id)
+        db_restore.update_run(done_new, status="failed", finished_at="2026-11-01T10:00:00+00:00")
+        q1 = db_restore.create_run(self.vm_id)
+        q2 = db_restore.create_run(self.vm_id)
+        # Queued first in drainer (FIFO) order, then running, then finished newest first.
+        self.assertEqual([r["id"] for r in db_restore.list_runs()], [q1, q2, running, done_new, done_old])
+
     def test_checks_jsonb_roundtrip(self) -> None:
         run_id = db_restore.create_run(self.vm_id)
         db_restore.update_run(run_id, checks={"10.0.0.1": {"icmp": True, "ports": {"443": True}}})

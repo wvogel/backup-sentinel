@@ -5,6 +5,19 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.4.0] — 2026-11-02
+
+### Changed
+
+- **Overview: one *Restore tests* box, built like a cluster row.** The four separate KPI cards and the restore-server card are merged into one box whose heading breaks its top border. On top, right-aligned, six tiles exactly as wide as the cluster rows' tiles: **Queue** (new — restore tests waiting), **Coverage** (%), **Tested** (`ok/required`, split out of the old coverage card), **Due**, **Critical**, **This month**. Below on the left the running restore with the same ring and details as on `/restore` (VM, phase, data read, throughput, ETA — updated live), otherwise the queue state; on the right the restore server's RAM and storage rings. The whole box links to `/restore`.
+- **Overview: *Recovery evidence* heading sits in the box's top border** too, like the other sections.
+- **Linked text is never underlined on hover** (cluster names, the restore box).
+
+### Fixed
+
+- **Restore runs log order: queued, then running, then finished.** Queued runs come first in the order the drainer takes them (manual drag order, then FIFO — previously newest first), then the running restore, then finished runs newest first. Before, the running and finished runs were mixed by queue time.
+- **`/restore` page title** reads "Restore tests | Backup Sentinel" like the other pages.
+
 ## [v3.3.2] — 2026-11-02
 
 ### Added
