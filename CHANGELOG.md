@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.4.1] — 2026-11-02
+
+### Fixed
+
+- **Restore runs log: started runs sort by their *Start* column, newest first** (before: by finish time, so a long restore that finished late jumped above one started after it). Queued runs stay on top in queue order, then the running one.
+
 ## [v3.4.0] — 2026-11-02
 
 ### Changed
