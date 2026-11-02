@@ -590,7 +590,7 @@
   "restore.ram_buffcache": "Puffer/Cache",
   "restore.ram_available": "Verfügbar",
   "restore.ram_reserve": "10 % bleiben dem Host reserviert",
-  "restore.io_disk": "Disk I/O",
+  "restore.io_disk": "Disk I/O lokal",
   "restore.io_net": "Netzwerk",
   "restore.io_read": "Lesen",
   "restore.io_write": "Schreiben",

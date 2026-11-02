@@ -3596,8 +3596,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   padding: 10px 0;
   border-top: 1px solid var(--line);
 }
-.running-ring { width: 64px; height: 64px; }
-.running-ring::before { inset: 8px; }
+/* The restore-progress ring is as large as the RAM / storage rings (.store-ring). */
 .running-info { display: flex; flex-direction: column; gap: 2px; }
 
 /* — Settings cluster list (#11): PBS subcards end before "Cluster entfernen" — */
