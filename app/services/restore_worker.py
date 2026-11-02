@@ -343,16 +343,43 @@ def resume_run(
     probe_fn: Callable[[Any, str, list[dict[str, Any]]], dict[str, Any]] | None = None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> str:
-    """Resume a restore whose app process restarted mid-run. Re-attaches to the
-    PVE restore task (by UPID) and WAITS for it (plus the config lock) before
-    re-running the tail idempotently (fresh helper, NICs, start, probe). Waiting
-    for the lock is essential: the original restore task can still be running on
-    the host, and starting the VM then fails with "can't lock file". The restore
-    VM itself is preserved; only the cheap helper is rebuilt. Returns the final
-    status."""
+    """Resume a restore whose app process restarted mid-run — a deploy MUST NOT
+    interrupt or tear down a running restore.
+
+    ``qmrestore`` runs detached on the PVE host, so the data copy keeps going
+    across an app restart; this re-attaches and finishes the tail. The one rule
+    that makes a deploy safe: **never touch a restore that is still in progress,
+    and never destroy what is already healthy.**
+
+    - Re-attach to the running PVE task (by UPID; discovered from the host if the
+      UPID was lost because the deploy hit before it was persisted) and wait for
+      it to finish.
+    - Then wait for the config lock to clear *before* any config write or boot.
+      If it is still locked, the restore is genuinely mid-copy and we could not
+      attach — LEAVE the run 'running' (resumed again next pass) and tear nothing
+      down. (This also fixes the "VM is locked (create)" that used to abort and
+      then destroy the very VM being restored.)
+    - PRESERVE the existing environment: the helper is (re)built only when it is
+      actually gone — not on every deploy — and the NICs/boot are redone only
+      when the VM is not already running. So a deploy during a restore, or during
+      its probe window, is a no-op instead of a teardown.
+    """
     probe_fn = probe_fn or (lambda s, ip, t: s.probe(ip, t, plan.require_icmp))
     should_cancel = should_cancel or (lambda: db_restore.cancel_requested(run_id))
     start = now()
+    # The isolated sandbox bridge is runtime-created (ip link); guarantee it is up
+    # again (idempotent — also covers a host reboot during the downtime).
+    try:
+        server.ensure_sandbox_bridge()
+    except Exception as exc:
+        logger.warning("resume: ensure_sandbox_bridge (continuing): %s", exc)
+    # Re-attach to the still-running restore task. If the UPID was lost, find the
+    # live restore task for this vmid on the host so we still wait for it.
+    if not upid:
+        try:
+            upid = server.find_running_restore_upid(plan.restore_vmid)
+        except Exception as exc:
+            logger.debug("resume: restore-task discovery (ignored): %s", exc)
     result = "error"
     checks: dict[str, Any] = {}
     try:
@@ -364,28 +391,41 @@ def resume_run(
                 sleep=sleep,
                 should_cancel=should_cancel,
             )
-        # The helper may be half-provisioned or gone; rebuild it fresh. The
-        # restore VM itself is never destroyed here.
+        # Never write config or boot while the restore still holds the flock. If it
+        # does not clear, the restore is still in progress — leave the run 'running'
+        # and tear NOTHING down; the next resume pass picks it up.
         try:
-            server.destroy(plan.helper_vmid, is_lxc=True)
-        except Exception as exc:
-            logger.debug("resume: helper cleanup (ignored): %s", exc)
-        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan, name=plan.label)
-        server.provision_helper(
-            plan.helper_vmid,
-            plan.vlan_tag,
-            plan.mgmt_ip,
-            plan.sandbox_ip,
-            plan.primary_ip,
-            plan.sandbox_prefix,
-            plan.guest_vlan,
-            plan.label,
-        )
-        server.wait_unlocked(plan.restore_vmid)  # the restore may still hold the lock
-        try:
-            server.start(plan.restore_vmid)
-        except Exception as exc:
-            logger.debug("resume: start (maybe already running): %s", exc)
+            server.wait_unlocked(plan.restore_vmid, sleep=sleep)
+        except RestoreCancelled:
+            raise
+        except Exception:
+            logger.warning(
+                "resume: VM %s still locked (restore in progress) — leaving run %s 'running', no teardown",
+                plan.restore_vmid,
+                run_id,
+            )
+            return "running"
+        # Lock clear → the restore finished. Finish the tail without disturbing what
+        # is already healthy: keep a present helper, (re)build only a gone one; only
+        # re-point NICs + boot when the VM is not already running.
+        running = server.is_running(plan.restore_vmid)
+        if not server.exists(plan.helper_vmid, is_lxc=True):
+            server.provision_helper(
+                plan.helper_vmid,
+                plan.vlan_tag,
+                plan.mgmt_ip,
+                plan.sandbox_ip,
+                plan.primary_ip,
+                plan.sandbox_prefix,
+                plan.guest_vlan,
+                plan.label,
+            )
+        if not running:
+            server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan, name=plan.label)
+            try:
+                server.start(plan.restore_vmid)
+            except Exception as exc:
+                logger.debug("resume: start (maybe already running): %s", exc)
         result, checks = _probe_loop(
             server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id, should_cancel=should_cancel
         )
@@ -395,6 +435,14 @@ def resume_run(
         checks = {"note": "cancelled by operator"}
     except Exception as exc:
         logger.warning("restore run %s resume failed: %s", run_id, exc)
+        # Last safety net: if the restore is somehow still locked/in-progress, do
+        # NOT finalize (which would tear the live VM down). Leave it 'running'.
+        try:
+            if server.exists(plan.restore_vmid) and server.vm_locked(plan.restore_vmid):
+                logger.warning("resume: run %s not finalized — restore still locked", run_id)
+                return "running"
+        except Exception as exc2:
+            logger.debug("resume: lock recheck (ignored): %s", exc2)
         result = "error"
         checks = {"error": str(exc)}
     duration = int(now() - start)

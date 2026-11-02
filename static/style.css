@@ -1718,6 +1718,25 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
    with a hover tooltip (data-tooltip) carrying the check breakdown / error. */
 .data-table th,
 .data-table td { white-space: nowrap; }
+
+/* Restore runs table: shorter rows, a quieter cluster hint, and a left drag
+   grip to reorder the not-yet-started (queued) entries. */
+.runs-table th,
+.runs-table td { padding-top: 5px; padding-bottom: 5px; }
+.runs-table .col-cluster { font-size: 0.82em; color: var(--muted); }
+.runs-table .col-cluster a { color: var(--muted); }
+.runs-table .col-grip,
+.runs-table .grip-cell { width: 18px; padding-left: 4px; padding-right: 0; text-align: center; }
+.runs-table .drag-grip {
+  cursor: grab;
+  color: var(--muted);
+  user-select: none;
+  line-height: 1;
+  font-size: 0.9rem;
+}
+.runs-table .drag-grip:active { cursor: grabbing; }
+.runs-table tr.is-queued { background: var(--chip); }
+.runs-table tr.dragging { opacity: 0.5; }
 .status-icon {
   display: inline-flex;
   align-items: center;

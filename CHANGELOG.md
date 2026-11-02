@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.3.0] — 2026-11-02
+
+### Fixed
+
+- **A deploy no longer kills or interrupts a running restore test.** The restart-resume path was destructive: on every app restart it unconditionally destroyed the helper ("beim deploy wird immer der helper gekilled"), then ran `rewrite_nics` on the restored VM **before** waiting for the restore's config lock to clear — hitting "VM is locked (create)" — and that exception tore the restored VM down entirely. The next run then tried to *create* a VM 9000 that was still there. Resume is now non-destructive and lock-safe: it re-ensures the sandbox bridge, re-attaches to the still-running `qmrestore` task (re-discovering its UPID from the host if it was lost), and **waits for the config lock to clear before any config write or boot**. If the restore is still in progress it leaves the run `running` and tears nothing down. The existing environment is preserved — the helper is rebuilt **only when it is actually gone**, and the NICs/boot are redone **only when the VM is not already running** — so a deploy during a restore, or during its probe window, is a no-op instead of a teardown.
+
+### Changed
+
+- **Restore runs log: a *Start* column and compact `HH:mm` durations.** The queued-at column is replaced by the restore's **start time** (`dd.mm. HH:MM`); durations now read `h:mm` (e.g. `8:09` for a 489-minute restore), seconds truncated, never rounded. Cluster names are smaller/quieter (they are a hint), and the rows are a little shorter.
+- **Drag-to-reorder the restore queue.** The not-yet-started (queued) runs carry a grip (⠿) on the left; drag one and the new order is persisted immediately (no "save"), via a new manual `sort_order` the drainer and the runs table both honour (falling back to FIFO for runs never reordered).
+
 ## [v3.2.8] — 2026-11-01
 
 ### Changed

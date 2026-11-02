@@ -492,6 +492,16 @@ def pause_queue(request: Request, paused: str = Form(default="1")) -> RedirectRe
     return RedirectResponse("/restore", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/restore/queue/reorder")
+def reorder_queue(order: list[int] = Form(default=[])) -> JSONResponse:
+    """Persist a new manual order for the not-yet-started (queued) runs — applied
+    immediately from the drag-reorder in the runs table (no save button). ``order``
+    is the queued run ids in their new top-to-bottom sequence; runs that have since
+    started are ignored."""
+    updated = db_restore.reorder_queue(order)
+    return JSONResponse({"ok": True, "updated": updated})
+
+
 @router.post("/restore/runs/{run_id}/reap")
 def reap_run(request: Request, run_id: int) -> RedirectResponse:
     _held_action(run_id, "reap")

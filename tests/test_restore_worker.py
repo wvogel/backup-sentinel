@@ -395,12 +395,14 @@ class WorkerTest(unittest.TestCase):
         reconcile_on_startup()
         self.assertEqual(db_restore.get_run(run_id)["status"], "error")
 
-    def test_resume_reattaches_to_task_and_finalizes(self):
+    def test_resume_reattaches_and_preserves_present_helper(self):
+        # A deploy mid-restore must NOT kill the helper. Resume re-attaches to the
+        # running task and, since the helper is still present, leaves it alone.
         run_id = self._run()
         db_restore.update_run(
             run_id, status="running", restore_vmid=9000, helper_vmid=9001, task_upid="UPID:restore:abcd"
         )
-        srv = FakeServer()
+        srv = FakeServer()  # exists() → True, so the helper is present
         res = resume_run(
             run_id,
             _plan(self.vm_id),
@@ -412,8 +414,58 @@ class WorkerTest(unittest.TestCase):
         )
         self.assertEqual(res, "passed")
         self.assertIn("poll_task", srv.calls)  # re-attached to the running task
-        self.assertIn("provision_helper", srv.calls)  # tail re-run idempotently
+        self.assertIn("ensure_sandbox_bridge", srv.calls)  # bridge re-ensured
+        self.assertNotIn("provision_helper", srv.calls)  # present helper kept, not rebuilt
         self.assertEqual(db_restore.get_run(run_id)["result"], "passed")
+
+    def test_resume_rebuilds_only_a_missing_helper(self):
+        run_id = self._run()
+        db_restore.update_run(run_id, status="running", restore_vmid=9000, helper_vmid=9001)
+
+        class HelperGone(FakeServer):
+            def exists(self, vmid, is_lxc=False):
+                self.calls.append("exists")
+                return not is_lxc  # restore VM present, helper (lxc) gone
+
+        srv = HelperGone()
+        res = resume_run(
+            run_id,
+            _plan(self.vm_id),
+            srv,
+            "UPID:restore:abcd",
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": True, "ports": {"443": True}}},
+        )
+        self.assertEqual(res, "passed")
+        self.assertIn("provision_helper", srv.calls)  # gone helper rebuilt
+
+    def test_resume_leaves_a_still_locked_restore_running(self):
+        # The restore is still copying (VM locked): resume must tear NOTHING down
+        # and leave the run 'running' for the next pass.
+        run_id = self._run()
+        db_restore.update_run(run_id, status="running", restore_vmid=9000, helper_vmid=9001)
+
+        class Locked(FakeServer):
+            def wait_unlocked(self, vmid, **k):
+                self.calls.append("wait_unlocked")
+                raise RuntimeError("VM is locked (create)")
+
+        srv = Locked()
+        res = resume_run(
+            run_id,
+            _plan(self.vm_id),
+            srv,
+            "UPID:restore:abcd",
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {},
+        )
+        self.assertEqual(res, "running")
+        self.assertEqual(db_restore.get_run(run_id)["status"], "running")  # left running
+        self.assertNotIn("destroy", srv.calls)  # the live restore VM is untouched
+        self.assertNotIn("provision_helper", srv.calls)
+        self.assertNotIn("rewrite_nics", srv.calls)
 
     def test_teardown_skips_shutdown_when_vm_absent(self):
         from app.services.restore_worker import _teardown

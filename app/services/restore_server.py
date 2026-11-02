@@ -963,6 +963,45 @@ class RestoreServer:
             return False
         return st.get("status") == "running"
 
+    def find_running_restore_upid(self, vmid: int, node: str | None = None) -> str | None:
+        """The UPID of a RUNNING restore task for this vmid on the host, or None.
+        Used by resume when the persisted UPID was lost (a deploy that hit before
+        it was written) — the restore keeps running detached on the host, so we
+        rediscover it and wait for it instead of barrelling into the tail."""
+        node = node or self.node()
+        try:
+            tasks = self.pve.get(f"/nodes/{node}/tasks?vmid={vmid}&source=active&limit=50") or []
+        except Exception as exc:
+            logger.debug("find_running_restore_upid failed: %s", exc)
+            return None
+        running = [
+            t
+            for t in tasks
+            if str(t.get("id")) == str(vmid)
+            and "restore" in str(t.get("type") or "").lower()
+            and not t.get("endtime")
+            and t.get("upid")
+        ]
+        if not running:
+            return None
+        return max(running, key=lambda t: t.get("starttime", 0))["upid"]
+
+    def is_running(self, vmid: int, *, is_lxc: bool = False) -> bool:
+        """Public wrapper: whether the guest is currently running (used by resume
+        to decide whether the restored VM still needs a boot)."""
+        return self._is_running(vmid, is_lxc=is_lxc)
+
+    def vm_locked(self, vmid: int, *, is_lxc: bool = False) -> bool:
+        """Whether the guest's config carries a lock (e.g. 'create' while a restore
+        is in progress). Unreachable/unknown → False. Resume uses this as a last
+        safety net so a live, locked restore is never torn down."""
+        kind = "lxc" if is_lxc else "qemu"
+        try:
+            cfg = self.pve.get(f"/nodes/{self.node()}/{kind}/{vmid}/config") or {}
+        except Exception:
+            return False
+        return bool(cfg.get("lock"))
+
     def rewrite_nics(self, vmid: int, vlan_tag: int, guest_vlan: int | None = None, name: str = "") -> None:
         """Prepare the restored guest's config for an isolated sandbox boot, in one
         config update:

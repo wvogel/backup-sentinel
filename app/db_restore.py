@@ -146,7 +146,9 @@ def list_runs(
     where, params = _runs_filter(status, trigger, cluster, vm_query)
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
-            f"{base}{where} ORDER BY r.queued_at DESC, r.id DESC LIMIT %s OFFSET %s",
+            f"{base}{where} ORDER BY (r.status = 'queued') DESC, "
+            "CASE WHEN r.status = 'queued' THEN r.sort_order END ASC NULLS LAST, "
+            "r.queued_at DESC, r.id DESC LIMIT %s OFFSET %s",
             (*params, limit, offset),
         )
         return list(cur.fetchall())
@@ -196,15 +198,39 @@ def queued_vm_ids() -> set[int]:
 
 def next_queued_run() -> RestoreRunRow | None:
     with connect() as conn, conn.cursor() as cur:
-        cur.execute("SELECT * FROM restore_runs WHERE status = 'queued' ORDER BY queued_at, id LIMIT 1")
+        cur.execute(
+            "SELECT * FROM restore_runs WHERE status = 'queued' ORDER BY sort_order ASC NULLS LAST, queued_at, id LIMIT 1"
+        )
         return cur.fetchone()
 
 
 def list_queued_runs() -> list[RestoreRunRow]:
-    """All queued runs in FIFO order (for resource-aware draining)."""
+    """All queued runs in effective order (manual ``sort_order`` first, then FIFO
+    by ``queued_at`` for runs never reordered) — for resource-aware draining."""
     with connect() as conn, conn.cursor() as cur:
-        cur.execute("SELECT * FROM restore_runs WHERE status = 'queued' ORDER BY queued_at, id")
+        cur.execute(
+            "SELECT * FROM restore_runs WHERE status = 'queued' ORDER BY sort_order ASC NULLS LAST, queued_at, id"
+        )
         return list(cur.fetchall())
+
+
+def reorder_queue(ordered_ids: list[int]) -> int:
+    """Apply a new manual order to the not-yet-started (queued) runs: set each
+    run's ``sort_order`` to its position in ``ordered_ids`` (0-based). Ids that
+    are not currently 'queued' are skipped, so a stale drag can never reorder —
+    or revive — a run that has already started. Returns the number updated."""
+    if not ordered_ids:
+        return 0
+    with connect() as conn, conn.cursor() as cur:
+        updated = 0
+        for pos, run_id in enumerate(ordered_ids):
+            cur.execute(
+                "UPDATE restore_runs SET sort_order = %s WHERE id = %s AND status = 'queued'",
+                (pos, run_id),
+            )
+            updated += cur.rowcount
+        conn.commit()
+    return updated
 
 
 def has_active_run() -> bool:
