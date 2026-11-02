@@ -420,11 +420,18 @@ def create_restore_test(
 
 
 def recent_restore_tests(cluster_id: int | None = None) -> list[RestoreTestRow]:
+    # The automated run behind a test (if any) carries start, end and checks.
     query = """
-        SELECT rt.*, v.name AS vm_name, v.vmid, c.name AS cluster_name
+        SELECT rt.*, v.name AS vm_name, v.vmid, c.name AS cluster_name, c.slug AS cluster_slug,
+               rr.started_at AS run_started_at, rr.finished_at AS run_finished_at,
+               rr.duration_seconds AS run_duration_seconds, rr.checks AS run_checks
         FROM restore_tests rt
         JOIN vms v ON v.id = rt.vm_id
         JOIN clusters c ON c.id = v.cluster_id
+        LEFT JOIN LATERAL (
+            SELECT started_at, finished_at, duration_seconds, checks
+            FROM restore_runs WHERE restore_test_id = rt.id ORDER BY id DESC LIMIT 1
+        ) rr ON TRUE
     """
     params: list[Any] = []
     if cluster_id is not None:

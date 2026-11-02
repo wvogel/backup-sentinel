@@ -60,3 +60,28 @@ class RestoreStatusTooltipTests(unittest.TestCase):
         from app.web.common import restore_status_tooltip
 
         assert restore_status_tooltip({"status": "queued", "checks": None}) == "queued"
+
+
+def test_restore_check_chips_union_across_ips():
+    from app.web.common import restore_check_chips
+
+    checks = {
+        "10.0.0.5": {"icmp": False, "arp": True, "ports": {"3389": False, "445": True}},
+        "10.0.1.5": {"icmp": True, "arp": False, "ports": {"3389": True}},
+    }
+    assert restore_check_chips(checks) == [
+        {"label": "ICMP", "ok": True},
+        {"label": "ARP", "ok": True},
+        {"label": "TCP 3389", "ok": True},
+        {"label": "TCP 445", "ok": True},
+    ]
+
+
+def test_restore_check_chips_skips_unrequired_icmp_and_non_probe_results():
+    from app.web.common import restore_check_chips
+
+    assert restore_check_chips({"10.0.0.5": {"icmp": None, "arp": False, "ports": {}}}) == [
+        {"label": "ARP", "ok": False}
+    ]
+    assert restore_check_chips({"error": "boom"}) == []
+    assert restore_check_chips(None) == []
