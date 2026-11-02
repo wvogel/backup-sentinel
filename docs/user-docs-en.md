@@ -30,7 +30,7 @@ At the top, one box titled *Restore tests* (the whole box links to `/restore`). 
 
 Below on the left, the running restore with the same ring and details as on `/restore` (VM, phase, data read, throughput, ETA), updated live; with nothing running, the queue state. On the right, the restore server's RAM and storage rings.
 
-At the bottom, *Recovery evidence* lists the latest restore tests.
+At the bottom, *Recovery evidence* lists the latest restore tests as a table: VM, start, end, duration, status and the checks the automated probe ran (ICMP, ARP, each TCP port; green = passed on at least one of the guest's IPs). Manually documented tests show their date and "documented manually".
 
 ### Cluster Rows
 

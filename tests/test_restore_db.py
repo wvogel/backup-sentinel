@@ -110,6 +110,17 @@ class RestoreDbTestCase(unittest.TestCase):
         # Queued first in drainer (FIFO) order, then running, then finished by start, newest first.
         self.assertEqual([r["id"] for r in db_restore.list_runs()], [q1, q2, running, done_new, done_old])
 
+    def test_recent_restore_tests_carry_their_run(self) -> None:
+        run_id = db_restore.create_run(self.vm_id)
+        db_restore.update_run(run_id, status="running", started_at="2026-11-02T10:00:00+00:00")
+        checks = {"10.0.0.5": {"icmp": True, "arp": True, "ports": {"443": True}}}
+        db_restore.record_run_result(run_id, self.vm_id, "passed", duration_seconds=480, checks=checks)
+        (row,) = db.recent_restore_tests()
+        self.assertEqual(row["run_duration_seconds"], 480)
+        self.assertEqual(row["run_checks"], checks)
+        self.assertIsNotNone(row["run_started_at"])
+        self.assertEqual(row["cluster_slug"], "test")
+
     def test_checks_jsonb_roundtrip(self) -> None:
         run_id = db_restore.create_run(self.vm_id)
         db_restore.update_run(run_id, checks={"10.0.0.1": {"icmp": True, "ports": {"443": True}}})

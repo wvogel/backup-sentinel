@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.5.0] — 2026-11-02
+
+### Changed
+
+- **Overview: *Recovery evidence* is a table.** One row per restore test with **VM** (and cluster), **Start**, **End**, **Duration** (`h:mm`), **Status** and **Checks** — what the automated probe verified, as chips: ICMP, ARP and each TCP port, green if any of the guest's IPs passed it, red if none did. Start, end and checks come from the automated run behind the test; a manually documented test shows its date and *documented manually*.
+
 ## [v3.4.5] — 2026-11-02
 
 ### Fixed

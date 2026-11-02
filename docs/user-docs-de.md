@@ -30,7 +30,7 @@ Oben steht ein Kasten *Restore-Tests* (der ganze Kasten führt zu `/restore`). R
 
 Darunter links der laufende Restore mit demselben Ring und denselben Details wie auf `/restore` (VM, Phase, gelesene Daten, Durchsatz, ETA), live aktualisiert; läuft nichts, der Zustand der Queue. Rechts die Ringe für RAM und Storages des Restore-Servers.
 
-Ganz unten listet *Wiederherstellungs-Nachweise* die letzten Restore-Tests.
+Ganz unten listet *Wiederherstellungs-Nachweise* die letzten Restore-Tests als Tabelle: VM, Start, Ende, Dauer, Status und die Checks des automatischen Tests (ICMP, ARP, jeder TCP-Port; grün = auf mindestens einer IP des Gasts bestanden). Manuell dokumentierte Tests zeigen ihr Datum und „manuell dokumentiert“.
 
 ### Cluster-Zeilen
 
