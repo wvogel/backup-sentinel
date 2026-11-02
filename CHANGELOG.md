@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.4.4] — 2026-11-02
+
+### Fixed
+
+- **`/restore` no longer flashes "Host unreachable" right after an app start.** The page renders from an in-process snapshot of the restore host that is empty after every restart (e.g. a deploy) until the first background fetch finishes — and that empty state was shown as *unreachable*. It now shows *Loading restore host …* and reloads itself as soon as the fetch has an answer; *Host unreachable* appears only when the fetch actually failed.
+
 ## [v3.4.3] — 2026-11-02
 
 ### Changed

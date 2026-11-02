@@ -621,6 +621,7 @@
   "restore.class_sata-hdd": "SATA HDD",
   "restore.total": "Total",
   "restore.host_unreachable": "Host unreachable.",
+  "restore.host_loading": "Loading restore host …",
   "restore.held_title": "Held environments",
   "restore.held_hint": "Kept after a failure for manual testing. Fix, re-test — or reap.",
   "restore.retest": "Re-test",

@@ -3505,6 +3505,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
   opacity: 0.6;
 }
 
+/* — /restore: first host fetch after an app start still running — */
+.host-loading { display: flex; align-items: center; gap: 8px; }
+
 /* — /restore capacity: storage fill rings — */
 .store-rings, .running-restores {
   display: flex;

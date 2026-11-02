@@ -151,6 +151,10 @@
     {% endfor %}
   </div>
   {% endif %}
+  {% elif host_loading %}
+  {#- First fetch after an app start still running: restore-progress.js reloads
+      the page once it has succeeded or failed. #}
+  <p class="muted host-loading" data-host-loading><svg class="running-spinner" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke-width="2" opacity="0.25"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke-width="2" stroke-linecap="round"/></svg>{{ t('restore.host_loading') }}</p>
   {% else %}
   <p class="muted">{{ t('restore.host_unreachable') }}</p>
   {% if host_error %}<p class="critical-text">{{ host_error }}</p>{% endif %}
