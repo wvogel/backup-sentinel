@@ -244,6 +244,11 @@ def init_db() -> None:
             cur.execute(
                 "ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS cancel_requested BOOLEAN NOT NULL DEFAULT FALSE"
             )
+            # Manual queue priority: the operator drag-reorders the not-yet-started
+            # (queued) runs and it applies immediately. Lower sorts first; NULL
+            # (never reordered) falls back to queued_at (FIFO). Both the drainer and
+            # the runs table read sort_order first, then queued_at.
+            cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS sort_order INTEGER")
             # Guest network interfaces collected from production (spec §9).
             cur.execute(
                 """

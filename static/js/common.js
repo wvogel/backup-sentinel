@@ -83,6 +83,7 @@ async function copyText(targetId, button) {
       if (dragged) dragged.classList.remove("dragging");
       dragged = null;
       if (tbody.hasAttribute("data-autosave") && typeof saveTargetStorages === "function") saveTargetStorages(tbody);
+      if (tbody.hasAttribute("data-reorder-url")) saveQueueOrder(tbody);
     });
     tbody.addEventListener("dragover", (e) => {
       if (!dragged) return;
@@ -294,6 +295,19 @@ document.addEventListener("change", (e) => {
   const tbody = e.target.closest("tbody[data-autosave]");
   if (tbody && (e.target.name === "ts_use" || e.target.name === "ts_class")) saveTargetStorages(tbody);
 });
+
+// ── Persist the restore queue order after a drag (tbody[data-reorder-url]) ────
+// Only the queued rows are draggable; POST their run ids in the new DOM order so
+// the reorder applies immediately — no "save".
+function saveQueueOrder(tbody) {
+  const url = tbody.getAttribute("data-reorder-url");
+  if (!url) return;
+  const fd = new FormData();
+  tbody.querySelectorAll("tr[draggable='true'][data-run-id]").forEach((tr) => {
+    fd.append("order", tr.getAttribute("data-run-id"));
+  });
+  fetch(url, { method: "POST", body: fd }).catch(() => {});
+}
 
 // Expose globally for other modules
 window.showSuccessLightbox = showSuccessLightbox;
