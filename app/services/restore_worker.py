@@ -460,7 +460,13 @@ def resume_run(
             logger.debug("resume: lock recheck (ignored): %s", exc2)
         result = "error"
         checks = {"error": str(exc)}
-    duration = int(now() - start)
+    # The run started before the app restart: measure from its recorded
+    # started_at, not from this resume — else a deploy mid-run cuts the duration
+    # down to the tail (a 20-minute restore showing 0:00).
+    run = db_restore.get_run(run_id) or {}
+    duration = _seconds_since(run.get("started_at"))
+    if duration is None:
+        duration = int(now() - start)
     return _finalize(run_id, plan, result, checks, duration, server)
 
 
@@ -512,6 +518,18 @@ def _progress_fields(p: dict[str, Any]) -> dict[str, Any]:
     if "bytes_total" in p:
         out["bytes_total"] = p["bytes_total"]
     return out
+
+
+def _seconds_since(started_at: Any) -> int | None:
+    """Wall-clock seconds since ``started_at`` (a datetime; naive = UTC), or
+    ``None`` when it is missing."""
+    if started_at is None or not hasattr(started_at, "tzinfo"):
+        return None
+    if started_at.tzinfo is None:
+        from datetime import UTC
+
+        started_at = started_at.replace(tzinfo=UTC)
+    return max(0, int((_utcnow() - started_at).total_seconds()))
 
 
 def _utcnow():

@@ -490,6 +490,30 @@ class WorkerTest(unittest.TestCase):
         self.assertNotIn("provision_helper", srv.calls)  # present helper kept, not rebuilt
         self.assertEqual(db_restore.get_run(run_id)["result"], "passed")
 
+    def test_resume_measures_duration_from_recorded_start(self):
+        # A deploy 20 minutes into a run resumes it; the duration must cover the
+        # whole run (from started_at), not just the tail after the resume.
+        from datetime import UTC, datetime, timedelta
+
+        run_id = self._run()
+        db_restore.update_run(
+            run_id,
+            status="running",
+            restore_vmid=9000,
+            helper_vmid=9001,
+            started_at=datetime.now(UTC) - timedelta(minutes=20),
+        )
+        resume_run(
+            run_id,
+            _plan(self.vm_id),
+            FakeServer(),
+            "UPID:restore:abcd",
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": True, "ports": {"443": True}}},
+        )
+        self.assertGreaterEqual(db_restore.get_run(run_id)["duration_seconds"], 20 * 60)
+
     def test_resume_rebuilds_only_a_missing_helper(self):
         run_id = self._run()
         db_restore.update_run(run_id, status="running", restore_vmid=9000, helper_vmid=9001)
@@ -552,3 +576,14 @@ class WorkerTest(unittest.TestCase):
         self.assertNotIn("shutdown", srv.calls)  # no blind shutdown of a VM that isn't there
         self.assertNotIn("destroy", srv.calls)
         self.assertIn("reap", srv.calls)  # the reaper still runs as the safety net
+
+
+def test_seconds_since_handles_naive_aware_and_missing():
+    from datetime import UTC, datetime, timedelta
+
+    from app.services.restore_worker import _seconds_since
+
+    assert _seconds_since(None) is None
+    assert 595 <= _seconds_since(datetime.now(UTC) - timedelta(minutes=10)) <= 605
+    naive = (datetime.now(UTC) - timedelta(minutes=10)).replace(tzinfo=None)
+    assert 595 <= _seconds_since(naive) <= 605
