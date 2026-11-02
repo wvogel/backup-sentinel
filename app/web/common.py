@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import Request
@@ -82,6 +83,28 @@ def restore_status_tooltip(run: dict) -> str:
     return (head + "\n" + "\n".join(lines)).strip() if lines else head
 
 
+def restore_check_chips(checks: Any) -> list[dict]:
+    """What a run checked, one entry per check — ICMP, ARP, each TCP port — as
+    ``{"label", "ok"}``; green if ANY probed IP passed it (the same union the
+    classifier uses). Empty for a manual test or a run without probe results."""
+    if not isinstance(checks, dict):
+        return []
+    results = [r for r in checks.values() if isinstance(r, dict) and "icmp" in r]
+    if not results:
+        return []
+    chips: list[dict] = []
+    if any(r.get("icmp") is not None for r in results):
+        chips.append({"label": "ICMP", "ok": any(r.get("icmp") for r in results)})
+    if any("arp" in r for r in results):
+        chips.append({"label": "ARP", "ok": any(r.get("arp") for r in results)})
+    ports: list[str] = []
+    for r in results:
+        ports += [p for p in (r.get("ports") or {}) if p not in ports]
+    for p in ports:
+        chips.append({"label": f"TCP {p}", "ok": any((r.get("ports") or {}).get(p) for r in results)})
+    return chips
+
+
 def restore_eta_text(run: dict, now: datetime | None = None) -> str:
     """Estimated time remaining for a running restore as a short string
     (e.g. "~12 min"), or "" when it does not apply. Only during the data copy
@@ -107,6 +130,7 @@ def restore_eta_text(run: dict, now: datetime | None = None) -> str:
 templates.env.filters["datetime_local"] = datetime_local
 templates.env.filters["restore_status_tooltip"] = restore_status_tooltip
 templates.env.filters["restore_eta"] = restore_eta_text
+templates.env.filters["restore_check_chips"] = restore_check_chips
 templates.env.filters["format_bytes"] = format_size
 templates.env.filters["size_coarse"] = format_size_coarse
 templates.env.filters["spark_tooltip"] = spark_tooltip

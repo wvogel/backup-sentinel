@@ -3626,6 +3626,22 @@ html[data-theme="dark"] .node-filter-button.is-active {
   color: var(--muted);
 }
 
+/* — Dashboard recovery evidence: one row per test, checks as chips — */
+.evidence-table td, .evidence-table th { padding: 7px 14px 7px 0; vertical-align: middle; white-space: nowrap; }
+.evidence-table td:last-child { white-space: normal; width: 100%; }
+.evidence-table tbody tr:last-child td { border-bottom: 0; }
+.check-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.check-chip {
+  padding: 1px 7px;
+  border: 1px solid var(--chip-border);
+  border-radius: 999px;
+  background: var(--chip);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+.check-chip.is-ok { color: var(--ok); }
+.check-chip.is-bad { color: var(--critical); border-color: var(--critical); }
+
 /* — Dashboard restore-server status: queue state (column card) left, rings right,
      all built from .store-ring-card so they read exactly like /restore. — */
 .restore-server-card {

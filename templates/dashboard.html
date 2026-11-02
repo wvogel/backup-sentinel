@@ -3,7 +3,6 @@
 {% block content %}
 {% import "_nodes_tile.html" as tiles with context %}
 {% import "_storage_icons.html" as sicons with context %}
-{% set recovery_type_labels = {"full": t('cluster.recovery_full'), "partial": t('cluster.recovery_partial'), "file": t('cluster.recovery_file')} %}
 
 {# ── Restore tests: one box, heading in the border — KPI tiles on top like a
    cluster row's; below, the running restore left, utilization rings right. ── #}
@@ -154,17 +153,38 @@
 
 <fieldset class="dash-section">
   <legend>{{ t('dashboard.recovery_evidence') }}</legend>
-  <ul class="plain-list">
+  {#- Automated tests carry their run's start, end, runtime and checks; a
+      manually documented one has only its date and duration. #}
+  {% if restore_tests %}
+  <div class="table-scroll">
+  <table class="evidence-table">
+    <thead><tr>
+      <th>VM</th><th>{{ t('restore.col_started') }}</th><th>{{ t('dashboard.evidence_end') }}</th>
+      <th>{{ t('restore.col_duration') }}</th><th>{{ t('restore.col_status') }}</th><th>{{ t('dashboard.evidence_checks') }}</th>
+    </tr></thead>
+    <tbody>
     {% for restore in restore_tests %}
-    <li>
-      <span class="result-icon result-{{ restore.result }}">{% if restore.result == 'passed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% elif restore.result == 'failed' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>{% else %}&sim;{% endif %}</span>
-      <strong>{{ restore.cluster_name }} / {{ restore.vm_name }}</strong>
-      <span class="muted cluster-sync-meta">{{ restore.tested_at|datetime_local("%d.%m.%Y") }} &middot; {{ recovery_type_labels.get(restore.recovery_type, restore.recovery_type) }} &middot; {{ restore.duration_minutes }} min</span>
-    </li>
-    {% else %}
-    <li class="muted">{{ t('dashboard.no_restore_tests') }}</li>
+    {%- set _secs = restore.run_duration_seconds if restore.run_duration_seconds is not none else restore.duration_minutes * 60 %}
+    {%- set _icon = {'passed': '✓', 'failed': '✗', 'limited': '◐'}.get(restore.result, '•') %}
+    <tr>
+      <td><a href="/clusters/{{ restore.cluster_slug }}?vm={{ restore.vm_id }}"><strong>{{ restore.vm_name }}</strong></a> <span class="muted">{{ restore.cluster_name }}</span></td>
+      <td>{{ restore.run_started_at|datetime_local('%d.%m. %H:%M') if restore.run_started_at else restore.tested_at|datetime_local('%d.%m.%Y') }}</td>
+      <td>{{ restore.run_finished_at|datetime_local('%d.%m. %H:%M') if restore.run_finished_at else '–' }}</td>
+      <td>{{ _secs // 3600 }}:{{ '%02d'|format((_secs % 3600) // 60) }}</td>
+      <td><span class="status-icon status-{{ restore.result }}">{{ _icon }}</span> {{ t('cluster.result_' ~ restore.result) }}</td>
+      <td>
+        {%- set _chips = restore.run_checks|restore_check_chips %}
+        {%- if _chips %}<span class="check-chips">{% for c in _chips %}<span class="check-chip {{ 'is-ok' if c.ok else 'is-bad' }}">{{ c.label }} {{ '✓' if c.ok else '✗' }}</span>{% endfor %}</span>
+        {%- else %}<span class="muted">{{ t('dashboard.evidence_manual') if not restore.run_started_at else '–' }}</span>{% endif -%}
+      </td>
+    </tr>
     {% endfor %}
-  </ul>
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">{{ t('dashboard.no_restore_tests') }}</p>
+  {% endif %}
 </fieldset>
 <script>
   // One tile width for every row (restore box and clusters): the widest tile's.
