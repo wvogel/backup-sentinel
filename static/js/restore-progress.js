@@ -45,6 +45,11 @@
     } catch {
       return; // transient; try again next tick
     }
+    // Rendered before the first host fetch finished: reload once it has an answer.
+    if (data.host && data.host !== "loading" && document.querySelector("[data-host-loading]")) {
+      location.reload();
+      return;
+    }
     updateIoRings(data.io);
     // The dashboard card shows only the first running restore.
     const running = onDashboard ? (data.running || []).slice(0, 1) : data.running || [];
@@ -106,4 +111,6 @@
   }
 
   setInterval(tick, 3000);
+  // Waiting for the host: ask sooner than the regular cadence.
+  if (document.querySelector("[data-host-loading]")) setTimeout(tick, 1000);
 })();

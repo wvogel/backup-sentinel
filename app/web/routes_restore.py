@@ -316,6 +316,7 @@ def restore_runs(request: Request) -> HTMLResponse:
     held = db_restore.list_runs(limit=50, status="held")
     host = None
     host_error = None
+    host_loading = False
     host_pbs: list = []
     vm_locations: list = []
     config = restore_config.load()
@@ -331,6 +332,9 @@ def restore_runs(request: Request) -> HTMLResponse:
             host_pbs = snap["data"]["host_pbs"]
             vm_locations = snap["data"]["vm_locations"]
         host_error = snap["error"] if snap["data"] is None else None
+        # No snapshot yet (fresh app start) and no failure: the first refresh is
+        # still running — show "loading", not "unreachable".
+        host_loading = snap["data"] is None and snap["error"] is None
     context = {
         "runs": runs,
         "running": running,
@@ -339,6 +343,7 @@ def restore_runs(request: Request) -> HTMLResponse:
         "host_pbs": host_pbs,
         "vm_locations": vm_locations,
         "host_error": host_error,
+        "host_loading": host_loading,
         "configured": config is not None,
         "queue_paused": restore_config.queue_paused(),
         "action_error": request.query_params.get("error"),
@@ -411,6 +416,7 @@ def restore_progress(request: Request) -> JSONResponse:
     # same cached snapshot the page renders from (no SSH per poll) and nudging the
     # ~25 s background refresh when it is stale so the numbers keep moving.
     io = None
+    host_state = None
     config = restore_config.load()
     if config is not None:
         with _host_view_lock:
@@ -419,7 +425,9 @@ def restore_progress(request: Request) -> JSONResponse:
             threading.Thread(target=_refresh_host_view, args=(config,), daemon=True).start()
         if snap["data"]:
             io = _io_view((snap["data"]["host"] or {}).get("io"))
-    return JSONResponse({"running": out, "io": io})
+        # Lets a page rendered while loading reload once the first refresh settles.
+        host_state = "ready" if snap["data"] else ("error" if snap["error"] else "loading")
+    return JSONResponse({"running": out, "io": io, "host": host_state})
 
 
 def _io_view(io: dict | None) -> dict:

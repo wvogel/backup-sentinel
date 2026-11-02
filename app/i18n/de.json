@@ -621,6 +621,7 @@
   "restore.class_sata-hdd": "SATA-HDD",
   "restore.total": "Gesamt",
   "restore.host_unreachable": "Host nicht erreichbar.",
+  "restore.host_loading": "Restore-Host wird abgefragt …",
   "restore.held_title": "Gehaltene Umgebungen",
   "restore.held_hint": "Nach einem Fehlschlag gehalten zum manuellen Testen. Anpassen, erneut testen — oder abräumen.",
   "restore.retest": "Erneut testen",
