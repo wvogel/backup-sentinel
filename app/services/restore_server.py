@@ -1064,17 +1064,35 @@ class RestoreServer:
         VM, or [] if the agent isn't up yet or absent. Used to discover the live IP
         of a VM that kept a static address (it never took our DHCP) — we then probe
         that IP and give the helper a host in ITS subnet. The prefix is the guest's
-        real network size (not always /24)."""
+        real network size (not always /24).
+
+        Only the guest's **real NICs** count: interfaces whose MAC is one of the
+        VM config's ``netN`` MACs. A Docker host reports a dozen ``br-*``/``docker0``
+        bridges plus ``wg0`` etc. — addresses that exist only inside the guest and
+        are never on the sandbox L2; probing each one sequentially pushed a probe
+        pass past the helper call's timeout. If the config has no MACs (unreadable),
+        nothing is filtered."""
         import ipaddress
 
+        from app.services.restore_ip_collect import macs_from_config
+
+        node = self.node()
         try:
-            res = self.pve.get(f"/nodes/{self.node()}/qemu/{vmid}/agent/network-get-interfaces")
+            res = self.pve.get(f"/nodes/{node}/qemu/{vmid}/agent/network-get-interfaces")
         except Exception as exc:
             logger.debug("guest agent not ready for %s: %s", vmid, exc)
             return []
+        try:
+            cfg = self.pve.get(f"/nodes/{node}/qemu/{vmid}/config")
+        except Exception as exc:
+            logger.debug("config unreadable for %s: %s", vmid, exc)
+            cfg = None
+        real_macs = set(macs_from_config(cfg).values()) if isinstance(cfg, dict) else set()
         ifaces = res.get("result") if isinstance(res, dict) else res
         nics: list[tuple[str, int]] = []
         for iface in ifaces or []:
+            if real_macs and (iface.get("hardware-address") or "").lower() not in real_macs:
+                continue
             for a in iface.get("ip-addresses") or []:
                 ip = a.get("ip-address", "")
                 if a.get("ip-address-type") != "ipv4" or not ip:
@@ -1321,8 +1339,11 @@ class RestoreServer:
 
     def probe(self, mgmt_ip: str, targets: list[dict[str, Any]], require_icmp: bool = True) -> dict[str, Any]:
         """Ask the helper's agent (over its management IP, not SSH) to probe the
-        restored guest and return its structured JSON result."""
-        return self._agent_post(mgmt_ip, "/probe", {"targets": targets, "require_icmp": require_icmp})
+        restored guest and return its structured JSON result. The agent probes the
+        targets one after another (ping, ARP poke, each port with ~2-3s timeouts),
+        so the HTTP timeout grows with the number of targets and ports."""
+        budget = 15.0 + sum(8.0 + 3.0 * len(t.get("ports") or []) for t in targets)
+        return self._agent_post(mgmt_ip, "/probe", {"targets": targets, "require_icmp": require_icmp}, timeout=budget)
 
     def _agent_url(self, mgmt_ip: str, path: str) -> str:
         from app.services.restore_helper_agent import AGENT_PORT
@@ -1349,6 +1370,8 @@ class RestoreServer:
             raise RestoreTaskError(f"restore helper agent {path} returned HTTP {exc.code}: {detail}") from exc
         except urllib.error.URLError as exc:
             raise RestoreTaskError(f"restore helper agent {path} unreachable at {mgmt_ip}: {exc.reason}") from exc
+        except TimeoutError as exc:  # a read timeout is not wrapped in URLError — bare "timed out"
+            raise RestoreTaskError(f"restore helper agent {path} at {mgmt_ip} timed out after {int(timeout)}s") from exc
         return json.loads(raw) if raw else {}
 
     def _agent_wait_healthy(

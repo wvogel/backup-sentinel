@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.5.1] — 2026-11-02
+
+### Fixed
+
+- **Restore tests of Docker hosts no longer end in `error: timed out`.** The probe tested every IPv4 the guest agent reported — on a Docker host also a dozen `br-*` bridges, `docker0` and `wg0`, addresses that exist only inside the guest. The helper checks them one after another, so a single pass took over a minute while the app waited 15 s for it. Only addresses on the VM's **real NICs** (MAC listed in the VM config) are probed now; the IP the helper's DHCP handed out is probed **first**, the guest's other real IPs after it. The helper call's timeout grows with the number of targets, and a probe pass that fails (timeout, agent error) is retried on the next pass instead of ending the run — only a failure on the last pass counts.
+
 ## [v3.5.0] — 2026-11-02
 
 ### Changed
