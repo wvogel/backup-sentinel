@@ -1897,10 +1897,14 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 }
 .runs-nomatch { padding: 12px; }
 
+/* The log row must not widen the table: its content has no intrinsic width,
+   so opening it never shifts the columns above/below. */
+.run-log-row details { contain: inline-size; }
 .run-log {
-  max-height: 320px;
+  max-height: 420px;
   overflow: auto;
-  white-space: pre-wrap;
+  white-space: pre;
+  line-height: 1.45;
   font-size: 0.85em;
   background: var(--panel-alt, var(--chip));
   padding: 10px;
