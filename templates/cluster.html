@@ -278,15 +278,12 @@
 </section>
 
 <section class="panel-grid">
-  <section class="table-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">{{ t('cluster.restore_tests_eyebrow') }}</p>
-        <h2>{{ t('cluster.document_restore') }}</h2>
-      </div>
-    </div>
-    <form action="/clusters/{{ cluster.slug }}/restore-tests" method="post" class="stack">
-      <label>
+  <fieldset class="dash-section">
+    <legend>{{ t('cluster.document_restore') }}</legend>
+    {# Two columns: VM list left, the short fields stacked right; the note
+       full width below, the save button bottom right. #}
+    <form action="/clusters/{{ cluster.slug }}/restore-tests" method="post" class="restore-doc-form">
+      <label class="restore-doc-vms">
         <span>{{ t('common.vm') }} <span class="muted">({{ t('cluster.restore_multi_hint') }})</span></span>
         <select name="vm_id" required multiple size="6">
           {% for row in vm_rows %}
@@ -318,21 +315,18 @@
         <span>{{ t('cluster.duration_minutes') }}</span>
         <input type="number" name="duration_minutes" min="0" required>
       </label>
-      <label>
+      <label class="restore-doc-note">
         <span>{{ t('cluster.evidence_note') }}</span>
         <textarea name="evidence_note" rows="3" placeholder="{{ t('cluster.evidence_placeholder') }}"></textarea>
       </label>
-      <button type="submit" class="button-primary">{{ t('cluster.save_restore_test') }}</button>
-    </form>
-  </section>
-
-  <section class="table-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">{{ t('cluster.last_restore_tests') }}</p>
-        <h2>{{ t('cluster.last_restores') }}</h2>
+      <div class="restore-doc-actions">
+        <button type="submit" class="button-primary">{{ t('cluster.save_restore_test') }}</button>
       </div>
-    </div>
+    </form>
+  </fieldset>
+
+  <fieldset class="dash-section">
+    <legend>{{ t('cluster.last_restore_tests') }}</legend>
     <ul class="plain-list">
       {% for restore in restore_tests %}
       <li>
@@ -345,7 +339,7 @@
       <li class="muted">{{ t('cluster.no_restore_tests') }}</li>
       {% endfor %}
     </ul>
-  </section>
+  </fieldset>
 </section>
 
 {% include "_log_dialog.html" %}
