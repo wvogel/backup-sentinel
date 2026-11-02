@@ -1900,6 +1900,9 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 /* The log row must not widen the table: its content has no intrinsic width,
    so opening it never shifts the columns above/below. */
 .run-log-row details { contain: inline-size; }
+/* A run and its log row read as one entry: no line between them. */
+.runs-table tr:has(+ .run-log-row) > td { border-bottom-color: transparent; }
+.runs-table .run-log-row > td { padding-top: 0; }
 .run-log {
   max-height: 420px;
   overflow: auto;
