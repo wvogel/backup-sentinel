@@ -333,6 +333,78 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(state["probed"][0], "10.9.0.200")  # DHCP IP tried while waiting
         self.assertIn("10.254.10.6", state["probed"])  # switched to the agent IP
 
+    def test_dhcp_ip_is_probed_first_when_the_agent_reports_it(self):
+        # Our DHCP handed out .200 and the agent reports it next to the guest's other
+        # real IP: .200 goes first, the other real IP is still probed after it.
+        from app.services.restore_worker import _probe_loop
+
+        seen = {}
+
+        class Srv:
+            def guest_agent_nics(self, vmid):
+                return [("10.254.10.6", 24), ("100.64.0.200", 24)]
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+
+        def probe_fn(s, hv, targets):
+            seen["ips"] = [t["ip"] for t in targets]
+            return {"100.64.0.200": {"icmp": True, "ports": {"443": True}}}
+
+        plan = _plan(self.vm_id, primary_ip="100.64.0.200", probe_override=None, first_delay=0, interval=0, window=0)
+        res, _ = _probe_loop(Srv(), plan, now=lambda: 0.0, sleep=lambda s: None, probe_fn=probe_fn)
+        self.assertEqual(res, "passed")
+        self.assertEqual(seen["ips"], ["100.64.0.200", "10.254.10.6"])
+
+    def test_a_failed_probe_pass_is_retried_not_fatal(self):
+        # The helper call timed out once (slow pass): the run keeps probing and
+        # passes on the next pass instead of ending as "error".
+        from app.services.restore_worker import _probe_loop
+
+        calls = {"n": 0}
+
+        class Srv:
+            def guest_agent_nics(self, vmid):
+                return [("100.64.0.200", 24)]
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+
+        def probe_fn(s, hv, targets):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("restore helper agent /probe timed out")
+            return {"100.64.0.200": {"icmp": True, "ports": {"443": True}}}
+
+        clock = {"t": 0.0}
+        plan = _plan(self.vm_id, primary_ip="100.64.0.200", probe_override=None, first_delay=0, interval=10, window=300)
+        res, _ = _probe_loop(
+            Srv(),
+            plan,
+            now=lambda: clock["t"],
+            sleep=lambda s: clock.__setitem__("t", clock["t"] + s),
+            probe_fn=probe_fn,
+        )
+        self.assertEqual(res, "passed")
+        self.assertEqual(calls["n"], 2)
+
+    def test_a_probe_failure_on_the_last_pass_is_raised(self):
+        from app.services.restore_worker import _probe_loop
+
+        class Srv:
+            def guest_agent_nics(self, vmid):
+                return [("100.64.0.200", 24)]
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+
+        def probe_fn(s, hv, targets):
+            raise RuntimeError("helper gone")
+
+        plan = _plan(self.vm_id, primary_ip="100.64.0.200", probe_override=None, first_delay=0, interval=0, window=0)
+        with self.assertRaises(RuntimeError):
+            _probe_loop(Srv(), plan, now=lambda: 0.0, sleep=lambda s: None, probe_fn=probe_fn)
+
     def test_probes_all_agent_ipv4s_and_greens_across_them(self):
         # The agent reports two IPv4s in different subnets. The prober probes BOTH
         # (the helper adds the first host of each subnet); a check is green if it

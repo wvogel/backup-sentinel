@@ -77,9 +77,15 @@ def _probe_loop(
     - **Otherwise**: before every test it checks what IPv4(s) the guest agent
       reports. None yet → it tries the IP dnsmasq hands out from the management
       range (a DHCP guest answers there). As soon as the agent reports IP(s), it
-      probes **every** reported IPv4 — the helper reaches each over the first free
-      host it adds in that IP's own subnet — and a check counts green if it passed
-      on any of them, until the first pass where every check is green."""
+      probes every IPv4 on the guest's **real NICs** (MAC in the VM config — not
+      Docker bridges, wg0, …) — the helper reaches each over the first free host
+      it adds in that IP's own subnet — and a check counts green if it passed on
+      any of them, until the first pass where every check is green. If our DHCP
+      handed out its IP (the agent reports it), that IP is probed **first**.
+
+    A probe pass that fails (helper call timed out, agent error) does not end the
+    run: it counts as not green and the next pass follows. Only a failure on the
+    last pass before the window closes is raised."""
     sleep(plan.first_delay)
     deadline = now() + plan.window
     checks: dict[str, Any] = {}
@@ -93,6 +99,8 @@ def _probe_loop(
         else:
             nics = server.guest_agent_nics(plan.restore_vmid) or []
             if nics:
+                # Our DHCP's IP first (stable sort keeps the agent order otherwise).
+                nics = sorted(nics, key=lambda n: n[0] != plan.primary_ip)
                 targets = [{"ip": ip, "ports": plan.tcp_ports, "prefix": pfx} for ip, pfx in nics]
                 ips = [ip for ip, _ in nics]
             else:
@@ -102,10 +110,17 @@ def _probe_loop(
         if ips:
             if run_id is not None:
                 db_restore.update_run(run_id, detected_ip=ips[0])
-            checks = probe_fn(server, plan.mgmt_ip, targets)
-            result = restore_probe.classify_multi(
-                checks, ips, require_icmp=plan.require_icmp, tcp_ports=plan.tcp_ports, had_ip=True
-            )
+            try:
+                checks = probe_fn(server, plan.mgmt_ip, targets)
+            except Exception as exc:
+                if now() >= deadline:
+                    raise
+                logger.info("restore probe pass failed, retrying: %s", exc)
+                result, checks = "limited", {"note": f"probe pass failed: {exc}"}
+            else:
+                result = restore_probe.classify_multi(
+                    checks, ips, require_icmp=plan.require_icmp, tcp_ports=plan.tcp_ports, had_ip=True
+                )
         else:
             result, checks = "limited", {"note": "no target IP yet (no DHCP address, override, or guest agent)"}
         if result == "passed" or now() >= deadline:

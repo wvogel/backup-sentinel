@@ -1012,6 +1012,52 @@ def test_guest_agent_nics_reports_ip_and_prefix():
     assert srv.guest_agent_nics(9000) == [("10.122.202.20", 24)]
 
 
+def test_guest_agent_nics_only_real_nics_not_docker_or_wireguard():
+    # A Docker host: ens18 is the VM's real NIC (its MAC is net0 in the config);
+    # wg0, docker0 and the br-* bridges exist only inside the guest. Probing all of
+    # them sequentially pushed a probe pass past the helper call timeout.
+    def iface(name, mac, ip, prefix=24):
+        return {
+            "name": name,
+            "hardware-address": mac,
+            "ip-addresses": [{"ip-address": ip, "ip-address-type": "ipv4", "prefix": prefix}],
+        }
+
+    ifaces = [
+        iface("lo", "00:00:00:00:00:00", "127.0.0.1", 8),
+        iface("ens18", "00:0c:29:33:c8:ff", "100.64.0.200"),
+        iface("wg0", "00:00:00:00:00:00", "192.168.223.1"),
+        iface("docker0", "b6:ab:1c:e2:14:54", "172.17.0.1", 16),
+    ] + [iface(f"br-{i:012x}", f"22:cc:f3:4b:3d:{i:02x}", f"172.20.{i}.1") for i in range(13)]
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/agent/network-get-interfaces": {"result": ifaces},
+        "/nodes/r1/qemu/9000/config": {"net0": "e1000=00:0C:29:33:C8:FF,bridge=vmbr9,tag=901"},
+    }
+    srv = _server(responses)
+    assert srv.guest_agent_nics(9000) == [("100.64.0.200", 24)]
+
+
+def test_probe_http_timeout_grows_with_targets():
+    srv = _server({})
+    seen = {}
+    srv._agent_post = lambda ip, path, body, timeout=15.0: seen.setdefault("timeout", timeout) and {}
+    srv.probe("10.9.0.10", [{"ip": f"10.0.0.{i}", "ports": [22, 443]} for i in range(5)])
+    assert seen["timeout"] > 5 * (2 + 1 + 2 * 2)  # ping + ARP poke + two 2s ports per target
+
+
+def test_agent_post_read_timeout_is_a_restore_task_error(monkeypatch):
+    import urllib.request
+
+    def boom(*a, **k):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    srv = _server({})
+    with pytest.raises(RestoreTaskError, match="timed out after 20s"):
+        srv._agent_post("10.9.0.10", "/probe", {}, timeout=20)
+
+
 _MEMINFO = """MemTotal:       1000 kB
 MemFree:         100 kB
 MemAvailable:    800 kB
