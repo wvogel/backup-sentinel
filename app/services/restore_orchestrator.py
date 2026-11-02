@@ -194,13 +194,15 @@ def _sandbox_alloc(
       helper is pinned to that subnet — dnsmasq hands that IP and the helper takes
       the first free host in its net. A bare IP means /24. The prober then uses
       exactly this IP (``stur``), ignoring the guest agent.
-    - Without an override: the helper starts on the **management LAN** and runs
-      DHCP from the management range (dnsmasq hands ``.200``, the helper takes
-      ``.254``). The prober then adapts at runtime to whatever IP(s) the guest
-      agent reports, reaching each over a host it adds in that IP's own subnet.
+    - Without an override: the helper's sandbox leg uses a dedicated, ISOLATED
+      fallback range (``SANDBOX_FALLBACK_CIDR``, dnsmasq hands ``.200``, the helper
+      takes ``.254``) — deliberately NOT the management subnet, which would put
+      the helper's two legs in one subnet and make its management leg unreachable.
+      The prober then adapts at runtime to whatever IP(s) the guest agent reports,
+      reaching each over a host it adds in that IP's own subnet.
 
     ``(None, None, mgmt_prefix)`` only when there is no management IP."""
-    from app.services.restore_server import _prefix_from_netmask, parse_cidr, sandbox_addrs, sandbox_host_ip
+    from app.services.restore_server import _prefix_from_netmask, parse_cidr, sandbox_fallback_addrs, sandbox_host_ip
 
     mgmt_prefix = _prefix_from_netmask(config.get("mgmt_netmask", "255.255.255.0"))
     parsed = parse_cidr(override) if override else None
@@ -208,8 +210,10 @@ def _sandbox_alloc(
         guest_ip, prefix = parsed
         return guest_ip, sandbox_host_ip(guest_ip, prefix), prefix
     if mgmt_ip:
-        helper_ip, guest_ip, _ = sandbox_addrs(mgmt_ip, mgmt_prefix)
-        return guest_ip, helper_ip, mgmt_prefix
+        # Dedicated isolated range — never the management subnet (that overlap
+        # collided the helper's two legs and dropped the management leg).
+        helper_ip, guest_ip, prefix = sandbox_fallback_addrs()
+        return guest_ip, helper_ip, prefix
     return None, None, mgmt_prefix
 
 

@@ -127,11 +127,12 @@ class OrchestratorTest(unittest.TestCase):
         self.assertEqual(plan.helper_vmid, 9001)
         self.assertEqual(plan.vlan_tag, 900)
         self.assertEqual(plan.mgmt_ip, "10.9.0.10")
-        # No operator override → the helper starts on the management LAN + DHCP
-        # (guest .200, helper .254). The live guest-agent IPs are used at probe
-        # time, not baked into the plan here.
-        self.assertEqual(plan.primary_ip, "10.9.0.200")
-        self.assertEqual(plan.sandbox_ip, "10.9.0.254")
+        # No operator override → the sandbox leg uses the dedicated isolated
+        # fallback range (guest .200, helper .254), NOT the management subnet, so
+        # the helper's two legs never collide. Live guest-agent IPs are used at
+        # probe time, not baked into the plan here.
+        self.assertEqual(plan.primary_ip, "100.64.0.200")
+        self.assertEqual(plan.sandbox_ip, "100.64.0.254")
         self.assertEqual(plan.sandbox_prefix, 24)
         self.assertIsNone(plan.probe_override)
         # Name the sandbox env after cluster+VM so the reused vmids are identifiable.

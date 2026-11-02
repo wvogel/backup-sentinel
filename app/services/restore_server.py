@@ -1551,12 +1551,25 @@ def sandbox_host_ip(guest_ip: str, prefix: int) -> str:
 SANDBOX_HELPER_HOST = 254  # the helper's own address on the sandbox leg
 SANDBOX_GUEST_HOST = 200  # the address dnsmasq hands the restored guest
 
+# Dedicated, isolated range for the sandbox leg's DHCP fallback when no guest IP
+# is known at provision. It MUST NOT overlap the management subnet: the sandbox
+# leg lives on the isolated bridge and the management leg on the real interface,
+# so sharing one subnet gives the helper two interfaces in the same /24 — Linux
+# ARP flux + ambiguous egress — and the management leg (where the app reaches the
+# agent) becomes intermittently unreachable ("No route to host"). RFC 6598 CGNAT
+# space is reserved and practically never seen on a LAN or in a guest subnet.
+SANDBOX_FALLBACK_CIDR = "100.64.0.0/24"
+
 
 def sandbox_addrs(mgmt_ip: str, mgmt_prefix: int) -> tuple[str, str, str]:
-    """Fixed sandbox addresses in the management subnet, independent of the guest:
-    the helper's own sandbox-leg IP (host .254) and the single IP dnsmasq hands
-    the restored guest (host .200), plus the netmask. Only one env is live at a
-    time (held envs drop their helper), so these fixed hosts never collide."""
+    """Fixed sandbox addresses in the management subnet: the helper's own
+    sandbox-leg IP (host .254) and the single IP dnsmasq hands the restored guest
+    (host .200), plus the netmask.
+
+    DEPRECATED for the sandbox leg — kept for reference. Putting the sandbox leg
+    in the management subnet collides the helper's two legs (see
+    ``sandbox_fallback_addrs``); the fallback now uses the isolated
+    ``SANDBOX_FALLBACK_CIDR`` instead."""
     import ipaddress
 
     net = ipaddress.ip_network(f"{mgmt_ip}/{mgmt_prefix}", strict=False)
@@ -1564,6 +1577,22 @@ def sandbox_addrs(mgmt_ip: str, mgmt_prefix: int) -> tuple[str, str, str]:
         str(net.network_address + SANDBOX_HELPER_HOST),
         str(net.network_address + SANDBOX_GUEST_HOST),
         str(net.netmask),
+    )
+
+
+def sandbox_fallback_addrs(cidr: str = SANDBOX_FALLBACK_CIDR) -> tuple[str, str, int]:
+    """``(helper_sandbox_ip, dhcp_guest_ip, prefix)`` for the sandbox leg when no
+    guest IP is known at provision — in the dedicated isolated ``cidr``, NEVER the
+    management subnet (that overlap is what made the management leg unreachable).
+    Helper takes host .254, dnsmasq hands the guest .200; only one env is live at
+    a time, so the fixed hosts never collide."""
+    import ipaddress
+
+    net = ipaddress.ip_network(cidr, strict=False)
+    return (
+        str(net.network_address + SANDBOX_HELPER_HOST),
+        str(net.network_address + SANDBOX_GUEST_HOST),
+        net.prefixlen,
     )
 
 

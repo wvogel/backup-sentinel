@@ -218,6 +218,16 @@ def test_sandbox_addrs_fixed_hosts_in_mgmt_subnet():
     assert netmask == "255.255.255.0"
 
 
+def test_sandbox_fallback_addrs_are_isolated_from_mgmt():
+    from app.services.restore_server import sandbox_fallback_addrs
+
+    # The DHCP fallback lives in the dedicated isolated range, not the mgmt subnet.
+    helper_ip, guest_ip, prefix = sandbox_fallback_addrs()
+    assert helper_ip == "100.64.0.254"
+    assert guest_ip == "100.64.0.200"
+    assert prefix == 24
+
+
 def test_helper_legs_dual_homed():
     # net0 (sbx) carries the helper's own address in the GUEST's subnet, with the
     # guest's prefix (not always /24) — here a /26.
@@ -1073,14 +1083,20 @@ def test_sandbox_alloc_override_cidr_honours_prefix():
     assert helper == "10.0.5.1"  # a host in 10.0.5.0/26 that is not the guest
 
 
-def test_sandbox_alloc_without_override_is_management_range():
+def test_sandbox_alloc_without_override_uses_isolated_fallback_not_mgmt_subnet():
+    import ipaddress
+
     from app.services.restore_orchestrator import _sandbox_alloc
 
-    # No override → the helper starts on the management LAN + DHCP (guest .200,
-    # helper .254). The prober adapts to the live guest-agent IPs at runtime.
+    # No override → the sandbox leg uses the dedicated isolated fallback range
+    # (guest .200, helper .254), NEVER the management subnet — otherwise the
+    # helper's two legs share one /24 and the management leg drops off.
     config = {"mgmt_netmask": "255.255.255.0"}
     guest, helper, prefix = _sandbox_alloc(None, "10.121.101.100", config)
-    assert (guest, helper, prefix) == ("10.121.101.200", "10.121.101.254", 24)
+    assert (guest, helper, prefix) == ("100.64.0.200", "100.64.0.254", 24)
+    mgmt_net = ipaddress.ip_network("10.121.101.100/24", strict=False)
+    assert ipaddress.ip_address(helper) not in mgmt_net  # no overlap with mgmt
+    assert ipaddress.ip_address(guest) not in mgmt_net
 
 
 def test_sandbox_alloc_bare_override_means_slash_24():

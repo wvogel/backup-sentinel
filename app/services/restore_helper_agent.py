@@ -59,8 +59,8 @@ def _ensure_reachable(ip: str, prefix: int = 24) -> None:
     explicit ``src`` of that host address.
 
     The ``src`` is essential: the sandbox leg carries more than one subnet (its
-    management-range address plus this guest-subnet address), so without a pinned
-    source the kernel may send the probe FROM the wrong (management) address. The
+    isolated fallback-range address plus this guest-subnet address), so without a
+    pinned source the kernel may send the probe FROM the wrong address. The
     guest then answers ARP (L2) but routes its IP reply to that wrong source via
     its own default gateway — which does not exist in the isolated sandbox — so
     the reply is lost and the guest looks ARP-reachable but ICMP/TCP-dead. Pinning
