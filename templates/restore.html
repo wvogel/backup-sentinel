@@ -19,8 +19,8 @@
 {% else %}
 
 {# Restore host #}
-<section class="table-card">
-  <div class="section-head"><div><p class="eyebrow">{{ t('restore.host_capacity') }}</p></div></div>
+<fieldset class="dash-section">
+  <legend>{{ t('restore.host_capacity') }}</legend>
   {% if host %}
   {%- set ram_used = (host.ram_total - host.ram_free) if (host.ram_total and host.ram_free is not none) else none %}
   {%- set ram_pct = (ram_used / host.ram_total * 100) if (ram_used is not none and host.ram_total) else 0 %}
@@ -159,12 +159,12 @@
   <p class="muted">{{ t('restore.host_unreachable') }}</p>
   {% if host_error %}<p class="critical-text">{{ host_error }}</p>{% endif %}
   {% endif %}
-</section>
+</fieldset>
 
 {# Held environments #}
 {% if held %}
-<section class="table-card">
-  <div class="section-head"><div><p class="eyebrow">{{ t('restore.held_title') }}</p></div></div>
+<fieldset class="dash-section">
+  <legend>{{ t('restore.held_title') }}</legend>
   <p class="muted">{{ t('restore.held_hint') }}</p>
   {% for run in held %}
   <div class="held-env">
@@ -183,7 +183,7 @@
     </div>
   </div>
   {% endfor %}
-</section>
+</fieldset>
 {% endif %}
 
 {# Runs list — Excel-style per-column header filters (a funnel in the header;
@@ -191,8 +191,8 @@
 {% macro colfilter(key, label, options, filt) -%}
 <span class="th-h">{{ label }}{% if filt[key] %}<span class="th-val">: {{ filt[key] }}</span>{% endif %}<details class="col-filter{{ ' active' if filt[key] }}"><summary aria-label="Filter"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M3 5h18l-7 8v5l-4 2v-7z"/></svg></summary><div class="col-filter-menu"><a class="{{ 'sel' if not filt[key] else '' }}" href="{{ runs_filter_href(filt, key, '', runs_per) }}">{{ t('restore.filter_all') }}</a>{% for opt in options %}{% set val = opt if opt is string else opt[0] %}{% set disp = opt if opt is string else opt[1] %}<a class="{{ 'sel' if filt[key] == val else '' }}" href="{{ runs_filter_href(filt, key, val, runs_per) }}">{{ disp }}</a>{% endfor %}</div></details></span>
 {%- endmacro %}
-<section class="table-card">
-  <div class="section-head"><div><p class="eyebrow">{{ t('restore.runs_title') }}</p></div>{% if runs_has_filter %}<a class="button-secondary" href="/restore">{{ t('restore.filter_reset') }}</a>{% endif %}</div>
+<fieldset class="dash-section">
+  <legend>{{ t('restore.runs_title') }}{% if runs_has_filter %}<span class="dash-section-actions"><a class="button button-secondary" href="/restore">{{ t('restore.filter_reset') }}</a></span>{% endif %}</legend>
   {% if not runs and not runs_has_filter %}
   <p class="muted">{{ t('restore.no_runs') }}</p>
   {% else %}
@@ -279,6 +279,6 @@
     </form>
   </div>
   {% endif %}
-</section>
+</fieldset>
 {% endif %}
 {% endblock %}

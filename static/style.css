@@ -3625,6 +3625,22 @@ html[data-theme="dark"] .node-filter-button.is-active {
   letter-spacing: 0.04em;
   color: var(--muted);
 }
+/* Buttons that belong to a box's heading (e.g. "reset filter"): inside the
+   legend, but pinned to the right end of the top border, vertically centred on
+   it — the absolute box keeps the legend's (flex-centred) static top. */
+.dash-section:has(.dash-section-actions) { position: relative; }
+.dash-section > legend:has(.dash-section-actions) { display: flex; align-items: center; }
+.dash-section-actions {
+  position: absolute;
+  right: var(--pad-card);
+  display: flex;
+  gap: 8px;
+  padding: 0 8px;
+  background: var(--panel);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.dash-section-actions .button { padding: 3px 12px; font-size: 0.78rem; }
 
 /* — Dashboard recovery evidence: one row per test, checks as chips — */
 .evidence-table td, .evidence-table th { padding: 7px 14px 7px 0; vertical-align: middle; white-space: nowrap; }
