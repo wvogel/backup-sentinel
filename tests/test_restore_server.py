@@ -38,7 +38,16 @@ def test_rewrite_net_line_preserves_mac_changes_bridge_and_tag():
 
 def test_rewrite_net_line_adds_bridge_when_missing_and_no_tag():
     out = rewrite_net_line("virtio=AA:BB:CC:DD:EE:01", "vmbr9", None)
-    assert out == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9"
+    assert out == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9,mtu=1500"
+
+
+def test_rewrite_net_line_pins_mtu_1500():
+    # A jumbo-frame source NIC (mtu=9000) would not start on the 1500 sandbox
+    # bridge; VirtIO gets mtu=1500, other models no mtu (they use the bridge's).
+    out = rewrite_net_line("virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,mtu=9000", "vmbr9", 901)
+    assert "mtu=9000" not in out and out.count("mtu=") == 1 and "mtu=1500" in out
+    out = rewrite_net_line("e1000=AA:BB:CC:DD:EE:01,bridge=vmbr0,mtu=9000", "vmbr9", 901)
+    assert "mtu=" not in out
 
 
 def test_sandbox_name_builds_hostname_from_cluster_and_vm():
@@ -154,7 +163,7 @@ def test_rewrite_nics_strips_hostpci_before_start():
     # (pve_root defaults to the same fake here, so both land in srv.pve.posts).
     cfg_posts = [d for p, d in srv.pve.posts if p == "/nodes/r1/qemu/9000/config"]
     nic = next(d for d in cfg_posts if "net0" in d)
-    assert nic["net0"] == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9,tag=901"
+    assert nic["net0"] == "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9,mtu=1500,tag=901"
     assert "delete" not in nic  # hostpci not deleted in the token-safe update
     delete = next(d for d in cfg_posts if "delete" in d)
     assert delete["delete"] == "hostpci0,hostpci1"  # both passthrough devices removed via root
@@ -337,7 +346,7 @@ def test_rewrite_nics_only_touches_net_lines_and_keeps_mac():
     srv.rewrite_nics(9000, 901)
     path, data = srv.pve.posts[-1]
     assert path == "/nodes/r1/qemu/9000/config"
-    assert data == {"net0": "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9,tag=901"}
+    assert data == {"net0": "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr9,mtu=1500,tag=901"}
 
 
 def test_restore_raises_on_task_error():
@@ -1034,7 +1043,7 @@ def test_guest_agent_nics_only_real_nics_not_docker_or_wireguard():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],
         "/nodes/r1/qemu/9000/agent/network-get-interfaces": {"result": ifaces},
-        "/nodes/r1/qemu/9000/config": {"net0": "e1000=00:0C:29:33:C8:FF,bridge=vmbr9,tag=901"},
+        "/nodes/r1/qemu/9000/config": {"net0": "e1000=00:0C:29:33:C8:FF,bridge=vmbr9,mtu=1500,tag=901"},
     }
     srv = _server(responses)
     assert srv.guest_agent_nics(9000) == [("100.64.0.200", 24)]

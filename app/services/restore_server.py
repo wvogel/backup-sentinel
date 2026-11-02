@@ -230,10 +230,17 @@ def rewrite_net_line(net_line: str, bridge: str, tag: int | None, trunks: int | 
     off a firewall bridge (fwbr/fwpr) whose rules silently drop the probe's ICMP
     and TCP (ARP still resolves, so it looks "reachable but dead"). The sandbox is
     already isolated by the portless bridge, so the per-NIC firewall only gets in
-    the way — omitting it leaves PVE's default (off)."""
+    the way — omitting it leaves PVE's default (off).
+
+    And pin the MTU to 1500: a source VM on a jumbo-frame network keeps e.g.
+    ``mtu=9000``, and PVE refuses to start it on the sandbox bridge (MTU 1500 —
+    "MTU '9000' is bigger than the bridge MTU"). PVE honours ``mtu`` for VirtIO
+    only; other models get none and so use the bridge's 1500 anyway."""
     parts = [p for p in net_line.split(",") if p]
-    kept = [p for p in parts if not p.startswith(("bridge=", "tag=", "trunks=", "firewall="))]
+    kept = [p for p in parts if not p.startswith(("bridge=", "tag=", "trunks=", "firewall=", "mtu="))]
     kept.append(f"bridge={bridge}")
+    if parts and parts[0].startswith("virtio"):
+        kept.append("mtu=1500")
     if tag is not None:
         kept.append(f"tag={tag}")
     if trunks is not None:
