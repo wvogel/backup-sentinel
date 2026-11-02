@@ -674,7 +674,6 @@
   "restore.require_icmp": "ICMP",
   "restore.hold_on_failure": "VM bei Fehler behalten",
   "restore.retry_days": "Retry (Tage)",
-  "restore.detected_ip": "Erkannte IP",
   "restore.primary_ip": "Primäre IP (Override)",
   "restore.primary_ip_hint": "IP oder IP/Prefix (CIDR), z.B. 10.0.0.5/24. Ohne Präfix wird /24 angenommen.",
   "restore.probe_vlan": "VLAN",

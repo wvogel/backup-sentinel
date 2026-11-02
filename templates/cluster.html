@@ -238,8 +238,8 @@
               <div class="vm-restore-settings"><p class="muted restore-no-match-note">{{ t('restore.vm_no_match') }}</p></div>
               {% elif row.last_backup_at %}
               <div class="vm-restore-settings">
-                {# All fields auto-save on change (no Speichern); the restore-test
-                   button sits in the grid's first cell of the second row. #}
+                {# All fields auto-save on change (no Speichern); two rows of four,
+                   the restore-test button right-aligned below. #}
                 <form action="/restore/vm/{{ row.id }}/policy" method="post" class="auto-restore-form js-autosave-form">
                   <input type="hidden" name="redirect" value="/clusters/{{ cluster.slug }}">
                   <input type="hidden" name="ajax" value="1">
@@ -255,7 +255,6 @@
                   <label class="field"><span>{{ t('restore.tcp_ports') }}</span><input name="probe_tcp_ports" value="{{ row.probe_tcp_ports|join(', ') if row.probe_tcp_ports else '' }}" placeholder="443, 445"></label>
                   <label class="field field-check"><span>{{ t('restore.require_icmp') }}</span><input type="checkbox" name="probe_require_icmp" value="1" {% if row.probe_require_icmp %}checked{% endif %}></label>
                   <label class="field field-check"><span>{{ t('restore.hold_on_failure') }}</span><input type="checkbox" name="hold_on_failure" value="1" {% if row.hold_on_failure %}checked{% endif %} data-confirm-hold></label>
-                  <label class="field"><span>{{ t('restore.detected_ip') }}</span><input value="{{ row.detected_ip or '' }}" placeholder="–" readonly></label>
                   <label class="field"><span>{{ t('restore.primary_ip') }}</span><input name="probe_primary_ip" value="{{ row.probe_primary_ip or '' }}" placeholder="10.0.0.5/24" pattern="^$|^\d{1,3}(\.\d{1,3}){3}(/\d{1,2})?$" title="{{ t('restore.primary_ip_hint') }}"></label>
                   <label class="field"><span>{{ t('restore.probe_vlan') }}</span><input name="probe_vlan" type="number" min="1" max="4094" value="{{ row.probe_vlan if row.probe_vlan is not none else '' }}" placeholder="–" title="{{ t('restore.probe_vlan_hint') }}"></label>
                   <div class="field-action-row">

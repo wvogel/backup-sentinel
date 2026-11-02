@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.4.2] — 2026-11-02
+
+### Changed
+
+- **VM restore settings are more compact.** Two rows of four — Auto, Cadence, Retry, TCP ports / ICMP, Keep VM on failure, Primary IP, VLAN — with *Start restore test* right-aligned below; the dashed rule and extra spacing under the heading are gone. The read-only **Detected IP** field is removed.
+
 ## [v3.4.1] — 2026-11-02
 
 ### Fixed
