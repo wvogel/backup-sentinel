@@ -141,6 +141,8 @@
         <span class="muted js-run-progress">
           {%- if run.bytes_done %}{{ run.bytes_done|size_coarse }} {{ t('restore.read_label') }}{% endif %}
           {%- if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
+        {%- set _eta = run|restore_eta %}
+        <span class="run-eta js-run-eta" data-eta-label="{{ t('restore.eta_label') }}"{% if not _eta %} hidden{% endif %}>{{ (t('restore.eta_label') ~ ' ' ~ _eta) if _eta else '' }}</span>
       </div>
       <form action="/restore/runs/{{ run.id }}/cancel" method="post" class="inline-form running-cancel js-confirm-form" data-confirm-title="{{ t('restore.cancel_confirm_title') }}" data-confirm-body="{{ t('restore.cancel_confirm') }}" data-confirm-ok="{{ t('restore.cancel_run') }}">
         <button type="submit" class="button-secondary" title="{{ t('restore.cancel_run') }}">⏹ {{ t('restore.cancel_run') }}</button>
@@ -210,7 +212,8 @@
         <td class="col-cluster">{% if run.cluster_slug %}<a href="/clusters/{{ run.cluster_slug }}">{{ run.cluster_name }}</a>{% else %}{{ run.cluster_name or '–' }}{% endif %}</td>
         <td>
           {%- if run.status == 'running' -%}
-            <span class="status-icon status-running js-row-status" data-tooltip="{{ t('restore.phase_' ~ (run.phase or 'restoring')) }}" aria-label="{{ run.status }}">⟳&nbsp;<span class="js-row-pct">{{ run.percent or 0 }}%</span></span>
+            {%- set _row_eta = run|restore_eta -%}
+            <span class="status-icon status-running js-row-status" data-tooltip="{{ t('restore.phase_' ~ (run.phase or 'restoring')) }}{% if _row_eta %} · {{ t('restore.eta_label') }} {{ _row_eta }}{% endif %}" aria-label="{{ run.status }}">⟳&nbsp;<span class="js-row-pct">{{ run.percent or 0 }}%</span></span>
           {%- else -%}
             {#- The icon is the bucket; the hover spells out every probed IP with
                 ICMP + each port individually, so "limited" shows exactly what

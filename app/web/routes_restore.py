@@ -387,6 +387,7 @@ def restore_progress(request: Request) -> JSONResponse:
     can run for minutes, so the card updates without a manual reload."""
     from app.i18n import t
     from app.services.human_format import format_size_coarse
+    from app.web.common import restore_eta_text
 
     out = []
     for r in db_restore.list_runs(limit=20, status="running"):
@@ -402,6 +403,8 @@ def restore_progress(request: Request) -> JSONResponse:
                 "phase": t(f"restore.phase_{phase}"),
                 "name": name,
                 "progress": progress,
+                # Live remaining-time estimate (only while restoring); "" otherwise.
+                "eta": restore_eta_text(r),
             }
         )
     # Carry the host I/O rates so the disk/network rings update live, reading the

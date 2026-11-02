@@ -1737,6 +1737,14 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 .runs-table .drag-grip:active { cursor: grabbing; }
 .runs-table tr.is-queued { background: var(--chip); }
 .runs-table tr.dragging { opacity: 0.5; }
+
+/* Live ETA shown by the running-restore ring (permanent while restoring). */
+.run-eta {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.run-eta[hidden] { display: none; }
 .status-icon {
   display: inline-flex;
   align-items: center;
