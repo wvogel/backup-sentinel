@@ -147,11 +147,11 @@ def list_runs(
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             # Queued on top in the order the drainer takes them (manual sort_order,
-            # then FIFO), then the running one, then finished runs newest first.
+            # then FIFO), then the running one, then finished runs by start, newest first.
             f"{base}{where} ORDER BY CASE r.status WHEN 'queued' THEN 0 WHEN 'running' THEN 1 ELSE 2 END, "
             "CASE WHEN r.status = 'queued' THEN r.sort_order END ASC NULLS LAST, "
             "CASE WHEN r.status = 'queued' THEN r.queued_at END ASC, "
-            "COALESCE(r.finished_at, r.started_at, r.queued_at) DESC, r.id DESC LIMIT %s OFFSET %s",
+            "COALESCE(r.started_at, r.queued_at) DESC, r.id DESC LIMIT %s OFFSET %s",
             (*params, limit, offset),
         )
         return list(cur.fetchall())
