@@ -607,6 +607,7 @@
   "restore.phase_booting": "Booting",
   "restore.phase_probing": "Checking reachability",
   "restore.read_label": "read",
+  "restore.eta_label": "ETA",
   "restore.queue_idle": "Queue idle",
   "restore.queue_paused": "Queue paused",
   "restore.queue_running": "Restore running",

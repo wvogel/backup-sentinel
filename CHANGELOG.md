@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.3.2] — 2026-11-02
+
+### Added
+
+- **Live ETA while a restore is copying.** During the `Restoring` phase the running-restore card now shows a permanent **ETA** next to the ring, and the runs-table row shows it on hover — both update in place with the 3 s progress poll (no reload). The estimate is derived from elapsed × (100−%)/%, so it needs no throughput bookkeeping and shrinks on its own as the percent climbs; it is shown only during the data copy (the post-copy finalize/boot/probe have no meaningful byte estimate).
+
 ## [v3.3.1] — 2026-11-02
 
 ### Fixed

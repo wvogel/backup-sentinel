@@ -82,8 +82,31 @@ def restore_status_tooltip(run: dict) -> str:
     return (head + "\n" + "\n".join(lines)).strip() if lines else head
 
 
+def restore_eta_text(run: dict, now: datetime | None = None) -> str:
+    """Estimated time remaining for a running restore as a short string
+    (e.g. "~12 min"), or "" when it does not apply. Only during the data copy
+    (``restoring`` phase) with real progress — the post-copy finalize/boot/probe
+    have no meaningful byte estimate. Derived from elapsed × (100−%)/%, so it
+    needs no throughput bookkeeping and shrinks on its own as the percent climbs.
+    Returned without the "ETA" label, so the caller can place the label once."""
+    if (run.get("phase") or "restoring") != "restoring":
+        return ""
+    pct = run.get("percent") or 0
+    started = run.get("started_at")
+    if not isinstance(started, datetime) or pct <= 0 or pct >= 100:
+        return ""
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=UTC)
+    elapsed = ((now or datetime.now(UTC)) - started).total_seconds()
+    if elapsed <= 0:
+        return ""
+    remaining = elapsed * (100 - pct) / pct
+    return "~" + format_duration(int(remaining))
+
+
 templates.env.filters["datetime_local"] = datetime_local
 templates.env.filters["restore_status_tooltip"] = restore_status_tooltip
+templates.env.filters["restore_eta"] = restore_eta_text
 templates.env.filters["format_bytes"] = format_size
 templates.env.filters["size_coarse"] = format_size_coarse
 templates.env.filters["spark_tooltip"] = spark_tooltip

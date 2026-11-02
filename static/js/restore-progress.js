@@ -71,6 +71,18 @@
         if (phase) phase.textContent = r.phase;
         const prog = card.querySelector(".js-run-progress");
         if (prog) prog.textContent = r.progress;
+        // Live ETA (only while restoring; "" otherwise → hide). Shown permanently
+        // by the ring while present.
+        const eta = card.querySelector(".js-run-eta");
+        if (eta) {
+          if (r.eta) {
+            eta.textContent = (eta.dataset.etaLabel || "ETA") + " " + r.eta;
+            eta.hidden = false;
+          } else {
+            eta.textContent = "";
+            eta.hidden = true;
+          }
+        }
       }
       // The runs table lists the same run: update its status cell too, so the
       // row isn't stuck at its page-load percent while the ring climbs. The live
@@ -80,7 +92,12 @@
         const rpct = row.querySelector(".js-row-pct");
         if (rpct) rpct.textContent = r.percent + "%";
         const rstatus = row.querySelector(".js-row-status");
-        if (rstatus) rstatus.dataset.tooltip = r.progress ? r.phase + " · " + r.progress : r.phase;
+        if (rstatus) {
+          let tip = r.phase;
+          if (r.progress) tip += " · " + r.progress;
+          if (r.eta) tip += " · ETA " + r.eta; // on hover, during restoring
+          rstatus.dataset.tooltip = tip;
+        }
       }
     }
   }

@@ -607,6 +607,7 @@
   "restore.phase_booting": "Hochfahren",
   "restore.phase_probing": "Erreichbarkeit prüfen",
   "restore.read_label": "gelesen",
+  "restore.eta_label": "ETA",
   "restore.queue_idle": "Queue bereit",
   "restore.queue_paused": "Queue angehalten",
   "restore.queue_running": "Restore läuft",
