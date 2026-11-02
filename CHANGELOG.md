@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.4.5] — 2026-11-02
+
+### Fixed
+
+- **Disk I/O ring is labelled *Disk I/O local* and scaled to local storages only.** It has always counted only the host's own physical disks (`/proc/diskstats`) — a restore onto an NFS target moves its data over the network and shows under *Network* — but its 100 % mark came from the fastest of *all* selected target storages, including network ones. A fast NFS target thus shrank the arcs of the local disks. The scale now comes from local storages only (NFS, CIFS, Ceph, iSCSI, PBS, … are skipped).
+
+### Changed
+
+- **The restore progress ring is as large as the RAM and storage rings**, on `/restore` and on the overview.
+
 ## [v3.4.4] — 2026-11-02
 
 ### Fixed

@@ -45,6 +45,10 @@ _DISK_CLASS_FALLBACK_BPS = DISK_CLASS_MAX_BPS["standard-ssd"]
 _PHYS_DISK_RE = re.compile(r"^(nvme\d+n\d+|sd[a-z]+|vd[a-z]+|xvd[a-z]+)$")
 _SECTOR_BYTES = 512
 
+# Storage types whose I/O goes over the network, not through the host's own
+# disks — /proc/diskstats never sees it, so they don't set the disk ring's scale.
+_NETWORK_STORAGE_TYPES = frozenset({"nfs", "cifs", "glusterfs", "cephfs", "rbd", "iscsi", "iscsidirect", "pbs", "esxi"})
+
 # Last host counter sample per node, so the next refresh can turn the monotonic
 # /proc counters into rates. Keyed by node name; guarded because refreshes may
 # overlap. Written only from free_resources().
@@ -480,8 +484,8 @@ class RestoreServer:
 
     def _disk_ceiling_bps(self, classes: dict[str, str | None], selected: set[str]) -> int:
         """Denominator for the disk read/write arcs: the fastest tier among the
-        selected target storages (so the arcs read as 'share of the best disk we
-        restore onto'). Falls back to standard-ssd."""
+        selected *local* target storages (the ring counts local disks only, so a
+        network storage's tier must not set its scale). Falls back to standard-ssd."""
         vals = [DISK_CLASS_MAX_BPS[c] for s in selected if (c := classes.get(s)) in DISK_CLASS_MAX_BPS]
         return max(vals) if vals else _DISK_CLASS_FALLBACK_BPS
 
@@ -533,7 +537,8 @@ class RestoreServer:
             ram_total, ram_free = mem_detail["total"], mem_detail["available"]
         else:
             ram_total, ram_free = mem.get("total"), mem.get("free")
-        io = self._io_rates(node, sample, self._disk_ceiling_bps(classes, selected))
+        local = {s["storage"] for s in stores if s["type"] not in _NETWORK_STORAGE_TYPES}
+        io = self._io_rates(node, sample, self._disk_ceiling_bps(classes, local))
         return {"ram_free": ram_free, "ram_total": ram_total, "ram_detail": mem_detail, "stores": stores, "io": io}
 
     def _io_rates(self, node: str, sample: dict[str, Any] | None, disk_max_bps: int) -> dict[str, Any]:

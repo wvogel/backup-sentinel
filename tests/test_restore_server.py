@@ -4,6 +4,7 @@ with injected fake PVE/SSH transports; no real host)."""
 import pytest
 
 from app.services.restore_server import (
+    DISK_CLASS_MAX_BPS,
     HostIdentityError,
     RestoreServer,
     RestoreTaskError,
@@ -902,6 +903,33 @@ def test_free_resources_shows_only_selected_storages():
     srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
     res = srv.free_resources()
     assert [s["storage"] for s in res["stores"]] == ["restore-test"]  # the un-ticked one is hidden
+
+
+def test_disk_ring_scale_ignores_network_storages():
+    # The disk ring counts local disks only (/proc/diskstats), so an NFS target's
+    # faster tier must not set its 100 % mark — the local SATA disk does.
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/status": {"memory": {"free": 5, "total": 10}},
+        "/nodes/r1/storage": [
+            {"storage": "nas-restore", "type": "nfs", "content": "images", "total": 100, "avail": 60},
+            {"storage": "local-lvm", "type": "lvmthin", "content": "images", "total": 100, "avail": 90},
+        ],
+    }
+    cfg = {
+        "ssh_host": "10.0.0.9",
+        "api_url": "https://10.0.0.9:8006",
+        "sandbox_bridge": "vmbr9",
+        "target_storages": [
+            {"storage": "nas-restore", "use": True, "order": 0, "disk_class": "enterprise-ssd"},
+            {"storage": "local-lvm", "use": True, "order": 1, "disk_class": "sata-hdd"},
+        ],
+    }
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    seen = {}
+    srv._io_rates = lambda node, sample, disk_max_bps: seen.setdefault("max", disk_max_bps) and {}
+    srv.free_resources()
+    assert seen["max"] == DISK_CLASS_MAX_BPS["sata-hdd"]
 
 
 def test_destroy_stops_a_running_guest_before_deleting():
