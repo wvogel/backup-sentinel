@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.5.4] — 2026-11-02
+
+### Fixed
+
+- **Restore tests of VMs with jumbo frames start again.** A source NIC with `mtu=9000` kept its MTU on the sandbox bridge (MTU 1500), and Proxmox refused the start: *MTU '9000' is bigger than the bridge MTU '1500'*. Every NIC of the restored VM is now pinned to **MTU 1500** — VirtIO NICs get `mtu=1500`, other models drop their `mtu` and use the bridge's 1500.
+
 ## [v3.5.3] — 2026-11-02
 
 ### Changed

@@ -469,7 +469,7 @@ Backup Sentinel kann einen Restore **nachweisen**, nicht nur dokumentieren. Dazu
 - **Guest-Agent-Audit** (`VM.GuestAgent.Audit` bzw. `VM.Monitor`) auf den Produktions-Cluster-Tokens, damit IPs erfasst werden; fehlt das, trägt man die primäre IP je VM manuell ein.
   Geprüft werden nur IPs auf den **echten Netzwerkkarten** der VM (MAC steht in der VM-Konfiguration); Docker-Bridges, `wg0` und andere gastinterne Interfaces werden übersprungen. Hat der DHCP des Helfers die IP vergeben, wird sie zuerst geprüft.
 - **Management-Netz** (statisch, kein DHCP): Interface/Bridge, optionale VLAN-ID und ein IP-Bereich (von–bis). Je Helfer eine IP; sind alle belegt, wartet die Queue. Das Sandbox-Netz spricht nie nach außen, daher ohne Gateway und immer mit /24.
-- **Sandbox-Bridge**: eine portlose, VLAN-aware Bridge (Default `vmbr9`), die die App idempotent per SSH anlegt — der Traffic verlässt den Host nie.
+- **Sandbox-Bridge**: eine portlose, VLAN-aware Bridge (Default `vmbr9`, MTU 1500), die die App idempotent per SSH anlegt — der Traffic verlässt den Host nie. Die NICs der restaurierten VM werden darauf fest auf MTU 1500 gesetzt, damit auch eine Quell-VM mit Jumbo Frames (`mtu=9000`) startet.
 
 ### Betrieb
 
