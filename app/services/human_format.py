@@ -88,10 +88,10 @@ def format_rate(bytes_per_second: object, lang: str | None = None) -> str:
 
 
 def format_bitrate(bytes_per_second: object, lang: str | None = None) -> str:
-    """A network link rate in *decimal* bits, the way a NIC is rated (1 Gb =
-    1000 Mb, not 1024): Gigabit with one decimal ("10,0 Gb/s", "2,5 Gb/s") and,
-    below 1 Gb/s, whole Megabit without decimals ("940 Mb/s"). Takes bytes/s so
-    it pairs with the byte counters; "–" when unknown."""
+    """A network rate in *decimal* bits, the way links and transfers are measured
+    (1 Gb = 1000 Mb, not 1024): Gigabit with at most one decimal, dropped when it
+    is whole ("10 Gb/s", "2,5 Gb/s"), and below 1 Gb/s whole Megabit ("940 Mb/s").
+    Takes bytes/s so it pairs with the byte counters; "–" when unknown."""
     try:
         bits = float(bytes_per_second) * 8  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -99,7 +99,10 @@ def format_bitrate(bytes_per_second: object, lang: str | None = None) -> str:
     if not math.isfinite(bits) or bits < 0:
         return "–"
     if bits >= 1_000_000_000:
-        return f"{_localize(f'{bits / 1_000_000_000:.1f}', lang)} Gb/s"
+        text = f"{bits / 1_000_000_000:.1f}"
+        if text.endswith(".0"):
+            text = text[:-2]  # 10,0 → 10, but 2,5 keeps its decimal
+        return f"{_localize(text, lang)} Gb/s"
     return f"{_localize(str(int(bits // 1_000_000)), lang)} Mb/s"
 
 

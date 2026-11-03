@@ -432,8 +432,10 @@ def restore_progress(request: Request) -> JSONResponse:
 
 def _io_view(io: dict | None) -> dict:
     """Shape the raw I/O rates for the live poll: arc percents plus display
-    strings formatted exactly like the page's Jinja ``size_coarse`` filter, so a
-    live update reads identically to the server-rendered ring."""
+    strings formatted exactly like the page's Jinja filters (disk in bytes via
+    ``size_coarse``, network in bits via ``bitrate``), so a live update reads
+    identically to the server-rendered ring."""
+    from app.services.human_format import format_bitrate
     from app.services.human_format import format_size_coarse as fsc
 
     if not io or not io.get("have"):
@@ -448,8 +450,9 @@ def _io_view(io: dict | None) -> dict:
         "net_in_pct": io["net_in_pct"],
         "net_out_pct": io["net_out_pct"],
         "net_ctr": f"{max(io['net_in_pct'], io['net_out_pct'])}%",
-        "net_in": fsc(io["net_in"]),
-        "net_out": fsc(io["net_out"]),
+        # Network is measured in bits (Gb/s), unlike the disk arcs (bytes).
+        "net_in": format_bitrate(io["net_in"]),
+        "net_out": format_bitrate(io["net_out"]),
     }
 
 

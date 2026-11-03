@@ -74,12 +74,12 @@ class FormatSizeCoarseTests(unittest.TestCase):
 class FormatBitrateTests(unittest.TestCase):
     # Link rates come in as bytes/s (link_bps), shown in decimal bits like a NIC
     # is rated: 1 Gb = 1000 Mb. 10GbE → link_bps 1_250_000_000 → "10,0 Gb/s".
-    def test_gigabit_keeps_one_decimal(self) -> None:
+    def test_gigabit_one_decimal_only_when_it_carries_information(self) -> None:
         set_language("de")
-        self.assertEqual(format_bitrate(1_250_000_000), "10,0 Gb/s")  # 10GbE
-        self.assertEqual(format_bitrate(125_000_000), "1,0 Gb/s")  # 1GbE
-        self.assertEqual(format_bitrate(312_500_000), "2,5 Gb/s")  # 2.5GbE
-        self.assertEqual(format_bitrate(3_125_000_000), "25,0 Gb/s")  # 25GbE
+        self.assertEqual(format_bitrate(1_250_000_000), "10 Gb/s")  # 10GbE, no ,0
+        self.assertEqual(format_bitrate(125_000_000), "1 Gb/s")  # 1GbE
+        self.assertEqual(format_bitrate(312_500_000), "2,5 Gb/s")  # 2.5GbE keeps it
+        self.assertEqual(format_bitrate(3_125_000_000), "25 Gb/s")  # 25GbE
 
     def test_below_one_gigabit_is_whole_megabit(self) -> None:
         set_language("de")
@@ -87,9 +87,15 @@ class FormatBitrateTests(unittest.TestCase):
         self.assertEqual(format_bitrate(117_500_000), "940 Mb/s")
         self.assertEqual(format_bitrate(0), "0 Mb/s")
 
+    def test_throughput_bytes_become_bits(self) -> None:
+        set_language("de")
+        self.assertEqual(format_bitrate(310_000_000), "2,5 Gb/s")  # 310 MB/s in → ~2,48 Gb/s
+        self.assertEqual(format_bitrate(400_000_000), "3,2 Gb/s")  # 400 MB/s out
+
     def test_english_decimal_point(self) -> None:
         set_language("en")
-        self.assertEqual(format_bitrate(1_250_000_000), "10.0 Gb/s")
+        self.assertEqual(format_bitrate(312_500_000), "2.5 Gb/s")
+        self.assertEqual(format_bitrate(1_250_000_000), "10 Gb/s")
         set_language("de")
 
     def test_unknown_is_dash(self) -> None:
