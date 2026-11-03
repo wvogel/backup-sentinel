@@ -446,7 +446,7 @@ def _io_view(io: dict | None) -> dict:
 
     if not io or not io.get("have"):
         return {"have": False}
-    disk_read, disk_write = fsc(io["disk_read"]), fsc(io["disk_write"])
+    disk_read, disk_write = f"{fsc(io['disk_read'])}/s", f"{fsc(io['disk_write'])}/s"
     net_in, net_out = format_bitrate(io["net_in"]), format_bitrate(io["net_out"])
     return {
         "have": True,
@@ -464,8 +464,8 @@ def _io_view(io: dict | None) -> dict:
         # The ring tooltips are server-rendered on load; the poll must refresh them
         # too, built exactly like the Jinja data-tooltip so a hover reads current.
         "disk_tip": (
-            f"{t('restore.io_read')}: {disk_read}/s\n"
-            f"{t('restore.io_write')}: {disk_write}/s\n"
+            f"{t('restore.io_read')}: {disk_read}\n"
+            f"{t('restore.io_write')}: {disk_write}\n"
             f"{t('restore.io_util')}: {io['disk_util']}%"
         ),
         "net_tip": (

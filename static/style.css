@@ -3625,21 +3625,20 @@ html[data-theme="dark"] .node-filter-button.is-active {
   place-items: center;
 }
 .io-center strong { font-size: 0.95rem; }
-/* Network ring: two stacked lines (down / up) in the centre, like the RAM
-   figure. nowrap so "296 Mb/s" never breaks across lines inside the ring. */
-/* Override the grid so the two lines stack as a tight, vertically-centred pair
-   (the grid gave them a row each and pushed them to the ring's top and bottom). */
-.io-center-net {
+/* Network and Disk rings: two stacked lines in the centre (like the RAM figure),
+   a tight vertically-centred pair. Override the grid, which gave each line its own
+   row and pushed them to the ring's top and bottom. nowrap so a value never breaks. */
+.io-center-stack {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 1px;
 }
-.io-net-line {
+.io-stack-line {
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   font-size: 0.72rem;
   line-height: 1.25;
   white-space: nowrap;

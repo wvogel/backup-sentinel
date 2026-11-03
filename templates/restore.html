@@ -65,10 +65,14 @@
           <circle class="io-track" cx="46" cy="46" r="28"></circle>
           <circle class="io-arc io-write js-io-disk-write" cx="46" cy="46" r="28" transform="rotate(-90 46 46)" data-c="175.9" stroke-dasharray="{{ ((io.disk_write_pct if ok else 0)/100.0*175.9)|round(1) }} 175.9"></circle>
         </svg>
-        <div class="ring-center io-center"><strong class="js-io-disk-ctr">{{ (io.disk_util ~ '%') if ok else '—' }}</strong></div>
+        {# Centre shows the two that matter — utilisation % and the write rate
+           (like the RAM figure); the arcs carry read/write load. Updated via poll. #}
+        <div class="ring-center io-center io-center-stack">
+          <span class="io-stack-line"><strong class="js-io-disk-ctr">{{ (io.disk_util ~ '%') if ok else '—' }}</strong></span>
+          <span class="io-stack-line"><span class="io-dot io-write"></span><span class="js-io-disk-write-v">{{ (io.disk_write|size_coarse ~ '/s') if ok else '—' }}</span></span>
+        </div>
       </div>
       <div class="store-ring-label">{{ t('restore.io_disk') }}</div>
-      <div class="io-sub"><span class="io-dot io-read"></span><span class="js-io-disk-read-v">{{ io.disk_read|size_coarse if ok else '—' }}</span> · <span class="io-dot io-write"></span><span class="js-io-disk-write-v">{{ io.disk_write|size_coarse if ok else '—' }}</span></div>
     </div>
     <div class="store-ring-card">
       {%- set net_pct = ([io.net_in_pct, io.net_out_pct]|max) if ok else 0 %}
@@ -81,9 +85,9 @@
         </svg>
         {# Centre shows live down/up (like the RAM ring's figure), not the % — the
            arcs already carry the % of link. Arrows in front; spans update via poll. #}
-        <div class="ring-center io-center io-center-net">
-          <span class="io-net-line">↓<span class="js-io-net-in-v">{{ io.net_in|bitrate if ok else '—' }}</span></span>
-          <span class="io-net-line">↑<span class="js-io-net-out-v">{{ io.net_out|bitrate if ok else '—' }}</span></span>
+        <div class="ring-center io-center io-center-stack">
+          <span class="io-stack-line">↓<span class="js-io-net-in-v">{{ io.net_in|bitrate if ok else '—' }}</span></span>
+          <span class="io-stack-line">↑<span class="js-io-net-out-v">{{ io.net_out|bitrate if ok else '—' }}</span></span>
         </div>
       </div>
       <div class="store-ring-label">{{ t('restore.io_net') }}</div>
