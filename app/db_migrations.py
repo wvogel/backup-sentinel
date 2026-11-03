@@ -103,6 +103,42 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
             "UPDATE backup_events SET removed_at = NULL WHERE source = 'pbs' AND removed_at IS NOT NULL",
         ],
     ),
+    (
+        8,
+        "Recompute restore-run durations shortened by a resume after an app restart",
+        # Before v3.5.6 a run resumed after a deploy measured its duration from
+        # the resume, not from started_at. Recompute from finished_at - started_at
+        # — but ONLY for runs that were provably never held: a held run's
+        # finished_at is overwritten when it is later promoted or reaped, so
+        # its timestamps span the hold window. Only failed/error runs can be
+        # held; a passed one only via promotion, which its restore test's
+        # evidence note records. Only lengthen, never shorten.
+        [
+            """
+            UPDATE restore_runs r
+            SET duration_seconds = EXTRACT(EPOCH FROM r.finished_at - r.started_at)::int
+            WHERE r.started_at IS NOT NULL
+              AND r.finished_at IS NOT NULL
+              AND r.result IN ('passed', 'limited', 'cancelled')
+              AND r.status = r.result
+              AND EXTRACT(EPOCH FROM r.finished_at - r.started_at) > COALESCE(r.duration_seconds, 0) + 60
+              AND NOT EXISTS (
+                  SELECT 1 FROM restore_tests t
+                  WHERE t.id = r.restore_test_id AND t.evidence_note LIKE 'promoted%'
+              )
+            """,
+            """
+            UPDATE restore_tests t
+            SET duration_minutes = ROUND(r.duration_seconds / 60.0)::int
+            FROM restore_runs r
+            WHERE r.restore_test_id = t.id
+              AND t.recovery_type = 'auto-full-vm'
+              AND t.evidence_note NOT LIKE 'promoted%'
+              AND r.duration_seconds IS NOT NULL
+              AND t.duration_minutes IS DISTINCT FROM ROUND(r.duration_seconds / 60.0)::int
+            """,
+        ],
+    ),
 ]
 
 
