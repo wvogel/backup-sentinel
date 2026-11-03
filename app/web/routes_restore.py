@@ -9,7 +9,7 @@ import time
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette import status
 
 from app import db, db_restore
@@ -454,23 +454,32 @@ def _io_view(io: dict | None) -> dict:
 
 
 @router.post("/restore/vm/{vm_id}/test")
-def manual_test(request: Request, vm_id: int) -> RedirectResponse:
+def manual_test(request: Request, vm_id: int, ajax: str = Form(default="")) -> Response:
+    """Queue a manual restore test. From the VM settings panel it is sent with
+    ``ajax=1`` (fetch): answer JSON so the page stays where it is; a plain form
+    post (the ↻ on /restore) redirects to /restore as before."""
     from app.services import restore_match
+
+    def done(error: str = "") -> Response:
+        if ajax == "1":
+            return JSONResponse({"ok": not error, "error": error})
+        url = f"/restore?error={error}" if error else "/restore"
+        return RedirectResponse(url, status_code=status.HTTP_303_SEE_OTHER)
 
     # Never queue a VM whose backups aren't matched on the restore host — confirm
     # eligibility first (same 1:1 match as auto). Only queue when confirmed.
     config = restore_config.load()
     if config is None:
-        return RedirectResponse("/restore?error=not_configured", status_code=status.HTTP_303_SEE_OTHER)
+        return done("not_configured")
     try:
         server = restore_orchestrator.build_server(config)
         entries = restore_orchestrator.restore_host_pbs_entries(server)
         matchable = restore_match.is_auto_restorable(restore_orchestrator.vm_backup_locations(vm_id), entries)
     except Exception as exc:
         logger.warning("manual test eligibility check failed for vm %s: %s", vm_id, exc)
-        return RedirectResponse("/restore?error=host", status_code=status.HTTP_303_SEE_OTHER)
+        return done("host")
     if not matchable:
-        return RedirectResponse("/restore?error=not_restorable", status_code=status.HTTP_303_SEE_OTHER)
+        return done("not_restorable")
     db_restore.create_run(vm_id, trigger="manual")
     try:
         from app.web.sync import _kick_restore_queue
@@ -478,7 +487,7 @@ def manual_test(request: Request, vm_id: int) -> RedirectResponse:
         _kick_restore_queue()
     except Exception as exc:
         logger.debug("kick restore queue failed: %s", exc)
-    return RedirectResponse("/restore", status_code=status.HTTP_303_SEE_OTHER)
+    return done()
 
 
 @router.post("/restore/runs/{run_id}/delete")

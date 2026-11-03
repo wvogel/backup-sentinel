@@ -156,7 +156,10 @@ document.addEventListener(
   (e) => {
     const btn = e.target.closest(".js-confirm-submit");
     if (!btn) return;
-    if (btn.dataset.armed === "1") return; // armed → let the submit through
+    if (btn.dataset.armed === "1") {
+      if (btn.classList.contains("js-ajax-submit")) ajaxSubmit(e, btn);
+      return; // armed → let the submit through
+    }
     e.preventDefault();
     const label = btn.querySelector(".js-confirm-label") || btn;
     if (!btn.dataset.orig) btn.dataset.orig = label.textContent;
@@ -172,6 +175,34 @@ document.addEventListener(
   },
   true,
 );
+
+// A confirmed .js-ajax-submit button posts its form in the background and shows
+// the outcome in the status lightbox — the page (and an open panel) stays put.
+const AJAX_ERRORS = {
+  not_restorable: "restore.err_not_restorable",
+  host: "restore.err_host",
+};
+function ajaxSubmit(e, btn) {
+  e.preventDefault();
+  clearTimeout(btn._armTimer);
+  btn.dataset.armed = "";
+  btn.classList.remove("is-armed");
+  const label = btn.querySelector(".js-confirm-label") || btn;
+  if (btn.dataset.orig) label.textContent = btn.dataset.orig;
+  btn.disabled = true;
+  const body = new FormData(btn.form);
+  body.set("ajax", "1");
+  fetch(btn.formAction, { method: "POST", body })
+    .then((r) => r.json())
+    .then((res) => {
+      if (res.ok) showStatusLightbox(true, T(btn.dataset.successText || "restore.saved"), "", 1600);
+      else showStatusLightbox(false, T("restore.err_generic"), T(AJAX_ERRORS[res.error] || ""), 4000);
+    })
+    .catch(() => showStatusLightbox(false, T("restore.err_generic"), "", 4000))
+    .finally(() => {
+      btn.disabled = false;
+    });
+}
 
 // ── Confirm-on-submit forms (.js-confirm-form): a styled lightbox, not alert() ─
 // The form carries data-confirm-title / data-confirm-body / data-confirm-ok.
