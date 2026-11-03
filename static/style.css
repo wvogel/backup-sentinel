@@ -3655,6 +3655,10 @@ html[data-theme="dark"] .node-filter-button.is-active {
   letter-spacing: 0.04em;
   color: var(--muted);
 }
+/* A box whose content starts with its own bordered sub-boxes (settings →
+   notifications): the same gap below the heading as between the sub-boxes. */
+.dash-section > .settings-form { margin-top: 8px; }
+
 /* Buttons that belong to a box's heading (e.g. "reset filter"): inside the
    legend, but pinned to the right end of the top border, vertically centred on
    it — the absolute box keeps the legend's (flex-centred) static top. */

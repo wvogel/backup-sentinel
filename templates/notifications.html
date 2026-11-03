@@ -1,12 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ t('notifications.title') }}{% endblock %}
 {% block content %}
-<section class="table-card">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow">{{ t('notifications.eyebrow') }}</p>
-    </div>
-  </div>
+<fieldset class="dash-section">
+  <legend>{{ t('notifications.eyebrow') }}</legend>
   <form method="get" class="notification-filters">
     <select name="notification_type" onchange="this.form.submit()">
       <option value="">{{ t('notifications.filter_all_types') }}</option>
@@ -82,7 +78,7 @@
     {% endif %}
   </nav>
   {% endif %}
-</section>
+</fieldset>
 <script>
   document.querySelectorAll('.notification-row').forEach(function(row) {
     row.addEventListener('click', function() {

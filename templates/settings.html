@@ -112,12 +112,8 @@
 <!-- Lightbox for cluster rename -->
 
 <section class="panel-grid">
-  <section class="table-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">{{ t('settings.new_cluster') }}</p>
-      </div>
-    </div>
+  <fieldset class="dash-section">
+    <legend>{{ t('settings.new_cluster') }}</legend>
     <form id="cluster-form" class="stack" data-app-base-url="{{ app_base_url }}">
       <label>
         <span>{{ t('settings.cluster_name') }}</span>
@@ -142,22 +138,17 @@
       <pre id="bootstrap-commands"></pre>
       <p class="bootstrap-poll-status muted" id="pve-poll-status">{{ t('settings.waiting_bootstrap') }}</p>
     </div>
-  </section>
+  </fieldset>
 
-  <aside class="table-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">{{ t('settings.governance') }}</p>
-        <h2>{{ t('settings.nist_title') }}</h2>
-      </div>
-    </div>
+  <fieldset class="dash-section">
+    <legend>{{ t('settings.nist_title') }}</legend>
     <ul class="plain-list">
       <li><strong>Identify:</strong> {{ t('settings.nist_identify') }}</li>
       <li><strong>Protect:</strong> {{ t('settings.nist_protect') }}</li>
       <li><strong>Detect:</strong> {{ t('settings.nist_detect') }}</li>
       <li><strong>Recover:</strong> {{ t('settings.nist_recover') }}</li>
     </ul>
-  </aside>
+  </fieldset>
 </section>
 
 
@@ -316,13 +307,8 @@
 
 <div class="settings-tab-panel" id="panel-benachrichtigungen" role="tabpanel" aria-labelledby="tab-benachrichtigungen">
 {# ── Notifications ──────────────────────────────────────────────── #}
-<section class="table-card" id="benachrichtigungen">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow">{{ t('settings.notifications') }}</p>
-      <h2>{{ t('settings.gotify_email') }}</h2>
-    </div>
-  </div>
+<fieldset class="dash-section" id="benachrichtigungen">
+  <legend>{{ t('settings.notifications') }}</legend>
   <form action="/settings/notifications" method="post" class="stack settings-form">
     <fieldset class="toggleable-fieldset{{ '' if app_settings.get('notify_gotify_enabled', 'false') == 'true' else ' is-disabled' }}">
       <legend class="legend-with-toggle">
@@ -450,17 +436,12 @@
       <button type="submit" class="settings-action-btn button-primary">{{ t('settings.save_settings') }}</button>
     </div>
   </form>
-</section>
+</fieldset>
 </div>
 
 <div class="settings-tab-panel" id="panel-appearance" role="tabpanel" aria-labelledby="tab-appearance">
-<section class="table-card" id="appearance">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow">{{ t('settings.appearance') }}</p>
-      <h2>{{ t('settings.appearance_title') }}</h2>
-    </div>
-  </div>
+<fieldset class="dash-section" id="appearance">
+  <legend>{{ t('settings.appearance_title') }}</legend>
   {% if appearance_saved %}<p class="ok-text">{{ t('settings.theme_saved') }}</p>{% endif %}
   {% for e in appearance_errors %}
   <p class="critical-text">{{ t('settings.theme_invalid_preset') if e == 'preset' else t('settings.theme_invalid_hex', field=t('settings.theme_' ~ e)) }}</p>
@@ -503,17 +484,12 @@
       <button type="submit" name="reset" value="1" class="button-secondary">{{ t('settings.theme_reset') }}</button>
     </div>
   </form>
-</section>
+</fieldset>
 </div>
 
 <div class="settings-tab-panel" id="panel-audit" role="tabpanel" aria-labelledby="tab-audit">
-<section class="table-card" id="audit">
-  <div class="section-head">
-    <div>
-      <p class="eyebrow">{{ t('settings.audit') }}</p>
-      <h2>{{ t('settings.audit_title') }}</h2>
-    </div>
-  </div>
+<fieldset class="dash-section" id="audit">
+  <legend>{{ t('settings.audit_title') }}</legend>
   <table>
     <thead>
       <tr>
@@ -540,7 +516,7 @@
       {% endfor %}
     </tbody>
   </table>
-</section>
+</fieldset>
 </div>
 
 <script>
