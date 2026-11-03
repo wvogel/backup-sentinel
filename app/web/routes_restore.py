@@ -392,6 +392,7 @@ def restore_progress(request: Request) -> JSONResponse:
     can run for minutes, so the card updates without a manual reload."""
     from app.i18n import t
     from app.services.human_format import format_size_coarse
+    from app.services.restore_probe import green_check_labels
     from app.web.common import restore_eta_text
 
     out = []
@@ -410,6 +411,10 @@ def restore_progress(request: Request) -> JSONResponse:
                 "progress": progress,
                 # Live remaining-time estimate (only while restoring); "" otherwise.
                 "eta": restore_eta_text(r),
+                # The detected/DHCP IP and the checks already green, so the card
+                # shows forward motion through the (possibly long) probe window.
+                "detected_ip": r.get("detected_ip") or "",
+                "checks_green": green_check_labels(r.get("checks") or {}),
             }
         )
     # Carry the host I/O rates so the disk/network rings update live, reading the

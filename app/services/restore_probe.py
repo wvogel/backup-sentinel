@@ -121,6 +121,31 @@ def classify_multi(
     return "limited" if reachable_anything else "failed"
 
 
+def green_check_labels(checks: dict[str, Any]) -> list[str]:
+    """Short labels for the checks already green across any probed IP, for the
+    live restore card while a run is still probing. Liveness first (ICMP, then
+    ARP), then open TCP ports in numeric order. Non-probe entries (note/error,
+    which are strings) are ignored."""
+    if not isinstance(checks, dict):
+        return []
+    results = [v for v in checks.values() if isinstance(v, dict)]
+    labels: list[str] = []
+    if any(r.get("icmp") for r in results):
+        labels.append("ICMP")
+    if any(r.get("arp") for r in results):
+        labels.append("ARP")
+    open_ports: set[int] = set()
+    for r in results:
+        for port, ok in (r.get("ports") or {}).items():
+            if ok:
+                try:
+                    open_ports.add(int(port))
+                except (TypeError, ValueError):
+                    continue
+    labels.extend(str(p) for p in sorted(open_ports))
+    return labels
+
+
 def probe_once(
     mgmt_ip: str,
     token: str,

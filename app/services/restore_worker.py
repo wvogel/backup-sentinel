@@ -123,6 +123,10 @@ def _probe_loop(
                 )
         else:
             result, checks = "limited", {"note": "no target IP yet (no DHCP address, override, or guest agent)"}
+        # Persist this pass's checks so the live card can list the ones already
+        # green (and the detected IP above) while the window keeps probing.
+        if run_id is not None:
+            db_restore.update_run(run_id, checks=checks)
         if result == "passed" or now() >= deadline:
             return result, checks
         sleep(plan.interval)

@@ -87,6 +87,26 @@
         if (phase) phase.textContent = r.phase;
         const prog = card.querySelector(".js-run-progress");
         if (prog) prog.textContent = r.progress;
+        // Live: the detected/DHCP IP and the checks already green this pass.
+        const ip = card.querySelector(".js-run-ip");
+        if (ip) {
+          if (r.detected_ip) {
+            ip.textContent = (ip.dataset.ipLabel || "IP") + " " + r.detected_ip;
+            ip.hidden = false;
+          } else {
+            ip.hidden = true;
+          }
+        }
+        const checks = card.querySelector(".js-run-checks");
+        if (checks) {
+          checks.replaceChildren();
+          for (const c of r.checks_green || []) {
+            const chip = document.createElement("span");
+            chip.className = "check-chip";
+            chip.textContent = "✓ " + c;
+            checks.appendChild(chip);
+          }
+        }
         // Live ETA (only while restoring; "" otherwise → hide). Shown permanently
         // by the ring while present.
         const eta = card.querySelector(".js-run-eta");

@@ -3667,6 +3667,17 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 /* The restore-progress ring is as large as the RAM / storage rings (.store-ring). */
 .running-info { display: flex; flex-direction: column; gap: 2px; }
+/* Live green checks during probing: small ticked chips. */
+.run-checks { display: flex; flex-wrap: wrap; gap: 4px; }
+.run-checks:empty { display: none; }
+.check-chip {
+  font-size: 0.7rem;
+  line-height: 1.5;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+}
 
 /* — Settings cluster list (#11): PBS subcards end before "Cluster entfernen" — */
 .settings-subcard { align-items: flex-start; }
