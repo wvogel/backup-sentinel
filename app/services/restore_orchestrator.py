@@ -362,11 +362,13 @@ def drain(config: dict[str, Any], server: RestoreServer) -> None:
     A run too big for the target storage *right now* is skipped so smaller due
     runs proceed (it stays queued and is retried later); management-IP
     exhaustion makes the whole queue wait (spec §15). The caller guarantees a
-    single drainer."""
-    if restore_config.queue_paused():
-        return
+    single drainer. The pause is re-checked every iteration, not just at entry:
+    ``execute`` blocks for the whole restore, so an operator who pauses while one
+    runs must stop the queue before the NEXT run starts, not only before the first."""
     prod = production_endpoints()
     while True:
+        if restore_config.queue_paused():
+            return
         if db_restore.has_active_run():
             return
         queued = db_restore.list_queued_runs()

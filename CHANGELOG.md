@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.8.1] — 2026-11-03
+
+### Fixed
+
+- **Queue pause now holds across runs.** Pausing the queue while a restore was running still let the next queued VM start once that run finished — `drain` checked the pause only once, at entry, and `execute` blocks for the whole restore. It now re-checks the pause before every run, so a pause stops the queue before the next VM starts.
+
+### Changed
+
+- **Disk-I/O ring: the centre shows utilisation % and the write rate** — the two that matter — stacked like the network and RAM rings; the read/write line under the ring is gone. The hover tooltip still carries read, write and utilisation.
+
 ## [v3.8.0] — 2026-11-03
 
 ### Added

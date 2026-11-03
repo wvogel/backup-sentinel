@@ -261,6 +261,32 @@ class DrainSkipTest(unittest.TestCase):
         self.assertEqual(db_restore.get_run(big)["status"], "queued")  # skipped, still queued
         self.assertNotEqual(db_restore.get_run(small)["status"], "queued")  # executed
 
+    def test_pause_during_a_run_stops_the_next_one(self):
+        # A run is in progress when the operator pauses; the next queued VM must
+        # NOT start. Regression: drain checked the pause only once, at entry, so
+        # after a run finished mid-pause it went on to start the next one.
+        from unittest import mock
+
+        from app.services import restore_config, restore_worker
+
+        restore_config.set_queue_paused(False)
+        server = _DrainServer(avail=10**6, size_by_vmid={100: 10, 101: 10})  # both fit
+        first = db_restore.create_run(self.ids[100])  # queued first (FIFO)
+        second = db_restore.create_run(self.ids[101])
+        ran: list[int] = []
+
+        def fake_execute(run_id, plan, srv, **kw):
+            ran.append(run_id)
+            db_restore.record_run_result(run_id, plan.vm_id, "passed", duration_seconds=0)
+            restore_config.set_queue_paused(True)  # operator pauses while it runs
+            return "passed"
+
+        with mock.patch.object(restore_worker, "execute", side_effect=fake_execute):
+            orch.drain(CONFIG, server)
+        self.assertEqual(ran, [first])  # only the first ran
+        self.assertEqual(db_restore.get_run(second)["status"], "queued")  # pause held the next
+        restore_config.set_queue_paused(False)
+
 
 class _RecoverServer:
     """Fake server for the stuck-run self-heal: reports which vmids are present on
