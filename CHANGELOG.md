@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.6.4] — 2026-11-03
+
+### Fixed
+
+- **Restore host Network ring: the link rate is no longer multiply-counted.** Only physical NICs (those with a `/sys/class/net/<i>/device` link) count toward the link speed and the in/out throughput. Bonds, bridges, VLANs and container veth each echo the underlying link's speed and traffic, so a single 10GbE uplink read as ~50 Gbit/s (5,8 GB/s) across NIC, bridges and veths. The *Link rate* now shows gigabit the way a NIC is rated — `10,0 Gb/s` (one decimal), and whole `Mb/s` below 1 Gb/s.
+
 ## [v3.6.3] — 2026-11-03
 
 ### Changed

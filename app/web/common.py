@@ -23,7 +23,13 @@ from app.config import (
 from app.i18n import SUPPORTED_LANGUAGES, get_language, get_translations, t
 from app.services import theme
 from app.services.backup_status import format_duration, pbs_sync_state, pve_sync_state
-from app.services.human_format import format_count, format_rate, format_size, format_size_coarse
+from app.services.human_format import (
+    format_bitrate,
+    format_count,
+    format_rate,
+    format_size,
+    format_size_coarse,
+)
 from app.services.netdiag_format import format_run_log
 from app.services.theme_store import active_theme
 
@@ -135,6 +141,7 @@ templates.env.filters["run_log"] = format_run_log
 templates.env.filters["restore_check_chips"] = restore_check_chips
 templates.env.filters["format_bytes"] = format_size
 templates.env.filters["size_coarse"] = format_size_coarse
+templates.env.filters["link_rate"] = format_bitrate
 templates.env.filters["spark_tooltip"] = spark_tooltip
 templates.env.filters["format_number"] = format_count
 

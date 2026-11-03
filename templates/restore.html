@@ -72,7 +72,7 @@
     </div>
     <div class="store-ring-card">
       {%- set net_pct = ([io.net_in_pct, io.net_out_pct]|max) if ok else 0 %}
-      <div class="io-ring" data-tooltip="{{ t('restore.io_in') }}: {{ (io.net_in if ok else 0)|size_coarse }}/s&#10;{{ t('restore.io_out') }}: {{ (io.net_out if ok else 0)|size_coarse }}/s&#10;{{ t('restore.io_link') }}: {{ (io.net_link if ok else 0)|size_coarse }}/s">
+      <div class="io-ring" data-tooltip="{{ t('restore.io_in') }}: {{ (io.net_in if ok else 0)|size_coarse }}/s&#10;{{ t('restore.io_out') }}: {{ (io.net_out if ok else 0)|size_coarse }}/s&#10;{{ t('restore.io_link') }}: {{ (io.net_link if ok else 0)|link_rate }}">
         <svg viewBox="0 0 92 92" class="io-ring-svg" role="img" aria-label="{{ t('restore.io_net') }}">
           <circle class="io-track" cx="46" cy="46" r="40"></circle>
           <circle class="io-arc io-read js-io-net-in" cx="46" cy="46" r="40" transform="rotate(-90 46 46)" data-c="251.3" stroke-dasharray="{{ ((io.net_in_pct if ok else 0)/100.0*251.3)|round(1) }} 251.3"></circle>
