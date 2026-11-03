@@ -165,3 +165,34 @@ class RestoreDbTestCase(unittest.TestCase):
         self.assertFalse(pol["auto_restore_enabled"])
         self.assertEqual(pol["restore_retry_days"], 7)
         self.assertTrue(pol["probe_require_icmp"])
+
+    def test_policy_save_stores_timeout_minutes_as_window_seconds(self) -> None:
+        from app.web.routes_restore import update_vm_restore_policy
+
+        def _save(minutes: str) -> None:
+            # Called directly (not via FastAPI), so every Form param is passed.
+            update_vm_restore_policy(
+                request=None,
+                vm_id=self.vm_id,
+                auto_restore_enabled="",
+                restore_cadence="half_year",
+                probe_primary_ip="",
+                probe_vlan="",
+                probe_timeout_minutes=minutes,
+                probe_tcp_ports="",
+                probe_require_icmp="",
+                hold_on_failure="",
+                restore_retry_days=7,
+                redirect="/restore",
+                ajax="1",
+            )
+
+        def _window() -> object:
+            with db.connect() as conn, conn.cursor() as cur:
+                cur.execute("SELECT probe_window_seconds FROM vm_policies WHERE vm_id = %s", (self.vm_id,))
+                return cur.fetchone()["probe_window_seconds"]
+
+        _save("10")  # 10 minutes → 600 s on the per-VM policy.
+        self.assertEqual(_window(), 600)
+        _save("")  # clearing it falls back to the default (NULL in the row).
+        self.assertIsNone(_window())
