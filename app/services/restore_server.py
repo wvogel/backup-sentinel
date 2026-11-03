@@ -118,8 +118,9 @@ def _parse_netdev(text: str) -> dict[str, tuple[int, int]]:
 
 def _parse_speeds(text: str) -> dict[str, int]:
     """ "<iface> <speed-mbit>" lines → {iface: mbit}. A blank/invalid/negative
-    speed (bridges, taps, down links report -1 or nothing) is dropped, so only
-    real uplinks with a negotiated speed remain."""
+    speed (a down link reports -1 or nothing) is dropped, so only uplinks with a
+    negotiated speed remain. The caller already restricts the lines to physical
+    NICs, so virtual stacks (bonds/bridges/VLANs/veth) never appear here."""
     out: dict[str, int] = {}
     for line in text.splitlines():
         parts = line.split()
@@ -454,7 +455,11 @@ class RestoreServer:
         cmd = (
             "cat /proc/meminfo; echo '@@DISK'; cat /proc/diskstats; "
             "echo '@@NET'; cat /proc/net/dev; echo '@@SPEED'; "
-            'for d in /sys/class/net/*; do echo "$(basename "$d") $(cat "$d/speed" 2>/dev/null)"; done; '
+            # Only physical NICs (those with a /device link) report a speed here.
+            # Bonds, bridges, VLANs and veth echo the underlying link's speed too,
+            # and summing them all multiply-counts one physical link (a single
+            # 10GbE uplink came out as ~50 Gbit/s across nic + bridge + veths).
+            'for d in /sys/class/net/*; do [ -e "$d/device" ] && echo "$(basename "$d") $(cat "$d/speed" 2>/dev/null)"; done; '
             "echo '@@UP'; cat /proc/uptime"
         )
         try:
@@ -480,8 +485,10 @@ class RestoreServer:
             uptime = time.monotonic()
         speeds = _parse_speeds("\n".join(sections.get("SPEED", [])))
         net = _parse_netdev("\n".join(sections.get("NET", [])))
-        # Only uplinks with a negotiated speed count toward the Network ring, so
-        # bridges/taps/veth are ignored and the link denominator is real.
+        # Only physical uplinks with a negotiated speed count toward the Network
+        # ring (the sample emits a speed for physical NICs only), so bonds,
+        # bridges, VLANs and veth never inflate the link denominator or the
+        # in/out counters by echoing the underlying link's speed and traffic.
         net_uplinks = {i: v for i, v in net.items() if i in speeds}
         return {
             "t": uptime,
