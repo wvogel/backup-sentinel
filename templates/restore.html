@@ -72,7 +72,7 @@
     </div>
     <div class="store-ring-card">
       {%- set net_pct = ([io.net_in_pct, io.net_out_pct]|max) if ok else 0 %}
-      <div class="io-ring" data-tooltip="{{ t('restore.io_in') }}: {{ (io.net_in if ok else 0)|size_coarse }}/s&#10;{{ t('restore.io_out') }}: {{ (io.net_out if ok else 0)|size_coarse }}/s&#10;{{ t('restore.io_link') }}: {{ (io.net_link if ok else 0)|link_rate }}">
+      <div class="io-ring" data-tooltip="{{ t('restore.io_in') }}: {{ (io.net_in if ok else 0)|bitrate }}&#10;{{ t('restore.io_out') }}: {{ (io.net_out if ok else 0)|bitrate }}&#10;{{ t('restore.io_link') }}: {{ (io.net_link if ok else 0)|bitrate }}">
         <svg viewBox="0 0 92 92" class="io-ring-svg" role="img" aria-label="{{ t('restore.io_net') }}">
           <circle class="io-track" cx="46" cy="46" r="40"></circle>
           <circle class="io-arc io-read js-io-net-in" cx="46" cy="46" r="40" transform="rotate(-90 46 46)" data-c="251.3" stroke-dasharray="{{ ((io.net_in_pct if ok else 0)/100.0*251.3)|round(1) }} 251.3"></circle>
@@ -82,7 +82,7 @@
         <div class="ring-center io-center"><strong class="js-io-net-ctr">{{ (net_pct ~ '%') if ok else '—' }}</strong></div>
       </div>
       <div class="store-ring-label">{{ t('restore.io_net') }}</div>
-      <div class="io-sub"><span class="io-dot io-read"></span>↓<span class="js-io-net-in-v">{{ io.net_in|size_coarse if ok else '—' }}</span> · <span class="io-dot io-write"></span>↑<span class="js-io-net-out-v">{{ io.net_out|size_coarse if ok else '—' }}</span></div>
+      <div class="io-sub"><span class="io-dot io-read"></span>↓<span class="js-io-net-in-v">{{ io.net_in|bitrate if ok else '—' }}</span> · <span class="io-dot io-write"></span>↑<span class="js-io-net-out-v">{{ io.net_out|bitrate if ok else '—' }}</span></div>
     </div>
     {# Queue pause / resume as a ring control (play ▶ to resume, ❚❚ to pause), far right. #}
     <form action="/restore/queue/pause" method="post" class="store-ring-card queue-ring-right">

@@ -141,7 +141,7 @@ templates.env.filters["run_log"] = format_run_log
 templates.env.filters["restore_check_chips"] = restore_check_chips
 templates.env.filters["format_bytes"] = format_size
 templates.env.filters["size_coarse"] = format_size_coarse
-templates.env.filters["link_rate"] = format_bitrate
+templates.env.filters["bitrate"] = format_bitrate
 templates.env.filters["spark_tooltip"] = spark_tooltip
 templates.env.filters["format_number"] = format_count
 
