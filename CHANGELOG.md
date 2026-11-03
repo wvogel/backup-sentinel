@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.7.3] — 2026-11-03
+
+### Fixed
+
+- **Network ring centre: the ↓ / ↑ lines sit together, vertically centred.** They were pushed to the top and bottom of the ring; now they stack with normal line spacing as one centred pair.
+
 ## [v3.7.2] — 2026-11-03
 
 ### Changed
