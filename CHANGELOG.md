@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.6.2] — 2026-11-03
+
+### Changed
+
+- **Settings and notifications: box headings sit in the top border line**, like on `/restore`, the cluster page and the overview — *New cluster*, *NIST CSF 2.0 / NIS2 guardrails*, *Notifications*, *Colours and design*, *Recent settings changes* and the notifications list. Each box keeps one heading instead of a small label plus a title; on the notifications tab the first sub-box keeps the same gap to the heading as the sub-boxes keep to each other.
+
 ## [v3.6.1] — 2026-11-03
 
 ### Changed
