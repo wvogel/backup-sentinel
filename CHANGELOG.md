@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.7.0] — 2026-11-03
+
+### Added
+
+- **Per-VM restore-test timeout.** A *Timeout (Min.)* field under *Primäre IP (Override)* in a VM's restore settings sets how long the test waits for the guest to come up before failing — the prober keeps re-probing every ~30 s across the whole window. Empty keeps the 5-minute default; raise it for slow-booting guests (e.g. tomedo servers). The restore-test button now sits beside this field. A bogus guest IP (such as tomedo's internal `fake0` at `1.2.3.4`) is best handled as before, by pinning the real address in *Primäre IP (Override)* — the prober then uses only that IP and never waits on the dead one.
+
 ## [v3.6.4] — 2026-11-03
 
 ### Fixed

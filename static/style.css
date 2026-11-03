@@ -1956,11 +1956,21 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   .auto-restore-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Restore-test button on its own full-width row below the fields, right-aligned. */
+/* "Timeout (Min.)" sits under "Primäre IP (Override)" (3rd column); the
+   restore-test button moves up beside it in the last column, its bottom flush
+   with the field's input. */
+.auto-restore-form .field-timeout {
+  grid-column: 3;
+}
 .auto-restore-form .field-action-row {
-  grid-column: 1 / -1;
+  grid-column: 4;
   display: flex;
   justify-content: flex-end;
+  align-self: end;
+}
+@media (max-width: 680px) {
+  .auto-restore-form .field-timeout { grid-column: auto; }
+  .auto-restore-form .field-action-row { grid-column: 1 / -1; align-self: auto; }
 }
 
 .checkbox-label {

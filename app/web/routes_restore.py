@@ -564,6 +564,16 @@ def _held_action(run_id: int, action: str) -> None:
         logger.warning("held action %s on run %s failed: %s", action, run_id, exc)
 
 
+def _timeout_minutes_to_seconds(raw: str) -> int | None:
+    """The per-VM probe-window override, entered in minutes → ``probe_window_seconds``,
+    clamped to the model's 30 s–24 h range. Blank/zero/non-numeric → None, which falls
+    back to the global default (slow-booting guests get a longer window this way)."""
+    raw = (raw or "").strip()
+    if not raw.isdigit() or int(raw) <= 0:
+        return None
+    return max(30, min(86400, int(raw) * 60))
+
+
 @router.post("/restore/vm/{vm_id}/policy")
 def update_vm_restore_policy(
     request: Request,
@@ -572,6 +582,7 @@ def update_vm_restore_policy(
     restore_cadence: str = Form(default="half_year"),
     probe_primary_ip: str = Form(default=""),
     probe_vlan: str = Form(default=""),
+    probe_timeout_minutes: str = Form(default=""),
     probe_tcp_ports: str = Form(default=""),
     probe_require_icmp: str = Form(default=""),
     hold_on_failure: str = Form(default=""),
@@ -581,18 +592,21 @@ def update_vm_restore_policy(
 ):
     ports = [int(p) for p in probe_tcp_ports.replace(",", " ").split() if p.strip().isdigit()]
     vlan = int(probe_vlan) if probe_vlan.strip().isdigit() else None
+    window_seconds = _timeout_minutes_to_seconds(probe_timeout_minutes)
     with db.connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO vm_policies
                 (vm_id, owner_name, criticality, rpo_hours, auto_restore_enabled, restore_cadence,
-                 probe_primary_ip, probe_vlan, probe_tcp_ports, probe_require_icmp, hold_on_failure, restore_retry_days)
-            VALUES (%s, 'unassigned', 'medium', 24, %s, %s, NULLIF(%s, ''), %s, %s, %s, %s, %s)
+                 probe_primary_ip, probe_vlan, probe_window_seconds, probe_tcp_ports,
+                 probe_require_icmp, hold_on_failure, restore_retry_days)
+            VALUES (%s, 'unassigned', 'medium', 24, %s, %s, NULLIF(%s, ''), %s, %s, %s, %s, %s, %s)
             ON CONFLICT (vm_id) DO UPDATE SET
                 auto_restore_enabled = EXCLUDED.auto_restore_enabled,
                 restore_cadence = EXCLUDED.restore_cadence,
                 probe_primary_ip = EXCLUDED.probe_primary_ip,
                 probe_vlan = EXCLUDED.probe_vlan,
+                probe_window_seconds = EXCLUDED.probe_window_seconds,
                 probe_tcp_ports = EXCLUDED.probe_tcp_ports,
                 probe_require_icmp = EXCLUDED.probe_require_icmp,
                 hold_on_failure = EXCLUDED.hold_on_failure,
@@ -604,6 +618,7 @@ def update_vm_restore_policy(
                 restore_cadence,
                 probe_primary_ip,
                 vlan,
+                window_seconds,
                 ports,
                 bool(probe_require_icmp),
                 bool(hold_on_failure),
