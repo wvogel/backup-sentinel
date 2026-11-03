@@ -449,7 +449,7 @@ class RestoreServer:
     def _host_sample(self) -> dict[str, Any] | None:
         """One root-SSH round-trip for the whole host snapshot: memory, disk and
         network counters, NIC link speeds and the host's uptime clock. Reading all
-        of it in a single ``cat`` keeps the host gentle — one exec per ~25 s host
+        of it in a single ``cat`` keeps the host gentle — one exec per ~10 s host
         refresh, never a per-request or sub-second poll. Returns parsed sections,
         or None if the read fails (caller falls back to PVE's node status)."""
         cmd = (

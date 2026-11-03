@@ -18,6 +18,12 @@
     const el = document.querySelector(sel);
     if (el) el.textContent = val;
   }
+  // The ring hover tooltip reads data-tooltip fresh on each hover (common.js),
+  // so refreshing the attribute is enough — no open tooltip to re-render.
+  function setTip(sel, val) {
+    const el = document.querySelector(sel);
+    if (el && val) el.dataset.tooltip = val;
+  }
   // Update the Disk-I/O and Network rings in place from the host snapshot the
   // poll carries — no reload, and no SSH per poll (the server reads a cached
   // snapshot). A snapshot without a prior sample (io.have false) leaves the
@@ -29,11 +35,13 @@
     setText(".js-io-disk-ctr", io.disk_ctr);
     setText(".js-io-disk-read-v", io.disk_read);
     setText(".js-io-disk-write-v", io.disk_write);
+    setTip(".js-io-disk-ring", io.disk_tip);
     setArc(".js-io-net-in", io.net_in_pct);
     setArc(".js-io-net-out", io.net_out_pct);
     setText(".js-io-net-ctr", io.net_ctr);
     setText(".js-io-net-in-v", io.net_in);
     setText(".js-io-net-out-v", io.net_out);
+    setTip(".js-io-net-ring", io.net_tip);
   }
 
   async function tick() {

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.7.2] — 2026-11-03
+
+### Changed
+
+- **Restore host rings update live and read better.** The Disk-I/O and Network ring **tooltips** now refresh on the live poll (they were frozen at the page-load values). The **Network ring** shows the live throughput — ↓ in / ↑ out — in its centre, like the RAM ring, instead of a percentage of the link. Ring values no longer wrap mid-unit (`296 Mb/s` stays on one line). The host snapshot refreshes every ~10 s (was ~25 s) so the numbers move more often.
+
 ## [v3.7.1] — 2026-11-03
 
 ### Changed
