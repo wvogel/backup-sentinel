@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.8.0] — 2026-11-03
+
+### Added
+
+- **Live restore-run progress: detected IP and green checks.** While a restore test probes the guest, the running card now shows the detected / DHCP-assigned IP and the checks already green (ICMP/ARP and open TCP ports), refreshed on every poll — so a long probe window shows forward motion instead of a static card. The probe loop now persists each pass's checks for this.
+
 ## [v3.7.3] — 2026-11-03
 
 ### Fixed

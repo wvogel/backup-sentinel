@@ -145,6 +145,9 @@
         <span class="muted js-run-progress">
           {%- if run.bytes_done %}{{ run.bytes_done|size_coarse }} {{ t('restore.read_label') }}{% endif %}
           {%- if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
+        {# Live during probing: the detected/DHCP IP and the checks already green. #}
+        <span class="muted js-run-ip" data-ip-label="{{ t('restore.run_ip') }}"{% if not run.detected_ip %} hidden{% endif %}>{{ t('restore.run_ip') }} {{ run.detected_ip }}</span>
+        <span class="run-checks js-run-checks">{% for c in run.checks|green_checks %}<span class="check-chip">✓ {{ c }}</span>{% endfor %}</span>
         {%- set _eta = run|restore_eta %}
         <span class="run-eta js-run-eta" data-eta-label="{{ t('restore.eta_label') }}"{% if not _eta %} hidden{% endif %}>{{ (t('restore.eta_label') ~ ' ' ~ _eta) if _eta else '' }}</span>
       </div>

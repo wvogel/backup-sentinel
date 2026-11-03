@@ -680,6 +680,7 @@
   "restore.primary_ip_hint": "IP oder IP/Prefix (CIDR), z.B. 10.0.0.5/24. Ohne Präfix wird /24 angenommen.",
   "restore.probe_vlan": "VLAN",
   "restore.probe_vlan_hint": "Nur nötig, wenn der Gast intern taggt (IP auf einem VLAN-Sub-Interface). Die VID wird zusätzlich ins Sandbox-Netz durchgereicht.",
+  "restore.run_ip": "IP",
   "restore.probe_timeout": "Timeout (Min.)",
   "restore.probe_timeout_hint": "Wie lange der Restore-Test auf den Gast wartet, bevor er fehlschlägt (es wird laufend neu geprüft). Leer = Standard (5 Min.). Für langsam bootende Gäste wie tomedo höher setzen.",
   "restore.save_policy": "Speichern",
