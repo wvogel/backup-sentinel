@@ -195,7 +195,12 @@ function ajaxSubmit(e, btn) {
   fetch(btn.formAction, { method: "POST", body })
     .then((r) => r.json())
     .then((res) => {
-      if (res.ok) showStatusLightbox(true, T(btn.dataset.successText || "restore.saved"), "", 1600);
+      if (res.ok) {
+        showStatusLightbox(true, T(btn.dataset.successText || "restore.saved"), "", 1600);
+        // Show the queued state in the VM list right away (no reload needed).
+        const state = btn.dataset.runState && document.getElementById(btn.dataset.runState);
+        if (state && !state.classList.contains("run-running")) state.classList.add("run-queued");
+      }
       else showStatusLightbox(false, T("restore.err_generic"), T(AJAX_ERRORS[res.error] || ""), 4000);
     })
     .catch(() => showStatusLightbox(false, T("restore.err_generic"), "", 4000))

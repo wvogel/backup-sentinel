@@ -671,6 +671,8 @@
   "restore.cadence_year": "Jährlich",
   "restore.not_restorable": "Nicht auto-restaurierbar (kein Offsite-Backup)",
   "restore.test_queued": "Restore-Test eingereiht",
+  "restore.state_queued": "In der Warteschlange",
+  "restore.state_running": "Restore läuft · {pct} %",
   "restore.test_now": "Restore-Test starten",
   "restore.last_result": "Letztes Ergebnis",
   "restore.tcp_ports": "TCP-Ports",

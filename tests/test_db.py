@@ -911,3 +911,36 @@ class PageQueryTests(DbTestCase):
                 with mock.patch.object(routes_clusters, "get_language", return_value=lang):
                     self.assertEqual(client.get("/api/clusters/test/sync-status").status_code, 200)
         self.assertEqual(fetch.call_count, 2)  # de, en; the second de is cached
+
+
+class RestoreRunStateIconTests(DbTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_clusters
+
+        app = FastAPI()
+        app.include_router(routes_clusters.router)
+        self.client = TestClient(app, follow_redirects=False)
+
+    page = ClusterPageTests.page
+
+    def test_queued_and_running_runs_show_their_state_icon(self) -> None:
+        from app import db_restore
+
+        a, b = self.vm_row(100)["id"], self.vm_row(101)["id"]
+        db_restore.create_run(a, trigger="manual")
+        run_b = db_restore.create_run(b, trigger="scheduled")
+        db_restore.update_run(run_b, status="running", percent=42)
+        self.assertEqual(db_restore.active_run_by_vm()[a]["status"], "queued")
+        self.assertEqual(db_restore.active_run_by_vm()[b], {"status": "running", "percent": 42})
+        html = self.page()
+        self.assertIn(f'class="run-state run-queued" id="run-state-{a}"', html)
+        self.assertIn(f'class="run-state run-running" id="run-state-{b}"', html)
+        self.assertIn("42 %", html)  # running percent in the hover
+
+    def test_idle_vm_keeps_an_empty_state_slot(self) -> None:
+        html = self.page()
+        self.assertIn(f'class="run-state" id="run-state-{self.vm_row(100)["id"]}"', html)
