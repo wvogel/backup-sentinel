@@ -209,7 +209,7 @@ def _cache_pbs_locations(entries: list) -> None:
 # page slow. So we keep the computed view in-process and refresh it in a
 # background thread: the page always renders instantly from the last snapshot,
 # and a stale snapshot triggers a refresh that the next load picks up.
-_HOST_VIEW_TTL = 25.0  # seconds a snapshot is considered fresh
+_HOST_VIEW_TTL = 10.0  # seconds a snapshot is fresh — short so the I/O rings move live
 _host_view: dict = {"at": 0.0, "data": None, "error": None}
 _host_view_lock = threading.Lock()
 _host_view_refreshing = threading.Event()
@@ -414,7 +414,7 @@ def restore_progress(request: Request) -> JSONResponse:
         )
     # Carry the host I/O rates so the disk/network rings update live, reading the
     # same cached snapshot the page renders from (no SSH per poll) and nudging the
-    # ~25 s background refresh when it is stale so the numbers keep moving.
+    # ~10 s background refresh when it is stale so the numbers keep moving.
     io = None
     host_state = None
     config = restore_config.load()
@@ -435,24 +435,39 @@ def _io_view(io: dict | None) -> dict:
     strings formatted exactly like the page's Jinja filters (disk in bytes via
     ``size_coarse``, network in bits via ``bitrate``), so a live update reads
     identically to the server-rendered ring."""
+    from app.i18n import t
     from app.services.human_format import format_bitrate
     from app.services.human_format import format_size_coarse as fsc
 
     if not io or not io.get("have"):
         return {"have": False}
+    disk_read, disk_write = fsc(io["disk_read"]), fsc(io["disk_write"])
+    net_in, net_out = format_bitrate(io["net_in"]), format_bitrate(io["net_out"])
     return {
         "have": True,
         "disk_read_pct": io["disk_read_pct"],
         "disk_write_pct": io["disk_write_pct"],
         "disk_ctr": f"{io['disk_util']}%",
-        "disk_read": fsc(io["disk_read"]),
-        "disk_write": fsc(io["disk_write"]),
+        "disk_read": disk_read,
+        "disk_write": disk_write,
         "net_in_pct": io["net_in_pct"],
         "net_out_pct": io["net_out_pct"],
         "net_ctr": f"{max(io['net_in_pct'], io['net_out_pct'])}%",
         # Network is measured in bits (Gb/s), unlike the disk arcs (bytes).
-        "net_in": format_bitrate(io["net_in"]),
-        "net_out": format_bitrate(io["net_out"]),
+        "net_in": net_in,
+        "net_out": net_out,
+        # The ring tooltips are server-rendered on load; the poll must refresh them
+        # too, built exactly like the Jinja data-tooltip so a hover reads current.
+        "disk_tip": (
+            f"{t('restore.io_read')}: {disk_read}/s\n"
+            f"{t('restore.io_write')}: {disk_write}/s\n"
+            f"{t('restore.io_util')}: {io['disk_util']}%"
+        ),
+        "net_tip": (
+            f"{t('restore.io_in')}: {net_in}\n"
+            f"{t('restore.io_out')}: {net_out}\n"
+            f"{t('restore.io_link')}: {format_bitrate(io['net_link'])}"
+        ),
     }
 
 

@@ -3625,6 +3625,17 @@ html[data-theme="dark"] .node-filter-button.is-active {
   place-items: center;
 }
 .io-center strong { font-size: 0.95rem; }
+/* Network ring: two stacked lines (down / up) in the centre, like the RAM
+   figure. nowrap so "296 Mb/s" never breaks across lines inside the ring. */
+.io-center-net { gap: 1px; }
+.io-net-line {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 .io-sub {
   display: flex;
   align-items: center;
@@ -3632,6 +3643,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   gap: 2px;
   font-size: 0.72rem;
   color: var(--muted);
+  white-space: nowrap;
 }
 .io-dot { width: 7px; height: 7px; border-radius: 2px; display: inline-block; margin-right: 1px; }
 .io-dot.io-read { background: var(--running); }
