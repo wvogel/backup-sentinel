@@ -3,11 +3,9 @@
 {% block content %}
 {% set trigger_mode_labels = {"auto": t('reports.trigger_auto'), "manual": t('reports.trigger_manual'), "adhoc": t('reports.trigger_manual')} %}
 
-<section class="hero-card">
-  <div class="cluster-hero-main">
-    <p class="eyebrow">{{ t('reports.eyebrow') }}</p>
-    <p class="muted">{{ t('reports.subtitle') }}</p>
-  </div>
+<fieldset class="dash-section report-hero">
+  <legend>{{ t('reports.eyebrow') }}</legend>
+  <p class="muted">{{ t('reports.subtitle') }}</p>
   <div class="cluster-row-stats report-hero-stats">
     <div class="cluster-stat">
       <strong>{{ current_report.totals.events|format_number }}</strong>
@@ -29,7 +27,7 @@
       <button type="submit" class="pdf-snapshot-btn button-primary">{{ t('reports.pdf_snapshot') }}</button>
     </form>
   </div>
-</section>
+</fieldset>
 
 {# ── Cluster-Cards (collapsible) ────────────────────────────────────────── #}
 {% for cluster_name, cluster_data in clusters_grouped.items() %}
@@ -124,8 +122,8 @@
 {% endfor %}
 
 {# ── Archive ──────────────────────────────────────────────────────────────── #}
-<section class="table-card">
-  <p class="eyebrow">{{ t('reports.archive') }}</p>
+<fieldset class="dash-section">
+  <legend>{{ t('reports.archive') }}</legend>
   <p class="muted" style="margin: 0 0 10px;">{{ t('reports.archive_desc') }}</p>
   <table class="archive-table">
     <colgroup>
@@ -183,6 +181,6 @@
       {% endfor %}
     </tbody>
   </table>
-</section>
+</fieldset>
 
 {% endblock %}

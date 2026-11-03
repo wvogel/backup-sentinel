@@ -2275,6 +2275,14 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 
 /* Status columns – fixed-width grid aligned to header boxes */
 .report-hero-stats { grid-template-columns: repeat(5, 90px); }
+/* Report summary box: subtitle left, totals + PDF button right. */
+.report-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--gap) 24px;
+}
+.report-hero > p { margin: 0; }
 
 .report-status-cols {
   display: grid;
@@ -3297,6 +3305,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 
 /* Reports on phones: tiles and status columns wrap, the archive becomes cards. */
 @media (max-width: 640px) {
+  .report-hero { grid-template-columns: minmax(0, 1fr); }
   .report-hero-stats { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
   .report-hero-stats .pdf-snapshot-btn { grid-column: span 2; }
   .report-cluster-details > summary,
