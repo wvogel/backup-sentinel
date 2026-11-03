@@ -514,6 +514,43 @@ class WorkerTest(unittest.TestCase):
         )
         self.assertGreaterEqual(db_restore.get_run(run_id)["duration_seconds"], 20 * 60)
 
+    def test_migration_8_recomputes_only_never_held_runs(self):
+        from datetime import UTC, datetime, timedelta
+
+        from app.db_migrations import MIGRATIONS
+
+        stmts = next(m for v, _, m in MIGRATIONS if v == 8)
+        start = datetime.now(UTC) - timedelta(hours=1)
+        end = start + timedelta(minutes=20)
+
+        def finished(result, note=""):
+            run_id = self._run()
+            db_restore.update_run(run_id, status="running", started_at=start)
+            db_restore.record_run_result(
+                run_id, self.vm_id, result, duration_seconds=60, evidence_note=note
+            )  # shortened by a resume
+            with db.connect() as conn, conn.cursor() as cur:
+                cur.execute("UPDATE restore_runs SET finished_at = %s WHERE id = %s", (end, run_id))
+                conn.commit()
+            return run_id
+
+        shortened = finished("passed")
+        promoted = finished("passed", note="promoted after manual fix + green re-test")
+        maybe_held = finished("failed")  # could have been held: timestamps not trusted
+        with db.connect() as conn, conn.cursor() as cur:
+            for sql in stmts:
+                cur.execute(sql)
+            conn.commit()
+            cur.execute(
+                "SELECT duration_minutes FROM restore_tests WHERE id = %s",
+                (db_restore.get_run(shortened)["restore_test_id"],),
+            )
+            minutes = cur.fetchone()["duration_minutes"]
+        self.assertEqual(db_restore.get_run(shortened)["duration_seconds"], 20 * 60)
+        self.assertEqual(minutes, 20)
+        self.assertEqual(db_restore.get_run(promoted)["duration_seconds"], 60)
+        self.assertEqual(db_restore.get_run(maybe_held)["duration_seconds"], 60)
+
     def test_resume_rebuilds_only_a_missing_helper(self):
         run_id = self._run()
         db_restore.update_run(run_id, status="running", restore_vmid=9000, helper_vmid=9001)

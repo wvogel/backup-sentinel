@@ -5,11 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.5.7] — 2026-11-03
+
+### Fixed
+
+- **Past restore-test durations shortened by an app restart are corrected.** A one-time migration recomputes them from the run's start and end — and the duration of the documented restore test with them. Only runs that were provably never *held* are touched (*passed*, *limited*, *cancelled*, not promoted from a hold): a held environment's end time is set when it is later promoted or discarded, so its start–end span is not the restore's duration. *Failed* / *error* runs keep their stored duration.
+
 ## [v3.5.6] — 2026-11-02
 
 ### Fixed
 
-- **Restore-test durations are correct across app restarts.** A deploy (app restart) during a running restore test resumes it — and the resume measured the duration from the moment it resumed, so the run showed only the tail after the restart: a 20-minute restore as `0:00`–`0:03`. The duration now runs from the run's recorded start. It also feeds the documented restore test's duration. Runs recorded before this fix keep their shortened duration.
+- **Restore-test durations are correct across app restarts.** A deploy (app restart) during a running restore test resumes it — and the resume measured the duration from the moment it resumed, so the run showed only the tail after the restart: a 20-minute restore as `0:00`–`0:03`. The duration now runs from the run's recorded start. It also feeds the documented restore test's duration. Runs recorded before this fix are corrected in v3.5.7.
 
 ## [v3.5.5] — 2026-11-02
 
