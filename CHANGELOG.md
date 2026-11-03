@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.5.8] — 2026-11-03
+
+### Changed
+
+- **Starting a restore test from a VM's settings keeps you on the page.** *Start restore test* in the VM settings panel on the cluster page queues the test in the background and confirms it (*Restore test queued*) — or says why it couldn't (no matching backup on the restore server, restore server unreachable) — instead of jumping to `/restore`. The panel stays open.
+
 ## [v3.5.7] — 2026-11-03
 
 ### Fixed
