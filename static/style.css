@@ -3367,6 +3367,12 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .restore-symbols .auto-on { color: var(--running); }
 .restore-symbols .auto-off { color: var(--muted); opacity: 0.5; }
 .restore-symbols .cad-label {
+  /* Fixed slot, as wide as the widest label (HY / ½J): M, Q and HY take the
+     same room, so the dot and arrow after them line up across rows. */
+  display: inline-block;
+  width: 1.8em;
+  text-align: center;
+  white-space: nowrap;
   font-size: 0.8em;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
