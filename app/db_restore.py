@@ -301,6 +301,25 @@ def latest_run_result_by_vm() -> dict[int, str]:
         return {r["vm_id"]: r["result"] for r in cur.fetchall()}
 
 
+def active_run_by_vm() -> dict[int, dict[str, Any]]:
+    """Per VM its live run for the VM-list state icon: ``{"status": "running",
+    "percent": n}`` while a restore runs, else ``{"status": "queued"}`` while one
+    waits in the queue. Running wins over queued."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT ON (vm_id) vm_id, status, percent
+            FROM restore_runs
+            WHERE status IN ('running', 'queued', 'planned')
+            ORDER BY vm_id, (status = 'running') DESC, id
+            """
+        )
+        return {
+            r["vm_id"]: {"status": "running" if r["status"] == "running" else "queued", "percent": r["percent"]}
+            for r in cur.fetchall()
+        }
+
+
 def set_network_interfaces(vm_id: int, rows: list[dict[str, Any]]) -> None:
     """Replace the stored NICs for a VM (full refresh each sync)."""
     now = datetime.now(UTC)

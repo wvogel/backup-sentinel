@@ -91,7 +91,7 @@ Rows are striped. **Clicking a row** (marked by the ▶ before the VM name) open
 
 **Backup frequency** -- In a VM's details (click the row) you can override the auto-detected frequency (daily / weekly / none / auto).
 
-**Restore-test due dates** -- The Restore Test column warns ahead of the test interval expiring. The lead time scales with the interval: **yearly** intervals warn **1 month** early, **quarterly** (or shorter) ones **2 weeks** early. Once the interval has elapsed the entry turns red ("N d overdue"). The tooltip shows the last test and the interval.
+**Restore-test due dates** -- The Restore Test column warns ahead of the test interval expiring. The lead time scales with the interval: **yearly** intervals warn **1 month** early, **quarterly** (or shorter) ones **2 weeks** early. Once the interval has elapsed the entry turns red ("N d overdue"). The tooltip shows the last test and the interval. The symbols from left: **clock** = automated restore test on (blue) or off (grey), then the cadence, the dot for the last result, and on the right the **circular arrow** for the live state — still while the VM waits in the queue, spinning while its restore runs.
 
 **Restore interval** -- In a VM's details a picker sets how often a VM must be tested: **90 d**, **180 d** (default), **365 d** or **none**. Weekly backups use at least 365 days. A VM never tested so far is **open**: it counts as due, but not as critically overdue. The *Document restore test* form accepts several VMs at once (Ctrl/⌘), e.g. for a full restore drill.
 

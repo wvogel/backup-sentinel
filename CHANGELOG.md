@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.6.0] — 2026-11-03
+
+### Added
+
+- **Cluster page: the *Restore test* column shows when a VM is queued or restoring.** A **circular arrow** at the right of the symbols stands still while the VM waits in the restore queue and **spins** while its restore runs; the hover adds *Queued* or *Restore running · N %*. Starting a test from the VM settings shows the queued arrow at once.
+
+### Changed
+
+- **The *auto restore* symbol is a clock** (like *scheduled* on `/restore`) — the circular arrow it used to be now means the live run state.
+
 ## [v3.5.8] — 2026-11-03
 
 ### Changed

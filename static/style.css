@@ -3386,6 +3386,23 @@ html[data-theme="dark"] .node-filter-button.is-active {
   border: 1.5px solid var(--muted);
 }
 .restore-symbols.is-overdue .cad-label { color: var(--critical); }
+/* Live run state: an empty slot when idle (keeps the columns aligned), the
+   circular arrow while queued, spinning while the restore runs. */
+.restore-symbols .run-state {
+  width: 15px;
+  height: 15px;
+  display: inline-block;
+  color: var(--running);
+}
+.restore-symbols .run-state svg { width: 15px; height: 15px; display: block; }
+.restore-symbols .run-state:not(.run-queued, .run-running) svg { visibility: hidden; }
+.restore-symbols .run-running svg { animation: run-state-spin 1.6s linear infinite; }
+@keyframes run-state-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .restore-symbols .run-running svg { animation: none; }
+}
 
 /* — Expanded VM detail: section headings + layout — */
 /* Expanded VM detail: each area in a bordered box, heading breaking the border. */

@@ -200,6 +200,9 @@
             {%- if _res %} · {{ t('restore.last_result') }}: {{ restore_run_result_labels.get(_res, _res) }}{% endif %}
             {%- if row.last_restore_tested_at %} ({{ row.last_restore_tested_at|datetime_local('%d.%m.%Y') }}){% else %} · {{ t('common.never') }}{% endif %}
             {%- if row.restore_due_status == 'critical' %} · {{ t('cluster.restore_overdue', days=row.restore_days) }}{% endif %}
+            {%- set _active = row.restore_run_active %}
+            {%- if _active and _active.status == 'running' %} · {{ t('restore.state_running', pct=_active.percent or 0) }}
+            {%- elif _active %} · {{ t('restore.state_queued') }}{% endif %}
           {%- endset %}
           {%- set _sort = {'fail': 0, 'warn': 1, 'partial': 2, 'success': 3}.get(_res_tone, 4) %}
           <td class="restore-cell" data-label="{{ t('cluster.th_restore_test') }}" data-sort-value="{{ -1 if row.restore_matchable is false else _sort }}">
@@ -210,11 +213,18 @@
             </span>
             {%- else %}
             <span class="restore-symbols{% if row.restore_due_status == 'critical' %} is-overdue{% endif %}" data-tooltip="{{ restore_tip|trim }}">
+              {#- auto = clock (like "scheduled" on /restore); the circular arrow is
+                  the live state: still = queued, spinning = restoring now. The
+                  state slot is always there, so the columns stay aligned. -#}
               <span class="auto-ind auto-{{ 'on' if row.auto_restore_enabled else 'off' }}" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 103-7.7L3 8"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>
               </span>
               <span class="cad-label">{{ cadence_short.get(row.restore_cadence, '?') }}</span>
               <span class="result-dot result-{{ _res_tone }}" aria-hidden="true"></span>
+              {%- set _active = row.restore_run_active %}
+              <span class="run-state{% if _active %} run-{{ _active.status }}{% endif %}" id="run-state-{{ row.id }}" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 103-7.7L3 8"/></svg>
+              </span>
             </span>
             {%- endif %}
             {%- if not row.vm_gone %}
@@ -258,7 +268,7 @@
                   <label class="field"><span>{{ t('restore.primary_ip') }}</span><input name="probe_primary_ip" value="{{ row.probe_primary_ip or '' }}" placeholder="10.0.0.5/24" pattern="^$|^\d{1,3}(\.\d{1,3}){3}(/\d{1,2})?$" title="{{ t('restore.primary_ip_hint') }}"></label>
                   <label class="field"><span>{{ t('restore.probe_vlan') }}</span><input name="probe_vlan" type="number" min="1" max="4094" value="{{ row.probe_vlan if row.probe_vlan is not none else '' }}" placeholder="–" title="{{ t('restore.probe_vlan_hint') }}"></label>
                   <div class="field-action-row">
-                    <button type="submit" formaction="/restore/vm/{{ row.id }}/test" formnovalidate class="button-secondary restore-test-start js-confirm-submit js-ajax-submit" data-confirm-text="{{ t('restore.test_confirm') }}" data-success-text="restore.test_queued">
+                    <button type="submit" formaction="/restore/vm/{{ row.id }}/test" formnovalidate class="button-secondary restore-test-start js-confirm-submit js-ajax-submit" data-confirm-text="{{ t('restore.test_confirm') }}" data-success-text="restore.test_queued" data-run-state="run-state-{{ row.id }}">
                       <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                       <span class="js-confirm-label">{{ t('restore.test_now') }}</span>
                     </button>
