@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.2] — 2026-11-04
+
+### Fixed
+
+- **Dashboard (`/`): the running-restore display now really shares the KPI tiles' row.** v3.9.1 placed it in grid column 1 but, because the tiles come first in the DOM and sit in column 2, grid auto-placement still pushed the running card onto a second row. Both are now pinned to grid row 1, so the running restore sits to the left of the tiles and the card stays as short as a cluster row.
+
 ## [v3.9.1] — 2026-11-04
 
 ### Changed
