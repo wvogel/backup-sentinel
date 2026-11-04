@@ -57,6 +57,7 @@ sync_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="sync")
 # the sync workers and enforces "one active restore at a time" (spec §15).
 restore_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="restore")
 _restore_future: Any = None
+RESTORE_QUEUE_TICK_SECONDS = 45  # short-cadence queue self-heal (auto-sync is hourly)
 
 
 class SyncLogHandler(logging.Handler):
@@ -664,14 +665,55 @@ def _recover_stuck_restores() -> None:
 
 def _kick_restore_queue() -> None:
     """Fire the restore queue on its dedicated single-slot executor without
-    awaiting it (a restore may run for hours). Skip if one is still running, so
-    submissions never pile up."""
+    awaiting it (a restore may run for hours). Skip ONLY while a restore is
+    genuinely executing — a run in status 'running' (``execute`` sets it before any
+    long work and holds it until finalize). A future that is merely "not done" with
+    nothing 'running' is a wedged/finished-but-idle slot and must NOT block the
+    queue, or queued runs sit idle until the next hourly sync. With max_workers=1 a
+    submit behind a truly-stuck thread just waits harmlessly."""
     global _restore_future
-    if _restore_future is not None and not _restore_future.done():
+    from app import db_restore
+
+    if _restore_future is not None and not _restore_future.done() and db_restore.has_active_run():
         return
     from app.services.restore_orchestrator import run_restore_queue
 
     _restore_future = restore_executor.submit(run_restore_queue)
+
+
+def _should_drain_now(has_active: bool, paused: bool, has_queued: bool) -> bool:
+    """Self-heal decision: nudge the queue when work waits, nothing is executing,
+    and the operator hasn't paused it. (Pause is honoured; a running restore is left
+    alone.)"""
+    return has_queued and not has_active and not paused
+
+
+def _restore_queue_watchdog() -> None:
+    """Keep the single-slot queue moving on a short cadence — the hourly auto-sync
+    is too coarse. Finalize wedged 'running' phantoms, then, the real fix: kick a
+    drain whenever runs are queued but nothing is running (and not paused), so the
+    queue can't stall with work waiting. Self-healing, no button."""
+    from app import db_restore
+    from app.services import restore_config
+
+    _recover_stuck_restores()  # phantom 'running' with nothing on the host
+    try:
+        if _should_drain_now(db_restore.has_active_run(), restore_config.queue_paused(), db_restore.has_queued_runs()):
+            logger.info("restore queue self-heal: runs queued but nothing running — kicking drain")
+            _kick_restore_queue()
+    except Exception as exc:
+        logger.debug("restore queue watchdog check failed: %s", exc)
+
+
+async def restore_queue_loop() -> None:
+    """Short-cadence companion to auto_sync_loop, just for the restore queue."""
+    await asyncio.sleep(10)
+    while True:
+        try:
+            await asyncio.get_event_loop().run_in_executor(sync_executor, _restore_queue_watchdog)
+        except Exception as exc:
+            logger.error("restore queue watchdog failed: %s", exc)
+        await asyncio.sleep(RESTORE_QUEUE_TICK_SECONDS)
 
 
 def reconcile_and_resume_restores() -> None:
