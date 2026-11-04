@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.8.5] — 2026-11-04
+
+### Fixed
+
+- **Overall restore progress now actually works for multi-disk guests.** The two earlier attempts took the total from the PBS snapshot size (often absent) or from `qm config` (which may not carry `size=` mid-restore), so they silently fell back and a 5-plus-volume VM kept restarting at 0% for each disk. It now sums the bytes pbs-restore reports read across all disks (resetting per disk is handled) for the numerator, over the guest's total disk size read from the **storage content** for the denominator — both available throughout the restore, so the bar climbs 0→100 once across the whole guest and the ETA covers all of it. Still falls back to the per-disk percent if the total can't be read.
+
 ## [v3.8.4] — 2026-11-04
 
 ### Fixed
