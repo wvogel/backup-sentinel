@@ -32,35 +32,42 @@ class ParseConfigDiskSizesTests(unittest.TestCase):
 
 
 class OverallRestorePercentTests(unittest.TestCase):
-    def test_size_weighted_across_disks(self) -> None:
-        total = 200 * G
-        size = {"drive-scsi0": 120 * G, "drive-scsi1": 80 * G}
+    # The denominator is the SUM of all disk sizes (config holds every volume once
+    # qmrestore allocated them), so no external backup total is needed — that total
+    # is often absent, which is why depending on it fell back to per-disk 0–100%.
+    def test_size_weighted_over_sum_of_all_disks(self) -> None:
+        size = {"drive-scsi0": 120 * G, "drive-scsi1": 80 * G}  # sum 200G
         # disk0 done, disk1 half → (120 + 40) / 200 = 80%.
-        out = overall_restore_percent(total, {"drive-scsi0": 100, "drive-scsi1": 50}, size)
+        out = overall_restore_percent({"drive-scsi0": 100, "drive-scsi1": 50}, size)
         self.assertEqual(out["percent"], 80)
         self.assertEqual(out["bytes_done"], 160 * G)
-        self.assertEqual(out["bytes_total"], total)
+        self.assertEqual(out["bytes_total"], 200 * G)
         self.assertEqual(out["phase"], "restoring")
 
+    def test_unstarted_disk_counts_as_zero_of_the_total(self) -> None:
+        # 5 disks known; only disk0 (120G of 452G) done → ~26%, not 100%.
+        size = {f"drive-scsi{i}": s * G for i, s in enumerate((120, 32, 150, 50, 100))}
+        out = overall_restore_percent({"drive-scsi0": 100}, size)
+        self.assertEqual(out["percent"], int(120 / 452 * 100))
+
     def test_monotonic_when_next_disk_enters_at_zero(self) -> None:
-        total, size = 200 * G, {"drive-scsi0": 120 * G, "drive-scsi1": 80 * G}
-        a = overall_restore_percent(total, {"drive-scsi0": 100}, size)["percent"]  # 60%
-        b = overall_restore_percent(total, {"drive-scsi0": 100, "drive-scsi1": 0}, size)["percent"]
+        size = {"drive-scsi0": 120 * G, "drive-scsi1": 80 * G}
+        a = overall_restore_percent({"drive-scsi0": 100}, size)["percent"]  # 120/200 = 60%
+        b = overall_restore_percent({"drive-scsi0": 100, "drive-scsi1": 0}, size)["percent"]
         self.assertEqual(a, 60)
         self.assertGreaterEqual(b, a)  # a new disk at 0% must not drop the bar
 
     def test_all_done_is_finalizing(self) -> None:
-        total, size = 200 * G, {"drive-scsi0": 120 * G, "drive-scsi1": 80 * G}
-        out = overall_restore_percent(total, {"drive-scsi0": 100, "drive-scsi1": 100}, size)
+        size = {"drive-scsi0": 120 * G, "drive-scsi1": 80 * G}
+        out = overall_restore_percent({"drive-scsi0": 100, "drive-scsi1": 100}, size)
         self.assertEqual(out["percent"], 100)
         self.assertEqual(out["phase"], "finalizing")
 
-    def test_fallback_when_total_or_size_unknown(self) -> None:
-        self.assertIsNone(overall_restore_percent(None, {"drive-scsi0": 50}, {"drive-scsi0": G}))
-        self.assertIsNone(overall_restore_percent(0, {"drive-scsi0": 50}, {"drive-scsi0": G}))
-        self.assertIsNone(overall_restore_percent(G, {}, {}))  # nothing seen yet
-        # a seen drive whose size we don't know yet → fall back (no wrong number)
-        self.assertIsNone(overall_restore_percent(G, {"drive-scsi0": 50}, {}))
+    def test_fallback_when_no_size_known(self) -> None:
+        self.assertIsNone(overall_restore_percent({}, {}))  # nothing yet
+        self.assertIsNone(overall_restore_percent({"drive-scsi0": 50}, {}))  # sizes not read yet
+        # a reported disk missing from the size map → fall back (no wrong number)
+        self.assertIsNone(overall_restore_percent({"drive-scsi9": 50}, {"drive-scsi0": G}))
 
 
 if __name__ == "__main__":
