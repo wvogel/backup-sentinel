@@ -198,7 +198,7 @@ def execute(
             plan.source,
             plan.snapshot_id,
             plan.target_storage,
-            on_progress=_progress_updater(server, run_id, plan.restore_vmid, plan.needed_bytes),
+            on_progress=_progress_updater(server, run_id, plan.restore_vmid),
             on_task=lambda upid: db_restore.update_run(run_id, task_upid=upid),
             should_cancel=should_cancel,
         )
@@ -421,7 +421,7 @@ def resume_run(
         if upid:
             server.poll_task(
                 upid,
-                on_progress=_progress_updater(server, run_id, plan.restore_vmid, plan.needed_bytes),
+                on_progress=_progress_updater(server, run_id, plan.restore_vmid),
                 now=now,
                 sleep=sleep,
                 should_cancel=should_cancel,
@@ -521,12 +521,13 @@ def fits_ram(free_bytes: int | None, total_bytes: int | None, needed_bytes: int 
     return usable >= needed_bytes
 
 
-def _progress_updater(server: Any, run_id: int, vmid: int, total_bytes: int | None) -> Callable[[dict], None]:
+def _progress_updater(server: Any, run_id: int, vmid: int) -> Callable[[dict], None]:
     """A stateful ``on_progress`` that turns pbs-restore's per-disk 0–100%% into
-    overall progress across all the guest's volumes (size-weighted by the config's
-    disk sizes, monotonic). Falls back to the raw per-disk percent until the disk a
-    line belongs to and its size are known, so a format we don't recognise still
-    behaves exactly as before."""
+    overall progress across all the guest's volumes — each disk weighted by its size
+    (read from the config, which holds every volume once qmrestore has allocated
+    them) over the sum of all disk sizes. Monotonic. Falls back to the raw per-disk
+    percent until a disk's size is known, so an unrecognised log format or a server
+    that can't report sizes behaves exactly as before."""
     disk_pct: dict[str, int] = {}
     disk_size: dict[str, int] = {}
 
@@ -534,12 +535,12 @@ def _progress_updater(server: Any, run_id: int, vmid: int, total_bytes: int | No
         drive = p.get("drive")
         if drive and "percent" in p:
             disk_pct[drive] = p["percent"]
-            if drive not in disk_size:  # a new disk appeared → refresh sizes from the config
+            if drive not in disk_size:  # a new disk appeared → (re)read all disk sizes
                 try:
                     disk_size.update(server.disk_sizes(vmid))
                 except Exception as exc:
                     logger.debug("disk_sizes during progress failed: %s", exc)
-        fields = overall_restore_percent(total_bytes, disk_pct, disk_size) if drive else None
+        fields = overall_restore_percent(disk_pct, disk_size) if drive else None
         db_restore.update_run(run_id, **(fields or _progress_fields(p)))
 
     return on_progress

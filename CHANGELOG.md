@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.8.4] — 2026-11-04
+
+### Fixed
+
+- **Overall restore progress now actually applies to multi-disk guests.** v3.8.3 weighed each disk against the *backup's* total size, but that figure is often absent for PBS backups — so it silently fell back to the per-disk percent and a 5-plus-volume VM still looked like it restarted at 0% for every disk. The total is now the **sum of the guest's own disk sizes** (from its config, which holds every volume once qmrestore has allocated them): self-contained, monotonic, and reaching exactly 100% when the last disk finishes.
+
 ## [v3.8.3] — 2026-11-04
 
 ### Changed

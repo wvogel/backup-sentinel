@@ -390,16 +390,19 @@ def parse_config_disk_sizes(config: object) -> dict[str, int]:
     return out
 
 
-def overall_restore_percent(
-    total_bytes: int | None, disk_pct: dict[str, int], disk_size: dict[str, int]
-) -> dict[str, Any] | None:
-    """Overall progress across a multi-disk guest: the fixed backup total as the
-    denominator, each disk seen so far weighted by its virtual size × its percent.
-    Monotonic — a new disk enters at 0% and only climbs, so the bar never jumps
-    back the way per-disk 0–100%% did. Returns ``{percent, bytes_done, bytes_total,
-    phase}`` or None when the total is unknown or a seen disk has no known size yet;
-    the caller then keeps the raw per-disk percent (no regression)."""
-    if not total_bytes or total_bytes <= 0 or not disk_pct:
+def overall_restore_percent(disk_pct: dict[str, int], disk_size: dict[str, int]) -> dict[str, Any] | None:
+    """Overall progress across a multi-disk guest. The denominator is the **sum of
+    all the guest's disk sizes** (from its config — qmrestore allocates every volume
+    up front, so this is complete and fixed), and each disk is weighted by its size ×
+    its percent; a disk not started yet counts as 0 of the total. Monotonic — a new
+    disk enters at 0% and only climbs, so the bar never jumps back the way per-disk
+    0–100%% did, and it reaches exactly 100%% when every disk is done. Returns
+    ``{percent, bytes_done, bytes_total, phase}`` or None when no disk size is known
+    yet or a disk being reported has no size — the caller then keeps the raw per-disk
+    percent (no regression). Self-contained: needs no external total (the PBS snapshot
+    size is often absent, which is why relying on it fell back to per-disk)."""
+    total = sum(disk_size.values())
+    if total <= 0 or not disk_pct:
         return None
     done = 0.0
     for drive, pct in disk_pct.items():
@@ -407,11 +410,11 @@ def overall_restore_percent(
         if sz is None:
             return None
         done += sz * max(0, min(100, pct)) / 100.0
-    percent = min(100, int(done / total_bytes * 100))
+    percent = min(100, int(done / total * 100))
     return {
         "percent": percent,
         "bytes_done": int(done),
-        "bytes_total": int(total_bytes),
+        "bytes_total": int(total),
         "phase": "finalizing" if percent >= 100 else "restoring",
     }
 
