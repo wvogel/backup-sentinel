@@ -3807,9 +3807,9 @@ fieldset.rhost-box > legend {
 }
 /* Tiles pinned to the right, the running restore / queue on their left in the
    SAME row — so the card stays as short as a cluster row and wastes no height. */
-.restore-server-card > .cluster-row-stats { grid-column: 2; justify-self: end; }
+.restore-server-card > .cluster-row-stats { grid-column: 2; grid-row: 1; justify-self: end; }
 .restore-server-card > .running-card,
-.restore-server-card > .rss-queue { grid-column: 1; justify-self: start; }
+.restore-server-card > .rss-queue { grid-column: 1; grid-row: 1; justify-self: start; align-self: center; }
 /* The whole box is the link to /restore: hover like a cluster row. */
 .dash-section-link { display: block; color: inherit; }
 .dash-section-link > .dash-section { transition: border-color 0.15s, box-shadow 0.15s; }
@@ -3847,7 +3847,7 @@ fieldset.rhost-box > legend {
   .restore-server-card { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .restore-server-card > .cluster-row-stats,
   .restore-server-card > .running-card,
-  .restore-server-card > .rss-queue { grid-column: 1; justify-self: start; }
+  .restore-server-card > .rss-queue { grid-column: 1; grid-row: auto; justify-self: start; }
   .rss-rings { justify-content: flex-start; }
 }
 
