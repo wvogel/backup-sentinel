@@ -1,73 +1,68 @@
-"""Overall restore progress across a multi-disk guest: weight each disk by its
-virtual size (from the config) × its percent, over the fixed backup total — so the
-bar/ETA reflect the whole VM instead of restarting 0–100% per volume."""
+"""Overall restore progress across a multi-disk guest: cumulative bytes read across
+all disks (pbs-restore resets "read" per disk) over the guest's total disk size, so
+the bar/ETA reflect the whole VM instead of restarting 0–100% per volume."""
 
 import unittest
+from unittest import mock
 
-from app.services.restore_server import overall_restore_percent, parse_config_disk_sizes
+from app.services import restore_worker
+from app.services.restore_server import overall_restore_fields
 
 G = 1024**3
 
 
-class ParseConfigDiskSizesTests(unittest.TestCase):
-    def test_disks_only_with_drive_prefix(self) -> None:
-        cfg = {
-            "scsi0": "nas-restore:9000/vm-9000-disk-1.raw,size=120G",
-            "scsi1": "nas-restore:9000/vm-9000-disk-2.raw,size=32G",
-            "efidisk0": "nas-restore:9000/vm-9000-disk-0.raw,size=4M",
-            "scsihw": "virtio-scsi-pci",  # controller, no size → dropped
-            "net0": "virtio=AA:BB,bridge=vmbr9",  # not a disk → dropped
-            "boot": "order=scsi0",
-        }
-        sizes = parse_config_disk_sizes(cfg)
-        self.assertEqual(sizes["drive-scsi0"], 120 * G)
-        self.assertEqual(sizes["drive-scsi1"], 32 * G)
-        self.assertEqual(sizes["drive-efidisk0"], 4 * 1024**2)
-        self.assertNotIn("drive-scsihw", sizes)
-        self.assertNotIn("drive-net0", sizes)
-
-    def test_junk_is_empty(self) -> None:
-        self.assertEqual(parse_config_disk_sizes(None), {})
-        self.assertEqual(parse_config_disk_sizes({}), {})
-
-
-class OverallRestorePercentTests(unittest.TestCase):
-    # The denominator is the SUM of all disk sizes (config holds every volume once
-    # qmrestore allocated them), so no external backup total is needed — that total
-    # is often absent, which is why depending on it fell back to per-disk 0–100%.
-    def test_size_weighted_over_sum_of_all_disks(self) -> None:
-        size = {"drive-scsi0": 120 * G, "drive-scsi1": 80 * G}  # sum 200G
-        # disk0 done, disk1 half → (120 + 40) / 200 = 80%.
-        out = overall_restore_percent({"drive-scsi0": 100, "drive-scsi1": 50}, size)
-        self.assertEqual(out["percent"], 80)
-        self.assertEqual(out["bytes_done"], 160 * G)
+class OverallRestoreFieldsTests(unittest.TestCase):
+    def test_percent_from_cumulative_over_total(self) -> None:
+        out = overall_restore_fields(80 * G, 200 * G)
+        self.assertEqual(out["percent"], 40)
+        self.assertEqual(out["bytes_done"], 80 * G)
         self.assertEqual(out["bytes_total"], 200 * G)
         self.assertEqual(out["phase"], "restoring")
 
-    def test_unstarted_disk_counts_as_zero_of_the_total(self) -> None:
-        # 5 disks known; only disk0 (120G of 452G) done → ~26%, not 100%.
-        size = {f"drive-scsi{i}": s * G for i, s in enumerate((120, 32, 150, 50, 100))}
-        out = overall_restore_percent({"drive-scsi0": 100}, size)
-        self.assertEqual(out["percent"], int(120 / 452 * 100))
-
-    def test_monotonic_when_next_disk_enters_at_zero(self) -> None:
-        size = {"drive-scsi0": 120 * G, "drive-scsi1": 80 * G}
-        a = overall_restore_percent({"drive-scsi0": 100}, size)["percent"]  # 120/200 = 60%
-        b = overall_restore_percent({"drive-scsi0": 100, "drive-scsi1": 0}, size)["percent"]
-        self.assertEqual(a, 60)
-        self.assertGreaterEqual(b, a)  # a new disk at 0% must not drop the bar
-
-    def test_all_done_is_finalizing(self) -> None:
-        size = {"drive-scsi0": 120 * G, "drive-scsi1": 80 * G}
-        out = overall_restore_percent({"drive-scsi0": 100, "drive-scsi1": 100}, size)
+    def test_caps_at_100_and_finalizing(self) -> None:
+        out = overall_restore_fields(205 * G, 200 * G)  # rounding/zeroes can overshoot
         self.assertEqual(out["percent"], 100)
+        self.assertEqual(out["bytes_done"], 200 * G)  # clamped to the total
         self.assertEqual(out["phase"], "finalizing")
 
-    def test_fallback_when_no_size_known(self) -> None:
-        self.assertIsNone(overall_restore_percent({}, {}))  # nothing yet
-        self.assertIsNone(overall_restore_percent({"drive-scsi0": 50}, {}))  # sizes not read yet
-        # a reported disk missing from the size map → fall back (no wrong number)
-        self.assertIsNone(overall_restore_percent({"drive-scsi9": 50}, {"drive-scsi0": G}))
+    def test_none_when_total_unknown(self) -> None:
+        self.assertIsNone(overall_restore_fields(10 * G, None))
+        self.assertIsNone(overall_restore_fields(10 * G, 0))
+
+
+class ProgressUpdaterTests(unittest.TestCase):
+    def test_cumulative_across_disks_is_monotonic(self) -> None:
+        # Two 100G disks → 200G total. Feed disk0 0→100G, then disk1 0→100G, exactly
+        # as pbs-restore logs it (read resets at the second disk).
+        class Server:
+            def restore_total_bytes(self, vmid):
+                return 200 * G
+
+        writes: list[dict] = []
+        with mock.patch.object(restore_worker.db_restore, "update_run", lambda run_id, **kw: writes.append(kw)):
+            on_progress = restore_worker._progress_updater(Server(), run_id=1, vmid=9000)
+            for r in (0, 50 * G, 100 * G):
+                on_progress({"drive": "drive-scsi0", "percent": 0, "bytes_done": r})
+            for r in (0, 50 * G, 100 * G):  # second disk: "read" starts over at 0
+                on_progress({"drive": "drive-scsi1", "percent": 0, "bytes_done": r})
+
+        pcts = [w["percent"] for w in writes]
+        self.assertEqual(pcts, [0, 25, 50, 50, 75, 100])  # climbs across BOTH disks
+        self.assertEqual(pcts, sorted(pcts))  # never jumps back
+        # The second disk entering at 0 must not drop below the first disk's finish.
+        self.assertGreaterEqual(min(pcts[3:]), 50)
+
+    def test_falls_back_to_per_disk_when_total_unknown(self) -> None:
+        class Server:
+            def restore_total_bytes(self, vmid):
+                return 0  # can't determine the total yet
+
+        writes: list[dict] = []
+        with mock.patch.object(restore_worker.db_restore, "update_run", lambda run_id, **kw: writes.append(kw)):
+            on_progress = restore_worker._progress_updater(Server(), run_id=1, vmid=9000)
+            on_progress({"drive": "drive-scsi0", "percent": 7, "bytes_done": 7 * G})
+        # No total → the raw per-disk percent is kept (no wrong overall number).
+        self.assertEqual(writes[-1]["percent"], 7)
 
 
 if __name__ == "__main__":

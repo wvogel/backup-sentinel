@@ -16,7 +16,7 @@ from typing import Any
 
 from app import db_restore
 from app.services import restore_probe
-from app.services.restore_server import RestoreCancelled, overall_restore_percent
+from app.services.restore_server import RestoreCancelled, overall_restore_fields
 
 logger = logging.getLogger(__name__)
 
@@ -523,24 +523,29 @@ def fits_ram(free_bytes: int | None, total_bytes: int | None, needed_bytes: int 
 
 def _progress_updater(server: Any, run_id: int, vmid: int) -> Callable[[dict], None]:
     """A stateful ``on_progress`` that turns pbs-restore's per-disk 0–100%% into
-    overall progress across all the guest's volumes — each disk weighted by its size
-    (read from the config, which holds every volume once qmrestore has allocated
-    them) over the sum of all disk sizes. Monotonic. Falls back to the raw per-disk
-    percent until a disk's size is known, so an unrecognised log format or a server
-    that can't report sizes behaves exactly as before."""
-    disk_pct: dict[str, int] = {}
-    disk_size: dict[str, int] = {}
+    overall progress across all the guest's volumes. pbs-restore reports "read N
+    bytes" per disk and resets it at each disk, so sum it: completed disks' bytes
+    (added when the next disk's ``drive-…`` line appears) plus the current disk's
+    read, over the guest's total disk size (storage content). Monotonic. Falls back
+    to the raw per-disk percent until the total is known, so an unrecognised log
+    format or a server that can't report sizes behaves exactly as before."""
+    st = {"done_base": 0, "cur_read": 0, "cur_drive": None, "total": None}
 
     def on_progress(p: dict[str, Any]) -> None:
         drive = p.get("drive")
-        if drive and "percent" in p:
-            disk_pct[drive] = p["percent"]
-            if drive not in disk_size:  # a new disk appeared → (re)read all disk sizes
-                try:
-                    disk_size.update(server.disk_sizes(vmid))
-                except Exception as exc:
-                    logger.debug("disk_sizes during progress failed: %s", exc)
-        fields = overall_restore_percent(disk_pct, disk_size) if drive else None
+        read = int(p.get("bytes_done") or 0)
+        if drive and drive != st["cur_drive"]:
+            if st["cur_drive"] is not None:
+                st["done_base"] += st["cur_read"]  # the previous disk is fully restored
+            st["cur_drive"] = drive
+            st["cur_read"] = 0
+            try:  # (re)read the total as disks are allocated; max() keeps it from shrinking
+                st["total"] = max(st["total"] or 0, server.restore_total_bytes(vmid)) or None
+            except Exception as exc:
+                logger.debug("restore_total_bytes during progress failed: %s", exc)
+        if read > st["cur_read"]:
+            st["cur_read"] = read  # read climbs within a disk
+        fields = overall_restore_fields(st["done_base"] + st["cur_read"], st["total"]) if drive else None
         db_restore.update_run(run_id, **(fields or _progress_fields(p)))
 
     return on_progress

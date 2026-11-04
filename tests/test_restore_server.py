@@ -659,6 +659,31 @@ def test_mgmt_netdiag_empty_without_helper_or_ip():
     assert srv.mgmt_netdiag(9001, "") == ""
 
 
+def test_restore_total_bytes_sums_disks_from_storage_content():
+    # The denominator for overall restore progress: the guest's disk sizes from the
+    # storage content (works DURING the restore, unlike qm config). A disk listed
+    # twice counts once; another VM's disks are ignored.
+    srv = _server(
+        {
+            "/nodes": [{"node": "r1", "status": "online"}],
+            "/nodes/r1/storage/restore-test/content": [
+                {"volid": "restore-test:vm-9000-disk-0", "size": 100 * 1024**3},
+                {"volid": "restore-test:vm-9000-disk-1", "size": 32 * 1024**3},
+                {"volid": "restore-test:vm-9000-disk-0", "size": 100 * 1024**3},  # dup
+                {"volid": "restore-test:vm-9999-disk-0", "size": 500 * 1024**3},  # other VM
+            ],
+        }
+    )
+    srv.config["target_storages"] = [{"storage": "restore-test", "use": True}]
+    assert srv.restore_total_bytes(9000) == 132 * 1024**3
+
+
+def test_restore_total_bytes_zero_when_nothing_found():
+    srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
+    srv.config["target_storages"] = [{"storage": "restore-test", "use": True}]
+    assert srv.restore_total_bytes(9000) == 0
+
+
 def test_probe_netdiag_includes_bridge_vm_nic_and_tcp():
     srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
 
