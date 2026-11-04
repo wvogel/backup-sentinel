@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.8.3] — 2026-11-04
+
+### Changed
+
+- **Restore progress spans all of a guest's volumes, not each one 0–100%.** A multi-disk VM showed every disk restart at 0% with an ETA from only that disk, so a big guest (e.g. 8 volumes) looked like it kept starting over. The running card now shows one overall percent and ETA, weighting each disk by its real virtual size (from the config) against the backup's total — monotonic, so the bar never jumps back. If a disk's size isn't known yet, it falls back to the per-disk percent (no regression).
+
 ## [v3.8.2] — 2026-11-04
 
 ### Changed
