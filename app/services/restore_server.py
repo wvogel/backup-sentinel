@@ -1495,6 +1495,41 @@ class RestoreServer:
                 parts.append((label, f"ERR {str(exc)[:80]}"))
         return format_netdiag(parts)
 
+    def mgmt_netdiag(self, helper_vmid: int, mgmt_ip: str) -> str:
+        """Why the helper's AGENT was unreachable on its management IP, captured
+        over host SSH (no agent, no helper creds) for the run log. Tells the cases
+        apart — the whole point of a bare "timed out":
+
+        - ``agent@helper`` ERR ⇒ the agent isn't listening INSIDE the helper (it
+          crashed or never started) — a helper problem, not the network;
+        - ``helper addr`` missing the mgmt IP ⇒ the mgmt leg never got its address;
+        - ``host ping`` / ``host neigh`` fail ⇒ L2/VLAN/ARP between host and helper;
+        - agent up inside + host ping ok but ``host→agent`` ERR ⇒ the port is
+          blocked on the path (firewall), not the agent.
+
+        Never raises."""
+        from app.services.restore_helper_agent import AGENT_PORT
+
+        if not helper_vmid or not mgmt_ip:
+            return ""
+        h = int(helper_vmid)
+        q = shlex.quote(mgmt_ip)
+        cmds = [
+            (f"host ping {mgmt_ip}", f"ping -c1 -W2 {q}"),
+            (f"host neigh {mgmt_ip}", f"ip neigh show to {q}"),
+            (f"host→agent :{AGENT_PORT}", f"nc -z -w3 {q} {int(AGENT_PORT)}"),
+            ("helper addr", f"pct exec {h} -- ip -4 -o addr show"),
+            ("helper routes", f"pct exec {h} -- ip route show"),
+            (f"agent@helper :{AGENT_PORT}", f"pct exec {h} -- nc -z -w3 127.0.0.1 {int(AGENT_PORT)}"),
+        ]
+        parts: list[tuple[str, str]] = []
+        for label, cmd in cmds:
+            try:
+                parts.append((label, self.ssh.run(cmd).strip() or "OK"))
+            except Exception as exc:  # non-zero exit (ping/nc failed) or SSH issue
+                parts.append((label, f"ERR {str(exc)[:80]}"))
+        return format_netdiag(parts)
+
     def reap(self, owned_vmids: set[int]) -> list[int]:
         """Destroy every guest on the scratch host not owned by a live run
         (spec §12). Returns the destroyed vmids."""

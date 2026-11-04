@@ -219,20 +219,7 @@ def execute(
             server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id, should_cancel=should_cancel
         )
         if result != "passed":
-            # Capture WHY from inside the helper (over host SSH, no helper creds)
-            # before teardown destroys it — ARP/route/ICMP state per guest IP.
-            try:
-                diag_ips = [ip for ip, _ in (server.guest_agent_nics(plan.restore_vmid) or [])]
-                if not diag_ips and plan.primary_ip:
-                    diag_ips = [plan.primary_ip]
-                log_text = (
-                    server.probe_netdiag(
-                        plan.helper_vmid, diag_ips, restore_vmid=plan.restore_vmid, ports=plan.tcp_ports
-                    )
-                    or None
-                )
-            except Exception as exc:
-                logger.debug("probe netdiag failed: %s", exc)
+            log_text = _failure_diag(server, plan)
     except RestoreCancelled as exc:
         logger.info("restore run %s cancelled: %s", run_id, exc)
         result = "cancelled"
@@ -240,6 +227,10 @@ def execute(
     except Exception as exc:
         logger.warning("restore run %s failed: %s", run_id, exc)
         result = "error"
+        # The probe raising (e.g. the helper agent unreachable) lands here and used
+        # to store only the bare error. Capture the diagnosis too, while the helper
+        # still exists, so the log says WHY — not just "timed out".
+        log_text = _failure_diag(server, plan)
         checks = {"error": str(exc)}
 
     duration = int(now() - start)
@@ -301,6 +292,31 @@ def _teardown(server: Any, plan: RunPlan) -> None:
         server.reap(owned_vmids())
     except Exception as exc:
         logger.warning("reap after teardown failed: %s", exc)
+
+
+def _failure_diag(server: Any, plan: RunPlan) -> str | None:
+    """Best-effort network diagnosis for the run log when a test does not pass —
+    the sandbox/guest path AND the helper's management leg, over host SSH while the
+    helper still exists. So an 'agent unreachable' failure records WHY (agent down
+    inside the helper / L2-ARP / IP-not-applied / port blocked), not a bare
+    timeout. Never raises; returns None when nothing could be gathered."""
+    parts: list[str] = []
+    try:
+        diag_ips = [ip for ip, _ in (server.guest_agent_nics(plan.restore_vmid) or [])]
+        if not diag_ips and plan.primary_ip:
+            diag_ips = [plan.primary_ip]
+        sbx = server.probe_netdiag(plan.helper_vmid, diag_ips, restore_vmid=plan.restore_vmid, ports=plan.tcp_ports)
+        if sbx:
+            parts.append(sbx)
+    except Exception as exc:
+        logger.debug("probe netdiag failed: %s", exc)
+    try:
+        mgmt = server.mgmt_netdiag(plan.helper_vmid, plan.mgmt_ip)
+        if mgmt:
+            parts.append(mgmt)
+    except Exception as exc:
+        logger.debug("mgmt netdiag failed: %s", exc)
+    return "\n\n".join(parts) or None
 
 
 def retest_held(run_id: int, server: Any, plan: RunPlan, *, probe_fn=None, now=time.monotonic, sleep=time.sleep) -> str:

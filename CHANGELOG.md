@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.8.2] — 2026-11-04
+
+### Changed
+
+- **A failed restore test now records *why* the helper was unreachable.** When the probe can't reach the helper agent on its management IP, the run log held only `timed out`. It now captures a management-leg diagnosis over host SSH — is the agent listening **inside** the helper, does the **host** reach the mgmt IP (ping/ARP) and its agent port, did the mgmt leg get its address and routes — so the cause reads as agent-down vs L2/ARP vs IP-not-applied vs port-blocked. It is captured on the error path too (a probe that raised), which previously skipped the diagnosis.
+
 ## [v3.8.1] — 2026-11-03
 
 ### Fixed
