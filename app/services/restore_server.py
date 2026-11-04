@@ -155,6 +155,7 @@ def compute_io_rates(
         "net_in_pct": 0,
         "net_out_pct": 0,
         "net_link": cur.get("link_bps", 0),
+        "disk_max": disk_max_bps,
     }
     if not prev:
         return zero
@@ -198,6 +199,7 @@ def compute_io_rates(
         "net_in_pct": pct(net_in, link),
         "net_out_pct": pct(net_out, link),
         "net_link": link,
+        "disk_max": disk_max_bps,
     }
 
 

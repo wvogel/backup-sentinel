@@ -22,88 +22,54 @@
 <fieldset class="dash-section">
   <legend>{{ t('restore.host_capacity') }}</legend>
   {% if host %}
-  {%- set ram_used = (host.ram_total - host.ram_free) if (host.ram_total and host.ram_free is not none) else none %}
-  {%- set ram_pct = (ram_used / host.ram_total * 100) if (ram_used is not none and host.ram_total) else 0 %}
-  {%- set ram_level = 'crit' if ram_pct >= 90 else ('warn' if ram_pct >= 70 else 'ok') %}
   {%- set targets = host.stores|selectattr('images')|list %}
-  <div class="store-rings">
-    {# RAM as a ring: fill = truly used (total − available); center = available free.
-       Hover shows the full breakdown (used / buff-cache / free / available). #}
-    {%- set rd = host.ram_detail %}
-    <div class="store-ring-card">
-      <div class="store-ring ring-{{ ram_level }}" style="--pct: {{ ram_pct|round(0, 'floor')|int }}"
-        {%- if rd %} data-tooltip="{{ t('restore.ram_used') }}: {{ rd.used|size_coarse }}&#10;{{ t('restore.ram_buffcache') }}: {{ rd.buff_cache|size_coarse }}&#10;{{ t('restore.free') }}: {{ rd.free|size_coarse }}&#10;{{ t('restore.ram_available') }}: {{ rd.available|size_coarse }}"{% endif %}>
-        <div class="ring-center"><strong>{{ host.ram_total|size_coarse }}</strong><span>{{ host.ram_free|size_coarse }} {{ t('restore.free')|lower }}</span></div>
-      </div>
-      <div class="store-ring-label">{{ t('restore.ram') }}</div>
-    </div>
-    {# Image-capable storages as fill rings (others, e.g. local, are hidden). #}
-    {% for s in targets %}
-    {%- set pct = (s.used / s.total * 100) if (s.used is not none and s.total) else 0 %}
-    {%- set lvl = 'crit' if pct >= 90 else ('warn' if pct >= 70 else 'ok') %}
-    <div class="store-ring-card">
-      <div class="store-ring ring-{{ lvl }}" style="--pct: {{ pct|round(0, 'floor')|int }}">
-        <div class="ring-center"><strong>{{ s.total|size_coarse }}</strong><span>{{ s.used|size_coarse }}</span></div>
-      </div>
-      <div class="store-ring-label">
-        {{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span class="store-name">{{ s.storage }}</span>
-      </div>
-    </div>
-    {% endfor %}
-    {# Disk I/O + Network as dual-arc rings (outer = read / in, inner = write / out).
-       Fill = share of a real denominator (disk class nominal throughput, NIC link
-       rate); the centre carries the headline percent, the sub-line the MB/s. Live
-       values come from /restore/progress.json; the arcs/labels are updated in
-       place by restore-progress.js. #}
-    {%- set io = host.io %}
-    {%- set ok = io and io.have %}
-    <div class="store-ring-card">
-      <div class="io-ring js-io-disk-ring" data-tooltip="{{ t('restore.io_read') }}: {{ (io.disk_read if ok else 0)|size_coarse }}/s&#10;{{ t('restore.io_write') }}: {{ (io.disk_write if ok else 0)|size_coarse }}/s&#10;{{ t('restore.io_util') }}: {{ io.disk_util if ok else 0 }}%">
-        <svg viewBox="0 0 92 92" class="io-ring-svg" role="img" aria-label="{{ t('restore.io_disk') }}">
-          <circle class="io-track" cx="46" cy="46" r="40"></circle>
-          <circle class="io-arc io-read js-io-disk-read" cx="46" cy="46" r="40" transform="rotate(-90 46 46)" data-c="251.3" stroke-dasharray="{{ ((io.disk_read_pct if ok else 0)/100.0*251.3)|round(1) }} 251.3"></circle>
-          <circle class="io-track" cx="46" cy="46" r="28"></circle>
-          <circle class="io-arc io-write js-io-disk-write" cx="46" cy="46" r="28" transform="rotate(-90 46 46)" data-c="175.9" stroke-dasharray="{{ ((io.disk_write_pct if ok else 0)/100.0*175.9)|round(1) }} 175.9"></circle>
-        </svg>
-        {# Centre shows the two that matter — utilisation % and the write rate
-           (like the RAM figure); the arcs carry read/write load. Updated via poll. #}
-        <div class="ring-center io-center io-center-stack">
-          <span class="io-stack-line"><strong class="js-io-disk-ctr">{{ (io.disk_util ~ '%') if ok else '—' }}</strong></span>
-          <span class="io-stack-line"><span class="io-dot io-write"></span><span class="js-io-disk-write-v">{{ (io.disk_write|size_coarse ~ '/s') if ok else '—' }}</span></span>
-        </div>
-      </div>
-      <div class="store-ring-label">{{ t('restore.io_disk') }}</div>
-    </div>
-    <div class="store-ring-card">
-      {%- set net_pct = ([io.net_in_pct, io.net_out_pct]|max) if ok else 0 %}
-      <div class="io-ring js-io-net-ring" data-tooltip="{{ t('restore.io_in') }}: {{ (io.net_in if ok else 0)|bitrate }}&#10;{{ t('restore.io_out') }}: {{ (io.net_out if ok else 0)|bitrate }}&#10;{{ t('restore.io_link') }}: {{ (io.net_link if ok else 0)|bitrate }}">
-        <svg viewBox="0 0 92 92" class="io-ring-svg" role="img" aria-label="{{ t('restore.io_net') }}">
-          <circle class="io-track" cx="46" cy="46" r="40"></circle>
-          <circle class="io-arc io-read js-io-net-in" cx="46" cy="46" r="40" transform="rotate(-90 46 46)" data-c="251.3" stroke-dasharray="{{ ((io.net_in_pct if ok else 0)/100.0*251.3)|round(1) }} 251.3"></circle>
-          <circle class="io-track" cx="46" cy="46" r="28"></circle>
-          <circle class="io-arc io-write js-io-net-out" cx="46" cy="46" r="28" transform="rotate(-90 46 46)" data-c="175.9" stroke-dasharray="{{ ((io.net_out_pct if ok else 0)/100.0*175.9)|round(1) }} 175.9"></circle>
-        </svg>
-        {# Centre shows live down/up (like the RAM ring's figure), not the % — the
-           arcs already carry the % of link. Arrows in front; spans update via poll. #}
-        <div class="ring-center io-center io-center-stack">
-          <span class="io-stack-line">↓<span class="js-io-net-in-v">{{ io.net_in|bitrate if ok else '—' }}</span></span>
-          <span class="io-stack-line">↑<span class="js-io-net-out-v">{{ io.net_out|bitrate if ok else '—' }}</span></span>
-        </div>
-      </div>
-      <div class="store-ring-label">{{ t('restore.io_net') }}</div>
-    </div>
-    {# Queue pause / resume as a ring control (play ▶ to resume, ❚❚ to pause), far right. #}
-    <form action="/restore/queue/pause" method="post" class="store-ring-card queue-ring-right">
-      <input type="hidden" name="paused" value="{{ '0' if queue_paused else '1' }}">
-      <button type="submit" class="store-ring ring-ctl {{ 'ring-paused' if queue_paused else 'ring-ok' }}"
-              aria-label="{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}">
-        <span class="ring-center ring-ctl-icon" aria-hidden="true">
+  {# One row of boxes (headings with the storage/disk-type icons sit in the border):
+     Queue far left, then RAM, the target volumes, Disk I/O and Network — each a
+     full-bleed graph of the last 5 minutes. RAM/volumes show the fill level over
+     time, Disk/Network the throughput (vs the disk ceiling / NIC link). The graphs
+     are drawn client-side from a rolling buffer fed by /restore/progress.json
+     (restore-progress.js); nothing is server-rendered inside them. #}
+  <div class="rhost-row" data-rhost>
+    <fieldset class="rhost-box rhost-queue">
+      <legend>{{ t('restore.queue') }}</legend>
+      <form action="/restore/queue/pause" method="post" class="rhost-qform">
+        <input type="hidden" name="paused" value="{{ '0' if queue_paused else '1' }}">
+        <button type="submit" class="rhost-qbtn {{ 'is-paused' if queue_paused else '' }}"
+                aria-label="{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}">
           {% if queue_paused %}<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           {% else %}<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>{% endif %}
-        </span>
-      </button>
-      <div class="store-ring-label">{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}</div>
-    </form>
+        </button>
+        <span class="rhost-qlabel">{{ t('restore.resume_queue') if queue_paused else t('restore.pause_queue') }}</span>
+      </form>
+    </fieldset>
+
+    <div class="rhost-spacer"></div>
+
+    <fieldset class="rhost-box rhost-graph" data-metric="ram" data-kind="fill">
+      <legend><span class="rhost-name">{{ t('restore.ram') }}</span></legend>
+      <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="rhost-ov">—</div>
+    </fieldset>
+
+    {% for s in targets %}
+    <fieldset class="rhost-box rhost-graph" data-metric="store" data-name="{{ s.storage }}" data-kind="fill">
+      <legend>{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span class="rhost-name">{{ s.storage }}</span></legend>
+      <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="rhost-ov">—</div>
+    </fieldset>
+    {% endfor %}
+
+    <fieldset class="rhost-box rhost-graph rhost-wide" data-metric="disk" data-kind="rate">
+      <legend><span class="rhost-name">{{ t('restore.io_disk') }}</span></legend>
+      <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="rhost-ov">—</div>
+    </fieldset>
+
+    <fieldset class="rhost-box rhost-graph rhost-wide" data-metric="net" data-kind="rate">
+      <legend><span class="rhost-name">{{ t('restore.io_net') }}</span></legend>
+      <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="rhost-ov">—</div>
+    </fieldset>
   </div>
   {% if not targets %}<p class="muted">{{ t('restore.storage_none') }}</p>{% endif %}
 

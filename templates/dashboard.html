@@ -67,29 +67,9 @@
     </div>
   </div>
   {% endif %}
-  {% if rp %}
-  {% if rp.ram_total %}
-  <div class="store-rings rss-rings">
-    {%- set rused = (rp.ram_total - rp.ram_free) if rp.ram_free is not none else 0 %}
-    {%- set rpct = (rused / rp.ram_total * 100) if rp.ram_total else 0 %}
-    {%- set rlvl = 'crit' if rpct >= 90 else ('warn' if rpct >= 70 else 'ok') %}
-    <div class="store-ring-card">
-      <div class="store-ring ring-{{ rlvl }}" style="--pct: {{ rpct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ rp.ram_total|size_coarse }}</strong><span>{{ rp.ram_free|size_coarse }} {{ t('restore.free')|lower }}</span></div></div>
-      <div class="store-ring-label">{{ t('restore.ram') }}</div>
-    </div>
-    {% for s in rp.stores %}
-    {%- set upct = (s.used / s.total * 100) if (s.used is not none and s.total) else 0 %}
-    {%- set ulvl = 'crit' if upct >= 90 else ('warn' if upct >= 70 else 'ok') %}
-    <div class="store-ring-card">
-      <div class="store-ring ring-{{ ulvl }}" style="--pct: {{ upct|round(0, 'floor')|int }}"><div class="ring-center"><strong>{{ s.total|size_coarse }}</strong><span>{{ s.used|size_coarse }}</span></div></div>
-      <div class="store-ring-label">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span class="store-name">{{ s.storage }}</span></div>
-    </div>
-    {% endfor %}
-  </div>
-  {% else %}
-  <p class="muted">{{ t('restore.host_unreachable') }}</p>
-  {% endif %}
-  {% endif %}
+  {#- Restore-host resources (RAM + storage) are not shown here any more — they live
+     on /restore as the live graphs. This card stays compact (KPI tiles + queue),
+     the same height as a cluster row. #}
 </fieldset>
 </a>
 

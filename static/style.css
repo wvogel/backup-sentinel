@@ -3656,6 +3656,61 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .io-dot.io-read { background: var(--running); }
 .io-dot.io-write { background: var(--ok); }
 
+/* — /restore host row: one line of boxes, each a full-bleed 5-minute graph.
+   Queue pinned left, the rest right-aligned (Netzwerk last) with a gap between.
+   Graphs are drawn tone-in-tone (line = --line, fill = --panel) by
+   restore-progress.js from a rolling buffer; headings sit in the border. — */
+.rhost-row { display: flex; gap: var(--gap); align-items: stretch; }
+.rhost-spacer { flex: 1 1 20px; }
+fieldset.rhost-box {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-box);
+  background: var(--panel-alt);
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+  position: relative;
+  height: 104px;
+  overflow: hidden;
+}
+fieldset.rhost-box > legend {
+  padding: 0 6px;
+  margin-left: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 10px);
+}
+.rhost-box legend .conn-icon svg,
+.rhost-box legend .disk-icon svg { width: 13px; height: 13px; }
+.rhost-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rhost-surf { position: absolute; inset: 0; width: 100%; height: 100%; }
+.rhost-ov {
+  position: absolute;
+  left: 7px;
+  bottom: 5px;
+  font-size: 0.7rem;
+  line-height: 1.25;
+  pointer-events: none;
+}
+.rhost-ov b { font-weight: 700; }
+.rhost-ov .mut { color: var(--muted); }
+.rhost-queue { flex: 0 0 auto; width: 92px; }
+.rhost-graph { flex: 0 1 136px; }
+.rhost-graph.rhost-wide { flex: 0 1 230px; }
+.rhost-qform { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; margin: 0; height: 100%; }
+.rhost-qbtn { background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink); display: grid; place-items: center; }
+.rhost-qbtn svg { width: 30px; height: 30px; }
+.rhost-qbtn.is-paused { color: var(--warn); }
+.rhost-qlabel { font-size: 0.72rem; color: var(--muted); text-align: center; }
+@media (max-width: 860px) {
+  .rhost-spacer { display: none; }
+  .rhost-row { flex-wrap: wrap; }
+}
+
 /* — /restore: running-restore cards — */
 .running-card {
   display: flex;
