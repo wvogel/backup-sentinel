@@ -22,7 +22,7 @@ from app.web.routes_notifications import router as notifications_router
 from app.web.routes_reports import router as reports_router
 from app.web.routes_restore import router as restore_router
 from app.web.routes_settings import router as settings_router
-from app.web.sync import auto_sync_loop, restore_executor, sync_executor
+from app.web.sync import auto_sync_loop, restore_executor, restore_queue_loop, sync_executor
 
 logging.basicConfig(
     level=logging.DEBUG if DEBUG else logging.INFO,
@@ -60,12 +60,15 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logging.getLogger(__name__).error("restore reconcile/resume on startup failed: %s", exc)
     sync_task = asyncio.create_task(auto_sync_loop())
+    restore_queue_task = asyncio.create_task(restore_queue_loop())
     yield
-    sync_task.cancel()
-    try:
-        await sync_task
-    except asyncio.CancelledError:
-        pass
+    for task in (sync_task, restore_queue_task):
+        task.cancel()
+    for task in (sync_task, restore_queue_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     sync_executor.shutdown(wait=True)
     restore_executor.shutdown(wait=False)
 

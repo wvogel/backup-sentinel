@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.8.6] — 2026-11-04
+
+### Fixed
+
+- **Restore queue no longer stalls with runs queued but nothing running.** The queue was driven only by the hourly auto-sync (plus a few event kicks), and the self-heal only finalized phantom 'running' runs — so once draining stopped (a missed kick, or a worker slot that finished but wasn't re-kicked) the queue could sit idle for up to an hour with runs waiting and nothing on the host. A short-cadence watchdog (~45 s) now kicks a drain whenever runs are queued, nothing is executing and the queue isn't paused; and the kick is no longer blocked by a finished-but-not-reset slot — only a genuinely 'running' restore holds it off. Pause and the single-slot guarantee are preserved, and a deploy/restart drains a stuck queue immediately.
+
 ## [v3.8.5] — 2026-11-04
 
 ### Fixed

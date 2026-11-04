@@ -242,6 +242,12 @@ def has_active_run() -> bool:
         return cur.fetchone() is not None
 
 
+def has_queued_runs() -> bool:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM restore_runs WHERE status = 'queued' LIMIT 1")
+        return cur.fetchone() is not None
+
+
 def delete_run(run_id: int) -> bool:
     """Remove a queued run from the queue. Only 'queued' runs may be deleted —
     running/held runs own a live environment and must be reaped, not dropped."""
