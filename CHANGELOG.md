@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.1] — 2026-11-04
+
+### Changed
+
+- **`/restore` graph boxes are all one size.** Disk I/O and Network no longer render wider than the RAM and volume boxes — every graph box now shares the same width (the dashboard KPI-tile size), so the row reads as uniform tiles with the queue still pinned left and the gap before the right-hand group.
+- **Dashboard (`/`): the running-restore display moved up beside the KPI tiles.** It sat in a second row below the tiles and wasted vertical height; it now shares the tiles' row (running info left, tiles right) with a smaller progress ring and smaller type, so the card stays as short as a cluster row.
+
 ## [v3.9.0] — 2026-11-04
 
 ### Changed

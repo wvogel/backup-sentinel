@@ -3699,8 +3699,9 @@ fieldset.rhost-box > legend {
 .rhost-ov b { font-weight: 700; }
 .rhost-ov .mut { color: var(--muted); }
 .rhost-queue { flex: 0 0 auto; width: 92px; }
+/* All graph boxes share one width — the dashboard KPI-tile size — so the row
+   reads as uniform tiles (Disk/Netz are no longer wider than the rest). */
 .rhost-graph { flex: 0 1 136px; }
-.rhost-graph.rhost-wide { flex: 0 1 230px; }
 .rhost-qform { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; margin: 0; height: 100%; }
 .rhost-qbtn { background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink); display: grid; place-items: center; }
 .rhost-qbtn svg { width: 30px; height: 30px; }
@@ -3804,8 +3805,11 @@ fieldset.rhost-box > legend {
   align-items: center;
   gap: var(--gap) 24px;
 }
-.restore-server-card > .cluster-row-stats { grid-column: 1 / -1; justify-self: end; }
-.restore-server-card > .rss-queue { justify-self: start; }
+/* Tiles pinned to the right, the running restore / queue on their left in the
+   SAME row — so the card stays as short as a cluster row and wastes no height. */
+.restore-server-card > .cluster-row-stats { grid-column: 2; justify-self: end; }
+.restore-server-card > .running-card,
+.restore-server-card > .rss-queue { grid-column: 1; justify-self: start; }
 /* The whole box is the link to /restore: hover like a cluster row. */
 .dash-section-link { display: block; color: inherit; }
 .dash-section-link > .dash-section { transition: border-color 0.15s, box-shadow 0.15s; }
@@ -3813,10 +3817,17 @@ fieldset.rhost-box > legend {
   border-color: var(--accent);
   box-shadow: 0 4px 16px rgba(20, 20, 80, 0.1);
 }
-/* Running restore: /restore's ring + details, without that page's row rule. */
-.restore-server-card .running-card { padding: 0; border-top: 0; min-width: 0; }
-.restore-server-card .running-info { min-width: 0; }
+/* Running restore: /restore's ring + details, without that page's row rule.
+   Compact here — smaller ring and type so it fits the tile row's height. */
+.restore-server-card .running-card { padding: 0; border-top: 0; min-width: 0; gap: 10px; }
+.restore-server-card .running-ring { width: 54px; height: 54px; }
+.restore-server-card .running-ring::before { inset: 7px; }
+.restore-server-card .running-ring .ring-center strong { font-size: 0.74rem; }
+.restore-server-card .running-info { min-width: 0; gap: 1px; }
 .restore-server-card .running-info > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.restore-server-card .running-info strong { font-size: 0.82rem; }
+.restore-server-card .running-info .muted,
+.restore-server-card .running-info .run-eta { font-size: 0.72rem; }
 .rss-rings { margin-top: 0; justify-content: flex-end; }
 .rss-queue .queue-glyph {
   width: 72px;
@@ -3834,6 +3845,9 @@ fieldset.rhost-box > legend {
 }
 @media (max-width: 760px) {
   .restore-server-card { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .restore-server-card > .cluster-row-stats,
+  .restore-server-card > .running-card,
+  .restore-server-card > .rss-queue { grid-column: 1; justify-self: start; }
   .rss-rings { justify-content: flex-start; }
 }
 
