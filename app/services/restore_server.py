@@ -367,6 +367,55 @@ def classify_task_error(exitstatus: str, log_tail: str = "") -> str:
     return f"{hint}: {detail}" if hint else f"restore task failed: {detail}"
 
 
+_DRIVE_RE = re.compile(r"\b(drive-[A-Za-z0-9]+)\.img\.fidx\b")
+_CFG_SIZE_RE = re.compile(r"\bsize=(\d+(?:\.\d+)?)([KMGTP]?)\b")
+_CFG_DISK_PREFIXES = ("scsi", "sata", "ide", "virtio", "efidisk", "tpmstate")
+_CFG_SIZE_UNIT = {"": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4, "P": 1024**5}
+
+
+def parse_config_disk_sizes(config: object) -> dict[str, int]:
+    """``{"drive-scsi0": virtual_bytes, ...}`` from a ``qm config`` dict, so the live
+    restore progress can weight each disk by its real virtual size. Keyed to match
+    the pbs-restore log's ``drive-<key>`` names. Controller lines (``scsihw``) carry
+    no ``size=`` and drop out, as do non-disk entries (``net0`` …)."""
+    out: dict[str, int] = {}
+    if not isinstance(config, dict):
+        return out
+    for key, val in config.items():
+        if not isinstance(key, str) or not key.startswith(_CFG_DISK_PREFIXES) or not isinstance(val, str):
+            continue
+        m = _CFG_SIZE_RE.search(val)
+        if m:
+            out[f"drive-{key}"] = int(float(m.group(1)) * _CFG_SIZE_UNIT.get(m.group(2), 1))
+    return out
+
+
+def overall_restore_percent(
+    total_bytes: int | None, disk_pct: dict[str, int], disk_size: dict[str, int]
+) -> dict[str, Any] | None:
+    """Overall progress across a multi-disk guest: the fixed backup total as the
+    denominator, each disk seen so far weighted by its virtual size × its percent.
+    Monotonic — a new disk enters at 0% and only climbs, so the bar never jumps
+    back the way per-disk 0–100%% did. Returns ``{percent, bytes_done, bytes_total,
+    phase}`` or None when the total is unknown or a seen disk has no known size yet;
+    the caller then keeps the raw per-disk percent (no regression)."""
+    if not total_bytes or total_bytes <= 0 or not disk_pct:
+        return None
+    done = 0.0
+    for drive, pct in disk_pct.items():
+        sz = disk_size.get(drive)
+        if sz is None:
+            return None
+        done += sz * max(0, min(100, pct)) / 100.0
+    percent = min(100, int(done / total_bytes * 100))
+    return {
+        "percent": percent,
+        "bytes_done": int(done),
+        "bytes_total": int(total_bytes),
+        "phase": "finalizing" if percent >= 100 else "restoring",
+    }
+
+
 def parse_task_progress(line: str) -> dict[str, Any] | None:
     """Extract ``{percent, bytes_done, bytes_total}`` from a restore task log
     line, or None if the line carries no progress."""
@@ -880,6 +929,7 @@ class RestoreServer:
         last_progress_at = start
         last_percent = 0
         seen_log_lines = 0
+        cur_drive: str | None = None  # which disk pbs-restore is on, for overall progress
         recent_lines: list[str] = []  # tail of the task log, for the failure message
         factor = float(self.config.get("stall_backstop_factor") or 6.0)
         while True:
@@ -904,10 +954,14 @@ class RestoreServer:
                 text = entry.get("t", "") if isinstance(entry, dict) else str(entry)
                 if text:
                     recent_lines.append(text)
+                dm = _DRIVE_RE.search(text)
+                if dm:
+                    cur_drive = dm.group(1)  # a new disk's pbs-restore started
                 prog = parse_task_progress(text)
                 if prog:
                     last_progress_at = now()
                     last_percent = prog.get("percent", last_percent)
+                    prog["drive"] = cur_drive  # so the caller can weight by disk size
                     if on_progress:
                         on_progress(prog)
             seen_log_lines += len(log)
@@ -1125,6 +1179,17 @@ class RestoreServer:
     def guest_agent_ips(self, vmid: int) -> list[str]:
         """Just the addresses from :meth:`guest_agent_nics` (prefix dropped)."""
         return [ip for ip, _ in self.guest_agent_nics(vmid)]
+
+    def disk_sizes(self, vmid: int) -> dict[str, int]:
+        """``{"drive-scsiN": virtual_bytes}`` for the VM's disks, read from its
+        config — the denominator pieces for overall restore progress. Grows as
+        qmrestore creates each disk; ``{}`` when the config can't be read yet."""
+        try:
+            cfg = self.pve.get(f"/nodes/{self.node()}/qemu/{int(vmid)}/config")
+        except Exception as exc:
+            logger.debug("disk_sizes config read failed for %s: %s", vmid, exc)
+            return {}
+        return parse_config_disk_sizes(cfg)
 
     def shutdown(self, vmid: int, *, force_after: bool = True) -> None:
         node = self.node()
