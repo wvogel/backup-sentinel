@@ -637,6 +637,28 @@ def test_probe_netdiag_empty_without_helper():
     assert srv.probe_netdiag(0, ["10.0.0.1"]) == ""
 
 
+def test_mgmt_netdiag_probes_agent_inside_and_host_path():
+    # The "helper agent unreachable: timed out" failure needs to tell apart: agent
+    # down INSIDE the helper, L2/ARP from the host, IP-not-applied, or port blocked.
+    srv = _server({})
+    cmds: list[str] = []
+    srv.ssh.run = lambda cmd: (cmds.append(cmd), "ok")[1]
+    out = srv.mgmt_netdiag(9001, "10.121.101.100")
+    joined = "\n".join(cmds)
+    assert "ping -c1 -W2 10.121.101.100" in joined  # host → helper at L3
+    assert "ip neigh show to 10.121.101.100" in joined  # host-side ARP state
+    assert any("nc -z" in c and "10.121.101.100" in c for c in cmds)  # host → agent port
+    assert any("pct exec 9001 -- nc -z" in c and "127.0.0.1" in c for c in cmds)  # agent listening INSIDE
+    assert "pct exec 9001 -- ip -4 -o addr show" in joined  # mgmt leg got its IP?
+    assert out  # a formatted diagnosis, not empty
+
+
+def test_mgmt_netdiag_empty_without_helper_or_ip():
+    srv = _server({})
+    assert srv.mgmt_netdiag(0, "10.121.101.100") == ""
+    assert srv.mgmt_netdiag(9001, "") == ""
+
+
 def test_probe_netdiag_includes_bridge_vm_nic_and_tcp():
     srv = _server({"/nodes": [{"node": "r1", "status": "online"}]})
 
