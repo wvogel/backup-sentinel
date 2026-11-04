@@ -417,10 +417,10 @@ def restore_progress(request: Request) -> JSONResponse:
                 "checks_green": green_check_labels(r.get("checks") or {}),
             }
         )
-    # Carry the host I/O rates so the disk/network rings update live, reading the
-    # same cached snapshot the page renders from (no SSH per poll) and nudging the
-    # ~10 s background refresh when it is stale so the numbers keep moving.
-    io = None
+    # Carry the host's raw resource numbers so the /restore graphs update live,
+    # reading the same cached snapshot the page renders from (no SSH per poll) and
+    # nudging the ~10 s background refresh when it is stale so the numbers keep moving.
+    res = None
     host_state = None
     config = restore_config.load()
     if config is not None:
@@ -429,50 +429,45 @@ def restore_progress(request: Request) -> JSONResponse:
         if snap["data"] is None or (time.monotonic() - snap["at"]) > _HOST_VIEW_TTL:
             threading.Thread(target=_refresh_host_view, args=(config,), daemon=True).start()
         if snap["data"]:
-            io = _io_view((snap["data"]["host"] or {}).get("io"))
+            res = _res_view(snap["data"].get("host"))
         # Lets a page rendered while loading reload once the first refresh settles.
         host_state = "ready" if snap["data"] else ("error" if snap["error"] else "loading")
-    return JSONResponse({"running": out, "io": io, "host": host_state})
+    return JSONResponse({"running": out, "res": res, "host": host_state})
 
 
-def _io_view(io: dict | None) -> dict:
-    """Shape the raw I/O rates for the live poll: arc percents plus display
-    strings formatted exactly like the page's Jinja filters (disk in bytes via
-    ``size_coarse``, network in bits via ``bitrate``), so a live update reads
-    identically to the server-rendered ring."""
-    from app.i18n import t
-    from app.services.human_format import format_bitrate
-    from app.services.human_format import format_size_coarse as fsc
-
-    if not io or not io.get("have"):
-        return {"have": False}
-    disk_read, disk_write = f"{fsc(io['disk_read'])}/s", f"{fsc(io['disk_write'])}/s"
-    net_in, net_out = format_bitrate(io["net_in"]), format_bitrate(io["net_out"])
+def _res_view(host: dict | None) -> dict | None:
+    """Raw host resource numbers for the live /restore graphs — the client keeps a
+    5-minute rolling buffer per box and plots them (fill level for RAM/volumes,
+    throughput for disk/net). Bytes and bytes/s; the client formats. ``io.have`` is
+    false until a rate sample exists; RAM/volume levels are always present. None
+    when the host snapshot isn't ready."""
+    if not host:
+        return None
+    io = host.get("io") or {}
+    rt, rf = host.get("ram_total"), host.get("ram_free")
+    stores = [
+        {
+            "name": s["storage"],
+            "type": s.get("type"),
+            "disk_class": s.get("disk_class"),
+            "used": s.get("used"),
+            "total": s.get("total"),
+        }
+        for s in (host.get("stores") or [])
+        if s.get("images")
+    ]
     return {
-        "have": True,
-        "disk_read_pct": io["disk_read_pct"],
-        "disk_write_pct": io["disk_write_pct"],
-        "disk_ctr": f"{io['disk_util']}%",
-        "disk_read": disk_read,
-        "disk_write": disk_write,
-        "net_in_pct": io["net_in_pct"],
-        "net_out_pct": io["net_out_pct"],
-        "net_ctr": f"{max(io['net_in_pct'], io['net_out_pct'])}%",
-        # Network is measured in bits (Gb/s), unlike the disk arcs (bytes).
-        "net_in": net_in,
-        "net_out": net_out,
-        # The ring tooltips are server-rendered on load; the poll must refresh them
-        # too, built exactly like the Jinja data-tooltip so a hover reads current.
-        "disk_tip": (
-            f"{t('restore.io_read')}: {disk_read}\n"
-            f"{t('restore.io_write')}: {disk_write}\n"
-            f"{t('restore.io_util')}: {io['disk_util']}%"
-        ),
-        "net_tip": (
-            f"{t('restore.io_in')}: {net_in}\n"
-            f"{t('restore.io_out')}: {net_out}\n"
-            f"{t('restore.io_link')}: {format_bitrate(io['net_link'])}"
-        ),
+        "ram": {"used": (rt - rf) if (rt and rf is not None) else None, "total": rt},
+        "stores": stores,
+        "io": {
+            "have": bool(io.get("have")),
+            "disk_read": io.get("disk_read"),
+            "disk_write": io.get("disk_write"),
+            "disk_max": io.get("disk_max"),
+            "net_in": io.get("net_in"),
+            "net_out": io.get("net_out"),
+            "net_link": io.get("net_link"),
+        },
     }
 
 

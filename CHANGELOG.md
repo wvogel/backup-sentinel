@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.0] — 2026-11-04
+
+### Changed
+
+- **Restore-host view redesigned as live 5-minute graphs.** On `/restore` the RAM, storage, disk-I/O and network **rings** are replaced by one row of boxes — Queue (pause/resume, no circle) pinned left, then RAM, each target volume, Disk I/O and Network, right-aligned — each a full-bleed line+area graph of the **last 5 minutes**, drawn tone-in-tone in the box's own palette (line = border tone, fill = panel tone) client-side from the poll. RAM and the volumes plot the **fill level** over time; Disk and Network the **throughput** against the disk ceiling / NIC link (line saturation at a glance). The storage- and disk-type icons sit in each heading. The poll now carries the raw host numbers (RAM/volume usage, disk/net rates, ceilings) and the client keeps the rolling buffer; the restore host snapshot stays a cached ~10 s read.
+- **Dashboard (`/`): the restore-server card no longer shows the host resource rings** — those live on `/restore` now. It keeps the KPI tiles and the queue state (“N waiting”), so the card is as compact as a cluster row.
+
 ## [v3.8.6] — 2026-11-04
 
 ### Fixed

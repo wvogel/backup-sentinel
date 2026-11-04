@@ -8,40 +8,81 @@
   if (location.pathname !== "/restore" && !(onDashboard && document.querySelector(".running-card"))) return;
   const url = "/restore/progress.json";
 
-  function setArc(sel, pct) {
-    const arc = document.querySelector(sel);
-    if (!arc) return;
-    const c = parseFloat(arc.dataset.c) || 0;
-    arc.setAttribute("stroke-dasharray", `${((pct || 0) / 100) * c} ${c}`);
+  // ── Live 5-minute graphs in the restore-host row ──────────────────────────
+  // Each .rhost-graph box keeps a rolling per-series buffer and is redrawn as a
+  // tone-in-tone line+area (line = the box border tone, fill = the panel tone)
+  // from the raw numbers the poll carries; no SSH per poll (cached snapshot).
+  // RAM/volumes plot the fill level over time, Disk/Network the throughput.
+  const VW = 100, VH = 40, MAXN = 100; // ~5 min at the 3 s poll cadence
+  const graphBoxes = [...document.querySelectorAll("[data-rhost] .rhost-graph")];
+  const de = (s) => s.replace(".", ",");
+  function fsize(b) {
+    if (b == null) return "–";
+    const u = ["B", "KB", "MB", "GB", "TB", "PB"];
+    let i = 0;
+    b = +b;
+    while (i < u.length - 1 && b >= 1000) { b /= 1024; i++; }
+    return de(b >= 100 || b === Math.round(b) ? String(Math.round(b)) : b.toFixed(1)) + " " + u[i];
   }
-  function setText(sel, val) {
-    const el = document.querySelector(sel);
-    if (el) el.textContent = val;
+  function fbit(b) {
+    if (b == null) return "–";
+    const x = b * 8;
+    if (x >= 1e9) { const g = x / 1e9; return de(g === Math.round(g) ? String(g) : g.toFixed(1)) + " Gb/s"; }
+    return Math.round(x / 1e6) + " Mb/s";
   }
-  // The ring hover tooltip reads data-tooltip fresh on each hover (common.js),
-  // so refreshing the attribute is enough — no open tooltip to re-render.
-  function setTip(sel, val) {
-    const el = document.querySelector(sel);
-    if (el && val) el.dataset.tooltip = val;
+  const pct = (v, max) => (max > 0 ? Math.round((v / max) * 100) : 0);
+  const peak = (a, b, floor) => Math.max(floor, ...a, ...(b || [floor]));
+  function push(buf, v) { buf.push(Math.max(0, +v || 0)); if (buf.length > MAXN) buf.shift(); }
+  function areaPath(s, max) {
+    let d = `M 0 ${VH}`;
+    s.forEach((v, i) => { d += ` L ${((VW * i) / Math.max(1, s.length - 1)).toFixed(2)} ${(VH * (1 - Math.min(v, max) / max)).toFixed(2)}`; });
+    return d + ` L ${VW} ${VH} Z`;
   }
-  // Update the Disk-I/O and Network rings in place from the host snapshot the
-  // poll carries — no reload, and no SSH per poll (the server reads a cached
-  // snapshot). A snapshot without a prior sample (io.have false) leaves the
-  // page-rendered "—" untouched.
-  function updateIoRings(io) {
-    if (!io || !io.have) return;
-    setArc(".js-io-disk-read", io.disk_read_pct);
-    setArc(".js-io-disk-write", io.disk_write_pct);
-    setText(".js-io-disk-ctr", io.disk_ctr);
-    setText(".js-io-disk-read-v", io.disk_read);
-    setText(".js-io-disk-write-v", io.disk_write);
-    setTip(".js-io-disk-ring", io.disk_tip);
-    setArc(".js-io-net-in", io.net_in_pct);
-    setArc(".js-io-net-out", io.net_out_pct);
-    setText(".js-io-net-ctr", io.net_ctr);
-    setText(".js-io-net-in-v", io.net_in);
-    setText(".js-io-net-out-v", io.net_out);
-    setTip(".js-io-net-ring", io.net_tip);
+  function linePath(s, max) {
+    let d = "";
+    s.forEach((v, i) => { d += (i ? " L" : "M") + ` ${((VW * i) / Math.max(1, s.length - 1)).toFixed(2)} ${(VH * (1 - Math.min(v, max) / max)).toFixed(2)}`; });
+    return d;
+  }
+  function draw(box, series, max, ovHTML) {
+    const svg = box.querySelector(".rhost-surf");
+    if (!svg || !(max > 0)) return;
+    let h = "";
+    series.forEach((data, i) => {
+      if (!data.length) return;
+      if (i === 0) h += `<path d="${areaPath(data, max)}" fill="var(--panel)"/>`;
+      h += `<path d="${linePath(data, max)}" fill="none" stroke="var(--line)" stroke-width="${i === 0 ? 1.6 : 1.2}"${i === 0 ? "" : ' stroke-dasharray="3 2" opacity="0.7"'} stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+    });
+    svg.innerHTML = h;
+    const el = box.querySelector(".rhost-ov");
+    if (el) el.innerHTML = ovHTML;
+  }
+  // One poll's raw host numbers → append to each box's buffer(s) and redraw.
+  function updateGraphs(res) {
+    if (!res) return;
+    for (const box of graphBoxes) {
+      box._buf = box._buf || [[], []];
+      const m = box.dataset.metric;
+      if (m === "ram" && res.ram) {
+        const { used, total } = res.ram;
+        push(box._buf[0], used);
+        draw(box, [box._buf[0]], total, `<span class="mut">belegt</span> <b>${fsize(used)}</b> <span class="mut">· ${pct(used, total)} %</span>`);
+      } else if (m === "store") {
+        const s = (res.stores || []).find((x) => x.name === box.dataset.name);
+        if (!s) continue;
+        push(box._buf[0], s.used);
+        draw(box, [box._buf[0]], s.total, `<span class="mut">belegt</span> <b>${fsize(s.used)}</b> <span class="mut">· ${pct(s.used, s.total)} %</span>`);
+      } else if (m === "disk" && res.io) {
+        push(box._buf[0], res.io.disk_write);
+        push(box._buf[1], res.io.disk_read);
+        const max = res.io.disk_max || peak(box._buf[0], box._buf[1], 1);
+        draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">S</span> <b>${fsize(res.io.disk_write)}/s</b> <span class="mut">· L ${fsize(res.io.disk_read)}/s · ~${pct(res.io.disk_write, max)} %</span>`);
+      } else if (m === "net" && res.io) {
+        push(box._buf[0], res.io.net_in);
+        push(box._buf[1], res.io.net_out);
+        const max = res.io.net_link || peak(box._buf[0], box._buf[1], 1);
+        draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">↓</span> <b>${fbit(res.io.net_in)}</b> <span class="mut">· ↑ ${fbit(res.io.net_out)} · ~${pct(res.io.net_in, max)} %</span>`);
+      }
+    }
   }
 
   async function tick() {
@@ -58,7 +99,7 @@
       location.reload();
       return;
     }
-    updateIoRings(data.io);
+    updateGraphs(data.res);
     // The dashboard card shows only the first running restore.
     const running = onDashboard ? (data.running || []).slice(0, 1) : data.running || [];
     const runningIds = running
