@@ -227,11 +227,14 @@ def execute(
     except Exception as exc:
         logger.warning("restore run %s failed: %s", run_id, exc)
         result = "error"
-        # The probe raising (e.g. the helper agent unreachable) lands here and used
-        # to store only the bare error. Capture the diagnosis too, while the helper
-        # still exists, so the log says WHY — not just "timed out".
-        log_text = _failure_diag(server, plan)
         checks = {"error": str(exc)}
+        # Lead the log with the REAL reason (e.g. "wrong PBS key", a restore that
+        # timed out, the helper agent unreachable). Network diagnostics are only
+        # appended when a VM was actually restored and started — a restore that
+        # failed at config extraction (wrong key, no permission, PBS unreachable)
+        # leaves no guest, so probing a sandbox for an "unreachable VM" that never
+        # booted is pure noise that hides the real cause.
+        log_text = _error_log(server, plan, str(exc))
 
     duration = int(now() - start)
     return _finalize(run_id, plan, result, checks, duration, server, log=log_text)
@@ -292,6 +295,27 @@ def _teardown(server: Any, plan: RunPlan) -> None:
         server.reap(owned_vmids())
     except Exception as exc:
         logger.warning("reap after teardown failed: %s", exc)
+
+
+def _error_log(server: Any, plan: RunPlan, error: str) -> str:
+    """Run log for a run that errored out with an exception. Leads with the real
+    reason, and only appends sandbox/helper network diagnostics when the restored
+    VM actually exists — a restore that never produced a guest (wrong PBS key,
+    missing permission, PBS unreachable, …) would otherwise be buried under a
+    misleading "guest unreachable / no NIC configured" diagnosis of a VM that was
+    never created."""
+    reason = (error or "").strip() or "unknown error"
+    parts = [f"Restore failed\n  {reason}"]
+    try:
+        vm_exists = bool(plan.restore_vmid) and server.exists(plan.restore_vmid, is_lxc=False)
+    except Exception as exc:
+        logger.debug("restore_vmid existence check failed: %s", exc)
+        vm_exists = False
+    if vm_exists:
+        diag = _failure_diag(server, plan)
+        if diag:
+            parts.append(diag)
+    return "\n\n".join(parts)
 
 
 def _failure_diag(server: Any, plan: RunPlan) -> str | None:

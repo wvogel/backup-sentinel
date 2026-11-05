@@ -4,9 +4,77 @@ fake RestoreServer."""
 import os
 import unittest
 
-from app.services.restore_worker import _progress_fields, fits_disk, fits_ram, ram_reserve_bytes
+from app.services.restore_worker import RunPlan, _error_log, _progress_fields, fits_disk, fits_ram, ram_reserve_bytes
 
 GIB = 1024**3
+
+
+def _min_plan(**over):
+    base = dict(
+        vm_id=1,
+        restore_vmid=9000,
+        helper_vmid=9001,
+        vlan_tag=901,
+        mgmt_ip="172.30.44.110",
+        source={"storage": "pbs", "src_vmid": 100, "pbs": "pbs-a", "datastore": "ds", "namespace": "ns"},
+        snapshot_id="snap",
+        target_storage="zfs",
+        reservations=[],
+        probe_targets=[],
+        primary_ip="100.64.0.200",
+        require_icmp=True,
+        tcp_ports=[443],
+        retry_days=7,
+        first_delay=0,
+        interval=0,
+        window=0,
+    )
+    base.update(over)
+    return RunPlan(**base)
+
+
+class ErrorLogTest(unittest.TestCase):
+    """A run that errored out leads the log with the real reason, and only adds
+    network diagnostics when a VM actually exists (a restore that failed at config
+    extraction — e.g. a wrong PBS key — leaves no guest to diagnose)."""
+
+    def test_no_vm_shows_only_the_reason_no_network_noise(self):
+        reason = (
+            "backup decryption failed — the PBS encryption key on the restore host does not match "
+            "this backup's key (check the datastore/namespace key): wrong key"
+        )
+
+        class Srv:
+            def exists(self, vmid, is_lxc=False):
+                return False  # restore never produced a VM
+
+            def __getattr__(self, name):  # any diag call would be a bug here
+                raise AssertionError(f"network diagnostics must not run without a VM (called {name})")
+
+        log = _error_log(Srv(), _min_plan(), reason)
+        self.assertIn("Restore failed", log)
+        self.assertIn(reason, log)
+        self.assertNotIn("no NIC configured", log)
+        self.assertNotIn("Sandbox bridge", log)
+
+    def test_vm_exists_appends_diagnostics(self):
+        class Srv:
+            def exists(self, vmid, is_lxc=False):
+                return True
+
+            def guest_agent_nics(self, vmid):
+                return []
+
+            def probe_netdiag(self, *a, **k):
+                return "Sandbox bridge vmbr9: UP"
+
+            def mgmt_netdiag(self, *a, **k):
+                return ""
+
+        log = _error_log(Srv(), _min_plan(), "helper agent /probe timed out")
+        self.assertIn("Restore failed", log)
+        self.assertIn("helper agent /probe timed out", log)
+        self.assertIn("Sandbox bridge vmbr9: UP", log)
 
 
 class ProgressFieldsTest(unittest.TestCase):
@@ -52,7 +120,7 @@ if os.environ.get("BSENTINEL_DB_TESTS") != "1":
     raise unittest.SkipTest("set BSENTINEL_DB_TESTS=1 to run database tests (they truncate all tables)")
 
 from app import db, db_restore
-from app.services.restore_worker import RunPlan, execute, promote_held, reconcile_on_startup, resume_run
+from app.services.restore_worker import execute, promote_held, reconcile_on_startup, resume_run
 
 
 def setUpModule() -> None:

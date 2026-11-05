@@ -845,7 +845,10 @@ class RestoreServer:
             tail = self.ssh.run(f"tail -c 400 {shlex.quote(out)} 2>/dev/null || true").strip()
         except Exception as exc:
             logger.debug("restore log tail failed: %s", exc)
-        raise RestoreTaskError(f"restore task for VM {vmid} did not appear; log: {tail[:300]}")
+        # Classify the log tail too: a restore that dies before its task even
+        # registers (e.g. a wrong PBS key rejected at config extraction) should
+        # still read "backup decryption failed …", not a bare "did not appear".
+        raise RestoreTaskError(classify_task_error(f"restore task for VM {vmid} did not appear", tail))
 
     def stop_task(
         self, upid: str, node: str | None = None, *, wait: bool = True, sleep: Callable[[float], None] = time.sleep
