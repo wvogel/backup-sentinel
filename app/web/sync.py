@@ -663,6 +663,38 @@ def _recover_stuck_restores() -> None:
         _kick_restore_queue()
 
 
+def _reap_orphans() -> None:
+    """Destroy guests on the restore host that no live run owns — on a short
+    cadence, INDEPENDENT of a new run starting.
+
+    The in-run reaper (``execute`` → ``server.reap``) only fires when the next run
+    begins, so a helper/VM left behind by a crashed or wedged run lingers until
+    then — and if the queue is idle or stalled, that never comes. A lingering
+    helper is not just untidy: it reuses a management IP+MAC and can make the whole
+    management subnet flaky. Run only while NOTHING is executing (an active run owns
+    its environment and reaps itself), so this never races a live restore. Host
+    identity is verified first — never reap a host that resolves to production."""
+    from app import db_restore
+    from app.services import restore_config, restore_orchestrator
+    from app.services.restore_worker import owned_vmids
+
+    if db_restore.has_active_run():
+        return  # a restore is executing; its own execute() handles reaping
+    config = restore_config.load()
+    if config is None:
+        return
+    try:
+        config = restore_orchestrator.ensure_host_key_pinned(config)
+        server = restore_orchestrator.build_server(config)
+        server.verify_host_identity(restore_orchestrator.production_endpoints())
+        destroyed = server.reap(owned_vmids())
+    except Exception as exc:  # host unreachable / identity clash / API hiccup — try again next tick
+        logger.debug("orphan reap skipped: %s", exc)
+        return
+    if destroyed:
+        logger.warning("Restore orphan sweep: destroyed unowned guest(s) %s", destroyed)
+
+
 def _kick_restore_queue() -> None:
     """Fire the restore queue on its dedicated single-slot executor without
     awaiting it (a restore may run for hours). Skip ONLY while a restore is
@@ -697,6 +729,7 @@ def _restore_queue_watchdog() -> None:
     from app.services import restore_config
 
     _recover_stuck_restores()  # phantom 'running' with nothing on the host
+    _reap_orphans()  # sweep helpers/VMs no live run owns, even with an idle queue
     try:
         if _should_drain_now(db_restore.has_active_run(), restore_config.queue_paused(), db_restore.has_queued_runs()):
             logger.info("restore queue self-heal: runs queued but nothing running — kicking drain")

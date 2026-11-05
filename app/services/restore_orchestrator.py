@@ -697,7 +697,13 @@ def reprovision_and_retest(run_id: int, run: dict[str, Any], config: dict[str, A
 # A real restore has its helper and/or restore VM on the host within seconds of
 # going 'running' (the helper CT is created first, the restore VM moments later).
 # So a run that has been 'running' this long with NOTHING on the host is wedged.
-STUCK_RUN_GRACE_SECONDS = 600
+# A run 'running' longer than this with nothing of it on the host (and no running
+# PVE task) is wedged, not progressing, and gets finalized so the single-slot queue
+# frees. Kept comfortably above the helper-provision window (fail-fast ≤60s) and
+# the moment the restore starts (the VM then shows up on the host), so a genuinely
+# progressing run is never mistaken for wedged — but short enough that a crash
+# can't leave the queue "busy" with an empty host for long.
+STUCK_RUN_GRACE_SECONDS = 180
 
 
 def recover_stuck_runs(server: RestoreServer, config: dict[str, Any]) -> int:
@@ -728,8 +734,16 @@ def recover_stuck_runs(server: RestoreServer, config: dict[str, Any]) -> int:
                 started = started.replace(tzinfo=_dt.UTC)
             if (now - started).total_seconds() < STUCK_RUN_GRACE_SECONDS:
                 continue  # too fresh — may still be provisioning
-        rv, hv, upid = run.get("restore_vmid"), run.get("helper_vmid"), run.get("task_upid")
-        alive = (rv and int(rv) in present) or (hv and int(hv) in present)
+        rv, upid = run.get("restore_vmid"), run.get("task_upid")
+        # A still-present HELPER (cheap LXC) is NOT proof the run is live: a crashed
+        # or finished run routinely leaves its helper behind, and counting that as
+        # "alive" wedged the queue forever — the run stayed 'running' (so the queue
+        # read busy with nothing really restoring) AND stayed owned (so the reaper
+        # could never sweep the leftover helper either). Real liveness is the
+        # restore VM still on the host (restore/boot/probe phases) or a running PVE
+        # restore task. The brief provision window (helper up, VM not yet created)
+        # is covered by the grace period above, so it is never mistaken for wedged.
+        alive = bool(rv and int(rv) in present)
         if not alive and upid:
             alive = server.task_running(upid)
         if alive:
