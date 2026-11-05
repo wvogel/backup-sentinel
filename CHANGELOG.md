@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.5] — 2026-11-05
+
+### Fixed
+
+- Follow-up to v3.9.4 (whose pipeline failed only on now-updated unit tests, so it never deployed): the fail-closed probe refusal drops malformed ports exactly like the normal probe path, and the in-helper agent tests now cover the /32 sandbox source, the ARP/RPF hardening and the route-via-sandbox refusal. No change to restore behaviour beyond that refusal-port cleanup.
+
 ## [v3.9.4] — 2026-11-05
 
 ### Changed

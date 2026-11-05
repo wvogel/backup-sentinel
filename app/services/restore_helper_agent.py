@@ -143,6 +143,12 @@ def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
         if not ip:
             continue
         _ensure_reachable(ip, int(t.get("prefix") or 24))
+        valid_ports: list[int] = []
+        for p in t.get("ports") or []:
+            try:
+                valid_ports.append(int(p))
+            except (TypeError, ValueError):
+                continue  # a malformed port must not fail the whole probe
         if not _route_via_sbx(ip):
             # Fail CLOSED: the guest route is not via the isolated sandbox leg, so a
             # probe would go out the management leg at the real production VM. Report
@@ -150,23 +156,16 @@ def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
             out[ip] = {
                 "icmp": False,
                 "arp": False,
-                "ports": {str(p): False for p in (t.get("ports") or [])},
+                "ports": {str(p): False for p in valid_ports},
                 "error": "route to guest not via sandbox leg — refusing to probe (would reach production)",
                 "ts": int(time.time()),
             }
             continue
-        ports: dict[str, bool] = {}
-        for p in t.get("ports") or []:
-            try:
-                port = int(p)
-            except (TypeError, ValueError):
-                continue  # a malformed port must not fail the whole probe
-            ports[str(port)] = _tcp(ip, port)
         # Key is "ports" (not "tcp"): the classifier reads primary["ports"].
         out[ip] = {
             "icmp": _ping(ip) if require_icmp else None,
             "arp": _arp_alive(ip),  # L2 liveness that survives a guest firewall (Windows)
-            "ports": ports,
+            "ports": {str(p): _tcp(ip, p) for p in valid_ports},
             "ts": int(time.time()),
         }
     return out
