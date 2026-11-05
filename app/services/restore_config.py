@@ -74,6 +74,11 @@ def load() -> dict[str, Any] | None:
     cfg: dict[str, Any] = json.loads(raw)
     cfg["token_secret"] = decrypt(settings.get(_TOKEN_KEY, ""))
     cfg["ssh_private_key"] = decrypt(settings.get(_SSHKEY_KEY, ""))
+    # Probe-timing knobs are internal (not in the settings form), so a value
+    # frozen into an old save must not pin them: always take the current model
+    # default. (Drop this once they become user-editable.)
+    for field in ("probe_first_delay_seconds", "probe_interval_seconds"):
+        cfg[field] = RestoreServerPayload.model_fields[field].default
     return cfg
 
 
