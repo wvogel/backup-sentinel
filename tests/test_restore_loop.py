@@ -352,6 +352,16 @@ class RecoverStuckRunsTest(unittest.TestCase):
         self.assertEqual(n, 0)
         self.assertEqual(db_restore.get_run(rid)["status"], "running")
 
+    def test_recovers_a_run_with_only_a_leftover_helper(self):
+        # A finished/crashed run can leave just its helper (9001) on the host. The
+        # helper must NOT count as "alive", or the run stays 'running' (queue busy)
+        # and owned (reaper can't sweep the helper) forever.
+        rid = self._running(age_min=20)
+        n = orch.recover_stuck_runs(_RecoverServer(present={9001}), CONFIG)  # only the helper
+        self.assertEqual(n, 1)
+        self.assertEqual(db_restore.get_run(rid)["status"], "error")
+        self.assertFalse(db_restore.has_active_run())  # queue unblocked
+
     def test_keeps_a_fresh_run_still_provisioning(self):
         rid = self._running(age_min=1)  # within grace
         n = orch.recover_stuck_runs(_RecoverServer(present=()), CONFIG)

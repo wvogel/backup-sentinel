@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.3] — 2026-11-05
+
+### Fixed
+
+- **The restore queue can no longer stay "busy" while nothing is really running.** A run left in `running` by a crash, or one whose cheap helper container simply lingered on the host, kept the single-slot queue blocked forever: the stuck-run self-heal treated a still-present **helper** as proof the run was alive, so it never finalized the phantom — and because the run stayed owned, the reaper could not sweep the leftover helper either (a deadlock). Liveness is now the restore **VM** still on the host (restore/boot/probe) or a running PVE restore task; a lingering helper no longer counts. The wedged-run grace is also shortened (600 s → 180 s), still comfortably above the ≤60 s helper-provision window, so a genuinely progressing run is never mistaken for stuck.
+
+### Added
+
+- **Periodic orphan sweep.** Guests on the restore host that no live run owns are now destroyed on the short (~45 s) watchdog cadence, independent of a new run starting — previously cleanup only happened at the next run's start, so a crashed or wedged run could leave a helper (and its management IP/MAC) lingering indefinitely when the queue was idle. The sweep runs only while nothing is executing and verifies host identity first, so it never races a live restore or touches a production host.
+
 ## [v3.9.2] — 2026-11-04
 
 ### Fixed
