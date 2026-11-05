@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.6] — 2026-11-05
+
+### Fixed
+
+- **A restore that fails before a VM exists now shows the real reason, not misleading network diagnostics.** When a restore aborts at the start — a wrong PBS encryption key, missing permission, or an unreachable PBS server — no guest is ever created, yet the run log led with a sandbox network diagnosis ("guest unreachable / no NIC configured") of a VM that never booted. The run log now **leads with the actual cause** (e.g. *"backup decryption failed — the PBS encryption key on the restore host does not match this backup's key"*) and only appends sandbox/helper diagnostics when a VM was actually restored and started. The wrong-key message is also produced when the restore dies before its PVE task even registers, not just when the task runs and fails.
+
 ## [v3.9.5] — 2026-11-05
 
 ### Fixed
