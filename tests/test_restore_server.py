@@ -253,11 +253,22 @@ def test_helper_legs_dual_homed():
 def test_helper_legs_mgmt_leg_carries_gateway_and_vlan():
     # The management leg must stay on the real interface (vmbr0) with the mgmt IP,
     # gateway and VLAN tag so the app can reach the agent; the sandbox leg (net0)
-    # stays on the isolated bridge with the guest-subnet sandbox IP.
+    # stays on the isolated bridge with the guest-subnet sandbox IP. Here the guest
+    # subnet IS the management subnet (10.20.0.0/24), so the sandbox leg is pinned
+    # to /32 — two connected /24s on one helper would make the mgmt leg unreachable.
     nets = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, 1010, "10.20.0.1", "10.20.0.254", 24)
     assert "bridge=vmbr0" in nets["net1"] and "10.20.0.10/24" in nets["net1"]
     assert "gw=10.20.0.1" in nets["net1"] and "tag=1010" in nets["net1"]
-    assert "bridge=vmbr9" in nets["net0"] and "10.20.0.254/24" in nets["net0"]
+    assert "bridge=vmbr9" in nets["net0"] and "10.20.0.254/32" in nets["net0"]
+
+
+def test_helper_legs_sandbox_prefix_kept_when_distinct_subnet():
+    # Guest subnet differs from the mgmt subnet → no collision, keep the guest's
+    # own prefix on the sandbox leg (here /26); pin to /32 only on an overlap.
+    distinct = helper_legs("vmbr9", 901, "vmbr0", "10.20.0.10", 24, None, "", "10.0.5.1", 26)
+    assert "10.0.5.1/26" in distinct["net0"]
+    overlap = helper_legs("vmbr9", 901, "vmbr0", "172.30.44.110", 24, 2040, "172.30.44.254", "172.30.44.60", 24)
+    assert "172.30.44.60/32" in overlap["net0"]  # same /24 as mgmt → /32
 
 
 def test_dnsmasq_config_single_mgmt_range_ip_on_sandbox_leg():
