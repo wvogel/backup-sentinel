@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.10] — 2026-11-05
+
+### Changed
+
+- **Probing starts sooner and polls tighter.** The pre-boot wait before the first reachability probe drops from 30 s to 10 s, and the gap between probe passes from 30 s to 5 s — an early pass that fails (guest not up yet) is harmless and simply retried, so a ready guest is now caught in seconds instead of sitting through long fixed gaps. These knobs aren't in the settings form, so a value frozen into an earlier save no longer pins them: the config loader always applies the current default, and the faster timing takes effect immediately without re-saving settings.
+
 ## [v3.9.9] — 2026-11-05
 
 ### Changed

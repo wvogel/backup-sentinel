@@ -128,8 +128,11 @@ class RestoreServerPayload(BaseModel):
     probe_offset: int = Field(default=254, ge=1, le=254)
 
     probe_window_seconds: int = Field(default=300, ge=30, le=86400)
-    probe_first_delay_seconds: int = Field(default=30, ge=0, le=3600)
-    probe_interval_seconds: int = Field(default=30, ge=5, le=3600)
+    # Start probing soon after boot and poll tightly: an early pass that fails
+    # (guest not up yet) is harmless and simply retried, so a short pre-delay and
+    # interval catch a ready guest in seconds instead of waiting out a long gap.
+    probe_first_delay_seconds: int = Field(default=10, ge=0, le=3600)
+    probe_interval_seconds: int = Field(default=5, ge=5, le=3600)
     stall_backstop_factor: float = Field(default=6.0, ge=1.0, le=100.0)
     hard_cap_seconds: int | None = Field(default=None, ge=60)
 

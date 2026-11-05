@@ -66,3 +66,20 @@ class RestoreConfigTestCase(unittest.TestCase):
     def test_invalid_ip_range_rejected(self) -> None:
         with self.assertRaises(ValueError):
             restore_config.save(_payload(mgmt_ip_from="10.9.0.20", mgmt_ip_to="10.9.0.10"))
+
+    def test_probe_timing_knobs_take_model_default_not_frozen_value(self) -> None:
+        # These knobs aren't in the settings form; a value frozen into an old save
+        # must not pin them — load() always returns the current model default, so
+        # lowering the default speeds up every test without a re-save.
+        from app.models import RestoreServerPayload
+
+        restore_config.save(_payload(probe_first_delay_seconds=99, probe_interval_seconds=99))
+        cfg = restore_config.load()
+        self.assertEqual(
+            cfg["probe_first_delay_seconds"], RestoreServerPayload.model_fields["probe_first_delay_seconds"].default
+        )
+        self.assertEqual(
+            cfg["probe_interval_seconds"], RestoreServerPayload.model_fields["probe_interval_seconds"].default
+        )
+        self.assertEqual(cfg["probe_first_delay_seconds"], 10)
+        self.assertEqual(cfg["probe_interval_seconds"], 5)
