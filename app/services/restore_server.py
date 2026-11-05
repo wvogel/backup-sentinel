@@ -1772,12 +1772,30 @@ def helper_legs(
     management IP keeps the same MAC and the upstream gateway's ARP entry stays
     valid (a fresh random MAC each time got black-holed until the stale ARP
     expired — intermittently unreachable)."""
+    import ipaddress
+
     mgmt_net = f"name=mgmt,bridge={mgmt_iface},hwaddr={_stable_mac(mgmt_ip)},ip={mgmt_ip}/{mgmt_prefix}"
     if mgmt_gateway:
         mgmt_net += f",gw={mgmt_gateway}"
     if mgmt_vlan:
         mgmt_net += f",tag={mgmt_vlan}"
-    net0 = f"name=sbx,bridge={bridge},tag={vlan_tag},ip={sandbox_ip}/{sandbox_prefix}"
+    # Sandbox-leg prefix: normally the guest's own prefix. BUT when the guest's
+    # subnet IS the management subnet (the operator put restore guests in the same
+    # LAN the helper's mgmt leg lives on, so the app can reach the agent directly),
+    # a /24 sandbox leg would give the helper TWO connected routes for one /24
+    # (mgmt + sbx) — ambiguous egress / ARP flux, the mgmt leg goes unreachable
+    # (see ``sandbox_fallback_addrs``). Pin the sandbox leg to a /32 in that case:
+    # the only connected /24 is then the mgmt leg, and the guest is reached by an
+    # explicit /32 host route the agent installs on the sandbox leg at probe time.
+    sbx_prefix = sandbox_prefix
+    try:
+        if ipaddress.ip_network(f"{sandbox_ip}/{sandbox_prefix}", strict=False) == ipaddress.ip_network(
+            f"{mgmt_ip}/{mgmt_prefix}", strict=False
+        ):
+            sbx_prefix = 32
+    except ValueError:
+        pass
+    net0 = f"name=sbx,bridge={bridge},tag={vlan_tag},ip={sandbox_ip}/{sbx_prefix}"
     return {"net0": net0, "net1": mgmt_net}
 
 

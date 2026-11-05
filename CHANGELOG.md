@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.4] — 2026-11-05
+
+### Changed
+
+- **The helper's management leg can share the restore guests' subnet, so the app reaches the agent directly (no flaky routed path).** When the configured management IP range is in the same subnet as a restore guest, the isolated sandbox leg is pinned to a **/32** (instead of a second connected /24 on the helper, which made the management leg ambiguous/unreachable). The guest is reached by an explicit **/32 host route** on the sandbox leg, so longest-prefix match sends only the guest's traffic out the isolated leg and everything else (including the app) via the management leg. Per-interface ARP/RPF hardening (`arp_ignore`/`arp_announce`/`rp_filter`) stops the two legs from answering for each other. This is what lets guests that live in the management/host LAN be restore-tested at all.
+
+### Safety
+
+- **The probe now fails closed when the guest route is not via the isolated sandbox leg.** A restored guest keeps the production VM's IP *and* MAC, and the management leg may now share that subnet — so before probing, the in-helper agent verifies the kernel routes the guest out the sandbox leg. If it would go out the management leg, the agent refuses and reports the target as unreachable with the reason, so a missing/mis-ordered host route can never make a restore test reach (or disturb) the real production VM.
+
 ## [v3.9.3] — 2026-11-05
 
 ### Fixed

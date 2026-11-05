@@ -74,10 +74,45 @@ def _ensure_reachable(ip: str, prefix: int = 24) -> None:
         host = next((h for h in net.hosts() if h != target), None)
         if host is None:  # degenerate subnet with no other host
             host = target + 1
-        subprocess.run(["ip", "addr", "add", f"{host}/{prefix}", "dev", SBX_IFACE], capture_output=True)
+        _harden_sandbox()
+        # Add the helper's sandbox-leg source as a /32, NEVER /{prefix}: when the
+        # guest subnet is also the management subnet (restore guests sharing the
+        # mgmt LAN), a /{prefix} here would add a second connected /24 on the helper
+        # and make the mgmt leg unreachable. The /32 host route below is what carries
+        # guest traffic out the isolated sandbox leg; the /32 address only gives it a
+        # same-subnet source so the guest replies on-link.
+        subprocess.run(["ip", "addr", "add", f"{host}/32", "dev", SBX_IFACE], capture_output=True)
         subprocess.run(["ip", "route", "replace", f"{ip}/32", "dev", SBX_IFACE, "src", str(host)], capture_output=True)
     except (ValueError, OSError):
         pass
+
+
+def _harden_sandbox() -> None:
+    """Per-interface ARP/RPF hardening so the helper's two legs (mgmt on the real
+    LAN, sbx on the isolated bridge) can share one IP subnet without ARP flux:
+    each interface answers ARP only for its own addresses (``arp_ignore=1``),
+    announces the on-subnet source (``arp_announce=2``), and reverse-path filtering
+    is loose (``rp_filter=2``) so the guest's reply via the /32 source is not
+    dropped. Best-effort; idempotent."""
+    for iface in (SBX_IFACE, "mgmt", "all"):
+        for key, val in (("arp_ignore", "1"), ("arp_announce", "2"), ("rp_filter", "2")):
+            try:
+                subprocess.run(["sysctl", "-qw", f"net.ipv4.conf.{iface}.{key}={val}"], capture_output=True)
+            except OSError:
+                pass
+
+
+def _route_via_sbx(ip: str) -> bool:
+    """Whether the kernel would send traffic to ``ip`` out the isolated sandbox leg.
+    FAIL-CLOSED guard: once the management leg shares the guest's subnet, a missing
+    /32 host route would send the probe out the mgmt leg — straight at the REAL
+    production VM (same IP, same MAC). We refuse to probe unless the route is via
+    the sandbox leg."""
+    try:
+        out = subprocess.run(["ip", "route", "get", ip], capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return f"dev {SBX_IFACE}" in out
 
 
 def _arp_alive(ip: str) -> bool:
@@ -108,6 +143,18 @@ def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
         if not ip:
             continue
         _ensure_reachable(ip, int(t.get("prefix") or 24))
+        if not _route_via_sbx(ip):
+            # Fail CLOSED: the guest route is not via the isolated sandbox leg, so a
+            # probe would go out the management leg at the real production VM. Report
+            # the target as dead with the reason instead of touching production.
+            out[ip] = {
+                "icmp": False,
+                "arp": False,
+                "ports": {str(p): False for p in (t.get("ports") or [])},
+                "error": "route to guest not via sandbox leg — refusing to probe (would reach production)",
+                "ts": int(time.time()),
+            }
+            continue
         ports: dict[str, bool] = {}
         for p in t.get("ports") or []:
             try:
