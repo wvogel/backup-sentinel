@@ -574,6 +574,7 @@ def test_helper_agent_probe_targets(monkeypatch):
     monkeypatch.setattr(agent, "_tcp", lambda ip, port, timeout=2.0: port == 443)
     monkeypatch.setattr(agent, "_arp_alive", lambda ip: True)
     monkeypatch.setattr(agent, "_ensure_reachable", lambda ip, prefix=24: None)
+    monkeypatch.setattr(agent, "_route_via_sbx", lambda ip: True)  # route is via the sandbox leg
     out = agent.probe_targets([{"ip": "10.0.0.50", "ports": [443, 22]}], require_icmp=True)
     assert out["10.0.0.50"]["icmp"] is True
     assert out["10.0.0.50"]["arp"] is True  # L2 liveness reported for the classifier
@@ -587,9 +588,10 @@ def test_helper_agent_ensure_reachable_pins_route_source(monkeypatch):
     calls = []
     monkeypatch.setattr(agent.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
     agent._ensure_reachable("10.254.10.6", 24)
-    # Adds a host in the guest's subnet and a /32 route pinned to that source, so
-    # the probe never leaves from the helper's other (management) address.
-    assert ["ip", "addr", "add", "10.254.10.1/24", "dev", "sbx"] in calls
+    # Adds a host in the guest's subnet as a /32 (never /prefix — a second connected
+    # /24 would make the mgmt leg unreachable when both share the subnet) and a /32
+    # route pinned to that source, so the probe leaves from the sandbox leg only.
+    assert ["ip", "addr", "add", "10.254.10.1/32", "dev", "sbx"] in calls
     route = next(c for c in calls if c[:3] == ["ip", "route", "replace"])
     assert route == ["ip", "route", "replace", "10.254.10.6/32", "dev", "sbx", "src", "10.254.10.1"]
 
@@ -795,8 +797,27 @@ def test_helper_agent_probe_skips_malformed_port(monkeypatch):
 
     monkeypatch.setattr(agent, "_ping", lambda ip, timeout=2.0: True)
     monkeypatch.setattr(agent, "_tcp", lambda ip, port, timeout=2.0: True)
+    monkeypatch.setattr(agent, "_ensure_reachable", lambda ip, prefix=24: None)
+    monkeypatch.setattr(agent, "_route_via_sbx", lambda ip: True)
     out = agent.probe_targets([{"ip": "10.0.0.50", "ports": [443, "x", None]}], require_icmp=False)
     assert out["10.0.0.50"]["ports"] == {"443": True}
+
+
+def test_helper_agent_probe_refuses_when_route_not_via_sandbox(monkeypatch):
+    # FAIL-CLOSED: if the guest route is NOT via the isolated sandbox leg, the probe
+    # must refuse (never touch the real production VM with the same IP/MAC) and
+    # report the target as dead with a reason — not silently pass.
+    from app.services import restore_helper_agent as agent
+
+    monkeypatch.setattr(agent, "_ensure_reachable", lambda ip, prefix=24: None)
+    monkeypatch.setattr(agent, "_route_via_sbx", lambda ip: False)  # would egress via mgmt
+    monkeypatch.setattr(agent, "_ping", lambda ip, timeout=2.0: True)
+    monkeypatch.setattr(agent, "_tcp", lambda ip, port, timeout=2.0: True)
+    out = agent.probe_targets([{"ip": "10.0.0.50", "ports": [443, "x"]}], require_icmp=True)
+    assert out["10.0.0.50"]["icmp"] is False
+    assert out["10.0.0.50"]["arp"] is False
+    assert out["10.0.0.50"]["ports"] == {"443": False}  # malformed port dropped, 443 not probed
+    assert "error" in out["10.0.0.50"]
 
 
 def test_agent_post_surfaces_error_body(monkeypatch):
