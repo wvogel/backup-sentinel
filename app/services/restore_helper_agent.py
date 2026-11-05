@@ -136,8 +136,16 @@ def _arp_alive(ip: str) -> bool:
 
 def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
     import time
+    from concurrent.futures import ThreadPoolExecutor
 
     out: dict[str, dict] = {}
+
+    # Phase 1 (serial, cheap: only local `ip` commands): set up each target's
+    # sandbox-leg reachability and apply the fail-closed route gate. A guest with
+    # many interfaces (a Docker host reports 172.17/172.20 bridges, veths, …)
+    # would otherwise make the probe crawl; here the slow network checks all run
+    # together in phase 2, so the pass costs ~one timeout, not the sum.
+    pending: list[tuple[str, list[int]]] = []
     for t in targets:
         ip = t.get("ip")
         if not ip:
@@ -161,13 +169,29 @@ def probe_targets(targets: list[dict], require_icmp: bool) -> dict:
                 "ts": int(time.time()),
             }
             continue
-        # Key is "ports" (not "tcp"): the classifier reads primary["ports"].
-        out[ip] = {
-            "icmp": _ping(ip) if require_icmp else None,
-            "arp": _arp_alive(ip),  # L2 liveness that survives a guest firewall (Windows)
-            "ports": {str(p): _tcp(ip, p) for p in valid_ports},
-            "ts": int(time.time()),
-        }
+        pending.append((ip, valid_ports))
+
+    # Phase 2 (parallel): the slow network probes — ICMP, ARP and every TCP port,
+    # across all targets at once. Each is an independent read, so concurrency only
+    # shortens wall-clock; a closed port's 2s timeout no longer serialises behind
+    # the others. Workers are bounded but cover the common fan-out.
+    if pending:
+        jobs = sum(2 + len(ports) for _, ports in pending)  # icmp + arp + ports
+        with ThreadPoolExecutor(max_workers=min(max(jobs, 1), 32)) as ex:
+            submitted = []
+            for ip, ports in pending:
+                icmp_f = ex.submit(_ping, ip) if require_icmp else None
+                arp_f = ex.submit(_arp_alive, ip)  # L2 liveness that survives a guest firewall (Windows)
+                port_fs = {str(p): ex.submit(_tcp, ip, p) for p in ports}
+                submitted.append((ip, icmp_f, arp_f, port_fs))
+            for ip, icmp_f, arp_f, port_fs in submitted:
+                # Key is "ports" (not "tcp"): the classifier reads primary["ports"].
+                out[ip] = {
+                    "icmp": icmp_f.result() if icmp_f is not None else None,
+                    "arp": arp_f.result(),
+                    "ports": {p: f.result() for p, f in port_fs.items()},
+                    "ts": int(time.time()),
+                }
     return out
 
 

@@ -621,6 +621,32 @@ def test_helper_agent_probe_targets(monkeypatch):
     assert out["10.0.0.50"]["ports"] == {"443": True, "22": False}
 
 
+def test_helper_agent_probe_runs_checks_concurrently(monkeypatch):
+    # A Docker-host guest makes the probe hit several targets/ports; they must run
+    # together, not serialise (one closed port's 2s timeout behind another). Prove
+    # it with a barrier: every check blocks until all are in flight — if any ran
+    # serially the barrier would never fill and .result() would raise.
+    import threading
+
+    from app.services import restore_helper_agent as agent
+
+    barrier = threading.Barrier(5)  # icmp + arp + 3 ports must be concurrent
+
+    def waiter(*_a, **_k):
+        barrier.wait(timeout=5)
+        return True
+
+    monkeypatch.setattr(agent, "_ping", lambda ip, timeout=2.0: waiter())
+    monkeypatch.setattr(agent, "_arp_alive", lambda ip: waiter())
+    monkeypatch.setattr(agent, "_tcp", lambda ip, port, timeout=2.0: waiter())
+    monkeypatch.setattr(agent, "_ensure_reachable", lambda ip, prefix=24: None)
+    monkeypatch.setattr(agent, "_route_via_sbx", lambda ip: True)
+    out = agent.probe_targets([{"ip": "10.0.0.50", "ports": [443, 22, 8080]}], require_icmp=True)
+    assert out["10.0.0.50"]["icmp"] is True
+    assert out["10.0.0.50"]["arp"] is True
+    assert out["10.0.0.50"]["ports"] == {"443": True, "22": True, "8080": True}
+
+
 def test_helper_agent_ensure_reachable_pins_route_source(monkeypatch):
     from app.services import restore_helper_agent as agent
 

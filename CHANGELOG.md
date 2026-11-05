@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.9] — 2026-11-05
+
+### Changed
+
+- **Reachability checks run concurrently — a probe pass no longer crawls.** The helper agent used to test each target's ICMP, ARP and every TCP port strictly one after another, so a closed/not-yet-listening port sat through its full 2 s timeout before the next was even tried — and a guest with several addresses (a Docker host reports its `172.17`/`172.20` bridge IPs alongside the real NIC) multiplied that. The checks now run in parallel, so a pass costs roughly a single timeout instead of the sum, and the second port comes back green right after the first rather than seconds later. (Only IPv4 on the guest's real NIC is ever probed — never IPv6, which the agent does not test.)
+
 ## [v3.9.8] — 2026-11-05
 
 ### Fixed
