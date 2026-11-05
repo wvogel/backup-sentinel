@@ -1439,7 +1439,9 @@ class RestoreServer:
             # actual network state from inside (host SSH, failure path only) so the
             # run error names the cause — IP not applied inside vs L2/VLAN/ARP —
             # instead of a bare "not reachable".
-            raise RestoreTaskError(f"{exc} | {self._helper_netdiag(helper_vmid, cfg.get('mgmt_gateway', ''))}") from exc
+            raise RestoreTaskError(
+                f"{exc}\n\n{self._helper_netdiag(helper_vmid, cfg.get('mgmt_gateway', ''))}"
+            ) from exc
         conf = dnsmasq_config(guest_ip, netmask)
         res = self._agent_post(mgmt_ip, "/dnsmasq", {"conf": conf, "aliases": []})
         if isinstance(res, dict) and res.get("ok") is False:
@@ -1519,21 +1521,23 @@ class RestoreServer:
         """Best-effort snapshot of the helper's network *from inside the container*
         (host SSH via ``pct exec``), for diagnosing an unreachable management leg.
         Shows whether the leg got its IP (IP-not-applied vs L2/VLAN/ARP) and
-        whether the helper can reach its own gateway. Never raises."""
+        whether the helper can reach its own gateway. Rendered as readable lines
+        (not a one-line blob). Never raises."""
+        from app.services.netdiag_format import format_helper_netdiag
+
         cmds = [
             ("addr", f"pct exec {vmid} -- ip -4 -o addr show"),
             ("route", f"pct exec {vmid} -- ip route show"),
         ]
         if gateway:
             cmds.append(("gw-ping", f"pct exec {vmid} -- ping -c1 -W2 {gateway}"))
-        parts = []
+        parts: list[tuple[str, str]] = []
         for label, cmd in cmds:
             try:
-                out = self.ssh.run(cmd).strip().replace("\n", " ")
-                parts.append(f"{label}: {out or 'OK'}")
+                parts.append((label, self.ssh.run(cmd).strip()))
             except Exception as exc:  # non-zero exit (e.g. gw unreachable) or SSH issue
-                parts.append(f"{label}: ERR {str(exc)[:80]}")
-        return "helper netdiag [" + " || ".join(parts) + "]"
+                parts.append((label, f"ERR {str(exc)[:80]}"))
+        return format_helper_netdiag(parts)
 
     def probe_netdiag(
         self,

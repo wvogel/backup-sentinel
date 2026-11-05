@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.8] — 2026-11-05
+
+### Fixed
+
+- **Readable "helper unreachable" diagnostics.** When the helper agent can't be reached on its management leg, the run log used to cram the helper's inside-container network state onto one line (`helper netdiag [addr: … || route: … || gw-ping: …]`, newlines flattened, raw `ip -o` backslashes and all). It now renders as clean sections — an `addresses` summary (iface + IP per leg), each route on its own line, and a one-word `gateway` verdict (`answers (… ms)` / `no answer`) — the same style as the sandbox diagnostics.
+
 ## [v3.9.7] — 2026-11-05
 
 ### Added

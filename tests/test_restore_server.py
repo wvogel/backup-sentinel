@@ -926,7 +926,7 @@ def test_provision_helper_appends_netdiag_when_agent_unreachable():
         raise RestoreTaskError("not ready within 60s")
 
     srv._agent_wait_healthy = boom
-    with pytest.raises(RestoreTaskError, match="helper netdiag"):
+    with pytest.raises(RestoreTaskError, match="Helper network"):
         srv.provision_helper(9001, 901, "10.20.0.10", "10.0.0.1", "10.0.0.50", 24)
     # The diagnostic went through pct exec (host SSH), targeting the helper vmid.
     assert any("pct exec 9001" in c for c in srv.ssh.commands)
