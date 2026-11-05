@@ -12,6 +12,7 @@ from app.services.restore_server import (
     _parse_netdev,
     _parse_speeds,
     _stable_mac,
+    backup_error_hint,
     classify_task_error,
     compute_io_rates,
     dnsmasq_config,
@@ -91,6 +92,44 @@ def test_classify_task_error_falls_back_to_detail():
     msg = classify_task_error("exit code 255", "something unrecognised went wrong")
     assert msg.startswith("restore task failed:")
     assert "unrecognised" in msg
+
+
+def test_backup_error_hint_recognises_and_ignores():
+    assert "decryption failed" in backup_error_hint("Error: wrong key - unable to verify signature")
+    assert "permission denied" in backup_error_hint("permission check failed - missing Datastore.Read")
+    assert backup_error_hint("some totally unrelated blip") == ""
+
+
+def test_preflight_passes_when_config_extracts():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/vzdump/extractconfig": "boot: order=scsi0\nnet0: virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0",
+    }
+    # No raise, and it asked for the right volid.
+    _server(responses).preflight_check({"storage": "pbs-x", "src_vmid": 100}, "2026-01-01T00:00:00Z")
+
+
+def test_preflight_aborts_on_wrong_key():
+    def boom(_path):
+        raise RuntimeError(
+            "PVE-Restore API returned HTTP 500 for /nodes/r1/vzdump/extractconfig: "
+            "Could not extract backed up config: wrong key - unable to verify signature"
+        )
+
+    responses = {"/nodes": [{"node": "r1", "status": "online"}], "/nodes/r1/vzdump/extractconfig": boom}
+    with pytest.raises(RestoreTaskError) as ei:
+        _server(responses).preflight_check({"storage": "pbs-x", "src_vmid": 100}, "snap")
+    assert "decryption failed" in str(ei.value).lower()
+
+
+def test_preflight_proceeds_on_inconclusive_error():
+    # An unrecognised failure (e.g. endpoint absent on an older PVE) must NOT
+    # abort a restore that might well succeed.
+    def boom(_path):
+        raise RuntimeError("endpoint not implemented")
+
+    responses = {"/nodes": [{"node": "r1", "status": "online"}], "/nodes/r1/vzdump/extractconfig": boom}
+    _server(responses).preflight_check({"storage": "pbs-x", "src_vmid": 100}, "snap")  # no raise
 
 
 def test_pvesh_command_maps_rest_to_cli():

@@ -345,6 +345,27 @@ def parse_pvesh_output(out: str) -> Any:
         return text
 
 
+def backup_error_hint(text: str) -> str:
+    """A human hint for a backup read/restore failure, or "" when the text
+    matches no known-fatal pattern. Recognises a wrong PBS encryption key,
+    missing permission, cert mismatch, or connectivity. Used both to classify a
+    failed restore task and to decide whether a cheap pre-flight read should
+    abort the run before provisioning a helper."""
+    t = (text or "").lower()
+    if "decrypt" in t or "encryption key" in t or "wrong key" in t:
+        return (
+            "backup decryption failed — the PBS encryption key on the restore host does not match "
+            "this backup's key (check the datastore/namespace key)"
+        )
+    if any(k in t for k in ("permission", "access denied", "not allowed", "403 forbidden", "no permission")):
+        return "permission denied reading the backup — check the PBS user's rights on this datastore/namespace"
+    if any(k in t for k in ("fingerprint", "certificate verify", "self signed", "self-signed", "tls error")):
+        return "PBS server certificate could not be verified (fingerprint/cert mismatch)"
+    if any(k in t for k in ("connection refused", "timed out", "no route to host", "could not resolve")):
+        return "could not reach the PBS server (connection/DNS)"
+    return ""
+
+
 def classify_task_error(exitstatus: str, log_tail: str = "") -> str:
     """Human message for a failed restore task. Proxmox exits 255 for almost
     everything with the real reason on the stderr lines *above* the "command …
@@ -352,19 +373,7 @@ def classify_task_error(exitstatus: str, log_tail: str = "") -> str:
     always carries ``--crypt-mode=encrypt`` for encrypted backups and would
     false-positive. Recognises a wrong PBS encryption key, missing permission,
     cert, or connectivity; otherwise falls back to the raw detail."""
-    tail = (log_tail or "").lower()
-    hint = ""
-    if "decrypt" in tail or "encryption key" in tail or "wrong key" in tail:
-        hint = (
-            "backup decryption failed — the PBS encryption key on the restore host does not match "
-            "this backup's key (check the datastore/namespace key)"
-        )
-    elif any(k in tail for k in ("permission", "access denied", "not allowed", "403 forbidden", "no permission")):
-        hint = "permission denied reading the backup — check the PBS user's rights on this datastore/namespace"
-    elif any(k in tail for k in ("fingerprint", "certificate verify", "self signed", "self-signed", "tls error")):
-        hint = "PBS server certificate could not be verified (fingerprint/cert mismatch)"
-    elif any(k in tail for k in ("connection refused", "timed out", "no route to host", "could not resolve")):
-        hint = "could not reach the PBS server (connection/DNS)"
+    hint = backup_error_hint(log_tail)
     detail = (log_tail.strip() or str(exitstatus).strip())[:600]
     return f"{hint}: {detail}" if hint else f"restore task failed: {detail}"
 
@@ -752,6 +761,37 @@ class RestoreServer:
 
     # restore pipeline -------------------------------------------------------
 
+    def _archive_volid(self, source: dict[str, Any], snapshot_id: str) -> str:
+        """The PBS volume id for a snapshot — either already a full volid
+        (``store:backup/vm/<id>/<time>``) or built from the source + snapshot."""
+        if ":" in snapshot_id:
+            return snapshot_id
+        return f"{source['storage']}:backup/vm/{source['src_vmid']}/{snapshot_id}"
+
+    def preflight_check(self, source: dict[str, Any], snapshot_id: str) -> None:
+        """Cheap read of just the backup's config (PVE's own ``vzdump
+        extractconfig``, which uses the storage's configured PBS key) BEFORE a
+        helper is provisioned and a long restore is kicked. A wrong key, missing
+        permission, cert mismatch or unreachable PBS fails here in ~1s with the
+        real reason — instead of churning a throwaway helper and a doomed restore
+        (and repeating that every retry).
+
+        Only a **recognised-fatal** failure aborts the run (raises
+        ``RestoreTaskError``); an inconclusive error (endpoint absent on an older
+        PVE, a transient blip) is logged and the normal restore proceeds, so the
+        pre-flight can never turn a restore that WOULD work into a false failure."""
+        from urllib.parse import quote
+
+        node = self.node()
+        volid = self._archive_volid(source, snapshot_id)
+        try:
+            self.pve.get(f"/nodes/{node}/vzdump/extractconfig?volume={quote(volid, safe='')}")
+        except Exception as exc:
+            hint = backup_error_hint(str(exc))
+            if hint:
+                raise RestoreTaskError(f"{hint}: {str(exc)[:600]}") from exc
+            logger.warning("backup pre-flight inconclusive (proceeding with restore): %s", str(exc)[:300])
+
     def restore(
         self,
         restore_vmid: int,
@@ -782,9 +822,7 @@ class RestoreServer:
         node = self.node()
         # snapshot_id is the PBS volume id (e.g. "store:backup/vm/100/2026-...Z"),
         # which PVE accepts directly as the restore archive.
-        archive = (
-            snapshot_id if ":" in snapshot_id else f"{source['storage']}:backup/vm/{source['src_vmid']}/{snapshot_id}"
-        )
+        archive = self._archive_volid(source, snapshot_id)
         # Start the restore as ROOT (a token can't apply a backed-up hostpci) but
         # in the BACKGROUND, returning the task UPID immediately — then poll that
         # UPID over the FAST API token for live progress. (Running `pvesh create`

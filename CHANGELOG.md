@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.7] — 2026-11-05
+
+### Added
+
+- **Backup pre-flight before a restore test.** Before a helper is provisioned and a (minutes-long, many-GB) restore is kicked, the run now reads just the backup's config via PVE's own `vzdump extractconfig` — which uses the storage's configured PBS key. A wrong key, missing permission, cert mismatch or unreachable PBS now fails in ~1 s with the real reason and **no helper churn**, instead of the old pattern where a helper container flashed up, the restore died at config extraction, and every retry repeated it. Only a *recognised-fatal* error aborts the run; an inconclusive one (e.g. the endpoint absent on an older PVE) falls through to the normal restore, so a backup that would restore is never falsely blocked. New "Checking backup" phase.
+
 ## [v3.9.6] — 2026-11-05
 
 ### Fixed

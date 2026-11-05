@@ -174,6 +174,15 @@ def execute(
         server.verify_host_identity(production_hosts)
         server.reap(owned_vmids())
         server.ensure_sandbox_bridge()
+        # Pre-flight: read just the backup's config (cheap, ~1s) before paying for
+        # a helper and a long restore. A wrong PBS key / missing permission /
+        # unreachable PBS aborts here with the real reason and NO helper churn,
+        # instead of the old pattern (helper flashes up, restore dies at config
+        # extraction, every retry repeats it). Inconclusive errors fall through to
+        # the normal restore, so a working backup is never falsely blocked.
+        _checkpoint()
+        db_restore.update_run(run_id, phase="preflight")
+        server.preflight_check(plan.source, plan.snapshot_id)
         # Bring the helper up FIRST and fail fast (≤60s) if it can't be reached.
         # A restore is expensive (minutes, many GB), so don't pay for it when the
         # cheap helper — which must serve the guest's DHCP and answer probes —

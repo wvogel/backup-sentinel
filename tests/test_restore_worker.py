@@ -518,6 +518,25 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(res, "error")
         self.assertEqual(self._restore_test_count(), 0)
 
+    def test_preflight_failure_aborts_before_helper(self):
+        # A wrong-key pre-flight must fail the run with the real reason and WITHOUT
+        # provisioning a helper or starting a restore (no helper churn, clean log).
+        run_id = self._run()
+        srv = FakeServer()
+
+        def boom(source, snapshot_id):
+            raise RuntimeError("backup decryption failed — the PBS encryption key … does not match: wrong key")
+
+        srv.preflight_check = boom
+        res = execute(run_id, _plan(self.vm_id), srv, production_hosts=set(), now=lambda: 0.0, sleep=lambda s: None)
+        self.assertEqual(res, "error")
+        self.assertNotIn("provision_helper", srv.calls)
+        self.assertNotIn("restore", srv.calls)
+        log = db_restore.get_run(run_id)["log"] or ""
+        self.assertIn("Restore failed", log)
+        self.assertIn("decryption failed", log)
+        self.assertNotIn("no NIC configured", log)
+
     def test_promote_held_writes_passed_and_reaps(self):
         run_id = self._run()
         db_restore.update_run(run_id, status="held", result="failed", restore_vmid=9000, helper_vmid=9001)
