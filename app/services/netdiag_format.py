@@ -160,6 +160,37 @@ def format_netdiag(parts: list[tuple[str, str]]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def format_helper_netdiag(parts: list[tuple[str, str]]) -> str:
+    """Readable render of the helper container's OWN network state (its
+    management leg), captured when the helper agent was unreachable. ``parts``
+    are ``(label, raw output)`` for ``addr`` / ``route`` / ``gw-ping``. Kept
+    separate from :func:`format_netdiag` (whose labels are the sandbox/guest
+    path) so an unreachable-helper error reads as lines, not a one-line blob."""
+    by = {label: (value or "").strip() for label, value in parts}
+    lines = ["Helper network (management leg unreachable)"]
+
+    def row(key: str, text: str) -> None:
+        lines.append(f"  {key:<10} {text}")
+
+    if "addr" in by:
+        v = by["addr"]
+        # `ip -4 -o addr show`: "2: sbx    inet 100.64.0.254/24 scope global …".
+        addrs = [f"{iface} {ip}" for iface, ip in re.findall(r"\d+:\s+(\S+)\s+inet (\S+)", v)]
+        row("addresses", ", ".join(addrs) if addrs else (v if _is_err(v) else "none"))
+    if "route" in by:
+        v = by["route"]
+        if _is_err(v):
+            row("routes", v)
+        else:
+            for i, r in enumerate(_routes(v)):
+                row("routes" if i == 0 else "", r)
+    if "gw-ping" in by:
+        v = by["gw-ping"]
+        rtt = re.search(r"time=([\d.]+ ms)", v)
+        row("gateway", "no answer" if _is_err(v) else (f"answers ({rtt.group(1)})" if rtt else "answers"))
+    return "\n".join(lines)
+
+
 def parse_legacy(text: str) -> list[tuple[str, str]] | None:
     """``probe netdiag [a: x || b: y]`` → ``[("a", "x"), ("b", "y")]``; ``None``
     when ``text`` is not in that form."""
