@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.22] — 2026-11-06
+
+### Added
+
+- **Per-volume sizes are now shown wherever they matter for a restore.** Each guest's provisioned size and its per-disk breakdown appear on the cluster page (a sortable *Größe* column, plus a *Volumes* section with a segmented bar in the expanded VM detail), on the dashboard (the running-restore card and the recovery-evidence table), and on /restore (the running card gets the size, a segmented bar and a storage legend; the runs table and queue get a *Größe* column). The bar draws one segment per disk, width proportional to its size and coloured by storage.
+- **Data behind it.** The PVE sync now reads each guest's `qm config` / `pct config` (in parallel) and stores the per-disk `{dev, storage, size_bytes}` in a new `vm_disks` table, plus a `disk_bytes` total from `maxdisk`. A config fetch that fails leaves the previously known breakdown intact rather than wiping it.
+
 ## [v3.9.21] — 2026-11-06
 
 ### Added
