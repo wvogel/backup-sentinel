@@ -489,11 +489,17 @@ def resume_run(
                 plan.label,
             )
         if not running:
+            db_restore.update_run(run_id, phase="network")
             server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan, name=plan.label)
+            db_restore.update_run(run_id, phase="booting")
             try:
                 server.start(plan.restore_vmid)
             except Exception as exc:
                 logger.debug("resume: start (maybe already running): %s", exc)
+        # Advance the phase to probing — without this a resumed run kept the stale
+        # "finalizing" (Cache-Flush) the restore's last 100% progress callback set,
+        # so the card showed "finalizing" while it was really checking reachability.
+        db_restore.update_run(run_id, phase="probing")
         result, checks = _probe_loop(
             server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id, should_cancel=should_cancel
         )

@@ -559,7 +559,12 @@ class WorkerTest(unittest.TestCase):
         # running task and, since the helper is still present, leaves it alone.
         run_id = self._run()
         db_restore.update_run(
-            run_id, status="running", restore_vmid=9000, helper_vmid=9001, task_upid="UPID:restore:abcd"
+            run_id,
+            status="running",
+            restore_vmid=9000,
+            helper_vmid=9001,
+            task_upid="UPID:restore:abcd",
+            phase="finalizing",  # stale phase from the restore's last 100% progress
         )
         srv = FakeServer()  # exists() → True, so the helper is present
         res = resume_run(
@@ -576,6 +581,9 @@ class WorkerTest(unittest.TestCase):
         self.assertIn("ensure_sandbox_bridge", srv.calls)  # bridge re-ensured
         self.assertNotIn("provision_helper", srv.calls)  # present helper kept, not rebuilt
         self.assertEqual(db_restore.get_run(run_id)["result"], "passed")
+        # The resume must advance past the stale "finalizing" so the card doesn't
+        # show "Cache-Flush" while it is really probing.
+        self.assertEqual(db_restore.get_run(run_id)["phase"], "probing")
 
     def test_resume_measures_duration_from_recorded_start(self):
         # A deploy 20 minutes into a run resumes it; the duration must cover the
