@@ -222,6 +222,47 @@ class NotRunnable(RuntimeError):
     wait, which returns None from build_plan)."""
 
 
+def choose_target_storage(
+    ordered_storages: list[str],
+    avail_by: dict[str, int | None],
+    total_by: dict[str, int | None],
+    needed_bytes: int | None,
+) -> tuple[str, str]:
+    """Pick the restore target among the ticked storages, in the operator's order.
+
+    PVE's archive restore writes every disk to one storage, so a restore needs a
+    single target with room. Returns ``(decision, storage)``:
+
+    - ``("ok", s)``   — the first storage (in order) with enough free space right
+      now; use it. This is the ordered fallback: when the preferred storage is
+      full, a later one that fits is chosen.
+    - ``("retry", top)`` — none has room right now, but at least one is large
+      enough by capacity (or its capacity is unknown); returns the top storage so
+      the drainer's fit check skips the run and retries it on a later pass.
+    - ``("toobig", "")`` — the guest is larger than *every* single target
+      storage's capacity. The caller raises ``NotRunnable``; spreading a guest's
+      disks across several storages (per-disk restore) is the next step and not
+      available yet.
+
+    Unknown ``needed_bytes`` is treated optimistically (``("ok", top)``) — the
+    drainer's live fit check is the real guard.
+    """
+    top = ordered_storages[0]
+    if not needed_bytes:
+        return ("ok", top)
+    for storage in ordered_storages:
+        avail = avail_by.get(storage)
+        if avail is not None and avail >= needed_bytes:
+            return ("ok", storage)
+    # None has room now. If any target is big enough by capacity (or we don't know
+    # its capacity), the shortfall is transient → retry later rather than error.
+    for storage in ordered_storages:
+        capacity = total_by.get(storage)
+        if capacity is None or capacity >= needed_bytes:
+            return ("retry", top)
+    return ("toobig", "")
+
+
 def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[str, Any]) -> RunPlan | None:
     """Resolve source/snapshot/NICs and allocate resources. Returns None only for
     a resource wait (no free management IP); raises NotRunnable when the VM is
@@ -272,7 +313,28 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         # No ticked target storage: PVE would reject the restore with a cryptic
         # "storage ID '' ..." 400. Fail with an actionable message instead.
         raise NotRunnable("no target storage selected — tick one in Settings → Restore")
-    target_storage = targets_sorted[0]["storage"]
+    # Ordered fallback: the preferred (first) storage is used when it fits, else
+    # the next one in order that does. The whole guest goes on one storage (PVE's
+    # archive restore has no per-disk target), so we need a single target with
+    # room; live free/capacity decides which.
+    needed_bytes = snap.get("size")
+    ordered = [s["storage"] for s in targets_sorted]
+    avail_by: dict[str, int | None] = {}
+    total_by: dict[str, int | None] = {}
+    try:
+        for s in server.free_resources().get("stores", []):
+            avail_by[s["storage"]] = s.get("avail")
+            total_by[s["storage"]] = s.get("total")
+    except Exception as exc:
+        logger.debug("free_resources for target selection failed (using preferred): %s", exc)
+    decision, chosen = choose_target_storage(ordered, avail_by, total_by, needed_bytes)
+    if decision == "toobig":
+        gb = (needed_bytes or 0) / 1024**3
+        raise NotRunnable(
+            f"guest ({gb:.0f} GB) is larger than every target storage — "
+            "spreading its disks across several storages is not available yet"
+        )
+    target_storage = chosen
 
     return RunPlan(
         vm_id=vm_id,
@@ -304,7 +366,7 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         first_delay=candidate.get("probe_first_delay_seconds") or config.get("probe_first_delay_seconds", 10),
         interval=candidate.get("probe_interval_seconds") or config.get("probe_interval_seconds", 5),
         window=candidate.get("probe_window_seconds") or config.get("probe_window_seconds", 300),
-        needed_bytes=snap.get("size"),
+        needed_bytes=needed_bytes,
         needed_ram=_vm_memory_bytes(vm_id),
     )
 
