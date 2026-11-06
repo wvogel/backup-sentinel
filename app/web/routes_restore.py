@@ -212,11 +212,30 @@ def benchmark_storage(request: Request, storage: str = Form(...)) -> JSONRespons
 
 @router.get("/settings/restore-server/benchmark-status")
 def benchmark_status(request: Request) -> JSONResponse:
-    """Which storage (if any) is being benchmarked + the latest results, for the
-    Settings page to poll while a test runs."""
+    """Which storage (if any) is being benchmarked, its live progress (percent /
+    current rate / ETA / rate history) and the latest results, for the Settings
+    page to poll while a test runs."""
     from app.services import restore_perf
 
-    return JSONResponse({"running": restore_perf.running_storage(), "perf": restore_perf.get_perf()})
+    return JSONResponse(
+        {
+            "running": restore_perf.running_storage(),
+            "progress": restore_perf.get_progress(),
+            "perf": restore_perf.get_perf(),
+        }
+    )
+
+
+@router.post("/settings/restore-server/benchmark-cancel")
+def benchmark_cancel(request: Request, storage: str = Form(...)) -> JSONResponse:
+    """Abort the running write-performance test for ``storage``. The worker stops
+    at its next poll and frees the scratch volume."""
+    from app.services import restore_perf
+
+    ok, reason = restore_perf.cancel(storage)
+    if not ok:
+        return JSONResponse({"ok": False, "error": reason}, status_code=409)
+    return JSONResponse({"ok": True})
 
 
 def _cache_host_snapshot(host: dict) -> None:
