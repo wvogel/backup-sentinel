@@ -409,9 +409,7 @@ def drain(config: dict[str, Any], server: RestoreServer) -> None:
                 # (and skew its result), so the run waits: left queued, retried on a
                 # later pass. This is the mirror of start()'s refusal to benchmark a
                 # storage that a running restore already uses.
-                logger.info(
-                    "restore run %s waiting: performance test running on %s", run["id"], plan.target_storage
-                )
+                logger.info("restore run %s waiting: performance test running on %s", run["id"], plan.target_storage)
                 continue
             result = restore_worker.execute(run["id"], plan, server, production_hosts=prod)
             _notify_result(run["vm_id"], result)
