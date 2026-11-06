@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 OWNED_TAG = "bsentinel-restore"
 HELPER_IMAGE_NAME = "restore-helper.tar.gz"  # the app-built helper CT template
+# Short timeout for the per-pass guest-agent / config reads during probing, so a
+# slow (booting) guest agent can never stall the 5s probe cadence.
+AGENT_QUERY_TIMEOUT = 3.0
 
 # Nominal sustained throughput per disk class (bytes/s), the denominator for the
 # Disk-I/O ring's read/write arcs. These are rough tier figures, not measured —
@@ -1167,13 +1170,17 @@ class RestoreServer:
         from app.services.restore_ip_collect import macs_from_config
 
         node = self.node()
+        # SHORT timeout: this runs every probe pass, and a booting guest agent
+        # (a Docker host enumerates many interfaces) can be slow — a long wait here
+        # would stall the 5s polling cadence. A timeout just yields "no IP yet" for
+        # this pass; the caller keeps the last-known IP and retries next pass.
         try:
-            res = self.pve.get(f"/nodes/{node}/qemu/{vmid}/agent/network-get-interfaces")
+            res = self.pve.get(f"/nodes/{node}/qemu/{vmid}/agent/network-get-interfaces", timeout=AGENT_QUERY_TIMEOUT)
         except Exception as exc:
             logger.debug("guest agent not ready for %s: %s", vmid, exc)
             return []
         try:
-            cfg = self.pve.get(f"/nodes/{node}/qemu/{vmid}/config")
+            cfg = self.pve.get(f"/nodes/{node}/qemu/{vmid}/config", timeout=AGENT_QUERY_TIMEOUT)
         except Exception as exc:
             logger.debug("config unreadable for %s: %s", vmid, exc)
             cfg = None
@@ -1452,10 +1459,13 @@ class RestoreServer:
 
     def probe(self, mgmt_ip: str, targets: list[dict[str, Any]], require_icmp: bool = True) -> dict[str, Any]:
         """Ask the helper's agent (over its management IP, not SSH) to probe the
-        restored guest and return its structured JSON result. The agent probes the
-        targets one after another (ping, ARP poke, each port with ~2-3s timeouts),
-        so the HTTP timeout grows with the number of targets and ports."""
-        budget = 15.0 + sum(8.0 + 3.0 * len(t.get("ports") or []) for t in targets)
+        restored guest and return its structured JSON result. The agent probes
+        every target IP and port **in parallel**, each check capped at ~2s, so a
+        pass is bounded regardless of how many IPs/ports there are — a small, fixed
+        HTTP budget (plus a little headroom per target for the setup commands) is
+        enough. Kept short on purpose so a probe pass can never stall the 5s
+        polling cadence."""
+        budget = 8.0 + 0.5 * len(targets)
         return self._agent_post(mgmt_ip, "/probe", {"targets": targets, "require_icmp": require_icmp}, timeout=budget)
 
     def _agent_url(self, mgmt_ip: str, path: str) -> str:
@@ -1898,12 +1908,17 @@ class PveApi:
         self.base = api_url.rstrip("/") + "/api2/json"
         self.auth = build_token_header(api_user, token_id, token_secret)
 
-    def get(self, path: str) -> Any:
+    def get(self, path: str, timeout: float | None = None) -> Any:
         from app.services.api_client import api_get
 
         # Fail fast: a single scratch host, and the long-poll loop handles
         # transient blips itself (no API-layer retries stacking delays on the UI).
-        return api_get(self.base, path, self.auth, label="PVE-Restore", retries=0)
+        # ``timeout`` overrides the default for calls that must not block (the
+        # per-pass guest-agent read during probing).
+        kw: dict[str, Any] = {"label": "PVE-Restore", "retries": 0}
+        if timeout is not None:
+            kw["timeout"] = timeout
+        return api_get(self.base, path, self.auth, **kw)
 
     def post(self, path: str, data: dict[str, Any]) -> Any:
         from app.services.api_client import api_send

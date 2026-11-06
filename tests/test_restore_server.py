@@ -334,7 +334,7 @@ class FakePve:
         self.deletes = []
         self.uploads = []
 
-    def get(self, path):
+    def get(self, path, timeout=None):
         # Longest matching prefix wins, so "/nodes/r1/qemu" beats "/nodes".
         best = None
         for key, val in self.responses.items():
@@ -1193,12 +1193,16 @@ def test_guest_agent_nics_only_real_nics_not_docker_or_wireguard():
     assert srv.guest_agent_nics(9000) == [("100.64.0.200", 24)]
 
 
-def test_probe_http_timeout_grows_with_targets():
+def test_probe_http_timeout_stays_bounded():
+    # The agent probes every target IP and port in PARALLEL (each capped ~2s), so
+    # the HTTP budget must stay small and bounded — not grow with the port count —
+    # otherwise a probe pass could stall the 5s polling cadence.
     srv = _server({})
     seen = {}
     srv._agent_post = lambda ip, path, body, timeout=15.0: seen.setdefault("timeout", timeout) and {}
-    srv.probe("10.9.0.10", [{"ip": f"10.0.0.{i}", "ports": [22, 443]} for i in range(5)])
-    assert seen["timeout"] > 5 * (2 + 1 + 2 * 2)  # ping + ARP poke + two 2s ports per target
+    srv.probe("10.9.0.10", [{"ip": f"10.0.0.{i}", "ports": [22, 443, 8080, 8443]} for i in range(5)])
+    # 5 targets × 4 ports and still a tight budget (no per-port growth).
+    assert seen["timeout"] <= 15
 
 
 def test_agent_post_read_timeout_is_a_restore_task_error(monkeypatch):
