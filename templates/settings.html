@@ -266,8 +266,8 @@
                 {# live progress: bar + throughput sparkline + current rate/ETA + cancel #}
                 <div class="perf-run js-perf-run" data-storage="{{ s.storage }}">
                   <div class="perf-bar"><span class="perf-bar-fill" style="width:{{ (restore_perf_progress.pct or 0) }}%"></span></div>
+                  <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
                   <div class="perf-run-meta">
-                    <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
                     <span class="perf-run-text js-perf-text">{{ t('restore.perf_running') }}…</span>
                     <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
                   </div>
