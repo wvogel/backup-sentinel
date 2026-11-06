@@ -1641,20 +1641,25 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 /* Cluster page: document a restore test — VM list left, the short fields
    stacked right, the note full width, save bottom right. */
 .panel-grid > .dash-section { margin: 0; }
+/* Cluster page: the manual-documentation form stays compact on the left so the
+   evidence table (right) gets the width. Overrides the shared .panel-grid 2:1. */
+.cluster-restore-grid { grid-template-columns: minmax(280px, 0.7fr) minmax(0, 2fr); }
+@media (max-width: 900px) { .cluster-restore-grid { grid-template-columns: 1fr; } }
 .restore-doc-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 16px;
+  gap: 6px 10px;
 }
-.restore-doc-form label { gap: 4px; font-size: 0.8rem; font-weight: 600; }
+.restore-doc-form label { gap: 3px; font-size: 0.72rem; font-weight: 600; }
 .restore-doc-form input,
-.restore-doc-form select:not([multiple]) { height: 34px; padding: 4px 10px; font-size: 0.88rem; }
+.restore-doc-form select:not([multiple]) { height: 28px; padding: 2px 7px; font-size: 0.8rem; }
 .restore-doc-form .restore-doc-vms { grid-column: 1; grid-row: 1 / span 4; grid-template-rows: auto 1fr; }
-.restore-doc-form .restore-doc-vms select { height: 100%; padding: 6px 10px; font-size: 0.88rem; }
+.restore-doc-form .restore-doc-vms select { height: 100%; padding: 4px 7px; font-size: 0.8rem; }
 .restore-doc-form .restore-doc-note,
 .restore-doc-form .restore-doc-actions { grid-column: 1 / -1; }
-.restore-doc-form textarea { font-size: 0.88rem; padding: 6px 10px; }
+.restore-doc-form textarea { font-size: 0.8rem; padding: 4px 7px; }
 .restore-doc-actions { display: flex; justify-content: flex-end; }
+.restore-doc-actions .button-primary { padding: 5px 14px; font-size: 0.8rem; }
 @media (max-width: 680px) {
   .restore-doc-form { grid-template-columns: minmax(0, 1fr); }
   .restore-doc-form .restore-doc-vms { grid-row: auto; }
