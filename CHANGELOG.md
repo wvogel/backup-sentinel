@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.17] — 2026-11-06
+
+### Changed
+
+- **The reachability check now really runs every ~5 s and never waits on long timeouts.** A probe pass could stall for many seconds before it even tested anything: the per-pass guest-agent lookup used the default 60 s API timeout (a booting Docker-host agent is slow to answer), and the probe's HTTP budget still grew with the number of ports (left over from the old serial agent). Now:
+  - the guest-agent/config read during probing uses a short **3 s** timeout, so a slow agent yields "no IP yet" for that pass instead of freezing the cadence;
+  - once the agent has reported the guest's live IP it is **remembered** — a later timed-out lookup no longer drops the probe back to the DHCP-fallback IP;
+  - the probe HTTP budget is small and **bounded** (the agent already tests every IP/port in parallel, each capped ~2 s), instead of scaling with the port count;
+  - the loop paces from each pass's **start**, so the next check begins ~5 s later regardless of how long the pass took — two ports coming up are shown within one interval.
+
 ## [v3.9.16] — 2026-11-06
 
 ### Fixed

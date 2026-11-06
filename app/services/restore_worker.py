@@ -83,14 +83,21 @@ def _probe_loop(
       any of them, until the first pass where every check is green. If our DHCP
       handed out its IP (the agent reports it), that IP is probed **first**.
 
-    A probe pass that fails (helper call timed out, agent error) does not end the
-    run: it counts as not green and the next pass follows. Only a failure on the
-    last pass before the window closes is raised."""
+    Cadence is fixed: a check starts every ``interval`` seconds measured from the
+    START of the previous one, and nothing in a pass is allowed to block it — the
+    agent lookup uses a short timeout and the helper probes every IP/port in
+    parallel (each capped ~2s). Once the guest agent has reported its live IP(s)
+    we remember them and keep probing them, so a later agent query that times out
+    doesn't drop us back to the DHCP fallback. A failed pass counts as not-green
+    and the next follows; only a failure on the last pass before the window closes
+    is raised."""
     sleep(plan.first_delay)
     deadline = now() + plan.window
     checks: dict[str, Any] = {}
     result = "limited"
+    discovered: list[tuple[str, int]] = []  # live agent IP(s), remembered once seen
     while True:
+        pass_start = now()
         if should_cancel and should_cancel():
             raise RestoreCancelled("restore cancelled by operator")
         if plan.probe_override:
@@ -99,10 +106,12 @@ def _probe_loop(
         else:
             nics = server.guest_agent_nics(plan.restore_vmid) or []
             if nics:
+                discovered = nics  # keep probing these even if a later query times out
+            if discovered:
                 # Our DHCP's IP first (stable sort keeps the agent order otherwise).
-                nics = sorted(nics, key=lambda n: n[0] != plan.primary_ip)
-                targets = [{"ip": ip, "ports": plan.tcp_ports, "prefix": pfx} for ip, pfx in nics]
-                ips = [ip for ip, _ in nics]
+                ordered = sorted(discovered, key=lambda n: n[0] != plan.primary_ip)
+                targets = [{"ip": ip, "ports": plan.tcp_ports, "prefix": pfx} for ip, pfx in ordered]
+                ips = [ip for ip, _ in ordered]
             else:
                 # No agent IP yet → try the DHCP-assigned management-range IP.
                 targets = [{"ip": plan.primary_ip, "ports": plan.tcp_ports, "prefix": plan.sandbox_prefix}]
@@ -129,7 +138,10 @@ def _probe_loop(
             db_restore.update_run(run_id, checks=checks)
         if result == "passed" or now() >= deadline:
             return result, checks
-        sleep(plan.interval)
+        # Fixed cadence: next check ~interval after this one STARTED, so a slow
+        # pass never stretches the rhythm (two ports coming up are shown within one
+        # interval, not several seconds later).
+        sleep(max(0.0, plan.interval - (now() - pass_start)))
 
 
 def execute(
