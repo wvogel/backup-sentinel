@@ -262,17 +262,25 @@
             <td class="store-perf-cell">
               {%- if not s.benchmarkable %}<span class="muted">–</span>
               {%- elif not restore_fio_available %}<span class="perf-nofio" data-tooltip="{{ t('restore.perf_nofio_hint') }}">{{ t('restore.perf_nofio') }} · <a href="#" class="js-install-fio">{{ t('restore.perf_install_fio') }}</a></span>
+              {%- elif restore_perf_running == s.storage -%}
+                {# live progress: bar + throughput sparkline + current rate/ETA + cancel #}
+                <div class="perf-run js-perf-run" data-storage="{{ s.storage }}">
+                  <div class="perf-bar"><span class="perf-bar-fill" style="width:{{ (restore_perf_progress.pct or 0) }}%"></span></div>
+                  <div class="perf-run-meta">
+                    <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
+                    <span class="perf-run-text js-perf-text">{{ t('restore.perf_running') }}…</span>
+                    <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
+                  </div>
+                </div>
               {%- else -%}
-                {%- set _this_running = restore_perf_running == s.storage -%}
-                {%- set _disabled = s.busy or _this_running or (restore_perf_running and restore_perf_running != s.storage) -%}
+                {%- set _disabled = s.busy or (restore_perf_running and restore_perf_running != s.storage) -%}
                 <button type="button" class="button-secondary perf-test-btn js-perf-test" data-storage="{{ s.storage }}"{% if _disabled %} disabled{% endif %} data-tooltip="
                   {%- if s.busy %}{{ t('restore.perf_busy') }}
-                  {%- elif _this_running %}{{ t('restore.perf_running_hint') }}
                   {%- elif restore_perf_running %}{{ t('restore.perf_running_other') }}
                   {%- elif s.perf and s.perf.bps %}{{ s.perf.bps | size_coarse }}/s · {{ (s.perf.at or '')[:16]|replace('T', ' ') }}
                   {%- elif s.perf and s.perf.error %}{{ t('restore.perf_last_error') }}: {{ s.perf.error }}
                   {%- else %}{{ t('restore.perf_test_hint') }}{% endif -%}">
-                  {%- if _this_running %}{{ t('restore.perf_running') }}{% else %}{{ t('restore.perf_test') }}{% endif -%}
+                  {{ t('restore.perf_test') }}
                 </button>
               {%- endif %}
             </td>
@@ -324,18 +332,68 @@
     function post(url, body) {
       return fetch(url, { method: "POST", headers: body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}, body: body || undefined });
     }
+    // Byte-rate in the app's style: decimal GB/s · MB/s, de-DE, no trailing ,0.
+    function fmtRate(bps) {
+      if (!bps || bps <= 0) return "–";
+      var u = ["B/s", "kB/s", "MB/s", "GB/s", "TB/s"], i = 0, v = bps;
+      while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
+      var dec = v >= 100 || i === 0 ? 0 : 1;
+      return v.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: dec }) + " " + u[i];
+    }
+    // Normalise a rate series into an SVG polyline over the 100×24 viewBox.
+    function sparkPoints(series) {
+      if (!series || series.length < 2) return "";
+      var max = Math.max.apply(null, series), min = Math.min.apply(null, series);
+      var span = max - min || 1, n = series.length;
+      return series.map(function (v, i) {
+        var x = (i / (n - 1)) * 100;
+        var y = 23 - ((v - min) / span) * 22; // 1px padding top/bottom
+        return x.toFixed(1) + "," + y.toFixed(1);
+      }).join(" ");
+    }
+    function renderProgress(box, p) {
+      var fill = box.querySelector(".perf-bar-fill");
+      var text = box.querySelector(".js-perf-text");
+      var spark = box.querySelector(".js-perf-spark polyline");
+      var pct = Math.max(0, Math.min(100, p.pct || 0));
+      if (fill) fill.style.width = pct.toFixed(1) + "%";
+      if (text) {
+        var bits = [Math.round(pct) + " %"];
+        if (p.rate_bps) bits.push(fmtRate(p.rate_bps));
+        if (p.eta) bits.push("eta " + p.eta);
+        text.textContent = bits.join(" · ");
+      }
+      if (spark) spark.setAttribute("points", sparkPoints(p.series));
+    }
+    // One poller per running test: updates the live box, reloads when it ends.
+    function trackRun(box, storage) {
+      var tick = function () {
+        fetch("/settings/restore-server/benchmark-status").then(function (x) { return x.json(); }).then(function (s) {
+          if (s.running !== storage) { clearInterval(timer); location.reload(); return; }
+          if (s.progress && s.progress.storage === storage) renderProgress(box, s.progress);
+        }).catch(function () {});
+      };
+      var timer = setInterval(tick, 5000);
+      tick();
+    }
+    document.querySelectorAll(".js-perf-run").forEach(function (box) {
+      trackRun(box, box.dataset.storage);
+    });
+    document.querySelectorAll(".js-perf-cancel").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        btn.disabled = true;
+        btn.textContent = {{ t('restore.perf_cancelling')|tojson }};
+        post("/settings/restore-server/benchmark-cancel", "storage=" + encodeURIComponent(btn.dataset.storage))
+          .catch(function () {}); // the poller picks up the end and reloads
+      });
+    });
     document.querySelectorAll(".js-perf-test").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var storage = btn.dataset.storage;
         btn.disabled = true;
         post("/settings/restore-server/benchmark", "storage=" + encodeURIComponent(storage)).then(function (r) {
           if (!r.ok) { r.json().then(function (j) { alert(j.error || "Fehler"); }); btn.disabled = false; return; }
-          btn.textContent = {{ t('restore.perf_running')|tojson }};
-          var poll = setInterval(function () {
-            fetch("/settings/restore-server/benchmark-status").then(function (x) { return x.json(); }).then(function (s) {
-              if (s.running !== storage) { clearInterval(poll); location.reload(); }
-            }).catch(function () {});
-          }, 10000);
+          location.reload(); // server renders the live progress UI; its poller takes over
         });
       });
     });

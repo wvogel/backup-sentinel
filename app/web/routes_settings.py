@@ -41,6 +41,7 @@ def settings(request: Request) -> HTMLResponse:
         "restore_storage_note": _rs.get("note"),
         "restore_fio_available": _rs.get("fio_available", False),
         "restore_perf_running": _rs.get("perf_running", ""),
+        "restore_perf_progress": _rs.get("perf_progress") or {},
         "disk_classes": DISK_CLASSES,
         "restore_test": _load_restore_test(all_settings),
         "restore_saved": request.query_params.get("restore") == "saved",

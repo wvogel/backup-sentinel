@@ -3529,6 +3529,32 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .perf-test-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .perf-nofio { font-size: 0.78rem; color: var(--muted); }
 .perf-nofio a { color: var(--accent); }
+
+/* Live write-performance test: progress bar + throughput sparkline + cancel. */
+.perf-run { display: flex; flex-direction: column; gap: 4px; min-width: 190px; }
+.perf-bar {
+  height: 7px; border-radius: 999px; overflow: hidden;
+  background: var(--chip); border: 1px solid var(--chip-border);
+}
+.perf-bar-fill {
+  display: block; height: 100%; width: 0;
+  background: var(--running); border-radius: 999px;
+  transition: width 0.6s ease;
+}
+.perf-run-meta { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; }
+.perf-spark {
+  width: 46px; height: 18px; flex: none;
+  color: var(--running); opacity: 0.9;
+}
+.perf-spark polyline { fill: none; stroke: currentColor; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.perf-run-text { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.perf-cancel {
+  margin-left: auto; padding: 1px 9px; font-size: 0.74rem;
+  color: var(--critical); background: transparent;
+  border: 1px solid color-mix(in srgb, var(--critical) 50%, transparent); border-radius: var(--radius-box);
+}
+.perf-cancel:hover { background: color-mix(in srgb, var(--critical) 14%, transparent); }
+.perf-cancel:disabled { opacity: 0.55; cursor: not-allowed; }
 .store-name-cell { white-space: nowrap; }
 .store-name-cell .conn-icon,
 .store-name-cell .disk-icon { margin-right: 4px; }

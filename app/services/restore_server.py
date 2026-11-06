@@ -412,6 +412,32 @@ def parse_fio_bw(text: str) -> int | None:
         return None
 
 
+_ETA_BIN = {"": 1, "Ki": 1024, "Mi": 1024**2, "Gi": 1024**3, "Ti": 1024**4, "Pi": 1024**5}
+_ETA_PCT_RE = re.compile(r"\[(\d+(?:\.\d+)?)%\]")
+_ETA_RATE_RE = re.compile(r"\[[rw]=([\d.]+)([KMGTP]i?)?B/s\]")
+_ETA_ETA_RE = re.compile(r"\[eta[\s=]+([0-9hmsd:]+)\]")
+
+
+def parse_fio_eta(line: str) -> dict[str, Any] | None:
+    """Pull live progress from a fio status line such as
+    ``Jobs: 1 (f=1): [w(1)][42.0%][w=1234MiB/s][eta 02m48s]`` — percent done,
+    current write rate (→ bytes/s) and the ETA string. Returns None when the
+    line carries no percentage (fio prints banners and blanks too)."""
+    s = line or ""
+    mp = _ETA_PCT_RE.search(s)
+    if not mp:
+        return None
+    out: dict[str, Any] = {"pct": float(mp.group(1))}
+    mr = _ETA_RATE_RE.search(s)
+    if mr:
+        unit = (mr.group(2) or "").rstrip("B")  # "Mi", "Ki", … or ""
+        out["rate_bps"] = int(float(mr.group(1)) * _ETA_BIN.get(unit, 1))
+    me = _ETA_ETA_RE.search(s)
+    if me:
+        out["eta"] = me.group(1)
+    return out
+
+
 # A new disk's pbs-restore starts with this line; it marks a disk boundary so the
 # per-disk "read N bytes" (which resets each disk) can be summed into an overall total.
 _DRIVE_RE = re.compile(r"\b(drive-[A-Za-z0-9]+)\.img\.fidx\b")
@@ -708,7 +734,9 @@ class RestoreServer:
         size_gb: int = 24,
         runtime: int = 300,
         bs: str = "4M",
-        poll_interval: float = 10.0,
+        poll_interval: float = 5.0,
+        progress_cb: Callable[[dict[str, Any]], None] | None = None,
+        cancel_cb: Callable[[], bool] | None = None,
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
     ) -> int:
@@ -719,13 +747,19 @@ class RestoreServer:
         (``pvesm alloc``), so the test hits the storage's real data path — the same
         one a restore writes its disks to — for block (lvmthin/zfs) and file
         (dir/nfs) storages alike. fio runs DETACHED on the host so a ~5-min run
-        isn't cut by the 120s SSH exec cap; the result file is polled, then fio is
-        stopped and the volume is always freed. Raises if fio yields no result."""
+        isn't cut by the 120s SSH exec cap.
+
+        While it runs the fio ETA stream is polled: each sample (percent, current
+        write rate, ETA) is handed to ``progress_cb`` so the UI can show a live bar
+        and throughput sparkline. If ``cancel_cb`` returns True the test is aborted
+        (``BenchmarkCancelled``). fio is always stopped and the volume always freed.
+        Raises if fio yields no result."""
         import uuid
 
         tag = uuid.uuid4().hex[:8]
         name = f"bstest-{tag}"
-        resfile = f"/tmp/bsentinel-fio-{tag}.json"
+        resfile = f"/tmp/bsentinel-fio-{tag}.json"  # clean JSON result (--output)
+        etafile = f"/tmp/bsentinel-fio-{tag}.eta"  # live fio status lines
         self._free_bench_volumes(storage)  # clear any leaked volume from a dead run
         volid = self._alloc_bench_volume(storage, size_gb)
         try:
@@ -735,34 +769,51 @@ class RestoreServer:
             fio = (
                 f"fio --name={name} --filename={shlex.quote(path)} --rw=randwrite --bs={bs} "
                 f"--direct=1 --ioengine=psync --size={int(size_gb)}G --runtime={int(runtime)} "
-                f"--time_based=1 --group_reporting --output-format=json"
+                f"--time_based=1 --group_reporting --eta=always --eta-newline=2 "
+                f"--output-format=json --output={resfile}"
             )
-            self.ssh.run(f"nohup sh -c {shlex.quote(fio + f' > {resfile} 2>&1')} >/dev/null 2>&1 & echo started")
+            # fio's ETA stream goes to the .eta file; the JSON result to --output.
+            self.ssh.run(f"nohup sh -c {shlex.quote(fio + f' > {etafile} 2>&1')} >/dev/null 2>&1 & echo started")
             deadline = now() + runtime + 120
+            done = False
             while now() < deadline:
                 sleep(poll_interval)
+                if cancel_cb and cancel_cb():
+                    raise BenchmarkCancelled(f"benchmark on '{storage}' cancelled")
                 try:
-                    state = self.ssh.run(
-                        f"grep -q bw_bytes {shlex.quote(resfile)} 2>/dev/null && echo done || echo wait"
+                    # One round-trip: "DONE" once the JSON result exists, else the
+                    # last fio ETA line (CRs split into lines first).
+                    out = self.ssh.run(
+                        f"if grep -q bw_bytes {shlex.quote(resfile)} 2>/dev/null; then echo DONE; "
+                        f"else tr '\\r' '\\n' < {shlex.quote(etafile)} 2>/dev/null | grep '%]' | tail -n1; fi"
                     ).strip()
                 except Exception as exc:
                     logger.debug("fio poll blip: %s", exc)
                     continue
-                if state == "done":
+                if out == "DONE":
+                    done = True
                     break
+                if progress_cb:
+                    sample = parse_fio_eta(out)
+                    if sample:
+                        progress_cb(sample)
             raw = self.ssh.run(f"cat {shlex.quote(resfile)} 2>/dev/null || true")
             bps = parse_fio_bw(raw)
             if not bps:
-                raise RestoreTaskError(f"fio produced no result on '{storage}': {raw.strip()[:300]}")
+                tail = raw.strip() or self.ssh.run(f"tail -c 300 {shlex.quote(etafile)} 2>/dev/null || true").strip()
+                reason = "timed out" if not done else "produced no result"
+                raise RestoreTaskError(f"fio {reason} on '{storage}': {tail[:300]}")
+            if progress_cb:
+                progress_cb({"pct": 100.0, "rate_bps": bps})
             return bps
         finally:
             # Stop any lingering fio (so the volume isn't held open), then always
-            # free the volume and remove the result file.
+            # free the volume and remove the scratch files.
             try:
                 self.ssh.run(
                     f"pkill -f {shlex.quote(name)} 2>/dev/null; "
                     f"pvesm free {shlex.quote(volid)} 2>&1 || true; "
-                    f"rm -f {shlex.quote(resfile)}"
+                    f"rm -f {shlex.quote(resfile)} {shlex.quote(etafile)}"
                 )
             except Exception as exc:
                 logger.debug("benchmark cleanup failed for %s: %s", volid, exc)
@@ -1817,6 +1868,10 @@ class RestoreTaskError(RuntimeError):
 
 class RestoreCancelled(RuntimeError):
     """Raised inside the pipeline when the operator asked to abort the run."""
+
+
+class BenchmarkCancelled(RuntimeError):
+    """Raised inside the write-performance test when the operator aborts it."""
 
 
 def _host_of(url: str) -> str:

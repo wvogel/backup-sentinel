@@ -555,6 +555,7 @@ def ui_target_storages() -> dict[str, Any]:
     perf = restore_perf.get_perf()
     busy = restore_perf.involved_storages()
     perf_running = restore_perf.running_storage()
+    perf_progress = restore_perf.get_progress()
     try:
         result = server.list_target_storages()
         discovered = result["targets"]
@@ -610,7 +611,14 @@ def ui_target_storages() -> dict[str, Any]:
                 }
             )
     rows.sort(key=lambda r: (not r["use"], r["order"], r["storage"]))
-    return {"rows": rows, "error": error, "note": note, "fio_available": fio_available, "perf_running": perf_running}
+    return {
+        "rows": rows,
+        "error": error,
+        "note": note,
+        "fio_available": fio_available,
+        "perf_running": perf_running,
+        "perf_progress": perf_progress,
+    }
 
 
 def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:

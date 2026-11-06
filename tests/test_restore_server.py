@@ -104,6 +104,22 @@ def test_parse_fio_bw_reads_write_bandwidth():
     assert parse_fio_bw('{"jobs":[{"read":{"bw_bytes":5}}]}') is None  # no write result
 
 
+def test_parse_fio_eta_reads_live_progress():
+    from app.services.restore_server import parse_fio_eta
+
+    s = parse_fio_eta("Jobs: 1 (f=1): [w(1)][42.0%][w=1234MiB/s][eta 02m48s]")
+    assert s is not None
+    assert s["pct"] == 42.0
+    assert s["rate_bps"] == 1234 * 1024**2
+    assert s["eta"] == "02m48s"
+    # some fio builds use "eta=" and GiB/s; bytes-only has no unit prefix
+    g = parse_fio_eta("[w(1)][7.5%][w=2.0GiB/s][eta=04m]")
+    assert g["rate_bps"] == int(2.0 * 1024**3) and g["eta"] == "04m"
+    assert parse_fio_eta("[w(1)][0.0%][w=512B/s][eta 05m00s]")["rate_bps"] == 512
+    # no percentage → not a usable progress line
+    assert parse_fio_eta("Starting 1 process") is None
+
+
 def test_disk_ceiling_prefers_measured_over_class():
     from app.services.restore_server import DISK_CLASS_MAX_BPS
 
