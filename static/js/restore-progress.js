@@ -59,7 +59,8 @@
       h += `<path d="${linePath(pctData, 100)}" fill="none" stroke="var(--running)" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
     }
     svg.innerHTML = h;
-    const el = box.querySelector(".rhost-ov");
+    // The caption now lives in the cell, next to the box (sibling), not inside it.
+    const el = (box.parentElement || box).querySelector(".rhost-ov");
     if (el) el.innerHTML = ovHTML;
   }
   // The utilization % lives in the box headline (legend) for the rate graphs.

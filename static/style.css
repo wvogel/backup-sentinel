@@ -3676,7 +3676,6 @@ fieldset.rhost-box {
   min-width: 0;
   padding: 0;
   position: relative;
-  height: 104px;
   overflow: hidden;
 }
 fieldset.rhost-box > legend {
@@ -3696,24 +3695,29 @@ fieldset.rhost-box > legend {
 .rhost-pct { flex: none; font-variant-numeric: tabular-nums; }
 .rhost-pct:empty { display: none; }
 .rhost-surf { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* The value line now sits BELOW the box (its own row in the cell), not over the
+   graph. Fixed, compact height so every cell is box + caption = one KPI-tile. */
 .rhost-ov {
-  position: absolute;
-  left: 7px;
-  right: 7px;
-  bottom: 5px;
+  height: 16px;
+  line-height: 16px;
+  padding: 0 2px;
   font-size: 0.64rem;
   letter-spacing: -0.02em;
-  line-height: 1.25;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
-  pointer-events: none;
+  color: var(--ink);
 }
 .rhost-ov b { font-weight: 700; }
 .rhost-ov .mut { color: var(--muted); }
-.rhost-queue { flex: 0 0 auto; width: 92px; }
+fieldset.rhost-queue { flex: 0 0 auto; width: 92px; height: 78px; }
 /* All graph boxes share one width — the dashboard KPI-tile size — so the row
-   reads as uniform tiles (Disk/Netz are no longer wider than the rest). */
-.rhost-graph { flex: 0 1 136px; }
+   reads as uniform tiles (Disk/Netz are no longer wider than the rest). The cell
+   stacks the box + its caption; the BOX matches a KPI tile's height (~58px) and
+   the caption adds one line below (→ cell ≈ a KPI tile + the value line). */
+.rhost-cell { flex: 0 1 136px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+fieldset.rhost-graph { height: 58px; width: 100%; }
 .rhost-qform { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; margin: 0; height: 100%; }
 .rhost-qbtn { background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink); display: grid; place-items: center; }
 .rhost-qbtn svg { width: 30px; height: 30px; }

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.19] — 2026-11-06
+
+### Changed
+
+- **Restore-host graphs: the value line sits below the box instead of over the sparkline.** Each graph is now a cell of the box plus a caption row beneath it, so the `↓ … · ↑ …` figures no longer overlap the curve. The graph box itself matches a KPI tile's height and the value line adds one row below it (the KPI tiles are unchanged).
+
 ## [v3.9.18] — 2026-11-06
 
 ### Changed
