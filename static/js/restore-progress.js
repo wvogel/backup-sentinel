@@ -56,6 +56,11 @@
     const el = box.querySelector(".rhost-ov");
     if (el) el.innerHTML = ovHTML;
   }
+  // The utilization % lives in the box headline (legend) for the rate graphs.
+  function setHeadlinePct(box, text) {
+    const el = box.querySelector("legend .rhost-pct");
+    if (el) el.textContent = text ? `· ${text}` : "";
+  }
   // One poll's raw host numbers → append to each box's buffer(s) and redraw.
   function updateGraphs(res) {
     if (!res) return;
@@ -65,22 +70,28 @@
       if (m === "ram" && res.ram) {
         const { used, total } = res.ram;
         push(box._buf[0], used);
-        draw(box, [box._buf[0]], total, `<span class="mut">belegt</span> <b>${fsize(used)}</b> <span class="mut">· ${pct(used, total)} %</span>`);
+        // Headline keeps the name; overlay is "used / total · %".
+        draw(box, [box._buf[0]], total, `<b>${fsize(used)}</b> <span class="mut">/ ${fsize(total)} · ${pct(used, total)} %</span>`);
       } else if (m === "store") {
         const s = (res.stores || []).find((x) => x.name === box.dataset.name);
         if (!s) continue;
         push(box._buf[0], s.used);
-        draw(box, [box._buf[0]], s.total, `<span class="mut">belegt</span> <b>${fsize(s.used)}</b> <span class="mut">· ${pct(s.used, s.total)} %</span>`);
+        draw(box, [box._buf[0]], s.total, `<b>${fsize(s.used)}</b> <span class="mut">/ ${fsize(s.total)} · ${pct(s.used, s.total)} %</span>`);
       } else if (m === "disk" && res.io) {
         push(box._buf[0], res.io.disk_write);
         push(box._buf[1], res.io.disk_read);
         const max = res.io.disk_max || peak(box._buf[0], box._buf[1], 1);
-        draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">S</span> <b>${fsize(res.io.disk_write)}/s</b> <span class="mut">· L ${fsize(res.io.disk_read)}/s · ~${pct(res.io.disk_write, max)} %</span>`);
+        // ↓ = write (schreiben), ↑ = read (lesen); % in the headline is the real
+        // disk utilization (busy time), not a throughput-vs-max ratio.
+        draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">↓</span> <b>${fsize(res.io.disk_write)}/s</b> <span class="mut">· ↑ ${fsize(res.io.disk_read)}/s</span>`);
+        setHeadlinePct(box, `${res.io.disk_util} %`);
       } else if (m === "net" && res.io) {
         push(box._buf[0], res.io.net_in);
         push(box._buf[1], res.io.net_out);
         const max = res.io.net_link || peak(box._buf[0], box._buf[1], 1);
-        draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">↓</span> <b>${fbit(res.io.net_in)}</b> <span class="mut">· ↑ ${fbit(res.io.net_out)} · ~${pct(res.io.net_in, max)} %</span>`);
+        // ↓ = in, ↑ = out; link utilization (busier direction) in the headline.
+        draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">↓</span> <b>${fbit(res.io.net_in)}</b> <span class="mut">· ↑ ${fbit(res.io.net_out)}</span>`);
+        setHeadlinePct(box, `${Math.max(res.io.net_in_pct, res.io.net_out_pct)} %`);
       }
     }
   }

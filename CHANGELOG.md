@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.13] — 2026-11-06
+
+### Changed
+
+- **Restore-host graph boxes read more consistently.** The disk box now uses arrows like the network box — **↓ write, ↑ read** (instead of the "S"/"L" labels) — and its headline carries the real **disk utilization %** (busy time from the device's io_ticks), not a throughput-vs-max ratio. The network box likewise moves its **link-utilization %** into the headline. RAM and the storage boxes keep their name in the headline and now show **"used / total · %"** in the overlay (e.g. `20 GB / 500 GB · 4 %`) instead of "belegt …".
+
 ## [v3.9.12] — 2026-11-06
 
 ### Changed
