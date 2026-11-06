@@ -5,6 +5,22 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.21] — 2026-11-06
+
+### Added
+
+- **The write-performance test now covers every restore target storage, not just file-based ones.** It allocates a throwaway volume on the storage via `pvesm alloc` and runs fio against its real device path, so block storages (lvmthin, zfs) work alongside dir/nfs — the test hits the exact path a restore writes its disks to. The volume is always freed afterwards, and volumes leaked by a crashed run are swept before each test.
+- **Live progress while the test runs.** The storage row shows a progress bar, a throughput **sparkline** (so you can see whether the rate fluctuates), the current write rate and ETA, and a **Cancel** button that stops fio and frees the scratch volume. fio's ETA stream is parsed on the host and mirrored through `app_settings`, so every worker sees it and a reload loses nothing.
+- **A queued restore waits while its target storage is being performance-tested** — the mirror of the existing rule that a test won't start on a storage a running restore uses — so the two never fight the same disk for I/O (which would also skew the measurement). Runs targeting other storages are unaffected.
+
+### Changed
+
+- **Restore target-storage table.** The measured rate now shows as a **value** (or *unbekannt*) with a small **test icon** directly before it (hover shows when it was last measured); the running test moves to its **own full-width row below** the storage instead of being squeezed into the Performance column. The redundant **PVE-type column** is gone — the storage icon's hover already shows the type.
+
+### Fixed
+
+- Restore storage-table layout: the **Disk-type dropdown** no longer clips its label, the header is no longer shaded, and the table is content-width, so the header band and row rules no longer stretch across the card.
+
 ## [v3.9.20] — 2026-11-06
 
 ### Added
