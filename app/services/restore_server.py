@@ -54,6 +54,13 @@ _SECTOR_BYTES = 512
 # disks — /proc/diskstats never sees it, so they don't set the disk ring's scale.
 _NETWORK_STORAGE_TYPES = frozenset({"nfs", "cifs", "glusterfs", "cephfs", "rbd", "iscsi", "iscsidirect", "pbs", "esxi"})
 
+# A sentinel VMID that never belongs to a real guest: the write-performance test
+# allocates a throwaway volume under it (``vm-9999999-disk-N``) so the benchmark
+# writes through the storage's real data path — exactly how a restore writes its
+# disks — then frees it. Empty-name ``pvesm alloc`` auto-generates the volume for
+# every image-capable type (lvmthin/zfs block volumes, dir/nfs raw files alike).
+_BENCH_VMID = 9999999
+
 # Last host counter sample per node, so the next refresh can turn the monotonic
 # /proc counters into rates. Keyed by node name; guarded because refreshes may
 # overlap. Written only from free_resources().
@@ -665,15 +672,34 @@ class RestoreServer:
         """Install fio on the restore host over root SSH (Debian/Proxmox apt)."""
         self.ssh.run("export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq fio")
 
-    def storage_dir(self, storage: str) -> str | None:
-        """Filesystem path of a file-based storage (dir/nfs/cifs), or None for a
-        block storage (lvm/zfs) that has no image-file path to benchmark on."""
+    def _alloc_bench_volume(self, storage: str, size_gb: int) -> str:
+        """Allocate a throwaway ``size_gb`` volume on ``storage`` under the sentinel
+        VMID and return its volid (e.g. ``local-lvm:vm-9999999-disk-0``). Empty-name
+        ``pvesm alloc`` auto-generates a valid name for every image-capable type, so
+        this works for block (lvmthin/zfs) and file (dir/nfs) storages alike. The
+        volid is parsed from pvesm's ``successfully created '<volid>'`` line."""
+        out = self.ssh.run(f"pvesm alloc {shlex.quote(storage)} {_BENCH_VMID} '' {int(size_gb)}G 2>&1")
+        m = re.search(r"'([^']+:[^']+)'", out)
+        if not m:
+            raise RestoreTaskError(f"could not allocate a benchmark volume on '{storage}': {out.strip()[:300]}")
+        return m.group(1)
+
+    def _free_bench_volumes(self, storage: str) -> None:
+        """Best-effort removal of every sentinel-VMID benchmark volume left on
+        ``storage`` — clears leaks from a run whose host or app died mid-benchmark
+        before its own cleanup ran."""
         try:
-            info = self.pve.get(f"/storage/{storage}") or {}
+            listing = self.ssh.run(f"pvesm list {shlex.quote(storage)} 2>/dev/null || true")
         except Exception as exc:
-            logger.debug("storage_dir(%s) failed: %s", storage, exc)
-            return None
-        return info.get("path") or None
+            logger.debug("bench volume list on %s failed: %s", storage, exc)
+            return
+        for line in listing.splitlines():
+            vol = line.split()[0] if line.split() else ""
+            if f":vm-{_BENCH_VMID}-disk-" in vol:
+                try:
+                    self.ssh.run(f"pvesm free {shlex.quote(vol)} 2>&1 || true")
+                except Exception as exc:
+                    logger.debug("bench volume free %s failed: %s", vol, exc)
 
     def benchmark_storage_write(
         self,
@@ -686,28 +712,33 @@ class RestoreServer:
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
     ) -> int:
-        """Measure sustained random-write throughput (bytes/s) by writing a real
-        image file on the storage with fio: O_DIRECT (cache bypassed), 4 MiB blocks
-        (≈ PBS chunk), random, time-based ~5 min (long enough to beat the page
-        cache). Runs DETACHED on the host so a ~5-min run isn't cut by the 120s SSH
-        exec cap; the result file is polled, then the test file is always removed.
-        Raises if the storage is not file-based or fio yields no result."""
+        """Measure sustained random-write throughput (bytes/s) of a restore target
+        storage by writing to a real throwaway volume on it with fio: O_DIRECT
+        (cache bypassed), 4 MiB blocks (≈ PBS chunk), random, time-based ~5 min
+        (long enough to beat the page cache). The volume is allocated through PVE
+        (``pvesm alloc``), so the test hits the storage's real data path — the same
+        one a restore writes its disks to — for block (lvmthin/zfs) and file
+        (dir/nfs) storages alike. fio runs DETACHED on the host so a ~5-min run
+        isn't cut by the 120s SSH exec cap; the result file is polled, then fio is
+        stopped and the volume is always freed. Raises if fio yields no result."""
         import uuid
 
-        path = self.storage_dir(storage)
-        if not path:
-            raise RestoreTaskError(f"storage '{storage}' has no filesystem path (not file-based) — cannot benchmark")
         tag = uuid.uuid4().hex[:8]
-        testfile = f"{path.rstrip('/')}/.bsentinel-fiotest-{tag}.img"
+        name = f"bstest-{tag}"
         resfile = f"/tmp/bsentinel-fio-{tag}.json"
-        fio = (
-            f"fio --name=bstest --filename={shlex.quote(testfile)} --rw=randwrite --bs={bs} "
-            f"--direct=1 --ioengine=psync --size={int(size_gb)}G --runtime={int(runtime)} "
-            f"--time_based=1 --group_reporting --output-format=json"
-        )
-        self.ssh.run(f"nohup sh -c {shlex.quote(fio + f' > {resfile} 2>&1')} >/dev/null 2>&1 & echo started")
-        deadline = now() + runtime + 120
+        self._free_bench_volumes(storage)  # clear any leaked volume from a dead run
+        volid = self._alloc_bench_volume(storage, size_gb)
         try:
+            path = self.ssh.run(f"pvesm path {shlex.quote(volid)}").strip()
+            if not path:
+                raise RestoreTaskError(f"could not resolve a device path for '{volid}'")
+            fio = (
+                f"fio --name={name} --filename={shlex.quote(path)} --rw=randwrite --bs={bs} "
+                f"--direct=1 --ioengine=psync --size={int(size_gb)}G --runtime={int(runtime)} "
+                f"--time_based=1 --group_reporting --output-format=json"
+            )
+            self.ssh.run(f"nohup sh -c {shlex.quote(fio + f' > {resfile} 2>&1')} >/dev/null 2>&1 & echo started")
+            deadline = now() + runtime + 120
             while now() < deadline:
                 sleep(poll_interval)
                 try:
@@ -725,10 +756,16 @@ class RestoreServer:
                 raise RestoreTaskError(f"fio produced no result on '{storage}': {raw.strip()[:300]}")
             return bps
         finally:
+            # Stop any lingering fio (so the volume isn't held open), then always
+            # free the volume and remove the result file.
             try:
-                self.ssh.run(f"rm -f {shlex.quote(testfile)} {shlex.quote(resfile)}")
+                self.ssh.run(
+                    f"pkill -f {shlex.quote(name)} 2>/dev/null; "
+                    f"pvesm free {shlex.quote(volid)} 2>&1 || true; "
+                    f"rm -f {shlex.quote(resfile)}"
+                )
             except Exception as exc:
-                logger.debug("fio cleanup failed: %s", exc)
+                logger.debug("benchmark cleanup failed for %s: %s", volid, exc)
 
     def list_pbs_storages(self) -> list[dict[str, Any]]:
         """The restore host's PBS storages with the fields needed to resolve their

@@ -242,7 +242,7 @@
       <table class="data-table restore-storage-table">
         <thead><tr>
           <th></th><th>{{ t('restore.st_use') }}</th><th>{{ t('restore.st_name') }}</th>
-          <th>{{ t('restore.st_type') }}</th><th class="num">{{ t('restore.st_used') }}</th>
+          <th class="num">{{ t('restore.st_used') }}</th>
           <th class="num">{{ t('restore.st_free') }}</th><th>{{ t('restore.st_class') }}</th>
           <th>{{ t('restore.st_perf') }}</th>
         </tr></thead>
@@ -252,7 +252,6 @@
             <td class="drag-handle" data-tooltip="{{ t('restore.st_drag') }}" aria-hidden="true">⠿</td>
             <td><input type="checkbox" name="ts_use" value="{{ s.storage }}" {% if s.use %}checked{% endif %}></td>
             <td class="store-name-cell">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class) }}<span class="store-name">{{ s.storage }}</span><input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</td>
-            <td class="muted">{{ s.type or '–' }}</td>
             <td class="num">{{ s.used | size_coarse if s.used is not none else '–' }}</td>
             <td class="num">{{ s.free | size_coarse if s.free is not none else '–' }}</td>
             <td>

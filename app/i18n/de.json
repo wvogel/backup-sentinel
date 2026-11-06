@@ -689,7 +689,6 @@
   "restore.storage_none": "Keine Storages gemeldet (Host nicht erreichbar oder nichts konfiguriert).",
   "restore.st_use": "Ziel",
   "restore.st_name": "Storage",
-  "restore.st_type": "PVE-Typ",
   "restore.st_used": "Belegt",
   "restore.st_free": "Frei",
   "restore.st_drag": "Ziehen zum Sortieren",
