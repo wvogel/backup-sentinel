@@ -43,15 +43,21 @@
     s.forEach((v, i) => { d += (i ? " L" : "M") + ` ${((VW * i) / Math.max(1, s.length - 1)).toFixed(2)} ${(VH * (1 - Math.min(v, max) / max)).toFixed(2)}`; });
     return d;
   }
-  function draw(box, series, max, ovHTML) {
+  function draw(box, series, max, ovHTML, pctData) {
     const svg = box.querySelector(".rhost-surf");
     if (!svg || !(max > 0)) return;
     let h = "";
     series.forEach((data, i) => {
       if (!data.length) return;
-      if (i === 0) h += `<path d="${areaPath(data, max)}" fill="var(--panel)"/>`;
-      h += `<path d="${linePath(data, max)}" fill="none" stroke="var(--line)" stroke-width="${i === 0 ? 1.6 : 1.2}"${i === 0 ? "" : ' stroke-dasharray="3 2" opacity="0.7"'} stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+      // Visible tone (accent) with a soft fill — the old --line/--panel pair was
+      // nearly invisible. First series solid, further ones (read) lighter+dashed.
+      if (i === 0) h += `<path d="${areaPath(data, max)}" fill="var(--accent)" fill-opacity="0.14"/>`;
+      h += `<path d="${linePath(data, max)}" fill="none" stroke="var(--accent)" stroke-opacity="${i === 0 ? 0.9 : 0.5}" stroke-width="${i === 0 ? 1.8 : 1.3}"${i === 0 ? "" : ' stroke-dasharray="3 2"'} stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
     });
+    if (pctData && pctData.length) {
+      // Utilization % as its own line on a fixed 0–100 scale, distinct blue.
+      h += `<path d="${linePath(pctData, 100)}" fill="none" stroke="var(--running)" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+    }
     svg.innerHTML = h;
     const el = box.querySelector(".rhost-ov");
     if (el) el.innerHTML = ovHTML;
@@ -81,10 +87,12 @@
       } else if (m === "disk" && res.io) {
         push(box._buf[0], res.io.disk_write);
         push(box._buf[1], res.io.disk_read);
+        box._buf[2] = box._buf[2] || [];
+        push(box._buf[2], res.io.disk_util ?? 0);
         const max = res.io.disk_max || peak(box._buf[0], box._buf[1], 1);
-        // ↓ = write (schreiben), ↑ = read (lesen); % in the headline is the real
-        // disk utilization (busy time), not a throughput-vs-max ratio.
-        draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">↓</span> <b>${fsize(res.io.disk_write)}/s</b> <span class="mut">· ↑ ${fsize(res.io.disk_read)}/s</span>`);
+        // ↓ = write (schreiben), ↑ = read (lesen); the headline % is the real disk
+        // utilization (busy time) — also drawn as its own 0–100% line in the graph.
+        draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">↓</span> <b>${fsize(res.io.disk_write)}/s</b> <span class="mut">· ↑ ${fsize(res.io.disk_read)}/s</span>`, box._buf[2]);
         setHeadlinePct(box, `${res.io.disk_util ?? 0} %`);
       } else if (m === "net" && res.io) {
         push(box._buf[0], res.io.net_in);

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.18] — 2026-11-06
+
+### Changed
+
+- **Restore-host graphs are easier to read.** The sparklines now draw with a visible accent line and a soft fill instead of the near-invisible border/panel tones. The **Disk I/O** box is renamed (dropped "local"), and its **utilization %** is now plotted as its own line on a fixed 0–100 % scale (distinct blue) in addition to the headline figure.
+
 ## [v3.9.17] — 2026-11-06
 
 ### Changed
