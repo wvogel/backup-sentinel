@@ -433,6 +433,17 @@ def create_restore_test(
         conn.commit()
 
 
+def vm_disk_rows(vm_id: int) -> list[dict[str, Any]]:
+    """A guest's data disks ``[{dev, storage, size_bytes}, ...]`` in display order,
+    for the restore planner's per-disk bin-packing."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT dev, storage, size_bytes FROM vm_disks WHERE vm_id = %s ORDER BY ordinal",
+            (vm_id,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
 def recent_restore_tests(cluster_id: int | None = None) -> list[RestoreTestRow]:
     # The automated run behind a test (if any) carries start, end and checks.
     query = """
