@@ -3515,6 +3515,11 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* Icons sit inline before the name; a plain (non-flex) cell keeps the table
    row heights aligned. */
 .restore-storage-table td { vertical-align: middle; }
+.store-perf-cell { white-space: nowrap; }
+.perf-test-btn { padding: 2px 10px; font-size: 0.78rem; }
+.perf-test-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.perf-nofio { font-size: 0.78rem; color: var(--muted); }
+.perf-nofio a { color: var(--accent); }
 .store-name-cell { white-space: nowrap; }
 .store-name-cell .conn-icon,
 .store-name-cell .disk-icon { margin-right: 4px; }

@@ -178,6 +178,47 @@ def clear_host_key(request: Request) -> RedirectResponse:
     return RedirectResponse("/settings#restore", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/settings/restore-server/install-fio")
+def install_fio_route(request: Request) -> JSONResponse:
+    """Install fio on the restore host over root SSH (the test needs it)."""
+    from app.services import restore_orchestrator
+
+    config = restore_config.load()
+    if config is None:
+        return JSONResponse({"ok": False, "error": "not configured"}, status_code=409)
+    try:
+        config = restore_orchestrator.ensure_host_key_pinned(config)
+        restore_orchestrator.build_server(config).install_fio()
+    except Exception as exc:
+        logger.warning("fio install failed: %s", exc)
+        return JSONResponse({"ok": False, "error": str(exc)[:200]}, status_code=400)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/settings/restore-server/benchmark")
+def benchmark_storage(request: Request, storage: str = Form(...)) -> JSONResponse:
+    """Kick a background write-performance test for one local storage. Returns
+    immediately; the result (bytes/s) lands in the per-storage perf record and
+    becomes the Disk-I/O graph's 100%."""
+    from app.services import restore_perf
+
+    if restore_config.load() is None:
+        return JSONResponse({"ok": False, "error": "not configured"}, status_code=409)
+    started, reason = restore_perf.start(storage)
+    if not started:
+        return JSONResponse({"ok": False, "error": reason}, status_code=409)
+    return JSONResponse({"ok": True})
+
+
+@router.get("/settings/restore-server/benchmark-status")
+def benchmark_status(request: Request) -> JSONResponse:
+    """Which storage (if any) is being benchmarked + the latest results, for the
+    Settings page to poll while a test runs."""
+    from app.services import restore_perf
+
+    return JSONResponse({"running": restore_perf.running_storage(), "perf": restore_perf.get_perf()})
+
+
 def _cache_host_snapshot(host: dict) -> None:
     """Persist the latest host capacity so the dashboard tile can show it
     without a live (slow, blockable) call to the restore host on every load."""

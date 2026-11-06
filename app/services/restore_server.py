@@ -381,6 +381,30 @@ def classify_task_error(exitstatus: str, log_tail: str = "") -> str:
     return f"{hint}: {detail}" if hint else f"restore task failed: {detail}"
 
 
+def parse_fio_bw(text: str) -> int | None:
+    """Sustained write bandwidth in **bytes/s** from ``fio --output-format=json``
+    output — the first job's ``write.bw_bytes`` — or None when it can't be read
+    (fio prints a warning banner before the JSON, so scan to the outer braces)."""
+    import json as _json
+
+    s = (text or "").strip()
+    start, end = s.find("{"), s.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    try:
+        data = _json.loads(s[start : end + 1])
+    except ValueError:
+        return None
+    jobs = data.get("jobs") if isinstance(data, dict) else None
+    if not jobs:
+        return None
+    bw = (jobs[0].get("write") or {}).get("bw_bytes")
+    try:
+        return int(bw) if bw else None
+    except (TypeError, ValueError):
+        return None
+
+
 # A new disk's pbs-restore starts with this line; it marks a disk boundary so the
 # per-disk "read N bytes" (which resets each disk) can be summed into an overall total.
 _DRIVE_RE = re.compile(r"\b(drive-[A-Za-z0-9]+)\.img\.fidx\b")
@@ -538,11 +562,21 @@ class RestoreServer:
             "link_bps": sum(speeds[i] for i in net_uplinks) * 1_000_000 // 8,
         }
 
-    def _disk_ceiling_bps(self, classes: dict[str, str | None], selected: set[str]) -> int:
-        """Denominator for the disk read/write arcs: the fastest tier among the
+    def _disk_ceiling_bps(
+        self, classes: dict[str, str | None], selected: set[str], measured: dict[str, int] | None = None
+    ) -> int:
+        """Denominator (100%) for the disk read/write graph: the fastest among the
         selected *local* target storages (the ring counts local disks only, so a
-        network storage's tier must not set its scale). Falls back to standard-ssd."""
-        vals = [DISK_CLASS_MAX_BPS[c] for s in selected if (c := classes.get(s)) in DISK_CLASS_MAX_BPS]
+        network storage's tier must not set its scale). Per storage, a **measured**
+        write rate (operator ran the performance test) wins over the disk-class
+        estimate. Falls back to standard-ssd."""
+        measured = measured or {}
+        vals: list[int] = []
+        for s in selected:
+            if measured.get(s, 0) > 0:
+                vals.append(int(measured[s]))
+            elif (c := classes.get(s)) in DISK_CLASS_MAX_BPS:
+                vals.append(DISK_CLASS_MAX_BPS[c])
         return max(vals) if vals else _DISK_CLASS_FALLBACK_BPS
 
     def free_resources(self) -> dict[str, Any]:
@@ -594,7 +628,16 @@ class RestoreServer:
         else:
             ram_total, ram_free = mem.get("total"), mem.get("free")
         local = {s["storage"] for s in stores if s["type"] not in _NETWORK_STORAGE_TYPES}
-        io = self._io_rates(node, sample, self._disk_ceiling_bps(classes, local))
+        # A measured write rate (operator ran the performance test) sets the 100%.
+        # Best-effort: if the settings store isn't reachable, fall back to classes.
+        measured: dict[str, int] = {}
+        try:
+            from app.services import restore_perf
+
+            measured = {k: int(v["bps"]) for k, v in restore_perf.get_perf().items() if v.get("bps")}
+        except Exception as exc:
+            logger.debug("perf measurements unavailable: %s", exc)
+        io = self._io_rates(node, sample, self._disk_ceiling_bps(classes, local, measured))
         return {"ram_free": ram_free, "ram_total": ram_total, "ram_detail": mem_detail, "stores": stores, "io": io}
 
     def _io_rates(self, node: str, sample: dict[str, Any] | None, disk_max_bps: int) -> dict[str, Any]:
@@ -607,6 +650,85 @@ class RestoreServer:
             prev = _IO_SAMPLE_CACHE.get(node)
             _IO_SAMPLE_CACHE[node] = {"t": sample["t"], "disk": sample["disk"], "net": sample["net"]}
         return compute_io_rates(prev, sample, disk_max_bps)
+
+    # performance benchmark (operator-triggered from Settings) ---------------
+
+    def fio_available(self) -> bool:
+        """Whether fio — the only supported benchmark tool — is on the restore host."""
+        try:
+            return bool(self.ssh.run("command -v fio || true").strip())
+        except Exception as exc:
+            logger.debug("fio_available check failed: %s", exc)
+            return False
+
+    def install_fio(self) -> None:
+        """Install fio on the restore host over root SSH (Debian/Proxmox apt)."""
+        self.ssh.run("export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq fio")
+
+    def storage_dir(self, storage: str) -> str | None:
+        """Filesystem path of a file-based storage (dir/nfs/cifs), or None for a
+        block storage (lvm/zfs) that has no image-file path to benchmark on."""
+        try:
+            info = self.pve.get(f"/storage/{storage}") or {}
+        except Exception as exc:
+            logger.debug("storage_dir(%s) failed: %s", storage, exc)
+            return None
+        return info.get("path") or None
+
+    def benchmark_storage_write(
+        self,
+        storage: str,
+        *,
+        size_gb: int = 24,
+        runtime: int = 300,
+        bs: str = "4M",
+        poll_interval: float = 10.0,
+        now: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> int:
+        """Measure sustained random-write throughput (bytes/s) by writing a real
+        image file on the storage with fio: O_DIRECT (cache bypassed), 4 MiB blocks
+        (≈ PBS chunk), random, time-based ~5 min (long enough to beat the page
+        cache). Runs DETACHED on the host so a ~5-min run isn't cut by the 120s SSH
+        exec cap; the result file is polled, then the test file is always removed.
+        Raises if the storage is not file-based or fio yields no result."""
+        import uuid
+
+        path = self.storage_dir(storage)
+        if not path:
+            raise RestoreTaskError(f"storage '{storage}' has no filesystem path (not file-based) — cannot benchmark")
+        tag = uuid.uuid4().hex[:8]
+        testfile = f"{path.rstrip('/')}/.bsentinel-fiotest-{tag}.img"
+        resfile = f"/tmp/bsentinel-fio-{tag}.json"
+        fio = (
+            f"fio --name=bstest --filename={shlex.quote(testfile)} --rw=randwrite --bs={bs} "
+            f"--direct=1 --ioengine=psync --size={int(size_gb)}G --runtime={int(runtime)} "
+            f"--time_based=1 --group_reporting --output-format=json"
+        )
+        self.ssh.run(f"nohup sh -c {shlex.quote(fio + f' > {resfile} 2>&1')} >/dev/null 2>&1 & echo started")
+        deadline = now() + runtime + 120
+        try:
+            while now() < deadline:
+                sleep(poll_interval)
+                try:
+                    state = self.ssh.run(
+                        f"grep -q bw_bytes {shlex.quote(resfile)} 2>/dev/null && echo done || echo wait"
+                    ).strip()
+                except Exception as exc:
+                    logger.debug("fio poll blip: %s", exc)
+                    continue
+                if state == "done":
+                    break
+            raw = self.ssh.run(f"cat {shlex.quote(resfile)} 2>/dev/null || true")
+            bps = parse_fio_bw(raw)
+            if not bps:
+                raise RestoreTaskError(f"fio produced no result on '{storage}': {raw.strip()[:300]}")
+            return bps
+        finally:
+            try:
+                self.ssh.run(f"rm -f {shlex.quote(testfile)} {shlex.quote(resfile)}")
+            except Exception as exc:
+                logger.debug("fio cleanup failed: %s", exc)
 
     def list_pbs_storages(self) -> list[dict[str, Any]]:
         """The restore host's PBS storages with the fields needed to resolve their
