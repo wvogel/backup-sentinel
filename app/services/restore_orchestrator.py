@@ -586,9 +586,11 @@ def ui_target_storages() -> dict[str, Any]:
                 "order": (s or {}).get("order", 999),
                 "used": d.get("used"),
                 "free": d.get("avail"),
-                # Performance test: only file-based local storages (dir) can hold a
-                # benchmark image file; busy = in a running restore; perf = last run.
-                "benchmarkable": d.get("type") == "dir",
+                # Performance test: every row here is image-capable (filtered above),
+                # and the benchmark allocates a throwaway volume via pvesm alloc, so
+                # it works for block (lvmthin/zfs) and file (dir/nfs) storages alike.
+                # busy = in a running restore; perf = last run.
+                "benchmarkable": True,
                 "busy": name in busy,
                 "perf": perf.get(name),
             }

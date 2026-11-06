@@ -3515,6 +3515,15 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* Icons sit inline before the name; a plain (non-flex) cell keeps the table
    row heights aligned. */
 .restore-storage-table td { vertical-align: middle; }
+/* The disk-class picker must fit its label (std-ssd, sata-hdd, …); the global
+   select { width: 100% } otherwise squeezes it into the narrow column and clips
+   the text to "sa"/"std". Auto width + room for the chevron. */
+.restore-storage-table .js-disk-class {
+  width: auto;
+  min-width: 7.5em;
+  padding: 6px 28px 6px 10px;
+  font-size: 0.85rem;
+}
 .store-perf-cell { white-space: nowrap; }
 .perf-test-btn { padding: 2px 10px; font-size: 0.78rem; }
 .perf-test-btn:disabled { opacity: 0.55; cursor: not-allowed; }
