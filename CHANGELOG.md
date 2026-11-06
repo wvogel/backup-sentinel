@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.16] — 2026-11-06
+
+### Fixed
+
+- **Disk/Network headline % showed "undefined %" / "NaN %".** The restore-progress payload sent only the raw rates, not the utilization fields the new headline reads, so the client had nothing to format. It now also sends `disk_util`, `net_in_pct` and `net_out_pct`.
+
+### Changed
+
+- **RAM utilization % moved into its box headline** (like disk and network); the RAM overlay is now just `used / total`.
+- **The graph overlay uses a narrower font and stays on one line** (smaller size, tight tabular numerals, no wrap) so `↓ … · ↑ …` no longer wraps in the slim boxes.
+
 ## [v3.9.15] — 2026-11-06
 
 ### Changed

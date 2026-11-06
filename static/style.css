@@ -3699,9 +3699,13 @@ fieldset.rhost-box > legend {
 .rhost-ov {
   position: absolute;
   left: 7px;
+  right: 7px;
   bottom: 5px;
-  font-size: 0.7rem;
+  font-size: 0.64rem;
+  letter-spacing: -0.02em;
   line-height: 1.25;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
 .rhost-ov b { font-weight: 700; }

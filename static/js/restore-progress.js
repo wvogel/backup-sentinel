@@ -70,8 +70,9 @@
       if (m === "ram" && res.ram) {
         const { used, total } = res.ram;
         push(box._buf[0], used);
-        // Headline keeps the name; overlay is "used / total · %".
-        draw(box, [box._buf[0]], total, `<b>${fsize(used)}</b> <span class="mut">/ ${fsize(total)} · ${pct(used, total)} %</span>`);
+        // % goes in the headline; overlay is just "used / total".
+        draw(box, [box._buf[0]], total, `<b>${fsize(used)}</b> <span class="mut">/ ${fsize(total)}</span>`);
+        setHeadlinePct(box, total ? `${pct(used, total)} %` : "");
       } else if (m === "store") {
         const s = (res.stores || []).find((x) => x.name === box.dataset.name);
         if (!s) continue;
@@ -84,14 +85,14 @@
         // ↓ = write (schreiben), ↑ = read (lesen); % in the headline is the real
         // disk utilization (busy time), not a throughput-vs-max ratio.
         draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">↓</span> <b>${fsize(res.io.disk_write)}/s</b> <span class="mut">· ↑ ${fsize(res.io.disk_read)}/s</span>`);
-        setHeadlinePct(box, `${res.io.disk_util} %`);
+        setHeadlinePct(box, `${res.io.disk_util ?? 0} %`);
       } else if (m === "net" && res.io) {
         push(box._buf[0], res.io.net_in);
         push(box._buf[1], res.io.net_out);
         const max = res.io.net_link || peak(box._buf[0], box._buf[1], 1);
         // ↓ = in, ↑ = out; link utilization (busier direction) in the headline.
         draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">↓</span> <b>${fbit(res.io.net_in)}</b> <span class="mut">· ↑ ${fbit(res.io.net_out)}</span>`);
-        setHeadlinePct(box, `${Math.max(res.io.net_in_pct, res.io.net_out_pct)} %`);
+        setHeadlinePct(box, `${Math.max(res.io.net_in_pct || 0, res.io.net_out_pct || 0)} %`);
       }
     }
   }

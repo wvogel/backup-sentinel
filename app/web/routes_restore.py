@@ -463,9 +463,12 @@ def _res_view(host: dict | None) -> dict | None:
             "have": bool(io.get("have")),
             "disk_read": io.get("disk_read"),
             "disk_write": io.get("disk_write"),
+            "disk_util": io.get("disk_util"),
             "disk_max": io.get("disk_max"),
             "net_in": io.get("net_in"),
             "net_out": io.get("net_out"),
+            "net_in_pct": io.get("net_in_pct"),
+            "net_out_pct": io.get("net_out_pct"),
             "net_link": io.get("net_link"),
         },
     }
