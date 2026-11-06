@@ -100,7 +100,7 @@
   "cluster.running_jump": "Zur VM springen",
   "cluster.all": "Alle",
   "cluster.no_vms_visible": "Keine VMs für diesen Node sichtbar.",
-  "cluster.document_restore": "Restore-Test dokumentieren",
+  "cluster.document_restore": "Manuelle Restore-Tests dokumentieren",
   "cluster.vm": "VM",
   "cluster.test_date": "Testdatum",
   "cluster.result": "Ergebnis",

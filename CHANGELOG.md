@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.12] — 2026-11-06
+
+### Changed
+
+- **Cluster page: the restore-tests panel now matches the dashboard and gets the room it needs.** The recent restore tests are shown as the same evidence table as the start page — VM, start, end, runtime, status and the per-check chips (a manually documented test still links its note) — instead of the old single-line list, and up to 10 are listed. The layout is rebalanced: the manual-documentation form is more compact and sits in a narrower left column so the table has the width on the right, and that box is retitled "Manuelle Restore-Tests dokumentieren".
+
 ## [v3.9.11] — 2026-11-06
 
 ### Fixed

@@ -241,7 +241,9 @@ def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
         "running_backups": running_backups,
         "running_count_label": running_count_label(len(running_backups)),
         "progress_pending": progress_pending,
-        "restore_tests": restore_tests,
+        # Show only the 10 most recent in the panel (like the dashboard); compliance
+        # still sees them all.
+        "restore_tests": restore_tests[:10],
         "compliance_summary": build_compliance_summary(vm_rows, restore_tests),
         "pbs_connections": db.list_pbs_connections(cluster["id"]),
         "topology": sync_progress.with_live_progress(topology_store.load(cluster["id"])),
