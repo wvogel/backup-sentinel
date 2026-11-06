@@ -3692,6 +3692,8 @@ fieldset.rhost-box > legend {
 .rhost-box legend .conn-icon svg,
 .rhost-box legend .disk-icon svg { width: 13px; height: 13px; }
 .rhost-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rhost-pct { flex: none; font-variant-numeric: tabular-nums; }
+.rhost-pct:empty { display: none; }
 .rhost-surf { position: absolute; inset: 0; width: 100%; height: 100%; }
 .rhost-ov {
   position: absolute;
