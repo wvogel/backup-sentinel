@@ -261,6 +261,34 @@ class DrainSkipTest(unittest.TestCase):
         self.assertEqual(db_restore.get_run(big)["status"], "queued")  # skipped, still queued
         self.assertNotEqual(db_restore.get_run(small)["status"], "queued")  # executed
 
+    def test_run_waits_while_target_storage_is_being_benchmarked(self):
+        # A write-performance test is measuring the target storage ("zfs"); a
+        # restore onto it must wait (stay queued), then run once the test ends.
+        from unittest import mock
+
+        from app.services import restore_perf, restore_worker
+
+        server = _DrainServer(avail=10**6, size_by_vmid={100: 10})  # fits comfortably
+        run = db_restore.create_run(self.ids[100])
+        ran: list[int] = []
+
+        def fake_execute(run_id, plan, srv, **kw):
+            ran.append(run_id)
+            db_restore.record_run_result(run_id, plan.vm_id, "passed", duration_seconds=0)
+            return "passed"
+
+        with mock.patch.object(restore_worker, "execute", side_effect=fake_execute):
+            restore_perf._set_running("zfs")  # benchmark measuring the target storage
+            try:
+                orch.drain(CONFIG, server)
+                self.assertEqual(ran, [])  # did not start during the benchmark
+                self.assertEqual(db_restore.get_run(run)["status"], "queued")  # waited
+                restore_perf._set_running("")  # test finished
+                orch.drain(CONFIG, server)
+                self.assertEqual(ran, [run])  # now it runs
+            finally:
+                restore_perf._set_running("")
+
     def test_pause_during_a_run_stops_the_next_one(self):
         # A run is in progress when the operator pauses; the next queued VM must
         # NOT start. Regression: drain checked the pause only once, at entry, so
