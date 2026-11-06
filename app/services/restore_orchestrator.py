@@ -13,7 +13,7 @@ from typing import Any
 
 from app import db, db_restore
 from app.db_core import connect
-from app.services import restore_alloc, restore_config, restore_ip_collect, restore_match, restore_worker
+from app.services import restore_alloc, restore_config, restore_ip_collect, restore_match, restore_perf, restore_worker
 from app.services.restore_server import ParamikoSsh, PveApi, PveSsh, RestoreServer
 from app.services.restore_worker import RunPlan
 
@@ -402,6 +402,16 @@ def drain(config: dict[str, Any], server: RestoreServer) -> None:
                 # (smaller) run. Left queued; retried on a later pass (no spin —
                 # the pass returns below once nothing executes).
                 logger.info("restore run %s skipped: does not fit free RAM yet", run["id"])
+                continue
+            if restore_perf.running_storage() == plan.target_storage:
+                # A write-performance test is measuring this storage right now.
+                # Starting a restore onto it would fight the benchmark for disk I/O
+                # (and skew its result), so the run waits: left queued, retried on a
+                # later pass. This is the mirror of start()'s refusal to benchmark a
+                # storage that a running restore already uses.
+                logger.info(
+                    "restore run %s waiting: performance test running on %s", run["id"], plan.target_storage
+                )
                 continue
             result = restore_worker.execute(run["id"], plan, server, production_hosts=prod)
             _notify_result(run["vm_id"], result)
