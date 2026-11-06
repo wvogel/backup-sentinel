@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.15] — 2026-11-06
+
+### Changed
+
+- **Cluster page: the manual-documentation form now uses the full width too.** Instead of a width-capped block, the form spans the section: the VM multi-select sits tall on the left, the four short fields (date, result, recovery type, duration) form a 2×2 beside it, and the note and save button run across the whole row below — so the space is used sensibly rather than leaving the right half empty.
+
 ## [v3.9.14] — 2026-11-06
 
 ### Changed
