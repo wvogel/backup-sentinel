@@ -19,6 +19,7 @@ from app.services.api_client import (
     api_get_payload,
 )
 from app.services.backup_location import pbs_location, pve_location
+from app.services.pve_config import parse_disks, total_disk_bytes
 from app.services.vzdump_log import VmBackupRun, guest_name_from_notes, parse_vzdump_log
 
 logger = logging.getLogger(__name__)
@@ -138,10 +139,14 @@ def fetch_cluster_inventory(
                     "backup_kind": "daily",
                     "last_backup_at": None,
                     "memory_bytes": int(row["maxmem"]) if row.get("maxmem") else None,
+                    "disk_bytes": int(row["maxdisk"]) if row.get("maxdisk") else None,
+                    "disks": [],
                 }
             )
 
     logger.info("Found %d nodes, %d VMs", len(nodes), len(vms))
+
+    fetch_vm_disks(base_url, auth_header, vms, timeout=timeout)
 
     backup_kind_by_vmid = infer_backup_kind_by_vmid(vms, backup_jobs)
     logger.info("Backup kind by VMID: %s", backup_kind_by_vmid)
@@ -188,6 +193,40 @@ def fetch_cluster_inventory(
         qdevice=fetch_qdevice(base_url, auth_header, timeout=timeout),
         ha=fetch_ha(base_url, auth_header, timeout=timeout),
     )
+
+
+def fetch_vm_disks(
+    base_url: str,
+    auth_header: str,
+    vms: list[dict[str, Any]],
+    timeout: float = API_TIMEOUT,
+) -> None:
+    """Fill each VM's ``disks`` (per-disk ``{dev, storage, size_bytes}``) from its
+    ``qm config`` / ``pct config``, and refine ``disk_bytes`` to the summed disk
+    sizes when the config parses. One GET per guest, run in parallel; a guest
+    whose config can't be read keeps its ``maxdisk`` total and an empty breakdown.
+    """
+    if not vms:
+        return
+
+    def _one(vm: dict[str, Any]) -> None:
+        kind = "lxc" if vm.get("guest_type") == "lxc" else "qemu"
+        path = f"/api2/json/nodes/{vm['node_name']}/{kind}/{vm['vmid']}/config"
+        try:
+            config = _pve_get_dict(base_url, path, auth_header, timeout=timeout, retries=0)
+        except ProxmoxSyncError as exc:
+            logger.debug("config fetch failed for %s/%s: %s", vm["node_name"], vm["vmid"], exc)
+            return
+        disks = parse_disks(config)
+        vm["disks"] = disks
+        total = total_disk_bytes(disks)
+        if total > 0:
+            vm["disk_bytes"] = total
+
+    workers = min(16, len(vms))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for future in as_completed([pool.submit(_one, vm) for vm in vms]):
+            future.result()
 
 
 def _ha_nodes(nodes: str) -> list[str]:

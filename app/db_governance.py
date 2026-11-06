@@ -58,6 +58,17 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             v.is_template,
             v.backup_kind,
             v.missing_since,
+            v.disk_bytes,
+            (
+                SELECT COALESCE(
+                    jsonb_agg(
+                        jsonb_build_object('dev', d.dev, 'storage', d.storage, 'size_bytes', d.size_bytes)
+                        ORDER BY d.ordinal
+                    ),
+                    '[]'::jsonb
+                )
+                FROM vm_disks d WHERE d.vm_id = v.id
+            ) AS disks,
             be_copies.copy_latest,
             be_copies.copy_storages,
             be_copies.pbs_locations,
@@ -426,6 +437,17 @@ def recent_restore_tests(cluster_id: int | None = None) -> list[RestoreTestRow]:
     # The automated run behind a test (if any) carries start, end and checks.
     query = """
         SELECT rt.*, v.name AS vm_name, v.vmid, c.name AS cluster_name, c.slug AS cluster_slug,
+               v.disk_bytes,
+               (
+                   SELECT COALESCE(
+                       jsonb_agg(
+                           jsonb_build_object('dev', d.dev, 'storage', d.storage, 'size_bytes', d.size_bytes)
+                           ORDER BY d.ordinal
+                       ),
+                       '[]'::jsonb
+                   )
+                   FROM vm_disks d WHERE d.vm_id = v.id
+               ) AS disks,
                rr.started_at AS run_started_at, rr.finished_at AS run_finished_at,
                rr.duration_seconds AS run_duration_seconds, rr.checks AS run_checks
         FROM restore_tests rt

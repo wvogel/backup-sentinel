@@ -1,0 +1,43 @@
+{# Per-volume size display, shared by /restore, the dashboard and the cluster
+   page. `disks` is a list of {dev, storage, size_bytes}; `total` is the VM's
+   provisioned size (falls back to the disk sum). Segments are coloured by
+   target storage via the `vol-s0..5` classes (theme-aware, defined in CSS). #}
+
+{%- macro _disk_title(disks) -%}
+{%- for d in disks %}{{ d.dev }} {{ d.size_bytes|size_coarse }} ({{ d.storage }}){% if not loop.last %} · {% endif %}{% endfor -%}
+{%- endmacro -%}
+
+{# Compact total for dense tables: "48 GB ·3", per-disk list on hover. #}
+{%- macro total(total_bytes, disks=None) -%}
+{%- if total_bytes %}<span class="vol-total"{% if disks %} data-tooltip="{{ _disk_title(disks) }}"{% endif %}>{{ total_bytes|size_coarse }}{% if disks and disks|length > 1 %} <span class="muted">·{{ disks|length }}</span>{% endif %}</span>
+{%- else %}<span class="muted">–</span>{% endif -%}
+{%- endmacro -%}
+
+{# Segmented bar. `fill` (0..1) optionally overlays progress as a dimmed tail. #}
+{%- macro bar(disks, total_bytes=None, legend=False) -%}
+{%- set sum_bytes = disks|map(attribute='size_bytes')|sum %}
+{%- set tot = total_bytes or sum_bytes %}
+{%- if disks %}
+<div class="vol-bar" role="img" aria-label="{{ _disk_title(disks) }}">
+  {%- for d in disks %}
+  <span class="vol-seg {{ d.storage|vol_seg_class }}" style="flex: {{ (d.size_bytes // 1000000) or 1 }}" data-tooltip="{{ d.dev }} {{ d.size_bytes|size_coarse }} · {{ d.storage }}"><span class="vol-seg-label">{{ d.dev }} · {{ d.size_bytes|size_coarse }}</span></span>
+  {%- endfor %}
+</div>
+{%- if legend %}
+{%- set seen = [] %}
+<div class="vol-legend">
+  {%- for d in disks if d.storage not in seen %}{% set _ = seen.append(d.storage) %}
+  <span><span class="vol-dot {{ d.storage|vol_seg_class }}"></span>{{ d.storage }}</span>
+  {%- endfor %}
+</div>
+{%- endif %}
+{%- endif -%}
+{%- endmacro -%}
+
+{# Bar + a plain per-disk line, for the roomy cluster detail panel. #}
+{%- macro detail(disks, total_bytes=None) -%}
+{%- if disks %}
+{{ bar(disks, total_bytes) }}
+<div class="vol-detail-line muted">{% for d in disks %}{{ d.dev }} {{ d.size_bytes|size_coarse }}{% if not loop.last %} · {% endif %}{% endfor %} — {{ (total_bytes or disks|map(attribute='size_bytes')|sum)|size_coarse }}</div>
+{%- endif -%}
+{%- endmacro -%}

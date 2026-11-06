@@ -2,6 +2,7 @@
 {% block title %}{{ t('restore.title') }}{% endblock %}
 {% block content %}
 {% import "_storage_icons.html" as sicons with context %}
+{% import "_volume_bar.html" as vol with context %}
 
 {% if action_error %}
 <p class="critical-text restore-action-error">
@@ -128,6 +129,8 @@
         <span class="run-checks js-run-checks">{% for c in run.checks|green_checks %}<span class="check-chip">✓ {{ c }}</span>{% endfor %}</span>
         {%- set _eta = run|restore_eta %}
         <span class="run-eta js-run-eta" data-eta-label="{{ t('restore.eta_label') }}"{% if not _eta %} hidden{% endif %}>{{ (t('restore.eta_label') ~ ' ' ~ _eta) if _eta else '' }}</span>
+        {%- if run.disk_bytes %}<span class="muted run-size">{{ t('restore.size_label') }} {{ run.disk_bytes|size_coarse }}{% if run.disks and run.disks|length > 1 %} · {{ t('restore.disks_count', n=run.disks|length) }}{% endif %}</span>{% endif %}
+        {%- if run.disks %}{{ vol.bar(run.disks, run.disk_bytes, legend=True) }}{% endif %}
       </div>
       <form action="/restore/runs/{{ run.id }}/cancel" method="post" class="inline-form running-cancel js-confirm-form" data-confirm-title="{{ t('restore.cancel_confirm_title') }}" data-confirm-body="{{ t('restore.cancel_confirm') }}" data-confirm-ok="{{ t('restore.cancel_run') }}">
         <button type="submit" class="button-secondary" title="{{ t('restore.cancel_run') }}">⏹ {{ t('restore.cancel_run') }}</button>
@@ -190,10 +193,10 @@
       <th>{{ colfilter('f_cluster', t('restore.col_cluster'), cluster_options, runs_filter) }}</th>
       <th>{{ colfilter('f_status', t('restore.col_status'), _statuses, runs_filter) }}</th>
       <th>{{ colfilter('f_trigger', t('restore.col_trigger'), _triggers, runs_filter) }}</th>
-      <th>{{ t('restore.col_started') }}</th><th>{{ t('restore.col_duration') }}</th><th></th>
+      <th>{{ t('restore.col_started') }}</th><th class="col-right">{{ t('restore.col_size') }}</th><th>{{ t('restore.col_duration') }}</th><th></th>
     </tr></thead>
     <tbody data-reorder data-reorder-url="/restore/queue/reorder">
-    {% if not runs %}<tr><td colspan="8" class="muted runs-nomatch">{{ t('restore.no_runs_filtered') }}</td></tr>{% endif %}
+    {% if not runs %}<tr><td colspan="9" class="muted runs-nomatch">{{ t('restore.no_runs_filtered') }}</td></tr>{% endif %}
     {% for run in runs %}
       <tr data-run-id="{{ run.id }}"{% if run.status == 'queued' %} draggable="true" class="is-queued"{% endif %}>
         <td class="grip-cell">{% if run.status == 'queued' %}<span class="drag-grip" title="{{ t('restore.reorder_hint') }}" aria-label="{{ t('restore.reorder_hint') }}">⠿</span>{% endif %}</td>
@@ -219,11 +222,12 @@
           {%- endif -%}
         </td>
         <td>{{ run.started_at|datetime_local('%d.%m. %H:%M') if run.started_at else '–' }}</td>
+        <td class="col-right">{{ vol.total(run.disk_bytes, run.disks) }}</td>
         <td>{% if run.duration_seconds %}{{ run.duration_seconds // 3600 }}:{{ '%02d'|format((run.duration_seconds % 3600) // 60) }}{% else %}–{% endif %}</td>
         <td class="run-actions">{% if run.status == 'queued' %}<form action="/restore/runs/{{ run.id }}/delete" method="post" class="inline-form"><button type="submit" class="icon-button" title="{{ t('restore.delete_run') }}" aria-label="{{ t('restore.delete_run') }}">✕</button></form>{% elif run.status == 'running' %}<form action="/restore/runs/{{ run.id }}/cancel" method="post" class="inline-form js-confirm-form" data-confirm-title="{{ t('restore.cancel_confirm_title') }}" data-confirm-body="{{ t('restore.cancel_confirm') }}" data-confirm-ok="{{ t('restore.cancel_run') }}"><button type="submit" class="icon-button icon-cancel" title="{{ t('restore.cancel_run') }}" aria-label="{{ t('restore.cancel_run') }}">⏹</button></form>{% elif run.status not in ('held',) and run.result in ('failed', 'error', 'limited', 'cancelled') %}<form action="/restore/vm/{{ run.vm_id }}/test" method="post" class="inline-form"><button type="submit" class="icon-button icon-retry" title="{{ t('restore.retry_test') }}" aria-label="{{ t('restore.retry_test') }}">↻</button></form>{% endif %}</td>
       </tr>
       {% if run.log %}
-      <tr class="run-log-row"><td class="grip-cell"></td><td colspan="7"><details><summary>{{ t('restore.show_log') }}</summary><pre class="run-log">{{ run.log|run_log }}</pre></details></td></tr>
+      <tr class="run-log-row"><td class="grip-cell"></td><td colspan="8"><details><summary>{{ t('restore.show_log') }}</summary><pre class="run-log">{{ run.log|run_log }}</pre></details></td></tr>
       {% endif %}
     {% endfor %}
     </tbody>

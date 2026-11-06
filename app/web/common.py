@@ -148,6 +148,16 @@ templates.env.filters["spark_tooltip"] = spark_tooltip
 templates.env.filters["format_number"] = format_count
 
 
+def _vol_seg_class(storage: object) -> str:
+    """Deterministic colour slot (vol-s0..vol-s5) for a storage name, so the same
+    storage keeps its colour across the segmented volume bars and legends."""
+    name = str(storage or "")
+    return f"vol-s{sum(name.encode('utf-8')) % 6}"
+
+
+templates.env.filters["vol_seg_class"] = _vol_seg_class
+
+
 def _parse_footer_links(s: str) -> list[dict[str, str]]:
     if not s:
         return []

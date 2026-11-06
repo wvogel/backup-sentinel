@@ -141,8 +141,15 @@ def list_runs(
     cluster: str | None = None,
     vm_query: str | None = None,
 ) -> list[RestoreRunRow]:
-    # Join the VM name/vmid so the UI shows "srv01 (100)" not an internal id.
-    base = f"SELECT r.*, v.name AS vm_name, v.vmid AS vmid_src, c.name AS cluster_name, c.slug AS cluster_slug {_RUNS_JOIN}"
+    # Join the VM name/vmid so the UI shows "srv01 (100)" not an internal id,
+    # plus the guest's provisioned size and per-disk breakdown for the size bars.
+    base = (
+        "SELECT r.*, v.name AS vm_name, v.vmid AS vmid_src, c.name AS cluster_name, c.slug AS cluster_slug, "
+        "v.disk_bytes, "
+        "(SELECT COALESCE(jsonb_agg(jsonb_build_object('dev', d.dev, 'storage', d.storage, 'size_bytes', d.size_bytes) "
+        "ORDER BY d.ordinal), '[]'::jsonb) FROM vm_disks d WHERE d.vm_id = v.id) AS disks "
+        f"{_RUNS_JOIN}"
+    )
     where, params = _runs_filter(status, trigger, cluster, vm_query)
     with connect() as conn, conn.cursor() as cur:
         cur.execute(

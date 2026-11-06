@@ -77,9 +77,9 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
             cur.execute(
                 """
                 INSERT INTO vms (
-                    cluster_id, node_name, vmid, name, guest_type, is_template, backup_storages, backup_kind, last_backup_at, memory_bytes
+                    cluster_id, node_name, vmid, name, guest_type, is_template, backup_storages, backup_kind, last_backup_at, memory_bytes, disk_bytes
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (cluster_id, vmid) DO UPDATE SET
                     node_name = EXCLUDED.node_name,
                     name = EXCLUDED.name,
@@ -89,7 +89,9 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
                     backup_kind = EXCLUDED.backup_kind,
                     last_backup_at = COALESCE(EXCLUDED.last_backup_at, vms.last_backup_at),
                     memory_bytes = COALESCE(EXCLUDED.memory_bytes, vms.memory_bytes),
+                    disk_bytes = COALESCE(EXCLUDED.disk_bytes, vms.disk_bytes),
                     missing_since = NULL
+                RETURNING id
                 """,
                 (
                     cluster_id,
@@ -102,8 +104,21 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
                     vm["backup_kind"],
                     vm["last_backup_at"],
                     vm.get("memory_bytes"),
+                    vm.get("disk_bytes"),
                 ),
             )
+            vm_id = cur.fetchone()["id"]
+            # Replace the guest's per-disk breakdown. Only touch it when the sync
+            # actually read a config (an empty list may just mean the config
+            # fetch failed) so a transient PVE hiccup doesn't wipe known disks.
+            disks = vm.get("disks") or []
+            if disks:
+                cur.execute("DELETE FROM vm_disks WHERE vm_id = %s", (vm_id,))
+                for ordinal, disk in enumerate(disks):
+                    cur.execute(
+                        "INSERT INTO vm_disks (vm_id, ordinal, dev, storage, size_bytes) VALUES (%s, %s, %s, %s, %s)",
+                        (vm_id, ordinal, disk["dev"], disk["storage"], int(disk["size_bytes"])),
+                    )
         # VMs we still know but PVE no longer reports have been deleted (or
         # moved to another cluster). Keep the rows so their remaining backups
         # stay visible, but flag them from the first sync they went missing.
