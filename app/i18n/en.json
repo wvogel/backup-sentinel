@@ -695,6 +695,8 @@
   "restore.st_class": "Disk type",
   "restore.st_perf": "Performance",
   "restore.perf_test": "Test",
+  "restore.perf_unknown": "unknown",
+  "restore.perf_last_tested": "Last tested",
   "restore.perf_running": "running…",
   "restore.perf_cancel": "Cancel",
   "restore.perf_cancelling": "Cancelling…",
