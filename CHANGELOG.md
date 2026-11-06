@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.20] — 2026-11-06
+
+### Added
+
+- **Write-performance test for local restore storages (Settings → Restore).** Each file-based local target storage gets a *Test* button that runs fio on the restore host in the background (~5 min): random write, O_DIRECT (cache bypassed), 4 MiB blocks (≈ PBS chunk), time-based — writing a real image file on the storage, which is then removed. The measured sustained write rate becomes that storage's **100 % (`disk_max`) on the Disk-I/O graph** instead of the disk-class estimate.
+  - **fio only.** If fio isn't installed, the button is replaced by a hint with an *install fio* action (over the existing root SSH).
+  - The button is **inactive only for a storage that a running restore is writing to** (its target storages); the last result and timestamp show on hover.
+
 ## [v3.9.19] — 2026-11-06
 
 ### Changed

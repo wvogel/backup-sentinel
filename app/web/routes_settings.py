@@ -39,6 +39,8 @@ def settings(request: Request) -> HTMLResponse:
         "restore_storages": _rs.get("rows", []),
         "restore_storage_error": _rs.get("error"),
         "restore_storage_note": _rs.get("note"),
+        "restore_fio_available": _rs.get("fio_available", False),
+        "restore_perf_running": _rs.get("perf_running", ""),
         "disk_classes": DISK_CLASSES,
         "restore_test": _load_restore_test(all_settings),
         "restore_saved": request.query_params.get("restore") == "saved",

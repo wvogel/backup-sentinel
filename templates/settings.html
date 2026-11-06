@@ -244,6 +244,7 @@
           <th></th><th>{{ t('restore.st_use') }}</th><th>{{ t('restore.st_name') }}</th>
           <th>{{ t('restore.st_type') }}</th><th class="num">{{ t('restore.st_used') }}</th>
           <th class="num">{{ t('restore.st_free') }}</th><th>{{ t('restore.st_class') }}</th>
+          <th>{{ t('restore.st_perf') }}</th>
         </tr></thead>
         <tbody data-reorder data-autosave="/settings/restore-server/target-storages">
         {% for s in restore_storages %}
@@ -258,6 +259,23 @@
               <select name="ts_class" class="js-disk-class">
                 {% for cls in disk_classes %}<option value="{{ cls }}" {% if s.disk_class == cls %}selected{% endif %}>{{ t('restore.class_short_' ~ cls) }}</option>{% endfor %}
               </select>
+            </td>
+            <td class="store-perf-cell">
+              {%- if not s.benchmarkable %}<span class="muted">–</span>
+              {%- elif not restore_fio_available %}<span class="perf-nofio" data-tooltip="{{ t('restore.perf_nofio_hint') }}">{{ t('restore.perf_nofio') }} · <a href="#" class="js-install-fio">{{ t('restore.perf_install_fio') }}</a></span>
+              {%- else -%}
+                {%- set _this_running = restore_perf_running == s.storage -%}
+                {%- set _disabled = s.busy or _this_running or (restore_perf_running and restore_perf_running != s.storage) -%}
+                <button type="button" class="button-secondary perf-test-btn js-perf-test" data-storage="{{ s.storage }}"{% if _disabled %} disabled{% endif %} data-tooltip="
+                  {%- if s.busy %}{{ t('restore.perf_busy') }}
+                  {%- elif _this_running %}{{ t('restore.perf_running_hint') }}
+                  {%- elif restore_perf_running %}{{ t('restore.perf_running_other') }}
+                  {%- elif s.perf and s.perf.bps %}{{ s.perf.bps | size_coarse }}/s · {{ (s.perf.at or '')[:16]|replace('T', ' ') }}
+                  {%- elif s.perf and s.perf.error %}{{ t('restore.perf_last_error') }}: {{ s.perf.error }}
+                  {%- else %}{{ t('restore.perf_test_hint') }}{% endif -%}">
+                  {%- if _this_running %}{{ t('restore.perf_running') }}{% else %}{{ t('restore.perf_test') }}{% endif -%}
+                </button>
+              {%- endif %}
             </td>
           </tr>
         {% endfor %}
@@ -302,6 +320,36 @@
     });
   </script>
   {% endif %}
+  <script>
+  (function () {
+    function post(url, body) {
+      return fetch(url, { method: "POST", headers: body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}, body: body || undefined });
+    }
+    document.querySelectorAll(".js-perf-test").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var storage = btn.dataset.storage;
+        btn.disabled = true;
+        post("/settings/restore-server/benchmark", "storage=" + encodeURIComponent(storage)).then(function (r) {
+          if (!r.ok) { r.json().then(function (j) { alert(j.error || "Fehler"); }); btn.disabled = false; return; }
+          btn.textContent = {{ t('restore.perf_running')|tojson }};
+          var poll = setInterval(function () {
+            fetch("/settings/restore-server/benchmark-status").then(function (x) { return x.json(); }).then(function (s) {
+              if (s.running !== storage) { clearInterval(poll); location.reload(); }
+            }).catch(function () {});
+          }, 10000);
+        });
+      });
+    });
+    var inst = document.querySelector(".js-install-fio");
+    if (inst) inst.addEventListener("click", function (e) {
+      e.preventDefault();
+      inst.textContent = "…";
+      post("/settings/restore-server/install-fio").then(function (r) {
+        if (r.ok) { location.reload(); } else { r.json().then(function (j) { alert(j.error || "Fehler"); }); }
+      });
+    });
+  })();
+  </script>
 </section>
 </div>
 

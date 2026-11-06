@@ -94,6 +94,29 @@ def test_classify_task_error_falls_back_to_detail():
     assert "unrecognised" in msg
 
 
+def test_parse_fio_bw_reads_write_bandwidth():
+    from app.services.restore_server import parse_fio_bw
+
+    assert parse_fio_bw('{"jobs":[{"write":{"bw_bytes":524288000}}]}') == 524288000
+    # fio prints a banner before the JSON — scan to the outer braces.
+    assert parse_fio_bw('fio-3.33\nStarting 1 process\n{"jobs":[{"write":{"bw_bytes":100}}]}\n') == 100
+    assert parse_fio_bw("not json at all") is None
+    assert parse_fio_bw('{"jobs":[{"read":{"bw_bytes":5}}]}') is None  # no write result
+
+
+def test_disk_ceiling_prefers_measured_over_class():
+    from app.services.restore_server import DISK_CLASS_MAX_BPS
+
+    srv = _server({})
+    classes = {"fast": "enterprise-ssd", "slow": "sata-hdd"}
+    # A measured value for 'slow' wins (it is the max here).
+    assert srv._disk_ceiling_bps(classes, {"fast", "slow"}, {"slow": 9_000_000_000}) == 9_000_000_000
+    # No measurement → the fastest disk-class estimate among the selected.
+    assert srv._disk_ceiling_bps(classes, {"fast", "slow"}, {}) == DISK_CLASS_MAX_BPS["enterprise-ssd"]
+    # A measured value is per-storage: 'fast' measured low, 'slow' by class.
+    assert srv._disk_ceiling_bps(classes, {"fast", "slow"}, {"fast": 1_000}) == DISK_CLASS_MAX_BPS["sata-hdd"]
+
+
 def test_backup_error_hint_recognises_and_ignores():
     assert "decryption failed" in backup_error_hint("Error: wrong key - unable to verify signature")
     assert "permission denied" in backup_error_hint("permission check failed - missing Datastore.Read")

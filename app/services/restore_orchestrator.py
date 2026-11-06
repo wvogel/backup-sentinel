@@ -540,12 +540,23 @@ def ui_target_storages() -> dict[str, Any]:
     config = restore_config.load()
     if config is None:
         return {"rows": [], "error": None, "note": None}
+    from app.services import restore_perf
+
     saved = {s["storage"]: s for s in config.get("target_storages", [])}
     discovered: list[dict[str, Any]] = []
     error: str | None = None
     note: str | None = None
+    server = build_server(config)
+    fio_available = False
     try:
-        result = build_server(config).list_target_storages()
+        fio_available = server.fio_available()
+    except Exception as exc:
+        logger.debug("fio_available check failed: %s", exc)
+    perf = restore_perf.get_perf()
+    busy = restore_perf.involved_storages()
+    perf_running = restore_perf.running_storage()
+    try:
+        result = server.list_target_storages()
         discovered = result["targets"]
         if not discovered and result["pbs"] > 0 and result["total"] == result["pbs"]:
             # Every storage returned is a PBS source datastore — no regular
@@ -575,6 +586,11 @@ def ui_target_storages() -> dict[str, Any]:
                 "order": (s or {}).get("order", 999),
                 "used": d.get("used"),
                 "free": d.get("avail"),
+                # Performance test: only file-based local storages (dir) can hold a
+                # benchmark image file; busy = in a running restore; perf = last run.
+                "benchmarkable": d.get("type") == "dir",
+                "busy": name in busy,
+                "perf": perf.get(name),
             }
         )
     # Saved storages the host did not return (temporarily missing): keep them so
@@ -592,7 +608,7 @@ def ui_target_storages() -> dict[str, Any]:
                 }
             )
     rows.sort(key=lambda r: (not r["use"], r["order"], r["storage"]))
-    return {"rows": rows, "error": error, "note": note}
+    return {"rows": rows, "error": error, "note": note, "fio_available": fio_available, "perf_running": perf_running}
 
 
 def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
