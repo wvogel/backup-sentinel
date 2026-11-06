@@ -1641,10 +1641,11 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 /* Cluster page: document a restore test — VM list left, the short fields
    stacked right, the note full width, save bottom right. */
 .panel-grid > .dash-section { margin: 0; }
-/* Cluster page: the manual-documentation form stays compact on the left so the
-   evidence table (right) gets the width. Overrides the shared .panel-grid 2:1. */
-.cluster-restore-grid { grid-template-columns: minmax(280px, 0.7fr) minmax(0, 2fr); }
-@media (max-width: 900px) { .cluster-restore-grid { grid-template-columns: 1fr; } }
+/* Cluster page: the evidence table runs full width on top, the manual-
+   documentation form sits compact below it (width-capped so it never stretches
+   across the whole page). */
+.cluster-restore-stack { display: grid; gap: var(--gap); margin-bottom: var(--gap); }
+.cluster-restore-stack .restore-doc-form { max-width: 680px; }
 .restore-doc-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
