@@ -45,31 +45,39 @@
 
     <div class="rhost-spacer"></div>
 
-    <fieldset class="rhost-box rhost-graph" data-metric="ram" data-kind="fill">
-      <legend><span class="rhost-name">{{ t('restore.ram') }}</span><span class="rhost-pct"></span></legend>
-      <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="rhost-cell">
+      <fieldset class="rhost-box rhost-graph" data-metric="ram" data-kind="fill">
+        <legend><span class="rhost-name">{{ t('restore.ram') }}</span><span class="rhost-pct"></span></legend>
+        <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </fieldset>
       <div class="rhost-ov">—</div>
-    </fieldset>
+    </div>
 
     {% for s in targets %}
-    <fieldset class="rhost-box rhost-graph" data-metric="store" data-name="{{ s.storage }}" data-kind="fill">
-      <legend>{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span class="rhost-name">{{ s.storage }}</span></legend>
-      <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="rhost-cell">
+      <fieldset class="rhost-box rhost-graph" data-metric="store" data-name="{{ s.storage }}" data-kind="fill">
+        <legend>{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class or 'standard-ssd') }}<span class="rhost-name">{{ s.storage }}</span></legend>
+        <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </fieldset>
       <div class="rhost-ov">—</div>
-    </fieldset>
+    </div>
     {% endfor %}
 
-    <fieldset class="rhost-box rhost-graph" data-metric="disk" data-kind="rate">
-      <legend><span class="rhost-name">{{ t('restore.io_disk') }}</span><span class="rhost-pct"></span></legend>
-      <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="rhost-cell">
+      <fieldset class="rhost-box rhost-graph" data-metric="disk" data-kind="rate">
+        <legend><span class="rhost-name">{{ t('restore.io_disk') }}</span><span class="rhost-pct"></span></legend>
+        <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </fieldset>
       <div class="rhost-ov">—</div>
-    </fieldset>
+    </div>
 
-    <fieldset class="rhost-box rhost-graph" data-metric="net" data-kind="rate">
-      <legend><span class="rhost-name">{{ t('restore.io_net') }}</span><span class="rhost-pct"></span></legend>
-      <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="rhost-cell">
+      <fieldset class="rhost-box rhost-graph" data-metric="net" data-kind="rate">
+        <legend><span class="rhost-name">{{ t('restore.io_net') }}</span><span class="rhost-pct"></span></legend>
+        <svg class="rhost-surf" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </fieldset>
       <div class="rhost-ov">—</div>
-    </fieldset>
+    </div>
   </div>
   {% if not targets %}<p class="muted">{{ t('restore.storage_none') }}</p>{% endif %}
 
