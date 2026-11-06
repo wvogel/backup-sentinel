@@ -119,6 +119,15 @@
     cell.append(s1);
 
     if (frag) {
+      const vd = frag.querySelector(".vm-disks");
+      if (vd) {
+        const sv = sectionBox(T("cluster.volumes_title"));
+        sv.append(vd);
+        cell.append(sv);
+      }
+    }
+
+    if (frag) {
       const rs = frag.querySelector(".vm-restore-settings");
       if (rs) {
         const s2 = sectionBox(T("restore.settings_title"));

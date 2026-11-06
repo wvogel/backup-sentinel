@@ -3,6 +3,7 @@
 {% block content %}
 {% import "_sync_dots.html" as dots with context %}
 {% import "_nodes_tile.html" as tiles with context %}
+{% import "_volume_bar.html" as vol with context %}
 {% set critical_count = vm_rows | selectattr("backup_severity", "equalto", "critical") | list | length %}
 {% set warning_count = vm_rows | selectattr("backup_severity", "equalto", "warning") | list | length %}
 {% set severity_labels = {"ok": t('common.ok'), "info": t('cluster.status_info'), "warning": t('common.warning'), "critical": t('common.critical'), "unknown": t('common.unknown'), "open": t('cluster.restore_open')} %}
@@ -129,6 +130,7 @@
           <th aria-sort="none" class="sortable" data-sort-type="text" data-wrappable="2" role="button" tabindex="0">{{ t('common.vm') }}</th>
           <th aria-sort="none" class="sortable" data-sort-type="text" data-wrappable="1" role="button" tabindex="0">{{ t('common.node') }}</th>
           <th aria-sort="none" class="sortable col-right" data-sort-type="number" role="button" tabindex="0">VMID</th>
+          <th aria-sort="none" class="sortable col-right" data-sort-type="number" role="button" tabindex="0">{{ t('cluster.th_size') }}</th>
           <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('cluster.th_last_backup') }}</th>
           <th class="js-spark-head">{{ t('cluster.th_30days') }}</th>
           <th aria-sort="none" class="sortable" data-sort-type="text" role="button" tabindex="0">{{ t('cluster.th_protection') }}</th>
@@ -169,6 +171,7 @@
             {%- if row.vm_gone %} <span class="badge unknown vm-gone-badge">{{ t('cluster.vm_gone') }}</span>{% endif %}</td>
           <td class="muted" data-label="{{ t('common.node') }}" data-sort-value="{{ row.node_name }}">{{ row.node_name }}</td>
           <td class="col-right muted" data-label="VMID" data-sort-value="{{ row.vmid }}">{{ row.vmid }}</td>
+          <td class="col-right vm-size-cell" data-label="{{ t('cluster.th_size') }}" data-sort-value="{{ row.disk_bytes or 0 }}">{{ vol.total(row.disk_bytes, row.disks) }}</td>
           <td data-label="{{ t('cluster.th_last_backup') }}" data-sort-value="{{ row.last_backup_at.isoformat() if row.last_backup_at else '' }}">
             {%- if row.last_backup_at %}<span class="last-backup-date">{{ row.last_backup_at|datetime_local }}</span>
             {%- else %}<span class="muted">{{ t('cluster.no_backup') }}</span>{% endif -%}
@@ -241,6 +244,8 @@
                   </select>
                 </label>
               </form>
+              {# Section 1b (placed under the "Volumes" heading): per-disk sizes. #}
+              {% if row.disks %}<div class="vm-disks">{{ vol.detail(row.disks, row.disk_bytes) }}</div>{% endif %}
               {# Section 2 (placed under the "Automated Restore Settings" heading).
                  Omitted when the VM has no backup; when the restore server has no
                  matching backup for it, a note explains why Auto isn't offered. #}
@@ -298,6 +303,7 @@
     <table class="evidence-table">
       <thead><tr>
         <th>{{ t('common.vm') }}</th><th>{{ t('restore.col_started') }}</th><th>{{ t('dashboard.evidence_end') }}</th>
+        <th class="col-right">{{ t('restore.col_size') }}</th>
         <th>{{ t('restore.col_duration') }}</th><th>{{ t('restore.col_status') }}</th><th>{{ t('dashboard.evidence_checks') }}</th>
       </tr></thead>
       <tbody>
@@ -308,6 +314,7 @@
         <td><strong>{{ restore.vm_name }}</strong> <span class="restore-type-icon" title="{{ recovery_type_labels.get(restore.recovery_type, restore.recovery_type) }}">{{ recovery_type_icons.get(restore.recovery_type, "•") }}</span></td>
         <td>{{ restore.run_started_at|datetime_local('%d.%m. %H:%M') if restore.run_started_at else restore.tested_at|datetime_local('%d.%m.%Y') }}</td>
         <td>{{ restore.run_finished_at|datetime_local('%d.%m. %H:%M') if restore.run_finished_at else '–' }}</td>
+        <td class="col-right">{{ vol.total(restore.disk_bytes, restore.disks) }}</td>
         <td>{{ _secs // 3600 }}:{{ '%02d'|format((_secs % 3600) // 60) }}</td>
         <td><span class="status-icon status-{{ restore.result }}">{{ _icon }}</span> {{ t('cluster.result_' ~ restore.result) }}</td>
         <td>

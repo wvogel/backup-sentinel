@@ -944,3 +944,52 @@ class RestoreRunStateIconTests(DbTestCase):
     def test_idle_vm_keeps_an_empty_state_slot(self) -> None:
         html = self.page()
         self.assertIn(f'class="run-state" id="run-state-{self.vm_row(100)["id"]}"', html)
+
+
+class VmDiskTests(DbTestCase):
+    def _sync_with_disks(self) -> None:
+        vm = {
+            "node_name": "pve1",
+            "vmid": 100,
+            "name": "a",
+            "backup_kind": "daily",
+            "last_backup_at": None,
+            "disk_bytes": 44 * 1024**3,
+            "disks": [
+                {"dev": "scsi0", "storage": "fast-ssd", "size_bytes": 20 * 1024**3},
+                {"dev": "scsi1", "storage": "bulk-hdd", "size_bytes": 24 * 1024**3},
+            ],
+        }
+        db.sync_cluster_inventory(self.cid, [{"name": "pve1", "status": "online"}], [vm])
+
+    def test_governance_rows_expose_disk_sizes(self) -> None:
+        self._sync_with_disks()
+        row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
+        self.assertEqual(row["disk_bytes"], 44 * 1024**3)
+        self.assertEqual([d["dev"] for d in row["disks"]], ["scsi0", "scsi1"])
+        self.assertEqual(row["disks"][0]["storage"], "fast-ssd")
+
+    def test_resync_without_config_keeps_known_disks(self) -> None:
+        # A sync whose per-VM config fetch failed carries no disks; it must not
+        # wipe the breakdown or total recorded by an earlier successful sync.
+        self._sync_with_disks()
+        db.sync_cluster_inventory(self.cid, [], [_vm(100, "a")])
+        row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
+        self.assertEqual(len(row["disks"]), 2)
+        self.assertEqual(row["disk_bytes"], 44 * 1024**3)
+
+    def test_disks_replaced_when_layout_changes(self) -> None:
+        self._sync_with_disks()
+        changed = {
+            "node_name": "pve1",
+            "vmid": 100,
+            "name": "a",
+            "backup_kind": "daily",
+            "last_backup_at": None,
+            "disk_bytes": 10 * 1024**3,
+            "disks": [{"dev": "scsi0", "storage": "fast-ssd", "size_bytes": 10 * 1024**3}],
+        }
+        db.sync_cluster_inventory(self.cid, [], [changed])
+        row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
+        self.assertEqual([d["dev"] for d in row["disks"]], ["scsi0"])
+        self.assertEqual(row["disk_bytes"], 10 * 1024**3)

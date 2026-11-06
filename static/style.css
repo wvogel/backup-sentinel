@@ -3965,3 +3965,42 @@ fieldset.rhost-graph { height: 58px; width: 100%; }
 .check-detail .chk-ok { color: var(--ok); }
 .check-detail .chk-bad { color: var(--critical); }
 .check-detail .chk-na { color: var(--muted); }
+
+/* ── Per-volume size bars (shared: /restore, dashboard, cluster) ─────────────
+   `vol.total` is the compact number for dense tables; `vol.bar` is the
+   segmented bar (one segment per disk, width ∝ size, colour = target storage);
+   `vol.detail` adds a per-disk line for the roomy cluster detail panel. */
+.vol-total { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vol-bar {
+  display: flex; height: 15px; width: 100%; max-width: 420px;
+  margin-top: 8px; border-radius: 4px; overflow: hidden;
+  background: var(--panel-alt); border: 1px solid var(--line);
+}
+.vol-seg {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 0; overflow: hidden; color: #0b0f1a;
+  font-size: 0.68rem; line-height: 1; white-space: nowrap;
+}
+.vol-seg + .vol-seg { border-left: 1px solid rgba(11, 15, 26, 0.25); }
+.vol-seg-label { padding: 0 4px; overflow: hidden; text-overflow: ellipsis; }
+.vol-legend {
+  display: flex; flex-wrap: wrap; gap: 3px 14px;
+  margin-top: 6px; font-size: 0.75rem; color: var(--muted);
+}
+.vol-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.vol-detail-line { margin-top: 6px; font-size: 0.8rem; }
+.run-size { font-variant-numeric: tabular-nums; }
+/* Storage colour slots (vol_seg_class hashes a storage name to one of these),
+   light values first, dark-theme overrides below. */
+.vol-s0 { background: #4a7eb5; }
+.vol-s1 { background: #4a9e7e; }
+.vol-s2 { background: #c79a4a; }
+.vol-s3 { background: #7a6ab5; }
+.vol-s4 { background: #b56a8a; }
+.vol-s5 { background: #4aa6b5; }
+html[data-theme="dark"] .vol-s0 { background: #89abcf; }
+html[data-theme="dark"] .vol-s1 { background: #8dd3b0; }
+html[data-theme="dark"] .vol-s2 { background: #dfb97f; }
+html[data-theme="dark"] .vol-s3 { background: #b9a3e3; }
+html[data-theme="dark"] .vol-s4 { background: #e3a3bf; }
+html[data-theme="dark"] .vol-s5 { background: #8fcbd6; }

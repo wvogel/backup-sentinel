@@ -101,6 +101,10 @@ def init_db() -> None:
             cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS memory_bytes BIGINT")
             # Storages the guest's PVE backup jobs write to (direct backups).
             cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS backup_storages TEXT[] NOT NULL DEFAULT '{}'")
+            # Total provisioned disk size (sum of the guest's data disks), from
+            # PVE's `maxdisk`. Drives the per-VM size shown across the UI and the
+            # restore planner's fit check.
+            cur.execute("ALTER TABLE vms ADD COLUMN IF NOT EXISTS disk_bytes BIGINT")
             # PBS storages in the cluster's PVE config: where PVE backs up to.
             cur.execute(
                 """
@@ -112,6 +116,21 @@ def init_db() -> None:
                     datastore TEXT NOT NULL,
                     namespace TEXT NOT NULL DEFAULT '',
                     PRIMARY KEY (cluster_id, storage_id)
+                );
+                """
+            )
+            # Per-disk breakdown of each guest (one row per data disk), refreshed
+            # every PVE sync from `qm config` / `pct config`. Powers the per-volume
+            # size bars and the restore planner's per-disk bin-packing.
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS vm_disks (
+                    vm_id BIGINT NOT NULL REFERENCES vms(id) ON DELETE CASCADE,
+                    ordinal INTEGER NOT NULL,
+                    dev TEXT NOT NULL,
+                    storage TEXT NOT NULL,
+                    size_bytes BIGINT NOT NULL,
+                    PRIMARY KEY (vm_id, dev)
                 );
                 """
             )
