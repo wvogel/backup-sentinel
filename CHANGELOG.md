@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.14] — 2026-11-06
+
+### Changed
+
+- **Cluster page: recent restore tests run full width, with the documentation form compact below.** The evidence table now spans the whole section (more room for the VM, start/end, runtime, status and check columns) instead of sharing a row with the manual-documentation form; that form moves underneath and is width-capped so it stays compact rather than stretching across the page.
+
 ## [v3.9.13] — 2026-11-06
 
 ### Changed
