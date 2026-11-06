@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.11] — 2026-11-06
+
+### Fixed
+
+- **A resumed restore no longer shows "finalizing" (Cache-Flush) while it is really checking reachability.** When a deploy restarted the app mid-run, the resume path went straight into the probe loop without advancing the phase, so the running card kept the stale "finalizing" the restore's last 100 % progress left behind — even with the IP detected and port checks already coming back green. Resume now sets the phase (network → booting → probing) exactly like a fresh run.
+
 ## [v3.9.10] — 2026-11-05
 
 ### Changed
