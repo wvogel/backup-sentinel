@@ -3525,10 +3525,15 @@ html[data-theme="dark"] .node-filter-button.is-active {
   font-size: 0.85rem;
 }
 .store-perf-cell { white-space: nowrap; }
-/* Idle: measured rate as a value + a small test icon (hover = last-tested date). */
-.perf-value { font-variant-numeric: tabular-nums; vertical-align: middle; }
+/* Idle: a small test icon (hover = last-tested date) directly before the
+   measured rate value (or "unbekannt", which may ellipsis if space is tight). */
+.perf-value {
+  font-variant-numeric: tabular-nums; vertical-align: middle;
+  display: inline-block; max-width: 100%; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
 .perf-icon {
-  width: auto; margin-left: 8px; padding: 2px; vertical-align: middle;
+  width: auto; margin-right: 5px; padding: 1px; vertical-align: middle;
   color: var(--muted); background: transparent; border: 0; cursor: pointer;
 }
 .perf-icon svg { display: block; width: 17px; height: 17px; }
@@ -3538,7 +3543,17 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .perf-nofio { font-size: 0.78rem; color: var(--muted); }
 .perf-nofio a { color: var(--accent); }
 
-.restore-storage-table { width: 100%; }
+/* The storage fieldset holds a table, not the label pairs the sibling cards do,
+   so it must NOT inherit their 1fr/1fr grid — that balloons one track and
+   stretches the table across the whole card (shaded header + rules running to
+   the edge). Plain block → the table is its own (content) width, left-aligned. */
+.restore-config-form .restore-storage-fieldset { display: block; }
+/* Content width, left-aligned — not the global table{width:100%}, which would
+   stretch it across the half-width card (empty Performance column, header band
+   and row rules running to the edge). */
+.restore-storage-table { width: auto; }
+/* No shaded/sticky header here — it is a short, non-scrolling config table. */
+.restore-storage-table thead th { position: static; background: transparent; }
 /* A running test gets its OWN full-width row below the storage row (there is
    room below, not beside): laid out horizontally across all columns — the bar
    grows to fill, then the throughput sparkline, live rate/ETA and cancel. */

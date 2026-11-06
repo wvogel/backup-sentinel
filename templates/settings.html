@@ -228,7 +228,7 @@
           {% endif %}
         </div>
       </fieldset>
-      <fieldset class="settings-cluster-card restore-net-fieldset">
+      <fieldset class="settings-cluster-card restore-net-fieldset restore-storage-fieldset">
       <legend>{{ t('restore.grp_storage') }} <span class="help-dot" data-tooltip="{{ t('restore.storage_hint') }}">?</span></legend>
       {% if not rc %}
       <p class="muted">{{ t('restore.storage_save_first') }}</p>
@@ -268,8 +268,6 @@
                 {# measured rate as a value (or "unbekannt") + a test icon whose
                    hover shows when it was last measured #}
                 {%- set _disabled = s.busy or (restore_perf_running and restore_perf_running != s.storage) -%}
-                {%- if s.perf and s.perf.bps %}<span class="perf-value">{{ s.perf.bps | size_coarse }}/s</span>
-                {%- else %}<span class="perf-value muted">{{ t('restore.perf_unknown') }}</span>{% endif %}
                 <button type="button" class="perf-icon js-perf-test" data-storage="{{ s.storage }}"{% if _disabled %} disabled{% endif %} aria-label="{{ t('restore.perf_test') }}" data-tooltip="
                   {%- if s.busy %}{{ t('restore.perf_busy') }}
                   {%- elif restore_perf_running %}{{ t('restore.perf_running_other') }}
@@ -277,7 +275,7 @@
                   {%- elif s.perf and s.perf.error %}{{ t('restore.perf_last_error') }}: {{ s.perf.error }}
                   {%- else %}{{ t('restore.perf_test_hint') }}{% endif -%}">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15a9 9 0 0 1 18 0"/><path d="M12 15l5-3.5"/><circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none"/></svg>
-                </button>
+                </button>{% if s.perf and s.perf.bps %}<span class="perf-value">{{ s.perf.bps | size_coarse }}/s</span>{% else %}<span class="perf-value muted">{{ t('restore.perf_unknown') }}</span>{% endif %}
               {%- endif %}
             </td>
           </tr>
