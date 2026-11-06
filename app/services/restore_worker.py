@@ -48,6 +48,10 @@ class RunPlan:
     window: int = 300
     needed_bytes: int | None = None  # estimated restore footprint, for the disk-fit skip
     needed_ram: int | None = None  # the guest's configured RAM, for the RAM-fit skip
+    # Per-disk target storages (dev -> storage) when the guest is too big for any
+    # single storage and its disks are spread across several (restored disk by
+    # disk). None → the whole guest goes on `target_storage` (the normal path).
+    disk_targets: dict[str, str] | None = None
 
 
 def owned_vmids() -> set[int]:
@@ -222,6 +226,7 @@ def execute(
             on_progress=_progress_updater(server, run_id, plan.restore_vmid),
             on_task=lambda upid: db_restore.update_run(run_id, task_upid=upid),
             should_cancel=should_cancel,
+            disk_targets=plan.disk_targets,
         )
         _checkpoint()
         db_restore.update_run(run_id, phase="network")

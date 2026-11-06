@@ -13,7 +13,15 @@ from typing import Any
 
 from app import db, db_restore
 from app.db_core import connect
-from app.services import restore_alloc, restore_config, restore_ip_collect, restore_match, restore_perf, restore_worker
+from app.services import (
+    restore_alloc,
+    restore_config,
+    restore_ip_collect,
+    restore_match,
+    restore_pack,
+    restore_perf,
+    restore_worker,
+)
 from app.services.restore_server import ParamikoSsh, PveApi, PveSsh, RestoreServer
 from app.services.restore_worker import RunPlan
 
@@ -328,13 +336,39 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
     except Exception as exc:
         logger.debug("free_resources for target selection failed (using preferred): %s", exc)
     decision, chosen = choose_target_storage(ordered, avail_by, total_by, needed_bytes)
+    disk_targets: dict[str, str] | None = None
     if decision == "toobig":
-        gb = (needed_bytes or 0) / 1024**3
-        raise NotRunnable(
-            f"guest ({gb:.0f} GB) is larger than every target storage — "
-            "spreading its disks across several storages is not available yet"
-        )
-    target_storage = chosen
+        # No single storage can hold the whole guest → spread its disks across
+        # several (restored disk by disk). Pack by free space; if that only fits
+        # the capacities (not the free space now) wait; if it fits neither, the
+        # guest genuinely can't be placed.
+        disks = db.vm_disk_rows(vm_id)
+        avail_ord = [(s, avail_by[s]) for s in ordered if avail_by.get(s) is not None]
+        total_ord = [(s, total_by[s]) for s in ordered if total_by.get(s) is not None]
+        if not disks or not total_ord:
+            gb = (needed_bytes or 0) / 1024**3
+            raise NotRunnable(
+                f"guest ({gb:.0f} GB) is larger than every target storage and its "
+                "per-disk sizes are unknown — cannot plan a distribution"
+            )
+        pack_decision, mapping = restore_pack.plan_distribution(disks, avail_ord, total_ord)
+        if pack_decision == "impossible":
+            gb = (needed_bytes or 0) / 1024**3
+            raise NotRunnable(
+                f"guest ({gb:.0f} GB) cannot be placed: a disk is larger than every "
+                "target storage, or the disks together exceed the total capacity"
+            )
+        if pack_decision == "retry":
+            # Would fit the capacities but not the free space right now → leave it
+            # queued (the drainer skips oversized runs and retries on a later pass).
+            target_storage = ordered[0]
+        else:
+            disk_targets = mapping
+            # The config/helper live on the storage holding the most-loaded disk's
+            # target; pick the storage a disk actually lands on for naming/fallbacks.
+            target_storage = next(iter(mapping.values())) if mapping else ordered[0]
+    else:
+        target_storage = chosen
 
     return RunPlan(
         vm_id=vm_id,
@@ -368,6 +402,7 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         window=candidate.get("probe_window_seconds") or config.get("probe_window_seconds", 300),
         needed_bytes=needed_bytes,
         needed_ram=_vm_memory_bytes(vm_id),
+        disk_targets=disk_targets,
     )
 
 
@@ -398,14 +433,24 @@ def enqueue_due(server: RestoreServer, config: dict[str, Any]) -> int:
 def _fits_disk(server: RestoreServer, plan: RunPlan) -> bool:
     """Whether this run's estimated footprint fits the target storage's free
     space right now (held environments already consume it, so live free avail
-    reflects them). Unknown sizes optimistically fit (spec §15)."""
+    reflects them). Unknown sizes optimistically fit (spec §15).
+
+    A distributed run (``disk_targets`` set) must fit on *every* storage it
+    spreads onto: each target needs room for the disks assigned to it."""
     try:
         stores = server.free_resources().get("stores", [])
-        free = next((s.get("avail") for s in stores if s.get("storage") == plan.target_storage), None)
+        avail = {s.get("storage"): s.get("avail") for s in stores}
     except Exception as exc:
         logger.debug("free_resources check failed: %s", exc)
         return True
-    return restore_worker.fits_disk(free, plan.needed_bytes)
+    if plan.disk_targets:
+        demand: dict[str, int] = {}
+        for disk in db.vm_disk_rows(plan.vm_id):
+            storage = plan.disk_targets.get(disk["dev"])
+            if storage:
+                demand[storage] = demand.get(storage, 0) + int(disk.get("size_bytes") or 0)
+        return all(restore_worker.fits_disk(avail.get(storage), need) for storage, need in demand.items())
+    return restore_worker.fits_disk(avail.get(plan.target_storage), plan.needed_bytes)
 
 
 def _fits_ram(server: RestoreServer, plan: RunPlan) -> bool:
@@ -465,13 +510,15 @@ def drain(config: dict[str, Any], server: RestoreServer) -> None:
                 # the pass returns below once nothing executes).
                 logger.info("restore run %s skipped: does not fit free RAM yet", run["id"])
                 continue
-            if restore_perf.running_storage() == plan.target_storage:
-                # A write-performance test is measuring this storage right now.
-                # Starting a restore onto it would fight the benchmark for disk I/O
-                # (and skew its result), so the run waits: left queued, retried on a
-                # later pass. This is the mirror of start()'s refusal to benchmark a
-                # storage that a running restore already uses.
-                logger.info("restore run %s waiting: performance test running on %s", run["id"], plan.target_storage)
+            busy = restore_perf.running_storage()
+            plan_storages = set(plan.disk_targets.values()) if plan.disk_targets else {plan.target_storage}
+            if busy and busy in plan_storages:
+                # A write-performance test is measuring one of this run's storages
+                # right now. Starting a restore onto it would fight the benchmark for
+                # disk I/O (and skew its result), so the run waits: left queued,
+                # retried on a later pass. This is the mirror of start()'s refusal to
+                # benchmark a storage that a running restore already uses.
+                logger.info("restore run %s waiting: performance test running on %s", run["id"], busy)
                 continue
             result = restore_worker.execute(run["id"], plan, server, production_hosts=prod)
             _notify_result(run["vm_id"], result)

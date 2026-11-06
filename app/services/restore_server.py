@@ -442,6 +442,46 @@ def parse_fio_eta(line: str) -> dict[str, Any] | None:
 # per-disk "read N bytes" (which resets each disk) can be summed into an overall total.
 _DRIVE_RE = re.compile(r"\b(drive-[A-Za-z0-9]+)\.img\.fidx\b")
 
+# Disk keys in a guest config that a distributed restore places per-disk (QEMU
+# only — the restore pipeline is QEMU-only, so rootfs/mp are never seen here).
+_CFG_DISK_KEY_RE = re.compile(r"^(?:ide|sata|scsi|virtio)\d+$|^efidisk\d+$|^tpmstate\d+$")
+_CFG_SIZE_RE = re.compile(r"\bsize=(\d+(?:\.\d+)?[KMGTP]?)", re.IGNORECASE)
+_CFG_UNIT = {"K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4, "P": 1024**5}
+
+
+def _parse_config_disks(cfg_text: str) -> dict[str, dict[str, str]]:
+    """Parse a guest config's data-disk lines into
+    ``{dev: {volid, opts, size_token}}`` — ``opts`` keeps the leading comma and
+    every option after the volid, so the line can be rebuilt with a new volid.
+    CD-ROM/cloud-init drives and snapshot sections are skipped."""
+    disks: dict[str, dict[str, str]] = {}
+    for line in cfg_text.splitlines():
+        if line.startswith("[") or line.startswith("#"):
+            break
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        key = key.strip()
+        value = value.strip()
+        if not _CFG_DISK_KEY_RE.match(key) or "media=cdrom" in value:
+            continue
+        first = value.split(",", 1)[0]
+        if ":" not in first:
+            continue
+        match = _CFG_SIZE_RE.search(value)
+        disks[key] = {"volid": first, "opts": value[len(first) :], "size_token": match.group(1) if match else ""}
+    return disks
+
+
+def _size_token_bytes(token: str | None) -> int | None:
+    """Bytes for a PVE size token like ``60G`` / ``528K`` (binary units)."""
+    if not token:
+        return None
+    match = re.match(r"(\d+(?:\.\d+)?)([KMGTP]?)", token.strip(), re.IGNORECASE)
+    if not match:
+        return None
+    return int(float(match.group(1)) * _CFG_UNIT.get(match.group(2).upper(), 1))
+
 
 def overall_restore_fields(done_bytes: int, total_bytes: int | None) -> dict[str, Any] | None:
     """Overall restore progress from the **cumulative** bytes read across all of a
@@ -1018,6 +1058,7 @@ class RestoreServer:
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
         should_cancel: Callable[[], bool] | None = None,
+        disk_targets: dict[str, str] | None = None,
     ) -> None:
         """Restore a snapshot to ``restore_vmid`` on the target storage, tracking
         live progress. Liveness is the task status; abort only on task error, an
@@ -1033,6 +1074,22 @@ class RestoreServer:
         default "VM {vmid}" until the restore finishes. ``rewrite_nics`` sets the
         ``<cluster>-<vm>`` name right after, once the lock clears."""
         node = self.node()
+        if disk_targets:
+            # Guest too big for any single storage: restore disk by disk onto the
+            # planned per-disk target storages, then assemble the config. Separate,
+            # self-contained path (no single PVE restore task / UPID).
+            self._restore_distributed(
+                restore_vmid,
+                source,
+                snapshot_id,
+                disk_targets,
+                on_progress=on_progress,
+                node=node,
+                now=now,
+                sleep=sleep,
+                should_cancel=should_cancel,
+            )
+            return
         # snapshot_id is the PBS volume id (e.g. "store:backup/vm/100/2026-...Z"),
         # which PVE accepts directly as the restore archive.
         archive = self._archive_volid(source, snapshot_id)
@@ -1047,6 +1104,215 @@ class RestoreServer:
         self._poll_task(
             node, upid, on_progress, poll_interval=poll_interval, now=now, sleep=sleep, should_cancel=should_cancel
         )
+
+    def _pbs_source_creds(self, pbs_storeid: str, namespace: str | None) -> dict[str, Any]:
+        """Resolve the PBS repository, credentials and (optional) encryption key for
+        a direct ``pbs-restore`` from the restore host's own PVE storage config —
+        the same files PVE uses internally. Reading ``/etc/pve/storage.cfg`` and the
+        private ``.pw`` / ``.enc`` files needs root (we hold it). The password is
+        never logged and is passed to pbs-restore via a temp env file, not argv."""
+        raw = self.ssh.run("cat /etc/pve/storage.cfg 2>/dev/null || true")
+        block: dict[str, str] = {}
+        in_block = False
+        for line in raw.splitlines():
+            if re.match(rf"^pbs:\s+{re.escape(pbs_storeid)}\s*$", line):
+                in_block = True
+                continue
+            if in_block:
+                if line and not line[0].isspace():
+                    break
+                parts = line.strip().split(None, 1)
+                if len(parts) == 2:
+                    block[parts[0]] = parts[1]
+        server = block.get("server")
+        datastore = block.get("datastore")
+        username = block.get("username") or "root@pam"
+        if not server or not datastore:
+            raise RestoreTaskError(
+                f"could not resolve PBS repository for storage '{pbs_storeid}' from the restore host's storage.cfg"
+            )
+        has_key = self.ssh.run(
+            f"test -f /etc/pve/priv/storage/{shlex.quote(pbs_storeid)}.enc && echo y || true"
+        ).strip()
+        return {
+            "repository": f"{username}@{server}:{datastore}",
+            "fingerprint": block.get("fingerprint", ""),
+            "pwfile": f"/etc/pve/priv/storage/{pbs_storeid}.pw",
+            "keyfile": f"/etc/pve/priv/storage/{pbs_storeid}.enc" if has_key == "y" else None,
+            "namespace": (namespace or "").strip(),
+        }
+
+    def _restore_distributed(
+        self,
+        restore_vmid: int,
+        source: dict[str, Any],
+        snapshot_id: str,
+        disk_targets: dict[str, str],
+        *,
+        on_progress: Callable[[dict[str, Any]], None] | None,
+        node: str,
+        now: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> None:
+        """Restore a guest whose disks are spread across several storages: read the
+        backed-up config (via PVE, so the storage key is handled for us), then for
+        each disk allocate a volume on its planned storage and ``pbs-restore`` the
+        disk image into it, and finally write the assembled config. A disk is never
+        split; one ``pbs-restore`` per disk.
+
+        FIRST CUT — this path only runs for guests too big for any single storage
+        (which otherwise error), so it cannot regress a normal restore; the exact
+        pbs-restore flags, progress parsing and EFI/TPM handling want verifying
+        against a real host."""
+        from urllib.parse import quote
+
+        archive = self._archive_volid(source, snapshot_id)
+        cfg_text = self.pve.get(f"/nodes/{node}/vzdump/extractconfig?volume={quote(archive, safe='')}")
+        if not isinstance(cfg_text, str) or not cfg_text.strip():
+            raise RestoreTaskError("could not read the backup config for a distributed restore")
+        disk_lines = _parse_config_disks(cfg_text)  # dev -> {volid, opts, size_token}
+        creds = self._pbs_source_creds(source["storage"], source.get("namespace"))
+        snap_path = archive.split("backup/", 1)[1] if "backup/" in archive else snapshot_id
+
+        sizes = {dev: _size_token_bytes(disk_lines.get(dev, {}).get("size_token")) for dev in disk_targets}
+        total_bytes = sum(v for v in sizes.values() if v) or None
+        allocated: dict[str, str] = {}
+        done_bytes = 0
+        try:
+            for dev, storage in disk_targets.items():
+                if should_cancel and should_cancel():
+                    raise RestoreCancelled("restore cancelled by operator")
+                info = disk_lines.get(dev)
+                if not info:
+                    raise RestoreTaskError(f"disk {dev} is in the plan but not in the backup config")
+                out = self.ssh.run(
+                    f"pvesm alloc {shlex.quote(storage)} {restore_vmid} '' {shlex.quote(info['size_token'])} 2>&1"
+                )
+                m = re.search(r"'([^']+:[^']+)'", out)
+                if not m:
+                    raise RestoreTaskError(f"could not allocate {dev} on '{storage}': {out.strip()[:300]}")
+                volid = m.group(1)
+                allocated[dev] = volid
+                path = self.ssh.run(f"pvesm path {shlex.quote(volid)}").strip()
+                self._pbs_restore_disk(
+                    creds,
+                    snap_path,
+                    dev,
+                    path,
+                    restore_vmid,
+                    base_done=done_bytes,
+                    disk_bytes=sizes.get(dev),
+                    total_bytes=total_bytes,
+                    on_progress=on_progress,
+                    now=now,
+                    sleep=sleep,
+                    should_cancel=should_cancel,
+                )
+                done_bytes += sizes.get(dev) or 0
+            self._write_distributed_config(restore_vmid, cfg_text, allocated, disk_lines)
+        except BaseException:
+            # Best-effort rollback so a failed distributed restore leaves no stray
+            # volumes or half-written config behind for the next attempt.
+            for volid in allocated.values():
+                try:
+                    self.ssh.run(f"pvesm free {shlex.quote(volid)} 2>&1 || true")
+                except Exception as exc:
+                    logger.debug("rollback free %s failed: %s", volid, exc)
+            raise
+
+    def _pbs_restore_disk(
+        self,
+        creds: dict[str, Any],
+        snap_path: str,
+        dev: str,
+        device_path: str,
+        restore_vmid: int,
+        *,
+        base_done: int,
+        disk_bytes: int | None,
+        total_bytes: int | None,
+        on_progress: Callable[[dict[str, Any]], None] | None,
+        now: Callable[[], float],
+        sleep: Callable[[float], None],
+        should_cancel: Callable[[], bool] | None,
+        poll_interval: float = 5.0,
+    ) -> None:
+        """Restore one disk image from PBS into a pre-allocated volume with
+        ``pbs-restore``, detached (it outlives the 120s SSH cap) with its exit code
+        written to a side file. The password comes from a 0600 env file sourced in
+        the shell (never on argv, never logged). Progress is best-effort: any
+        percent pbs-restore prints is folded into the overall bar."""
+        log = f"/tmp/bsentinel-pbsrestore-{restore_vmid}-{dev}.log"
+        rc = f"{log}.rc"
+        envf = f"/tmp/bsentinel-pbsenv-{restore_vmid}-{dev}"
+        ns = f"--ns {shlex.quote(creds['namespace'])} " if creds.get("namespace") else ""
+        keyf = f"--keyfile {shlex.quote(creds['keyfile'])} " if creds.get("keyfile") else ""
+        fidx = f"drive-{dev}.img.fidx"
+        # Build the 0600 env file (password + fingerprint) on the host, source it,
+        # run pbs-restore, capture rc, then shred the env file.
+        self.ssh.run(
+            f'umask 077; {{ echo "export PBS_PASSWORD=$(cat {shlex.quote(creds["pwfile"])})"; '
+            f"echo 'export PBS_FINGERPRINT={shlex.quote(creds.get('fingerprint') or '')}'; }} > {shlex.quote(envf)}"
+        )
+        cmd = (
+            f"nohup sh -c '. {shlex.quote(envf)}; "
+            f"pbs-restore --repository {shlex.quote(creds['repository'])} {ns}"
+            f"{shlex.quote(snap_path)} {shlex.quote(fidx)} {shlex.quote(device_path)} "
+            f"--format raw --skip-zero {keyf}; echo $? > {shlex.quote(rc)}; rm -f {shlex.quote(envf)}' "
+            f"> {shlex.quote(log)} 2>&1 & echo kicked"
+        )
+        self.ssh.run(cmd)
+        while True:
+            if should_cancel and should_cancel():
+                self.ssh.run(f"pkill -f {shlex.quote(fidx)} 2>/dev/null || true; rm -f {shlex.quote(envf)} || true")
+                raise RestoreCancelled("restore cancelled by operator")
+            code = self.ssh.run(f"cat {shlex.quote(rc)} 2>/dev/null || true").strip()
+            tail = self.ssh.run(f"tail -c 600 {shlex.quote(log)} 2>/dev/null || true")
+            pm = re.search(r"(\d+)\s*%", tail)
+            if on_progress and total_bytes and disk_bytes:
+                frac = (int(pm.group(1)) / 100.0) if pm else 0.0
+                bytes_done = int(base_done + frac * disk_bytes)
+                on_progress(
+                    {
+                        "percent": min(99, int(bytes_done / total_bytes * 100)),
+                        "bytes_done": bytes_done,
+                        "bytes_total": total_bytes,
+                        "drive": dev,
+                    }
+                )
+            if code != "":
+                if code != "0":
+                    raise RestoreTaskError(classify_task_error(f"pbs-restore {dev} exited {code}", tail))
+                return
+            sleep(poll_interval)
+
+    def _write_distributed_config(
+        self,
+        restore_vmid: int,
+        cfg_text: str,
+        allocated: dict[str, str],
+        disk_lines: dict[str, dict[str, str]],
+    ) -> None:
+        """Assemble and install the restored guest's config: the backed-up config
+        with each distributed disk's volid rewritten to the volume we allocated,
+        snapshot/parent/lock lines dropped. Written straight to the cluster fs like
+        qmrestore does (the VM is nameless until rewrite_nics renames it)."""
+        out: list[str] = []
+        for line in cfg_text.splitlines():
+            if line.startswith("[") or line.startswith("#"):
+                break  # snapshot sections / dump comments — stop at the first
+            key = line.split(":", 1)[0].strip() if ":" in line else ""
+            if key in ("parent", "lock", "template"):
+                continue
+            if key in allocated:
+                opts = disk_lines.get(key, {}).get("opts", "")
+                out.append(f"{key}: {allocated[key]}{opts}")
+            else:
+                out.append(line.rstrip())
+        body = "\n".join(ln for ln in out if ln.strip()) + "\n"
+        conf = f"/etc/pve/qemu-server/{restore_vmid}.conf"
+        self.ssh.run(f"cat > {shlex.quote(conf)} <<'BSENTINEL_EOF'\n{body}BSENTINEL_EOF")
 
     def _start_restore_task(
         self,
