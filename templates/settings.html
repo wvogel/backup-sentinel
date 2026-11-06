@@ -263,15 +263,7 @@
               {%- if not s.benchmarkable %}<span class="muted">–</span>
               {%- elif not restore_fio_available %}<span class="perf-nofio" data-tooltip="{{ t('restore.perf_nofio_hint') }}">{{ t('restore.perf_nofio') }} · <a href="#" class="js-install-fio">{{ t('restore.perf_install_fio') }}</a></span>
               {%- elif restore_perf_running == s.storage -%}
-                {# live progress: bar + throughput sparkline + current rate/ETA + cancel #}
-                <div class="perf-run js-perf-run" data-storage="{{ s.storage }}">
-                  <div class="perf-bar"><span class="perf-bar-fill" style="width:{{ (restore_perf_progress.pct or 0) }}%"></span></div>
-                  <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
-                  <div class="perf-run-meta">
-                    <span class="perf-run-text js-perf-text">{{ t('restore.perf_running') }}…</span>
-                    <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
-                  </div>
-                </div>
+                <span class="perf-value muted">{{ t('restore.perf_running') }}…</span>
               {%- else -%}
                 {# measured rate as a value (or "unbekannt") + a test icon whose
                    hover shows when it was last measured #}
@@ -289,6 +281,20 @@
               {%- endif %}
             </td>
           </tr>
+          {%- if restore_fio_available and restore_perf_running == s.storage %}
+          {# Running test gets its own full-width row below — bar, throughput
+             sparkline, live rate/ETA and cancel spread across all columns. #}
+          <tr class="perf-progress-row js-perf-run" data-storage="{{ s.storage }}">
+            <td colspan="7">
+              <div class="perf-run">
+                <div class="perf-bar"><span class="perf-bar-fill" style="width:{{ (restore_perf_progress.pct or 0) }}%"></span></div>
+                <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
+                <span class="perf-run-text js-perf-text">{{ t('restore.perf_running') }}…</span>
+                <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
+              </div>
+            </td>
+          </tr>
+          {%- endif %}
         {% endfor %}
         </tbody>
       </table>
