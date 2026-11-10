@@ -5,7 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v3.9.25] — 2026-11-10
+## [v3.9.26] — 2026-11-11
+
+### Added
+
+- **Restore tests now cover LXC containers, not just VMs.** A container is restored from PBS into the isolated sandbox (`pct restore`), booted and probed exactly like a VM — liveness (ICMP/ARP) plus the configured TCP ports accepting a socket connection — and classified passed/limited/failed with the same queue, scheduling, live card, phase timings and teardown. The first case is a Corosync **Qdevice** LXC (set its probe port to 5403). The whole QEMU/VM path is unchanged.
+- **Container-specific pieces.** IP discovery without a guest agent (a container's static `ip=` is read from its `netN` config each probe pass, so the helper reaches it in its real subnet; `dhcp` falls back to the sandbox DHCP). A container-aware sandbox config rewrite (netN repointed to the sandbox bridge/VLAN keeping `hwaddr`/`ip`, host bind-mounts dropped, renamed via `hostname`). Target-storage selection now distinguishes `rootdir` (container) from `images` (VM) capability, and the Settings storage list surfaces container-capable storages so they can be picked.
+
+### Note
+
+- The container restore path (`pct restore` flags, task-log progress) wants one confirming run against the live restore host (the Qdevice, port 5403) before it is relied on; per-disk distribution across storages stays VM-only for now.
 
 ### Fixed
 
