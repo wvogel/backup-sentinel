@@ -46,7 +46,10 @@ def cluster_summaries(
             """
             SELECT
                 v.cluster_id,
-                COUNT(*) FILTER (WHERE be.status = 'ok' AND be.removed_at IS NULL) AS total_backups,
+                -- encrypted IS NOT NULL: a running backup's encryption is unknown
+                -- yet (NULL), not unencrypted — keep it out of the tally so it does
+                -- not drag the percentage down (see db_governance.encryption_audit).
+                COUNT(*) FILTER (WHERE be.status = 'ok' AND be.removed_at IS NULL AND be.encrypted IS NOT NULL) AS total_backups,
                 COUNT(*) FILTER (WHERE be.status = 'ok' AND be.removed_at IS NULL AND be.encrypted = TRUE) AS encrypted_backups
             FROM backup_events be
             JOIN vms v ON v.id = be.vm_id

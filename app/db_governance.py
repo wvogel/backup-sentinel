@@ -520,9 +520,12 @@ def detect_backup_size_anomalies(cluster_id: int, threshold: float = 0.5) -> lis
 
 
 def encryption_audit(cluster_id: int | None = None) -> dict[str, Any]:
+    # A running backup has no manifest yet, so its encryption is NULL ("not known
+    # yet", not "unencrypted") — those must stay OUT of the tally, or every
+    # in-flight backup reads as unencrypted and drags the percentage down.
     query = """
         SELECT
-            COUNT(*) FILTER (WHERE be.status = 'ok' AND be.removed_at IS NULL) AS total_backups,
+            COUNT(*) FILTER (WHERE be.status = 'ok' AND be.removed_at IS NULL AND be.encrypted IS NOT NULL) AS total_backups,
             COUNT(*) FILTER (WHERE be.status = 'ok' AND be.removed_at IS NULL AND be.encrypted = TRUE) AS encrypted_backups
         FROM backup_events be
         JOIN vms v ON v.id = be.vm_id

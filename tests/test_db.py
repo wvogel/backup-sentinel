@@ -993,3 +993,42 @@ class VmDiskTests(DbTestCase):
         row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
         self.assertEqual([d["dev"] for d in row["disks"]], ["scsi0"])
         self.assertEqual(row["disk_bytes"], 10 * 1024**3)
+
+
+class EncryptionAuditTests(DbTestCase):
+    def _backup(self, vmid: int, minutes: int, encrypted: bool | None) -> None:
+        row = self.vm_row(vmid)
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO backup_events (vm_id, started_at, status, encrypted, size_bytes) "
+                "VALUES (%s, %s, 'ok', %s, 10000)",
+                (row["id"], NOW - timedelta(minutes=minutes), encrypted),
+            )
+            conn.commit()
+
+    def test_running_backup_with_unknown_encryption_is_not_counted_as_unencrypted(self) -> None:
+        # A running backup has no manifest yet, so its encryption is unknown (NULL).
+        # "Not known yet" must not drag the percentage down the way "unencrypted"
+        # (FALSE) does: here one encrypted + one unencrypted finished backup = 50%,
+        # and the running one is simply out of the tally.
+        self._backup(100, 1, True)
+        self._backup(100, 2, False)
+        self._backup(101, 3, None)  # running: crypt-mode not reported yet
+        audit = db_governance.encryption_audit(self.cid)
+        self.assertEqual(audit["total_backups"], 2)
+        self.assertEqual(audit["encrypted_backups"], 1)
+        self.assertEqual(audit["pct_encrypted"], 50)
+
+    def test_all_encrypted_with_a_running_one_reads_as_100(self) -> None:
+        # The regression: one encrypted backup + one running (NULL) used to read
+        # as 50% ("99% verschlüsselt" at scale). It must read as 100%.
+        self._backup(100, 1, True)
+        self._backup(101, 2, None)
+        self.assertEqual(db_governance.encryption_audit(self.cid)["pct_encrypted"], 100)
+
+    def test_no_known_backups_reads_as_100(self) -> None:
+        # Only a running backup (unknown): nothing to judge → 100%, not 0%.
+        self._backup(100, 1, None)
+        audit = db_governance.encryption_audit(self.cid)
+        self.assertEqual(audit["total_backups"], 0)
+        self.assertEqual(audit["pct_encrypted"], 100)
