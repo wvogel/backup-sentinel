@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.25] — 2026-11-10
+
+### Fixed
+
+- **A running backup no longer drags the encryption percentage down (e.g. "99 % encrypted").** A backup in flight has no manifest yet, so its encryption state is unknown (stored as NULL — "not known yet", not "unencrypted"). The encryption audit counted these in the denominator but never as encrypted, so every in-progress backup lowered the figure. Both audit queries (dashboard tile and governance) now exclude encryption-unknown backups from the tally, consistent with the unencrypted-VM notification, which already did. The fix is source-agnostic (PBS and PVE).
+
 ## [v3.9.24] — 2026-11-10
 
 ### Added
