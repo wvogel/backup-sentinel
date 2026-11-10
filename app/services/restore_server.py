@@ -1341,9 +1341,13 @@ class RestoreServer:
         # No name override here: PVE ignores it on an archive restore, and the guest
         # is renamed by rewrite_config_for_sandbox once the restore lock clears.
         if guest_type == "lxc":
+            # -restore 1: the ostemplate is a BACKUP, not a vztmpl template (without
+            # it PVE rejects it: "content type needs to be 'vztmpl'"). -force 1:
+            # overwrite a leftover under the reused restore vmid, as qmrestore does.
             create = (
                 f"pvesh create /nodes/{shlex.quote(node)}/lxc "
-                f"-vmid {vmid} -ostemplate {shlex.quote(archive)} -storage {shlex.quote(storage)}"
+                f"-vmid {vmid} -ostemplate {shlex.quote(archive)} -storage {shlex.quote(storage)} "
+                f"-restore 1 -force 1"
             )
         else:
             create = (

@@ -567,6 +567,9 @@ def test_start_restore_task_uses_lxc_endpoint_for_container():
     assert got == running
     cmd = next(c for c in srv.ssh.commands if "pvesh create" in c)
     assert "/nodes/r1/lxc" in cmd and "-ostemplate" in cmd
+    # -restore 1 tells PVE the ostemplate is a BACKUP, not a vztmpl template;
+    # without it pct restore fails "content type needs to be 'vztmpl'".
+    assert "-restore 1" in cmd
 
 
 def test_rewrite_config_for_sandbox_lxc_repoints_net_and_drops_bind_mount():
