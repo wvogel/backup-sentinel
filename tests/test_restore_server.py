@@ -422,6 +422,18 @@ def test_verify_host_identity_refuses_production():
     srv.verify_host_identity({"10.1.2.3"})
 
 
+def test_lxc_nics_reads_static_ips_from_config():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/lxc/9000/config": {
+            "net0": "name=eth0,bridge=vmbr0,hwaddr=AA:BB:CC:DD:EE:FF,ip=172.30.10.9/24,gw=172.30.10.1",
+            "net1": "name=eth1,hwaddr=BB:BB:BB:BB:BB:BB,ip=dhcp",
+        },
+    }
+    srv = _server(responses)
+    assert srv.lxc_nics(9000) == [("172.30.10.9", 24)]
+
+
 def test_rewrite_nics_only_touches_net_lines_and_keeps_mac():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],

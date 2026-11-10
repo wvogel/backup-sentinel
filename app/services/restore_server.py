@@ -1628,6 +1628,22 @@ class RestoreServer:
             sleep(1.0)
         raise RestoreTaskError(f"VM {vmid} still locked ('{lock}') — restore not finished, not starting")
 
+    def lxc_nics(self, vmid: int) -> list[tuple[str, int]]:
+        """Static ``(ip, prefix)`` pairs from a container's ``netN`` config — the
+        LXC analogue of ``guest_agent_nics`` (a container has no guest agent). The
+        probe loop calls this each pass for an LXC run, so the helper reaches the
+        container in its real subnet. A ``dhcp`` NIC yields nothing here and the
+        loop falls back to the sandbox-DHCP primary IP (as for an agent-less VM)."""
+        from app.services.restore_lxc import lxc_config_nics
+
+        node = self.node()
+        try:
+            cfg = self.pve.get(f"/nodes/{node}/lxc/{vmid}/config", timeout=AGENT_QUERY_TIMEOUT)
+        except Exception as exc:
+            logger.debug("lxc config unreadable for %s: %s", vmid, exc)
+            return []
+        return lxc_config_nics(cfg) if isinstance(cfg, dict) else []
+
     def guest_agent_nics(self, vmid: int) -> list[tuple[str, int]]:
         """Non-loopback IPv4 (address, prefix) the QEMU guest agent reports for the
         VM, or [] if the agent isn't up yet or absent. Used to discover the live IP

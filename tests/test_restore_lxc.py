@@ -57,3 +57,31 @@ def test_bind_mounts_are_deleted_volume_mounts_kept():
 def test_bind_mount_deletes_orders_by_index():
     cfg = {"mp2": "/a,mp=/a", "mp0": "/b,mp=/b", "mp1": "pool:disk,mp=/c"}
     assert bind_mount_deletes(cfg) == ["mp0", "mp2"]
+
+
+def test_is_supported_guest():
+    from app.services.restore_orchestrator import is_supported_guest
+
+    assert is_supported_guest("qemu") and is_supported_guest("lxc")
+    assert is_supported_guest(None)  # absent guest_type defaults to qemu
+    assert not is_supported_guest("other")
+
+
+def test_runplan_carries_guest_type():
+    from app.services.restore_worker import RunPlan
+
+    base = dict(
+        vm_id=1,
+        restore_vmid=9000,
+        helper_vmid=9001,
+        vlan_tag=901,
+        mgmt_ip="10.0.0.10",
+        source={},
+        snapshot_id="s",
+        target_storage="x",
+        reservations=[],
+        probe_targets=[],
+        primary_ip=None,
+    )
+    assert RunPlan(**base).guest_type == "qemu"
+    assert RunPlan(**base, guest_type="lxc").guest_type == "lxc"

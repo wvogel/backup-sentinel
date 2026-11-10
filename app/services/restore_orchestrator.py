@@ -271,17 +271,23 @@ def choose_target_storage(
     return ("toobig", "")
 
 
+# Guest types the restore pipeline can test. QEMU VMs (qmrestore) and LXC
+# containers (pct restore) both run; anything else is refused up front.
+SUPPORTED_GUEST_TYPES = frozenset({"qemu", "lxc"})
+
+
+def is_supported_guest(guest_type: str | None) -> bool:
+    """Whether a guest of this type can be restore-tested (qemu or lxc)."""
+    return (guest_type or "qemu") in SUPPORTED_GUEST_TYPES
+
+
 def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[str, Any]) -> RunPlan | None:
     """Resolve source/snapshot/NICs and allocate resources. Returns None only for
     a resource wait (no free management IP); raises NotRunnable when the VM is
     not auto-restorable or has no snapshot (those become an error, not a wait)."""
     vm_id = candidate["vm_id"]
-    # Containers (LXC) are not supported yet: the restore pipeline is QEMU-only
-    # (qmrestore / `pvesh create …/qemu -archive`), so a pbs-ct backup would fail
-    # deep in the restore with confusing config-parse errors and leave a stuck
-    # shell behind. Refuse it up front with a clear reason instead (spec: VM-only).
-    if (candidate.get("guest_type") or "qemu") != "qemu":
-        raise NotRunnable("containers (LXC) are not supported yet — VM restore only")
+    if not is_supported_guest(candidate.get("guest_type")):
+        raise NotRunnable(f"unsupported guest type '{candidate.get('guest_type')}' — qemu/lxc only")
     match = restore_match.match_source(vm_backup_locations(vm_id), restore_host_pbs_entries(server))
     if match is None:
         raise NotRunnable("not auto-restorable (no matching local datastore)")
@@ -403,6 +409,7 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         needed_bytes=needed_bytes,
         needed_ram=_vm_memory_bytes(vm_id),
         disk_targets=disk_targets,
+        guest_type=candidate.get("guest_type") or "qemu",
     )
 
 
@@ -419,10 +426,8 @@ def enqueue_due(server: RestoreServer, config: dict[str, Any]) -> int:
     storages = restore_host_pbs_entries(server)
     count = 0
     for cand in db_restore.due_auto_restore_candidates():
-        # Skip containers — the restore pipeline is QEMU-only for now, so never
-        # queue a CT the scheduler would just fail every cycle (build_plan also
-        # refuses them, this keeps them out of the queue entirely).
-        if (cand.get("guest_type") or "qemu") != "qemu":
+        # Skip unsupported guest types (build_plan refuses them too); qemu + lxc run.
+        if not is_supported_guest(cand.get("guest_type")):
             continue
         if restore_match.is_auto_restorable(vm_backup_locations(cand["vm_id"]), storages):
             db_restore.create_run(cand["vm_id"], trigger="scheduled")
@@ -777,6 +782,7 @@ def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
         first_delay=cand.get("probe_first_delay_seconds") or config.get("probe_first_delay_seconds", 10),
         interval=cand.get("probe_interval_seconds") or config.get("probe_interval_seconds", 5),
         window=cand.get("probe_window_seconds") or config.get("probe_window_seconds", 300),
+        guest_type=cand.get("guest_type") or "qemu",
     )
 
 
