@@ -135,6 +135,10 @@ class FakeServer:
         self.calls.append("exists")
         return True
 
+    def lxc_nics(self, vmid):
+        self.calls.append("lxc_nics")
+        return [("10.0.0.50", 24)]
+
     def __getattr__(self, name):
         def rec(*a, **k):
             self.calls.append(name)
@@ -252,6 +256,26 @@ class WorkerTest(unittest.TestCase):
             self.assertIn(phase, pt)
             self.assertIsInstance(pt[phase], int)
             self.assertGreaterEqual(pt[phase], 0)
+
+    def test_lxc_run_passes_and_boots_via_start_lxc(self):
+        # A container restore runs the full pipeline to `passed`, discovers its IP
+        # via lxc_nics (no guest agent), and boots with start_lxc (not the VM start).
+        run_id = self._run()
+        srv = FakeServer()
+        res = execute(
+            run_id,
+            _plan(self.vm_id, guest_type="lxc"),
+            srv,
+            production_hosts=set(),
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": True, "ports": {"443": True}}},
+        )
+        self.assertEqual(res, "passed")
+        self.assertIn("lxc_nics", srv.calls)
+        self.assertIn("start_lxc", srv.calls)
+        self.assertNotIn("start", srv.calls)  # the VM boot path is not used for a container
+        self.assertIn("rewrite_config_for_sandbox", srv.calls)
 
     def test_cancel_tears_down_and_records_cancelled(self):
         run_id = self._run()
