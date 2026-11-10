@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.27] — 2026-11-11
+
+### Fixed
+
+- **Two restore-loop tests still asserted the old "containers are refused" behavior** and failed CI for v3.9.26 (they are database-gated, so they did not run in the pre-merge local suite). Updated to the v3.9.26 behavior: `build_plan` refuses only an *unsupported* guest type (not qemu/lxc), and a due container is now enqueued like a VM. No production code change.
+
 ## [v3.9.26] — 2026-11-11
 
 ### Added

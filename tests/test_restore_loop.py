@@ -155,25 +155,24 @@ class OrchestratorTest(unittest.TestCase):
         with self.assertRaises(orch.NotRunnable):
             orch.build_plan(cand, server, CONFIG)
 
-    def test_build_plan_refuses_containers(self):
-        # Containers (LXC) aren't supported by the QEMU-only restore pipeline yet;
-        # build_plan must refuse up front, before touching the host, so a CT fails
-        # with a clear reason instead of the confusing pbs-ct/qemu parse errors.
+    def test_build_plan_refuses_unsupported_guest_type(self):
+        # qemu VMs and lxc containers are restore-tested; any other guest type is
+        # refused up front, before touching the host, with a clear reason.
         with self.assertRaises(orch.NotRunnable):
-            orch.build_plan({"vm_id": self.vm_id, "guest_type": "lxc"}, self._server(), CONFIG)
+            orch.build_plan({"vm_id": self.vm_id, "guest_type": "other"}, self._server(), CONFIG)
 
     def test_enqueue_due_creates_run_for_restorable(self):
         n = orch.enqueue_due(self._server(), CONFIG)
         self.assertEqual(n, 1)
         self.assertEqual(db_restore.next_queued_run()["vm_id"], self.vm_id)
 
-    def test_enqueue_due_skips_containers(self):
-        # A due container must never be queued (the scheduler would just fail it
-        # every cycle); only the QEMU guest set up here gets enqueued.
+    def test_enqueue_due_enqueues_containers(self):
+        # LXC containers are now restore-tested too, so a due, restorable container
+        # is queued like a VM.
         with db.connect() as conn, conn.cursor() as cur:
             cur.execute("UPDATE vms SET guest_type = 'lxc' WHERE id = %s", (self.vm_id,))
             conn.commit()
-        self.assertEqual(orch.enqueue_due(self._server(), CONFIG), 0)
+        self.assertEqual(orch.enqueue_due(self._server(), CONFIG), 1)
 
 
 class _DrainServer:
