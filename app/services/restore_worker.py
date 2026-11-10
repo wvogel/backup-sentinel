@@ -110,7 +110,13 @@ def _probe_loop(
             targets = [{"ip": plan.primary_ip, "ports": plan.tcp_ports, "prefix": plan.sandbox_prefix}]
             ips = [plan.primary_ip] if plan.primary_ip else []
         else:
-            nics = server.guest_agent_nics(plan.restore_vmid) or []
+            # A container has no guest agent: read its live IP(s) from the LXC
+            # config (static ip=); a VM asks its guest agent. Both return [(ip,
+            # prefix)], so the helper reaches the guest in its own subnet.
+            if plan.guest_type == "lxc":
+                nics = server.lxc_nics(plan.restore_vmid) or []
+            else:
+                nics = server.guest_agent_nics(plan.restore_vmid) or []
             if nics:
                 discovered = nics  # keep probing these even if a later query times out
             if discovered:
