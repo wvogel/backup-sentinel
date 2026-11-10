@@ -1,6 +1,11 @@
 """Pure tests for LXC-specific restore helpers (config parsing, net rewrite)."""
 
-from app.services.restore_lxc import lxc_config_nics, parse_lxc_net
+from app.services.restore_lxc import (
+    bind_mount_deletes,
+    lxc_config_nics,
+    parse_lxc_net,
+    rewrite_lxc_net_line,
+)
 
 
 def test_parse_static_cidr():
@@ -25,3 +30,30 @@ def test_config_nics_orders_and_skips_non_static():
         "rootfs": "local:vm-123-disk-0,size=8G",
     }
     assert lxc_config_nics(cfg) == [("192.168.1.9", 26)]
+
+
+def test_rewrite_keeps_hwaddr_and_ip_repoints_bridge_and_tag():
+    v = "name=eth0,bridge=vmbr0,hwaddr=AA:BB:CC:DD:EE:FF,ip=10.0.0.5/24,gw=10.0.0.1,tag=7"
+    out = rewrite_lxc_net_line(v, "vmbr9", 901)
+    assert "bridge=vmbr9" in out and "tag=901" in out
+    assert "hwaddr=AA:BB:CC:DD:EE:FF" in out and "ip=10.0.0.5/24" in out
+    assert "bridge=vmbr0" not in out and "tag=7" not in out
+
+
+def test_rewrite_adds_trunk_for_internally_tagged_guest():
+    out = rewrite_lxc_net_line("name=eth0,bridge=vmbr0,hwaddr=AA:BB:CC:DD:EE:FF", "vmbr9", 901, trunks=1010)
+    assert "trunks=1010" in out
+
+
+def test_bind_mounts_are_deleted_volume_mounts_kept():
+    cfg = {
+        "mp0": "/srv/host-data,mp=/data",  # host bind-mount → delete
+        "mp1": "local-lvm:vm-123-disk-1,mp=/var/lib/db",  # volume mount → keep
+        "rootfs": "local-lvm:vm-123-disk-0,size=8G",
+    }
+    assert bind_mount_deletes(cfg) == ["mp0"]
+
+
+def test_bind_mount_deletes_orders_by_index():
+    cfg = {"mp2": "/a,mp=/a", "mp0": "/b,mp=/b", "mp1": "pool:disk,mp=/c"}
+    assert bind_mount_deletes(cfg) == ["mp0", "mp2"]
