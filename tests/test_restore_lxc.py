@@ -67,6 +67,80 @@ def test_is_supported_guest():
     assert not is_supported_guest("other")
 
 
+def _lxc_plan(**over):
+    from app.services.restore_worker import RunPlan
+
+    base = dict(
+        vm_id=1,
+        restore_vmid=9000,
+        helper_vmid=9001,
+        vlan_tag=901,
+        mgmt_ip="10.0.0.10",
+        source={},
+        snapshot_id="s",
+        target_storage="ct-store",
+        reservations=[],
+        probe_targets=[],
+        primary_ip="10.0.0.50",
+        tcp_ports=[443],
+        guest_type="lxc",
+    )
+    base.update(over)
+    return RunPlan(**base)
+
+
+class _TeardownFake:
+    """Models the qemu/lxc endpoint split: a guest exists only under its own kind."""
+
+    def __init__(self, guest_is_lxc):
+        self.guest_is_lxc = guest_is_lxc
+        self.destroyed = []
+        self.diag_nic_calls = []
+
+    def exists(self, vmid, is_lxc=False):
+        if vmid == 9001:  # the helper is always an LXC
+            return is_lxc
+        return is_lxc == self.guest_is_lxc
+
+    def destroy(self, vmid, is_lxc=False):
+        self.destroyed.append((vmid, is_lxc))
+
+    def reap(self, owned):
+        pass
+
+    def guest_agent_nics(self, vmid):
+        self.diag_nic_calls.append("guest_agent_nics")
+        return []
+
+    def lxc_nics(self, vmid):
+        self.diag_nic_calls.append("lxc_nics")
+        return [("172.30.10.9", 24)]
+
+    def probe_netdiag(self, *a, **k):
+        return ""
+
+    def mgmt_netdiag(self, *a, **k):
+        return ""
+
+
+def test_teardown_destroys_restored_container_as_lxc(monkeypatch):
+    from app.services import restore_worker
+
+    monkeypatch.setattr(restore_worker, "owned_vmids", lambda: set())
+    srv = _TeardownFake(guest_is_lxc=True)
+    restore_worker._teardown(srv, _lxc_plan())
+    assert (9000, True) in srv.destroyed  # the container is destroyed via the lxc endpoint
+    assert (9001, True) in srv.destroyed  # and the helper (always lxc)
+
+
+def test_failure_diag_uses_lxc_nics_for_a_container(monkeypatch):
+    from app.services import restore_worker
+
+    srv = _TeardownFake(guest_is_lxc=True)
+    restore_worker._failure_diag(srv, _lxc_plan())
+    assert srv.diag_nic_calls == ["lxc_nics"]  # a container has no guest agent
+
+
 def test_runplan_carries_guest_type():
     from app.services.restore_worker import RunPlan
 

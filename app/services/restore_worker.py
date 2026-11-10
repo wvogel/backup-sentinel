@@ -346,13 +346,15 @@ def _teardown(server: Any, plan: RunPlan) -> None:
     # Only act on guests that actually exist — a run that errored before the
     # restore leaves no VM, so shutting it down would just spam task errors.
     steps = []
+    is_lxc = plan.guest_type == "lxc"
     try:
         # Hard-stop + destroy, no graceful shutdown: a restored prod VM has no
         # working guest agent in the sandbox, so an ACPI shutdown just times out
         # (60s) holding the config lock, which then blocks the destroy. destroy()
-        # force-stops and waits before purging.
-        if server.exists(plan.restore_vmid, is_lxc=False):
-            steps.append(lambda: server.destroy(plan.restore_vmid))
+        # force-stops and waits before purging. A container lives under the lxc
+        # endpoint, so the existence check and destroy must use is_lxc.
+        if server.exists(plan.restore_vmid, is_lxc=is_lxc):
+            steps.append(lambda: server.destroy(plan.restore_vmid, is_lxc=is_lxc))
         if server.exists(plan.helper_vmid, is_lxc=True):
             steps.append(lambda: server.destroy(plan.helper_vmid, is_lxc=True))
     except Exception as exc:
@@ -378,7 +380,7 @@ def _error_log(server: Any, plan: RunPlan, error: str) -> str:
     reason = (error or "").strip() or "unknown error"
     parts = [f"Restore failed\n  {reason}"]
     try:
-        vm_exists = bool(plan.restore_vmid) and server.exists(plan.restore_vmid, is_lxc=False)
+        vm_exists = bool(plan.restore_vmid) and server.exists(plan.restore_vmid, is_lxc=plan.guest_type == "lxc")
     except Exception as exc:
         logger.debug("restore_vmid existence check failed: %s", exc)
         vm_exists = False
@@ -397,7 +399,9 @@ def _failure_diag(server: Any, plan: RunPlan) -> str | None:
     timeout. Never raises; returns None when nothing could be gathered."""
     parts: list[str] = []
     try:
-        diag_ips = [ip for ip, _ in (server.guest_agent_nics(plan.restore_vmid) or [])]
+        # A container has no guest agent; read its live IP(s) from the lxc config.
+        nics = (server.lxc_nics if plan.guest_type == "lxc" else server.guest_agent_nics)(plan.restore_vmid)
+        diag_ips = [ip for ip, _ in (nics or [])]
         if not diag_ips and plan.primary_ip:
             diag_ips = [plan.primary_ip]
         sbx = server.probe_netdiag(plan.helper_vmid, diag_ips, restore_vmid=plan.restore_vmid, ports=plan.tcp_ports)
