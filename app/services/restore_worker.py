@@ -186,6 +186,20 @@ def execute(
     result = "error"
     checks: dict[str, Any] = {}
     log_text: str | None = None
+    # Per-phase wall-clock, so a finished run shows WHERE its time went. "setup"
+    # is the pre-flight housekeeping (host-identity check, reap, sandbox bridge)
+    # before the first named phase; _enter_phase closes the previous phase and
+    # opens the next (and keeps the live `phase` field in step). The data copy's
+    # own restoring/finalizing flip (per progress tick) stays under "restoring".
+    phase_timings: dict[str, float] = {}
+    _phase = {"name": "setup", "since": start}
+
+    def _enter_phase(name: str) -> None:
+        t = now()
+        phase_timings[_phase["name"]] = phase_timings.get(_phase["name"], 0.0) + (t - _phase["since"])
+        _phase["name"], _phase["since"] = name, t
+        db_restore.update_run(run_id, phase=name)
+
     try:
         server.verify_host_identity(production_hosts)
         server.reap(owned_vmids())
@@ -197,7 +211,7 @@ def execute(
         # extraction, every retry repeats it). Inconclusive errors fall through to
         # the normal restore, so a working backup is never falsely blocked.
         _checkpoint()
-        db_restore.update_run(run_id, phase="preflight")
+        _enter_phase("preflight")
         server.preflight_check(plan.source, plan.snapshot_id)
         # Bring the helper up FIRST and fail fast (≤60s) if it can't be reached.
         # A restore is expensive (minutes, many GB), so don't pay for it when the
@@ -205,7 +219,7 @@ def execute(
         # never comes up. (We can revert to overlapping the two with the VM boot
         # once reachability is rock-solid.)
         _checkpoint()
-        db_restore.update_run(run_id, phase="helper")
+        _enter_phase("helper")
         server.provision_helper(
             plan.helper_vmid,
             plan.vlan_tag,
@@ -217,7 +231,7 @@ def execute(
             plan.label,
         )
         _checkpoint()
-        db_restore.update_run(run_id, phase="restoring")
+        _enter_phase("restoring")
         server.restore(
             plan.restore_vmid,
             plan.source,
@@ -229,16 +243,16 @@ def execute(
             disk_targets=plan.disk_targets,
         )
         _checkpoint()
-        db_restore.update_run(run_id, phase="network")
+        _enter_phase("network")
         server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan, name=plan.label)
-        db_restore.update_run(run_id, phase="booting")
+        _enter_phase("booting")
         # Never start while the restore still holds the config lock — a restore
         # that is still running (e.g. after an app restart resumed the tail, or a
         # stale task) would make the start fail with "can't lock file". Wait for
         # the lock to clear, then start.
         server.wait_unlocked(plan.restore_vmid)
         server.start(plan.restore_vmid)
-        db_restore.update_run(run_id, phase="probing")
+        _enter_phase("probing")
         if plan.primary_ip:
             db_restore.update_run(run_id, detected_ip=plan.primary_ip)  # recorded/override IP
         result, checks = _probe_loop(
@@ -262,12 +276,22 @@ def execute(
         # booted is pure noise that hides the real cause.
         log_text = _error_log(server, plan, str(exc))
 
+    # Close the phase in flight (success, failure or cancel) so its time counts.
+    phase_timings[_phase["name"]] = phase_timings.get(_phase["name"], 0.0) + (now() - _phase["since"])
     duration = int(now() - start)
-    return _finalize(run_id, plan, result, checks, duration, server, log=log_text)
+    timings = {k: round(v) for k, v in phase_timings.items()}
+    return _finalize(run_id, plan, result, checks, duration, server, log=log_text, phase_timings=timings)
 
 
 def _finalize(
-    run_id: int, plan: RunPlan, result: str, checks: dict, duration: int, server: Any, log: str | None = None
+    run_id: int,
+    plan: RunPlan,
+    result: str,
+    checks: dict,
+    duration: int,
+    server: Any,
+    log: str | None = None,
+    phase_timings: dict[str, int] | None = None,
 ) -> str:
     if result != "passed" and plan.hold_on_failure and result in ("failed", "error"):
         # Keep the restored VM for inspection, but DISCARD the helper: it is cheap
@@ -282,14 +306,23 @@ def _finalize(
             except Exception as exc:
                 logger.warning("held: discarding helper %s failed: %s", plan.helper_vmid, exc)
         db_restore.record_run_result(
-            run_id, plan.vm_id, result, duration_seconds=duration, checks=checks, log=log, status="held"
+            run_id,
+            plan.vm_id,
+            result,
+            duration_seconds=duration,
+            checks=checks,
+            log=log,
+            status="held",
+            phase_timings=phase_timings,
         )
         db_restore.update_run(run_id, helper_vmid=None, mgmt_ip=None)
         return "held"
 
     # Teardown (passed/limited, or failed without hold): reap this env.
     _teardown(server, plan)
-    db_restore.record_run_result(run_id, plan.vm_id, result, duration_seconds=duration, checks=checks, log=log)
+    db_restore.record_run_result(
+        run_id, plan.vm_id, result, duration_seconds=duration, checks=checks, log=log, phase_timings=phase_timings
+    )
     if result in ("failed", "error"):
         db_restore.schedule_retry(plan.vm_id, plan.retry_days)
     else:
@@ -516,6 +549,7 @@ def resume_run(
         # Advance the phase to probing — without this a resumed run kept the stale
         # "finalizing" (Cache-Flush) the restore's last 100% progress callback set,
         # so the card showed "finalizing" while it was really checking reachability.
+        # (A resumed run records no per-phase timings — it missed the copy phase.)
         db_restore.update_run(run_id, phase="probing")
         result, checks = _probe_loop(
             server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id, should_cancel=should_cancel

@@ -223,7 +223,8 @@
         </td>
         <td>{{ run.started_at|datetime_local('%d.%m. %H:%M') if run.started_at else '–' }}</td>
         <td class="col-right">{{ vol.total(run.disk_bytes, run.disks) }}</td>
-        <td>{% if run.duration_seconds %}{{ run.duration_seconds // 3600 }}:{{ '%02d'|format((run.duration_seconds % 3600) // 60) }}{% else %}–{% endif %}</td>
+        {%- set _pt = run|restore_phase_timings -%}
+        <td{% if _pt %} data-tooltip="{% for p in _pt %}{{ t('restore.phase_' ~ p.phase) }} {{ p.text }}{% if p.rate_text %} · {{ p.rate_text }}{% endif %}{% if not loop.last %}&#10;{% endif %}{% endfor %}"{% endif %}>{% if run.duration_seconds %}<span{% if _pt %} class="phase-timings-cue"{% endif %}>{{ run.duration_seconds // 3600 }}:{{ '%02d'|format((run.duration_seconds % 3600) // 60) }}</span>{% else %}–{% endif %}</td>
         <td class="run-actions">{% if run.status == 'queued' %}<form action="/restore/runs/{{ run.id }}/delete" method="post" class="inline-form"><button type="submit" class="icon-button" title="{{ t('restore.delete_run') }}" aria-label="{{ t('restore.delete_run') }}">✕</button></form>{% elif run.status == 'running' %}<form action="/restore/runs/{{ run.id }}/cancel" method="post" class="inline-form js-confirm-form" data-confirm-title="{{ t('restore.cancel_confirm_title') }}" data-confirm-body="{{ t('restore.cancel_confirm') }}" data-confirm-ok="{{ t('restore.cancel_run') }}"><button type="submit" class="icon-button icon-cancel" title="{{ t('restore.cancel_run') }}" aria-label="{{ t('restore.cancel_run') }}">⏹</button></form>{% elif run.status not in ('held',) and run.result in ('failed', 'error', 'limited', 'cancelled') %}<form action="/restore/vm/{{ run.vm_id }}/test" method="post" class="inline-form"><button type="submit" class="icon-button icon-retry" title="{{ t('restore.retry_test') }}" aria-label="{{ t('restore.retry_test') }}">↻</button></form>{% endif %}</td>
       </tr>
       {% if run.log %}

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.24] — 2026-11-10
+
+### Added
+
+- **A finished restore test now records where its time went.** Each run stores the wall-clock seconds spent in every pipeline phase (setup, checking backup, helper container, restoring, adjusting network, booting, checking reachability) in a new `phase_timings` column. The *Dauer* column on /restore shows the breakdown on hover (dotted underline), and the restore/data-copy phase carries its effective throughput (bytes copied ÷ its seconds) — so a slow test can be pinned to the phase that caused it, and the copy rate compared against the storage's benchmark. Runs resumed after an app restart record no breakdown (they missed the copy phase) and simply omit the tooltip.
+
 ## [v3.9.23] — 2026-11-10
 
 ### Added

@@ -203,6 +203,11 @@ class WorkerTest(unittest.TestCase):
             cur.execute("SELECT next_run_at FROM vm_policies WHERE vm_id = %s", (self.vm_id,))
             return cur.fetchone()["next_run_at"]
 
+    def _phase_timings(self, run_id):
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT phase_timings FROM restore_runs WHERE id = %s", (run_id,))
+            return cur.fetchone()["phase_timings"]
+
     def test_passed_writes_test_row_and_tears_down(self):
         run_id = self._run()
         srv = FakeServer()
@@ -219,6 +224,34 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(self._restore_test_count(), 1)
         self.assertIn("destroy", srv.calls)
         self.assertIsNone(self._next_run())
+
+    def test_passed_records_per_phase_timings(self):
+        # An advancing clock so each phase gets a non-zero slice; the full happy
+        # path must record every pipeline phase (setup→…→probing) as an int.
+        run_id = self._run()
+        srv = FakeServer()
+        clock = {"t": 0.0}
+
+        def adv():
+            clock["t"] += 1.0
+            return clock["t"]
+
+        res = execute(
+            run_id,
+            _plan(self.vm_id),
+            srv,
+            production_hosts=set(),
+            now=adv,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": True, "ports": {"443": True}}},
+        )
+        self.assertEqual(res, "passed")
+        pt = self._phase_timings(run_id)
+        self.assertIsInstance(pt, dict)
+        for phase in ("setup", "preflight", "helper", "restoring", "network", "booting", "probing"):
+            self.assertIn(phase, pt)
+            self.assertIsInstance(pt[phase], int)
+            self.assertGreaterEqual(pt[phase], 0)
 
     def test_cancel_tears_down_and_records_cancelled(self):
         run_id = self._run()

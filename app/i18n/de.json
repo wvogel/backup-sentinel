@@ -601,6 +601,7 @@
   "restore.io_out": "Ausgehend",
   "restore.io_link": "Link-Rate",
   "restore.running_now": "Laufende Restores",
+  "restore.phase_setup": "Vorbereitung",
   "restore.phase_preflight": "Backup prüfen",
   "restore.phase_restoring": "Wiederherstellen",
   "restore.phase_finalizing": "Volumes abschließen (Cache-Flush)",

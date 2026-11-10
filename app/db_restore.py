@@ -420,6 +420,7 @@ def record_run_result(
     checks: dict[str, Any] | None = None,
     log: str | None = None,
     status: str | None = None,
+    phase_timings: dict[str, int] | None = None,
 ) -> int | None:
     """Finalize a run. Writes a `restore_tests` row ONLY for passed/limited (so
     failed/error/held never reset the due clock). Returns the new test id or None.
@@ -445,6 +446,9 @@ def record_run_result(
         if log is not None:
             sets.append("log = %s")
             params.append(log)
+        if phase_timings is not None:
+            sets.append("phase_timings = %s")
+            params.append(Jsonb(phase_timings))
         params.append(run_id)
         cur.execute(f"UPDATE restore_runs SET {', '.join(sets)} WHERE id = %s", params)
         conn.commit()
