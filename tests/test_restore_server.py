@@ -536,6 +536,51 @@ def test_start_restore_task_discovers_running_upid_not_a_finished_one():
     assert any("pvesh create /nodes/r1/qemu" in c and "nohup" in c for c in srv.ssh.commands)
 
 
+def test_start_restore_task_uses_lxc_endpoint_for_container():
+    running = "UPID:r1:0000ABCD:00002000:vzrestore:9000:root@pam:"
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/tasks": [{"upid": running, "id": "9000", "type": "vzrestore", "starttime": 2000}],
+    }
+    srv = _server(responses)
+    got = srv._start_restore_task(
+        9000, "store:backup/ct/100/x", "ct-store", "r1", guest_type="lxc", sleep=lambda s: None
+    )
+    assert got == running
+    cmd = next(c for c in srv.ssh.commands if "pvesh create" in c)
+    assert "/nodes/r1/lxc" in cmd and "-ostemplate" in cmd
+
+
+def test_rewrite_config_for_sandbox_lxc_repoints_net_and_drops_bind_mount():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/lxc/9000/config": {
+            "net0": "name=eth0,bridge=vmbr0,hwaddr=AA:BB:CC:DD:EE:FF,ip=10.0.0.5/24,gw=10.0.0.1,tag=5",
+            "mp0": "/host/data,mp=/data",  # bind-mount → delete
+            "mp1": "pool:subvol-9000-disk-1,mp=/db",  # volume mount → keep
+            "hostname": "ct",
+        },
+    }
+    srv = _server(responses)
+    srv.rewrite_config_for_sandbox(9000, 901, "lxc", name="clu-ct")
+    path, data = next((p, d) for p, d in srv.pve.posts if p == "/nodes/r1/lxc/9000/config")
+    assert "bridge=vmbr9" in data["net0"] and "tag=901" in data["net0"]
+    assert "hwaddr=AA:BB:CC:DD:EE:FF" in data["net0"] and "ip=10.0.0.5/24" in data["net0"]
+    assert data.get("hostname") == "clu-ct"  # a container is renamed via 'hostname', not 'name'
+    assert "mp0" in (data.get("delete") or "") and "mp1" not in (data.get("delete") or "")
+
+
+def test_rewrite_config_for_sandbox_qemu_delegates_to_rewrite_nics():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/config": {"net0": "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,tag=5", "name": "web"},
+    }
+    srv = _server(responses)
+    srv.rewrite_config_for_sandbox(9000, 901, "qemu", name="clu-web")
+    path, data = next((p, d) for p, d in srv.pve.posts if p == "/nodes/r1/qemu/9000/config")
+    assert data["name"] == "clu-web" and "bridge=vmbr9" in data["net0"]
+
+
 def test_provision_helper_rootfs_on_first_container_capable_target():
     # The sorted-first target (restore-vms) is images-only, so the helper skips it
     # and lands on the next selected one that accepts containers (rootdir).
