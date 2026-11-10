@@ -119,7 +119,7 @@
     <div class="running-card" data-run-id="{{ run.id }}">
       <div class="store-ring ring-ok running-ring" style="--pct: {{ rp }}"><div class="ring-center"><strong class="js-run-pct">{{ rp }}%</strong></div></div>
       <div class="running-info">
-        <strong>{{ (run.cluster_name ~ ':' ~ run.vm_name) if run.vm_name else ('VM ' ~ (run.vmid_src or run.vm_id)) }}</strong>
+        <strong>{% if run.vm_name %}<span class="muted">{{ run.cluster_name }}:</span>{{ run.vm_name }}{% else %}{{ 'VM ' ~ (run.vmid_src or run.vm_id) }}{% endif %}</strong>
         <span class="muted js-run-phase">{{ t('restore.phase_' ~ run.phase) if run.phase else t('restore.phase_restoring') }}</span>
         <span class="muted js-run-progress">
           {%- if run.bytes_done %}{{ run.bytes_done|size_coarse }} {{ t('restore.read_label') }}{% endif %}

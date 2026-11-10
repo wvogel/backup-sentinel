@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.23] — 2026-11-10
+
+### Added
+
+- **A guest too big for its preferred restore target now falls back to the next ticked storage that has room**, instead of only ever trying the first one. Selection is a pure, unit-tested helper (`choose_target_storage`); the drainer's live fit check and the benchmark interlock follow the chosen storage automatically. A guest larger than *every* single target storage used to sit queued and retry forever — it is now dequeued with an actionable error.
+- **When no single storage can hold the whole guest, its disks are bin-packed across several storages** and restored disk by disk (first-fit-decreasing over `vm_disks`, pure and unit-tested). `_restore_distributed` allocates a volume per disk on its planned storage, restores each image with `pbs-restore`, then assembles the config with the disks repointed at the new volumes, rolling back on failure. This path only engages for guests that would otherwise have errored, so it cannot regress a normal single-storage restore.
+
+### Changed
+
+- **The cluster prefix in a running-restore card's title is now muted.** `cluster:vm` shows the cluster name and colon in grey with the VM name in bold (on both /restore and the dashboard card), matching how the VM-cluster pairing already reads on the dashboard's recovery-evidence table.
+
 ## [v3.9.22] — 2026-11-06
 
 ### Added
