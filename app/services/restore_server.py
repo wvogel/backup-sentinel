@@ -1747,23 +1747,27 @@ class RestoreServer:
         """Just the addresses from :meth:`guest_agent_nics` (prefix dropped)."""
         return [ip for ip, _ in self.guest_agent_nics(vmid)]
 
-    def restore_total_bytes(self, vmid: int) -> int:
-        """Sum of the restored guest's disk sizes (virtual), from the storage content
+    def restore_total_bytes(self, vmid: int, guest_type: str = "qemu") -> int:
+        """Sum of the restored guest's volume sizes (virtual), from the storage content
         — the denominator for overall restore progress. Read from the content listing,
-        NOT ``qm config``, because qmrestore allocates every volume up front (so the
+        NOT ``qm config``, because the restore allocates every volume up front (so the
         content shows them, with their full size, right away) while the config may not
-        carry ``size=`` until the restore finalises. 0 when nothing is found yet."""
+        carry ``size=`` until the restore finalises. A container's rootfs + volume
+        mountpoints live under ``content=rootdir`` as ``subvol-``/``vm-`` volumes; a
+        VM's disks under ``content=images`` as ``vm-``. 0 when nothing is found yet."""
         node = self.node()
+        content_type = "rootdir" if guest_type == "lxc" else "images"
         selected = {s["storage"] for s in self.config.get("target_storages", []) if s.get("use", True)}
         by_disk: dict[str, int] = {}
         for store in selected:
             try:
-                content = self.pve.get(f"/nodes/{node}/storage/{store}/content?content=images&vmid={int(vmid)}") or []
+                path = f"/nodes/{node}/storage/{store}/content?content={content_type}&vmid={int(vmid)}"
+                content = self.pve.get(path) or []
             except Exception as exc:
                 logger.debug("restore_total_bytes content read %s failed: %s", store, exc)
                 continue
             for vol in content:
-                m = re.search(rf"vm-{int(vmid)}-disk-\d+", str(vol.get("volid", "")))
+                m = re.search(rf"(?:subvol|vm)-{int(vmid)}-disk-\d+", str(vol.get("volid", "")))
                 if m and vol.get("size"):
                     by_disk[m.group(0)] = int(vol["size"])  # dedup if a disk lists twice
         return sum(by_disk.values())
