@@ -376,6 +376,10 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         logger.debug("free_resources for target selection failed (using preferred): %s", exc)
     decision, chosen = choose_target_storage(ordered, avail_by, total_by, needed_bytes)
     disk_targets: dict[str, str] | None = None
+    if decision == "toobig" and gtype == "lxc":
+        # Per-disk distribution is QEMU-only; a container that fits no single
+        # rootdir storage is refused in v1 (spec non-goal).
+        raise NotRunnable("container too big for every selected storage — disk distribution is VM-only")
     if decision == "toobig":
         # No single storage can hold the whole guest → spread its disks across
         # several (restored disk by disk). Pack by free space; if that only fits

@@ -243,17 +243,21 @@ def execute(
             on_task=lambda upid: db_restore.update_run(run_id, task_upid=upid),
             should_cancel=should_cancel,
             disk_targets=plan.disk_targets,
+            guest_type=plan.guest_type,
         )
         _checkpoint()
         _enter_phase("network")
-        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan, name=plan.label)
+        server.rewrite_config_for_sandbox(
+            plan.restore_vmid, plan.vlan_tag, plan.guest_type, plan.guest_vlan, name=plan.label
+        )
         _enter_phase("booting")
         # Never start while the restore still holds the config lock — a restore
         # that is still running (e.g. after an app restart resumed the tail, or a
         # stale task) would make the start fail with "can't lock file". Wait for
         # the lock to clear, then start.
-        server.wait_unlocked(plan.restore_vmid)
-        server.start(plan.restore_vmid)
+        _is_lxc = plan.guest_type == "lxc"
+        server.wait_unlocked(plan.restore_vmid, is_lxc=_is_lxc)
+        server.start_lxc(plan.restore_vmid) if _is_lxc else server.start(plan.restore_vmid)
         _enter_phase("probing")
         if plan.primary_ip:
             db_restore.update_run(run_id, detected_ip=plan.primary_ip)  # recorded/override IP
@@ -514,8 +518,9 @@ def resume_run(
         # Never write config or boot while the restore still holds the flock. If it
         # does not clear, the restore is still in progress — leave the run 'running'
         # and tear NOTHING down; the next resume pass picks it up.
+        _is_lxc = plan.guest_type == "lxc"
         try:
-            server.wait_unlocked(plan.restore_vmid, sleep=sleep)
+            server.wait_unlocked(plan.restore_vmid, is_lxc=_is_lxc, sleep=sleep)
         except RestoreCancelled:
             raise
         except Exception:
@@ -527,8 +532,8 @@ def resume_run(
             return "running"
         # Lock clear → the restore finished. Finish the tail without disturbing what
         # is already healthy: keep a present helper, (re)build only a gone one; only
-        # re-point NICs + boot when the VM is not already running.
-        running = server.is_running(plan.restore_vmid)
+        # re-point NICs + boot when the guest is not already running.
+        running = server.is_running(plan.restore_vmid, is_lxc=_is_lxc)
         if not server.exists(plan.helper_vmid, is_lxc=True):
             server.provision_helper(
                 plan.helper_vmid,
@@ -542,10 +547,12 @@ def resume_run(
             )
         if not running:
             db_restore.update_run(run_id, phase="network")
-            server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan, name=plan.label)
+            server.rewrite_config_for_sandbox(
+                plan.restore_vmid, plan.vlan_tag, plan.guest_type, plan.guest_vlan, name=plan.label
+            )
             db_restore.update_run(run_id, phase="booting")
             try:
-                server.start(plan.restore_vmid)
+                server.start_lxc(plan.restore_vmid) if _is_lxc else server.start(plan.restore_vmid)
             except Exception as exc:
                 logger.debug("resume: start (maybe already running): %s", exc)
         # Advance the phase to probing — without this a resumed run kept the stale
