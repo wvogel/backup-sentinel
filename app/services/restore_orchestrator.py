@@ -271,17 +271,42 @@ def choose_target_storage(
     return ("toobig", "")
 
 
+# Guest types the restore pipeline can test. QEMU VMs (qmrestore) and LXC
+# containers (pct restore) both run; anything else is refused up front.
+SUPPORTED_GUEST_TYPES = frozenset({"qemu", "lxc"})
+
+
+def is_supported_guest(guest_type: str | None) -> bool:
+    """Whether a guest of this type can be restore-tested (qemu or lxc)."""
+    return (guest_type or "qemu") in SUPPORTED_GUEST_TYPES
+
+
+def storage_accepts_guest(content: str | set[str] | list[str], guest_type: str | None) -> bool:
+    """Whether a storage with this ``content`` can hold the restored guest: a
+    container needs ``rootdir``, a VM needs ``images``. ``content`` is PVE's
+    comma-list (string) or a set/list of its entries."""
+    want = "rootdir" if (guest_type or "qemu") == "lxc" else "images"
+    entries = content.split(",") if isinstance(content, str) else content
+    return want in {e.strip() for e in entries}
+
+
+def capable_target_storages(
+    targets: list[dict[str, Any]], content_by: dict[str, str], guest_type: str | None
+) -> list[str]:
+    """The ticked target storages (in the operator's order) whose content can hold
+    this guest type — a container never lands on an images-only storage, a VM never
+    on a container-only one."""
+    ordered = sorted((s for s in targets if s.get("use", True)), key=lambda s: s.get("order", 0))
+    return [s["storage"] for s in ordered if storage_accepts_guest(content_by.get(s["storage"], ""), guest_type)]
+
+
 def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[str, Any]) -> RunPlan | None:
     """Resolve source/snapshot/NICs and allocate resources. Returns None only for
     a resource wait (no free management IP); raises NotRunnable when the VM is
     not auto-restorable or has no snapshot (those become an error, not a wait)."""
     vm_id = candidate["vm_id"]
-    # Containers (LXC) are not supported yet: the restore pipeline is QEMU-only
-    # (qmrestore / `pvesh create …/qemu -archive`), so a pbs-ct backup would fail
-    # deep in the restore with confusing config-parse errors and leave a stuck
-    # shell behind. Refuse it up front with a clear reason instead (spec: VM-only).
-    if (candidate.get("guest_type") or "qemu") != "qemu":
-        raise NotRunnable("containers (LXC) are not supported yet — VM restore only")
+    if not is_supported_guest(candidate.get("guest_type")):
+        raise NotRunnable(f"unsupported guest type '{candidate.get('guest_type')}' — qemu/lxc only")
     match = restore_match.match_source(vm_backup_locations(vm_id), restore_host_pbs_entries(server))
     if match is None:
         raise NotRunnable("not auto-restorable (no matching local datastore)")
@@ -314,19 +339,33 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
 
     label = sandbox_name(candidate.get("cluster_name") or "", candidate.get("vm_name") or "")
 
-    targets_sorted = sorted(
-        (s for s in config.get("target_storages", []) if s.get("use", True)), key=lambda s: s.get("order", 0)
-    )
-    if not targets_sorted:
+    all_targets = config.get("target_storages", [])
+    ticked = [s for s in all_targets if s.get("use", True)]
+    if not ticked:
         # No ticked target storage: PVE would reject the restore with a cryptic
         # "storage ID '' ..." 400. Fail with an actionable message instead.
         raise NotRunnable("no target storage selected — tick one in Settings → Restore")
+    # Keep only storages whose content can hold THIS guest (a container needs
+    # 'rootdir', a VM 'images'); when the host's content map can't be read, fall
+    # back to all ticked and let PVE's restore be the guard.
+    gtype = candidate.get("guest_type") or "qemu"
+    try:
+        content_by = server.storage_content_map()
+    except Exception as exc:
+        logger.debug("storage content map failed (using all ticked targets): %s", exc)
+        content_by = {}
+    if content_by:
+        ordered = capable_target_storages(all_targets, content_by, gtype)
+        if not ordered:
+            need = "rootdir" if gtype == "lxc" else "images"
+            raise NotRunnable(f"no selected target storage can hold a {gtype} guest (needs content '{need}')")
+    else:
+        ordered = [s["storage"] for s in sorted(ticked, key=lambda s: s.get("order", 0))]
     # Ordered fallback: the preferred (first) storage is used when it fits, else
     # the next one in order that does. The whole guest goes on one storage (PVE's
     # archive restore has no per-disk target), so we need a single target with
     # room; live free/capacity decides which.
     needed_bytes = snap.get("size")
-    ordered = [s["storage"] for s in targets_sorted]
     avail_by: dict[str, int | None] = {}
     total_by: dict[str, int | None] = {}
     try:
@@ -337,6 +376,10 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         logger.debug("free_resources for target selection failed (using preferred): %s", exc)
     decision, chosen = choose_target_storage(ordered, avail_by, total_by, needed_bytes)
     disk_targets: dict[str, str] | None = None
+    if decision == "toobig" and gtype == "lxc":
+        # Per-disk distribution is QEMU-only; a container that fits no single
+        # rootdir storage is refused in v1 (spec non-goal).
+        raise NotRunnable("container too big for every selected storage — disk distribution is VM-only")
     if decision == "toobig":
         # No single storage can hold the whole guest → spread its disks across
         # several (restored disk by disk). Pack by free space; if that only fits
@@ -403,6 +446,7 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
         needed_bytes=needed_bytes,
         needed_ram=_vm_memory_bytes(vm_id),
         disk_targets=disk_targets,
+        guest_type=candidate.get("guest_type") or "qemu",
     )
 
 
@@ -419,10 +463,8 @@ def enqueue_due(server: RestoreServer, config: dict[str, Any]) -> int:
     storages = restore_host_pbs_entries(server)
     count = 0
     for cand in db_restore.due_auto_restore_candidates():
-        # Skip containers — the restore pipeline is QEMU-only for now, so never
-        # queue a CT the scheduler would just fail every cycle (build_plan also
-        # refuses them, this keeps them out of the queue entirely).
-        if (cand.get("guest_type") or "qemu") != "qemu":
+        # Skip unsupported guest types (build_plan refuses them too); qemu + lxc run.
+        if not is_supported_guest(cand.get("guest_type")):
             continue
         if restore_match.is_auto_restorable(vm_backup_locations(cand["vm_id"]), storages):
             db_restore.create_run(cand["vm_id"], trigger="scheduled")
@@ -687,10 +729,14 @@ def ui_target_storages() -> dict[str, Any]:
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
-    # Only image-capable storages are restore targets; others (e.g. "local") are
-    # never shown or configurable here.
+    # Restore targets are storages that can hold a guest: image-capable (VM disks)
+    # OR rootdir-capable (container rootfs). Others (e.g. a backup-only "local") are
+    # never shown or configurable here. The row carries both flags so the UI can
+    # show which guest kinds a storage serves.
     for d in discovered:
-        if not d.get("images"):
+        img = bool(d.get("images"))
+        root = bool(d.get("rootdir"))
+        if not (img or root):
             continue
         name = d["storage"]
         seen.add(name)
@@ -699,16 +745,17 @@ def ui_target_storages() -> dict[str, Any]:
             {
                 "storage": name,
                 "type": d.get("type", ""),
+                "images": img,
+                "rootdir": root,
                 "disk_class": (s or {}).get("disk_class", "standard-ssd"),
                 "use": bool(s.get("use")) if s else False,
                 "order": (s or {}).get("order", 999),
                 "used": d.get("used"),
                 "free": d.get("avail"),
-                # Performance test: every row here is image-capable (filtered above),
-                # and the benchmark allocates a throwaway volume via pvesm alloc, so
-                # it works for block (lvmthin/zfs) and file (dir/nfs) storages alike.
-                # busy = in a running restore; perf = last run.
-                "benchmarkable": True,
+                # Benchmark (fio via a throwaway pvesm-alloc volume) runs on
+                # image-capable storages; a container-only (rootdir) storage is a
+                # valid target but not benchmarked. busy = in a running restore.
+                "benchmarkable": img,
                 "busy": name in busy,
                 "perf": perf.get(name),
             }
@@ -777,6 +824,7 @@ def plan_from_run(run: dict[str, Any], config: dict[str, Any]) -> RunPlan:
         first_delay=cand.get("probe_first_delay_seconds") or config.get("probe_first_delay_seconds", 10),
         interval=cand.get("probe_interval_seconds") or config.get("probe_interval_seconds", 5),
         window=cand.get("probe_window_seconds") or config.get("probe_window_seconds", 300),
+        guest_type=cand.get("guest_type") or "qemu",
     )
 
 

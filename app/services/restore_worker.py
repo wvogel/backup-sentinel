@@ -52,6 +52,8 @@ class RunPlan:
     # single storage and its disks are spread across several (restored disk by
     # disk). None → the whole guest goes on `target_storage` (the normal path).
     disk_targets: dict[str, str] | None = None
+    # "qemu" (VM, qmrestore path) or "lxc" (container, pct-restore path).
+    guest_type: str = "qemu"
 
 
 def owned_vmids() -> set[int]:
@@ -108,7 +110,13 @@ def _probe_loop(
             targets = [{"ip": plan.primary_ip, "ports": plan.tcp_ports, "prefix": plan.sandbox_prefix}]
             ips = [plan.primary_ip] if plan.primary_ip else []
         else:
-            nics = server.guest_agent_nics(plan.restore_vmid) or []
+            # A container has no guest agent: read its live IP(s) from the LXC
+            # config (static ip=); a VM asks its guest agent. Both return [(ip,
+            # prefix)], so the helper reaches the guest in its own subnet.
+            if plan.guest_type == "lxc":
+                nics = server.lxc_nics(plan.restore_vmid) or []
+            else:
+                nics = server.guest_agent_nics(plan.restore_vmid) or []
             if nics:
                 discovered = nics  # keep probing these even if a later query times out
             if discovered:
@@ -237,21 +245,25 @@ def execute(
             plan.source,
             plan.snapshot_id,
             plan.target_storage,
-            on_progress=_progress_updater(server, run_id, plan.restore_vmid),
+            on_progress=_progress_updater(server, run_id, plan.restore_vmid, plan.guest_type),
             on_task=lambda upid: db_restore.update_run(run_id, task_upid=upid),
             should_cancel=should_cancel,
             disk_targets=plan.disk_targets,
+            guest_type=plan.guest_type,
         )
         _checkpoint()
         _enter_phase("network")
-        server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan, name=plan.label)
+        server.rewrite_config_for_sandbox(
+            plan.restore_vmid, plan.vlan_tag, plan.guest_type, plan.guest_vlan, name=plan.label
+        )
         _enter_phase("booting")
         # Never start while the restore still holds the config lock — a restore
         # that is still running (e.g. after an app restart resumed the tail, or a
         # stale task) would make the start fail with "can't lock file". Wait for
         # the lock to clear, then start.
-        server.wait_unlocked(plan.restore_vmid)
-        server.start(plan.restore_vmid)
+        _is_lxc = plan.guest_type == "lxc"
+        server.wait_unlocked(plan.restore_vmid, is_lxc=_is_lxc)
+        server.start_lxc(plan.restore_vmid) if _is_lxc else server.start(plan.restore_vmid)
         _enter_phase("probing")
         if plan.primary_ip:
             db_restore.update_run(run_id, detected_ip=plan.primary_ip)  # recorded/override IP
@@ -334,13 +346,15 @@ def _teardown(server: Any, plan: RunPlan) -> None:
     # Only act on guests that actually exist — a run that errored before the
     # restore leaves no VM, so shutting it down would just spam task errors.
     steps = []
+    is_lxc = plan.guest_type == "lxc"
     try:
         # Hard-stop + destroy, no graceful shutdown: a restored prod VM has no
         # working guest agent in the sandbox, so an ACPI shutdown just times out
         # (60s) holding the config lock, which then blocks the destroy. destroy()
-        # force-stops and waits before purging.
-        if server.exists(plan.restore_vmid, is_lxc=False):
-            steps.append(lambda: server.destroy(plan.restore_vmid))
+        # force-stops and waits before purging. A container lives under the lxc
+        # endpoint, so the existence check and destroy must use is_lxc.
+        if server.exists(plan.restore_vmid, is_lxc=is_lxc):
+            steps.append(lambda: server.destroy(plan.restore_vmid, is_lxc=is_lxc))
         if server.exists(plan.helper_vmid, is_lxc=True):
             steps.append(lambda: server.destroy(plan.helper_vmid, is_lxc=True))
     except Exception as exc:
@@ -366,7 +380,7 @@ def _error_log(server: Any, plan: RunPlan, error: str) -> str:
     reason = (error or "").strip() or "unknown error"
     parts = [f"Restore failed\n  {reason}"]
     try:
-        vm_exists = bool(plan.restore_vmid) and server.exists(plan.restore_vmid, is_lxc=False)
+        vm_exists = bool(plan.restore_vmid) and server.exists(plan.restore_vmid, is_lxc=plan.guest_type == "lxc")
     except Exception as exc:
         logger.debug("restore_vmid existence check failed: %s", exc)
         vm_exists = False
@@ -385,7 +399,9 @@ def _failure_diag(server: Any, plan: RunPlan) -> str | None:
     timeout. Never raises; returns None when nothing could be gathered."""
     parts: list[str] = []
     try:
-        diag_ips = [ip for ip, _ in (server.guest_agent_nics(plan.restore_vmid) or [])]
+        # A container has no guest agent; read its live IP(s) from the lxc config.
+        nics = (server.lxc_nics if plan.guest_type == "lxc" else server.guest_agent_nics)(plan.restore_vmid)
+        diag_ips = [ip for ip, _ in (nics or [])]
         if not diag_ips and plan.primary_ip:
             diag_ips = [plan.primary_ip]
         sbx = server.probe_netdiag(plan.helper_vmid, diag_ips, restore_vmid=plan.restore_vmid, ports=plan.tcp_ports)
@@ -504,7 +520,7 @@ def resume_run(
         if upid:
             server.poll_task(
                 upid,
-                on_progress=_progress_updater(server, run_id, plan.restore_vmid),
+                on_progress=_progress_updater(server, run_id, plan.restore_vmid, plan.guest_type),
                 now=now,
                 sleep=sleep,
                 should_cancel=should_cancel,
@@ -512,8 +528,9 @@ def resume_run(
         # Never write config or boot while the restore still holds the flock. If it
         # does not clear, the restore is still in progress — leave the run 'running'
         # and tear NOTHING down; the next resume pass picks it up.
+        _is_lxc = plan.guest_type == "lxc"
         try:
-            server.wait_unlocked(plan.restore_vmid, sleep=sleep)
+            server.wait_unlocked(plan.restore_vmid, is_lxc=_is_lxc, sleep=sleep)
         except RestoreCancelled:
             raise
         except Exception:
@@ -525,8 +542,8 @@ def resume_run(
             return "running"
         # Lock clear → the restore finished. Finish the tail without disturbing what
         # is already healthy: keep a present helper, (re)build only a gone one; only
-        # re-point NICs + boot when the VM is not already running.
-        running = server.is_running(plan.restore_vmid)
+        # re-point NICs + boot when the guest is not already running.
+        running = server.is_running(plan.restore_vmid, is_lxc=_is_lxc)
         if not server.exists(plan.helper_vmid, is_lxc=True):
             server.provision_helper(
                 plan.helper_vmid,
@@ -540,10 +557,12 @@ def resume_run(
             )
         if not running:
             db_restore.update_run(run_id, phase="network")
-            server.rewrite_nics(plan.restore_vmid, plan.vlan_tag, plan.guest_vlan, name=plan.label)
+            server.rewrite_config_for_sandbox(
+                plan.restore_vmid, plan.vlan_tag, plan.guest_type, plan.guest_vlan, name=plan.label
+            )
             db_restore.update_run(run_id, phase="booting")
             try:
-                server.start(plan.restore_vmid)
+                server.start_lxc(plan.restore_vmid) if _is_lxc else server.start(plan.restore_vmid)
             except Exception as exc:
                 logger.debug("resume: start (maybe already running): %s", exc)
         # Advance the phase to probing — without this a resumed run kept the stale
@@ -611,7 +630,7 @@ def fits_ram(free_bytes: int | None, total_bytes: int | None, needed_bytes: int 
     return usable >= needed_bytes
 
 
-def _progress_updater(server: Any, run_id: int, vmid: int) -> Callable[[dict], None]:
+def _progress_updater(server: Any, run_id: int, vmid: int, guest_type: str = "qemu") -> Callable[[dict], None]:
     """A stateful ``on_progress`` that turns pbs-restore's per-disk 0–100%% into
     overall progress across all the guest's volumes. pbs-restore reports "read N
     bytes" per disk and resets it at each disk, so sum it: completed disks' bytes
@@ -630,7 +649,7 @@ def _progress_updater(server: Any, run_id: int, vmid: int) -> Callable[[dict], N
             st["cur_drive"] = drive
             st["cur_read"] = 0
             try:  # (re)read the total as disks are allocated; max() keeps it from shrinking
-                st["total"] = max(st["total"] or 0, server.restore_total_bytes(vmid)) or None
+                st["total"] = max(st["total"] or 0, server.restore_total_bytes(vmid, guest_type)) or None
             except Exception as exc:
                 logger.debug("restore_total_bytes during progress failed: %s", exc)
         if read > st["cur_read"]:

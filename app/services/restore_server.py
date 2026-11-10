@@ -939,6 +939,7 @@ class RestoreServer:
                     "type": s.get("type", ""),
                     "content": content,
                     "images": "images" in content,
+                    "rootdir": "rootdir" in content,  # container-capable (LXC rootfs)
                     # Usage is only on the node-status rows (first path), not the
                     # datacenter config; whichever path saw it first wins.
                     "used": s.get("used"),
@@ -1059,6 +1060,7 @@ class RestoreServer:
         sleep: Callable[[float], None] = time.sleep,
         should_cancel: Callable[[], bool] | None = None,
         disk_targets: dict[str, str] | None = None,
+        guest_type: str = "qemu",
     ) -> None:
         """Restore a snapshot to ``restore_vmid`` on the target storage, tracking
         live progress. Liveness is the task status; abort only on task error, an
@@ -1098,7 +1100,9 @@ class RestoreServer:
         # UPID over the FAST API token for live progress. (Running `pvesh create`
         # in the foreground blocks until the whole restore finishes, which froze
         # the progress at 0% the entire time.)
-        upid = self._start_restore_task(restore_vmid, archive, target_storage, node, now=now, sleep=sleep)
+        upid = self._start_restore_task(
+            restore_vmid, archive, target_storage, node, guest_type=guest_type, now=now, sleep=sleep
+        )
         if on_task:
             on_task(upid)
         self._poll_task(
@@ -1321,6 +1325,7 @@ class RestoreServer:
         storage: str,
         node: str,
         *,
+        guest_type: str = "qemu",
         now: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
         deadline_seconds: float = 120.0,
@@ -1330,15 +1335,22 @@ class RestoreServer:
         restore to finish, so we can poll it live over the fast API. The UPID is
         found via the API task list (robust; no parsing of pvesh's stdout, which
         block-buffers and only flushed at the very end — freezing progress at 0%
-        until completion)."""
+        until completion). A container uses the ``lxc`` endpoint with
+        ``-ostemplate`` (pct restore); a VM the ``qemu`` endpoint with ``-archive``."""
         out = f"/tmp/bsentinel-restore-{vmid}.log"
-        # No name override here: PVE ignores it on an archive restore, and the VM
-        # is renamed by rewrite_nics once the restore lock clears (see restore()).
-        self.ssh.run(
-            f"nohup pvesh create /nodes/{shlex.quote(node)}/qemu "
-            f"-vmid {vmid} -archive {shlex.quote(archive)} -storage {shlex.quote(storage)} -live-restore 0 "
-            f"> {shlex.quote(out)} 2>&1 & echo kicked"
-        )
+        # No name override here: PVE ignores it on an archive restore, and the guest
+        # is renamed by rewrite_config_for_sandbox once the restore lock clears.
+        if guest_type == "lxc":
+            create = (
+                f"pvesh create /nodes/{shlex.quote(node)}/lxc "
+                f"-vmid {vmid} -ostemplate {shlex.quote(archive)} -storage {shlex.quote(storage)}"
+            )
+        else:
+            create = (
+                f"pvesh create /nodes/{shlex.quote(node)}/qemu "
+                f"-vmid {vmid} -archive {shlex.quote(archive)} -storage {shlex.quote(storage)} -live-restore 0"
+            )
+        self.ssh.run(f"nohup {create} > {shlex.quote(out)} 2>&1 & echo kicked")
         deadline = now() + deadline_seconds
         while now() < deadline:
             # Only a RUNNING restore task for this vmid — not a finished one from a
@@ -1576,6 +1588,39 @@ class RestoreServer:
             return False
         return bool(cfg.get("lock"))
 
+    def rewrite_config_for_sandbox(
+        self, vmid: int, vlan_tag: int, guest_type: str, guest_vlan: int | None = None, name: str = ""
+    ) -> None:
+        """Prepare the restored guest's config for an isolated sandbox boot,
+        dispatching by guest type: a VM through ``rewrite_nics`` (hostpci/CD-ROM
+        handling), a container through ``_rewrite_lxc_config`` (netN repoint +
+        bind-mount drop + ``hostname`` rename)."""
+        if guest_type == "lxc":
+            self._rewrite_lxc_config(vmid, vlan_tag, guest_vlan=guest_vlan, name=name)
+        else:
+            self.rewrite_nics(vmid, vlan_tag, guest_vlan, name)
+
+    def _rewrite_lxc_config(self, vmid: int, vlan_tag: int, guest_vlan: int | None = None, name: str = "") -> None:
+        """Repoint a container's NICs to the sandbox bridge/VLAN (keeping hwaddr/ip),
+        drop host bind-mounts (their host paths are not in the backup), and rename
+        it via ``hostname``. One config update; no hostpci/CD-ROM for a container."""
+        from app.services.restore_lxc import bind_mount_deletes, rewrite_lxc_net_line
+
+        node = self.node()
+        config = self.pve.get(f"/nodes/{node}/lxc/{vmid}/config") or {}
+        bridge = self.config["sandbox_bridge"]
+        changes: dict[str, Any] = {}
+        if name:
+            changes["hostname"] = name
+        for key, value in config.items():
+            if re.fullmatch(r"net\d+", key) and isinstance(value, str):
+                changes[key] = rewrite_lxc_net_line(value, bridge, vlan_tag, trunks=guest_vlan)
+        deletes = bind_mount_deletes(config)
+        if deletes:
+            changes["delete"] = ",".join(deletes)
+        if changes:
+            self.pve.post(f"/nodes/{node}/lxc/{vmid}/config", changes)
+
     def rewrite_nics(self, vmid: int, vlan_tag: int, guest_vlan: int | None = None, name: str = "") -> None:
         """Prepare the restored guest's config for an isolated sandbox boot, in one
         config update:
@@ -1612,21 +1657,40 @@ class RestoreServer:
     def start(self, vmid: int) -> None:
         self.pve.post(f"/nodes/{self.node()}/qemu/{vmid}/status/start", {})
 
-    def wait_unlocked(self, vmid: int, *, attempts: int = 120, sleep: Callable[[float], None] = time.sleep) -> None:
-        """Wait until the VM has no config ``lock``. A still-running restore holds
-        a lock, and starting a locked VM fails with "can't lock file" — which is
+    def wait_unlocked(
+        self, vmid: int, *, is_lxc: bool = False, attempts: int = 120, sleep: Callable[[float], None] = time.sleep
+    ) -> None:
+        """Wait until the guest has no config ``lock``. A still-running restore holds
+        a lock, and starting a locked guest fails with "can't lock file" — which is
         what happens if the restore task is still in progress (e.g. an app restart
         resumed the tail, or a stale/duplicate task). Bounded; raises if it never
         clears."""
         node = self.node()
+        kind = "lxc" if is_lxc else "qemu"
         lock = None
         for _ in range(attempts):
-            cfg = self.pve.get(f"/nodes/{node}/qemu/{vmid}/config") or {}
+            cfg = self.pve.get(f"/nodes/{node}/{kind}/{vmid}/config") or {}
             lock = cfg.get("lock")
             if not lock:
                 return
             sleep(1.0)
         raise RestoreTaskError(f"VM {vmid} still locked ('{lock}') — restore not finished, not starting")
+
+    def lxc_nics(self, vmid: int) -> list[tuple[str, int]]:
+        """Static ``(ip, prefix)`` pairs from a container's ``netN`` config — the
+        LXC analogue of ``guest_agent_nics`` (a container has no guest agent). The
+        probe loop calls this each pass for an LXC run, so the helper reaches the
+        container in its real subnet. A ``dhcp`` NIC yields nothing here and the
+        loop falls back to the sandbox-DHCP primary IP (as for an agent-less VM)."""
+        from app.services.restore_lxc import lxc_config_nics
+
+        node = self.node()
+        try:
+            cfg = self.pve.get(f"/nodes/{node}/lxc/{vmid}/config", timeout=AGENT_QUERY_TIMEOUT)
+        except Exception as exc:
+            logger.debug("lxc config unreadable for %s: %s", vmid, exc)
+            return []
+        return lxc_config_nics(cfg) if isinstance(cfg, dict) else []
 
     def guest_agent_nics(self, vmid: int) -> list[tuple[str, int]]:
         """Non-loopback IPv4 (address, prefix) the QEMU guest agent reports for the
@@ -1683,23 +1747,27 @@ class RestoreServer:
         """Just the addresses from :meth:`guest_agent_nics` (prefix dropped)."""
         return [ip for ip, _ in self.guest_agent_nics(vmid)]
 
-    def restore_total_bytes(self, vmid: int) -> int:
-        """Sum of the restored guest's disk sizes (virtual), from the storage content
+    def restore_total_bytes(self, vmid: int, guest_type: str = "qemu") -> int:
+        """Sum of the restored guest's volume sizes (virtual), from the storage content
         — the denominator for overall restore progress. Read from the content listing,
-        NOT ``qm config``, because qmrestore allocates every volume up front (so the
+        NOT ``qm config``, because the restore allocates every volume up front (so the
         content shows them, with their full size, right away) while the config may not
-        carry ``size=`` until the restore finalises. 0 when nothing is found yet."""
+        carry ``size=`` until the restore finalises. A container's rootfs + volume
+        mountpoints live under ``content=rootdir`` as ``subvol-``/``vm-`` volumes; a
+        VM's disks under ``content=images`` as ``vm-``. 0 when nothing is found yet."""
         node = self.node()
+        content_type = "rootdir" if guest_type == "lxc" else "images"
         selected = {s["storage"] for s in self.config.get("target_storages", []) if s.get("use", True)}
         by_disk: dict[str, int] = {}
         for store in selected:
             try:
-                content = self.pve.get(f"/nodes/{node}/storage/{store}/content?content=images&vmid={int(vmid)}") or []
+                path = f"/nodes/{node}/storage/{store}/content?content={content_type}&vmid={int(vmid)}"
+                content = self.pve.get(path) or []
             except Exception as exc:
                 logger.debug("restore_total_bytes content read %s failed: %s", store, exc)
                 continue
             for vol in content:
-                m = re.search(rf"vm-{int(vmid)}-disk-\d+", str(vol.get("volid", "")))
+                m = re.search(rf"(?:subvol|vm)-{int(vmid)}-disk-\d+", str(vol.get("volid", "")))
                 if m and vol.get("size"):
                     by_disk[m.group(0)] = int(vol["size"])  # dedup if a disk lists twice
         return sum(by_disk.values())
@@ -1756,22 +1824,23 @@ class RestoreServer:
 
     # reaper -----------------------------------------------------------------
 
+    def storage_content_map(self) -> dict[str, str]:
+        """``{storage: content}`` for the host's storages (PVE's comma-list, e.g.
+        ``"images,rootdir"``), so the target selection can tell which storages can
+        hold a VM disk (``images``) vs a container rootfs (``rootdir``)."""
+        node = self.node()
+        return {s.get("storage"): (s.get("content") or "") for s in (self.pve.get(f"/nodes/{node}/storage") or [])}
+
     def _lxc_storage(self) -> str:
         """The storage the helper container's rootfs goes on: the first selected
         target storage, in the operator's order, that accepts LXC rootfs (content
         'rootdir'). An images-only target (fine for a VM disk, not a container) is
         skipped — so the set may differ from the VM restore target. No separate
         setting; it's derived from the same target-storage selection."""
-        node = self.node()
-        content = {s.get("storage"): (s.get("content") or "") for s in (self.pve.get(f"/nodes/{node}/storage") or [])}
-        selected = sorted(
-            (s for s in self.config.get("target_storages", []) if s.get("use", True)),
-            key=lambda s: s.get("order", 9999),
-        )
-        for t in selected:
-            if "rootdir" in content.get(t["storage"], ""):
-                return t["storage"]
-        return ""
+        from app.services.restore_orchestrator import capable_target_storages
+
+        ordered = capable_target_storages(self.config.get("target_storages", []), self.storage_content_map(), "lxc")
+        return ordered[0] if ordered else ""
 
     def ensure_helper_template(self) -> str:
         """The helper CT template on the restore host, as a volid — uploaded via
