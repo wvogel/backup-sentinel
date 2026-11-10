@@ -52,6 +52,8 @@ class RunPlan:
     # single storage and its disks are spread across several (restored disk by
     # disk). None → the whole guest goes on `target_storage` (the normal path).
     disk_targets: dict[str, str] | None = None
+    # "qemu" (VM, qmrestore path) or "lxc" (container, pct-restore path).
+    guest_type: str = "qemu"
 
 
 def owned_vmids() -> set[int]:
