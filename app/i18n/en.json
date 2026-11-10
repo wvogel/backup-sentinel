@@ -601,6 +601,7 @@
   "restore.io_out": "Out",
   "restore.io_link": "Link rate",
   "restore.running_now": "Running restores",
+  "restore.phase_setup": "Setup",
   "restore.phase_preflight": "Checking backup",
   "restore.phase_restoring": "Restoring",
   "restore.phase_finalizing": "Finalizing volumes (cache flush)",

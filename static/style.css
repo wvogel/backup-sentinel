@@ -3808,6 +3808,9 @@ fieldset.rhost-graph { height: 58px; width: 100%; }
 }
 /* The restore-progress ring is as large as the RAM / storage rings (.store-ring). */
 .running-info { display: flex; flex-direction: column; gap: 2px; }
+/* A finished run's duration hints (dotted underline) that hovering it shows the
+   per-phase breakdown — where the time actually went. */
+.phase-timings-cue { text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
 /* Live green checks during probing: small ticked chips. */
 .run-checks { display: flex; flex-wrap: wrap; gap: 4px; }
 .run-checks:empty { display: none; }

@@ -135,6 +135,49 @@ def restore_eta_text(run: dict, now: datetime | None = None) -> str:
     return "~" + format_duration(int(remaining))
 
 
+# Pipeline order of the phases a run passes through, for the per-phase timing
+# breakdown. Unknown keys (future phases, or a resumed run's partial set) are
+# appended after these, in input order, so nothing is silently dropped.
+_PHASE_ORDER = ("setup", "preflight", "helper", "restoring", "network", "booting", "probing")
+
+
+def _fmt_phase_secs(seconds: float) -> str:
+    """A phase duration at second granularity (``format_duration`` rounds to whole
+    minutes, which hides the preflight/helper/boot/probe phases): ``"45 s"`` below
+    a minute, ``"M:SS"`` below an hour, ``"H:MM:SS"`` above."""
+    s = round(seconds)
+    if s < 60:
+        return f"{s} s"
+    if s < 3600:
+        return f"{s // 60}:{s % 60:02d}"
+    return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+
+
+def restore_phase_timings(run: dict) -> list[dict]:
+    """Per-phase wall-clock breakdown for a finished run, from its stored
+    ``phase_timings`` ({phase: seconds}). Ordered along the pipeline; each entry is
+    ``{"phase", "seconds", "text"}``, and the data-copy phase also carries a
+    ``"rate_text"`` (bytes copied ÷ its seconds) so a slow copy is obvious at a
+    glance. Empty when no timings were recorded (e.g. a run resumed after a
+    restart). The template translates the phase key to a label."""
+    pt = run.get("phase_timings")
+    if not isinstance(pt, dict) or not pt:
+        return []
+    copied = run.get("bytes_done") or run.get("disk_bytes")
+    known = [p for p in _PHASE_ORDER if p in pt]
+    extra = [p for p in pt if p not in _PHASE_ORDER]
+    out: list[dict] = []
+    for phase in known + extra:
+        secs = pt.get(phase)
+        if not isinstance(secs, (int, float)) or isinstance(secs, bool):
+            continue
+        item = {"phase": phase, "seconds": round(secs), "text": _fmt_phase_secs(secs)}
+        if phase == "restoring" and copied and secs > 0:
+            item["rate_text"] = format_rate(copied / secs)
+        out.append(item)
+    return out
+
+
 templates.env.filters["datetime_local"] = datetime_local
 templates.env.filters["restore_status_tooltip"] = restore_status_tooltip
 templates.env.filters["restore_eta"] = restore_eta_text
@@ -144,6 +187,7 @@ templates.env.filters["format_bytes"] = format_size
 templates.env.filters["size_coarse"] = format_size_coarse
 templates.env.filters["bitrate"] = format_bitrate
 templates.env.filters["green_checks"] = green_check_labels
+templates.env.filters["restore_phase_timings"] = restore_phase_timings
 templates.env.filters["spark_tooltip"] = spark_tooltip
 templates.env.filters["format_number"] = format_count
 
