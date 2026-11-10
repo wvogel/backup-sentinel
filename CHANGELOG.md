@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.28] — 2026-11-11
+
+### Fixed
+
+- **LXC restore from PBS failed with "content type needs to be 'vztmpl'".** The container restore invoked `pvesh create …/lxc -ostemplate <backup>` without `-restore 1`, so PVE treated the PBS backup volume as a container *template* instead of a backup. Added `-restore 1` (restore from backup) and `-force 1` (overwrite the reused restore vmid, as `qmrestore` does). Found on the first on-host Qdevice run.
+
 ## [v3.9.27] — 2026-11-11
 
 ### Fixed
