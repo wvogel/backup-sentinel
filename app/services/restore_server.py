@@ -216,6 +216,7 @@ def compute_io_rates(
 class PveClient(Protocol):
     def get(self, path: str) -> Any: ...
     def post(self, path: str, data: dict[str, Any]) -> Any: ...
+    def put(self, path: str, data: dict[str, Any]) -> Any: ...
     def delete(self, path: str) -> Any: ...
     def upload(self, node: str, storage: str, filename: str, data: bytes) -> Any: ...
 
@@ -1623,7 +1624,8 @@ class RestoreServer:
         if deletes:
             changes["delete"] = ",".join(deletes)
         if changes:
-            self.pve.post(f"/nodes/{node}/lxc/{vmid}/config", changes)
+            # LXC config is PUT (POST /lxc/{vmid}/config is "not implemented", 501).
+            self.pve.put(f"/nodes/{node}/lxc/{vmid}/config", changes)
 
     def rewrite_nics(self, vmid: int, vlan_tag: int, guest_vlan: int | None = None, name: str = "") -> None:
         """Prepare the restored guest's config for an isolated sandbox boot, in one
@@ -2435,6 +2437,9 @@ class PveSsh:
         verb = "set" if split_path_query(path)[0].rstrip("/").endswith("/config") else "create"
         return self._call(verb, path, data)
 
+    def put(self, path: str, data: dict[str, Any]) -> Any:
+        return self._call("set", path, data)
+
     def delete(self, path: str) -> Any:
         return self._call("delete", path)
 
@@ -2477,6 +2482,11 @@ class PveApi:
         from app.services.api_client import api_send
 
         return api_send("POST", self.base, path, self.auth, data=data, label="PVE-Restore")
+
+    def put(self, path: str, data: dict[str, Any]) -> Any:
+        from app.services.api_client import api_send
+
+        return api_send("PUT", self.base, path, self.auth, data=data, label="PVE-Restore")
 
     def delete(self, path: str) -> Any:
         from app.services.api_client import api_send

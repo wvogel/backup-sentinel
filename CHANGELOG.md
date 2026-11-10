@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.29] — 2026-11-11
+
+### Fixed
+
+- **LXC sandbox config rewrite failed with HTTP 501 ("Method 'POST …/lxc/{id}/config' not implemented"), so the restored container kept no NIC.** The container config update was sent as POST; PVE only implements **PUT** for `/nodes/{node}/lxc/{vmid}/config` (POST is fine for QEMU, which is why the VM path worked). Added a `put` to the restore API client (HTTP PUT / `pvesh set`) and use it for the LXC net/bind-mount/hostname rewrite. Found on the second on-host Qdevice run — the restore and boot now succeed (qnetd answered on 5403), only the NIC repoint was failing.
+
 ## [v3.9.28] — 2026-11-11
 
 ### Fixed

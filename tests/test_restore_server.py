@@ -370,6 +370,7 @@ class FakePve:
     def __init__(self, responses):
         self.responses = responses
         self.posts = []
+        self.puts = []
         self.deletes = []
         self.uploads = []
 
@@ -387,6 +388,10 @@ class FakePve:
     def post(self, path, data):
         self.posts.append((path, data))
         return "UPID:restore:task"
+
+    def put(self, path, data):
+        self.puts.append((path, data))
+        return None
 
     def delete(self, path):
         self.deletes.append(path)
@@ -584,7 +589,8 @@ def test_rewrite_config_for_sandbox_lxc_repoints_net_and_drops_bind_mount():
     }
     srv = _server(responses)
     srv.rewrite_config_for_sandbox(9000, 901, "lxc", name="clu-ct")
-    data = next(d for p, d in srv.pve.posts if p == "/nodes/r1/lxc/9000/config")
+    # LXC config is updated via PUT (POST is not implemented for /lxc/.../config).
+    data = next(d for p, d in srv.pve.puts if p == "/nodes/r1/lxc/9000/config")
     assert "bridge=vmbr9" in data["net0"] and "tag=901" in data["net0"]
     assert "hwaddr=AA:BB:CC:DD:EE:FF" in data["net0"] and "ip=10.0.0.5/24" in data["net0"]
     assert data.get("hostname") == "clu-ct"  # a container is renamed via 'hostname', not 'name'
