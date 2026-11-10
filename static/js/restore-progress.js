@@ -15,6 +15,43 @@
   // RAM/volumes plot the fill level over time, Disk/Network the throughput.
   const VW = 100, VH = 40, MAXN = 100; // ~5 min at the 3 s poll cadence
   const graphBoxes = [...document.querySelectorAll("[data-rhost] .rhost-graph")];
+
+  // Persist each graph's rolling buffer + last render to localStorage, so a reload
+  // or a page change doesn't drop the accumulated ~5-minute curve to empty: on load
+  // we restore the last snapshot (if still within the graph's own window) and keep
+  // appending. Per-viewer convenience only; every access is guarded.
+  const STALE_MS = MAXN * 3000; // the graph's own window — older snapshots are dropped
+  const snapKey = (box) =>
+    "bs.rhost." + (box.dataset.metric || "") + (box.dataset.name ? "." + box.dataset.name : "");
+  function ovEl(box) { return (box.parentElement || box).querySelector(".rhost-ov"); }
+  function pctEl(box) { return box.querySelector("legend .rhost-pct"); }
+  function saveSnap(box) {
+    try {
+      const svg = box.querySelector(".rhost-surf");
+      localStorage.setItem(snapKey(box), JSON.stringify({
+        t: Date.now(),
+        buf: box._buf || [[], []],
+        svg: svg ? svg.innerHTML : "",
+        ov: ovEl(box) ? ovEl(box).innerHTML : "",
+        pct: pctEl(box) ? pctEl(box).textContent : "",
+      }));
+    } catch (e) { /* storage blocked/full — the graph just rebuilds live */ }
+  }
+  function restoreSnaps() {
+    for (const box of graphBoxes) {
+      try {
+        const raw = localStorage.getItem(snapKey(box));
+        if (!raw) continue;
+        const s = JSON.parse(raw);
+        if (!s || !s.t || Date.now() - s.t > STALE_MS) continue;
+        box._buf = Array.isArray(s.buf) ? s.buf : [[], []];
+        const svg = box.querySelector(".rhost-surf");
+        if (svg && s.svg) svg.innerHTML = s.svg;
+        if (ovEl(box) && s.ov != null) ovEl(box).innerHTML = s.ov;
+        if (pctEl(box) && s.pct != null) pctEl(box).textContent = s.pct;
+      } catch (e) { /* ignore a corrupt/legacy entry */ }
+    }
+  }
   const de = (s) => s.replace(".", ",");
   function fsize(b) {
     if (b == null) return "–";
@@ -103,6 +140,7 @@
         draw(box, [box._buf[0], box._buf[1]], max, `<span class="mut">↓</span> <b>${fbit(res.io.net_in)}</b> <span class="mut">· ↑ ${fbit(res.io.net_out)}</span>`);
         setHeadlinePct(box, `${Math.max(res.io.net_in_pct || 0, res.io.net_out_pct || 0)} %`);
       }
+      saveSnap(box); // remember this box so a reload/navigation keeps the curve
     }
   }
 
@@ -200,6 +238,9 @@
     }
   }
 
+  // Show the last-known curves immediately, before the first poll lands, so a
+  // reload or page change doesn't flash empty graphs.
+  restoreSnaps();
   setInterval(tick, 3000);
   // Waiting for the host: ask sooner than the regular cadence.
   if (document.querySelector("[data-host-loading]")) setTimeout(tick, 1000);

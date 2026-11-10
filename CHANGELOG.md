@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.9.30] — 2026-11-11
+
+### Changed
+
+- **The live host graphs on /restore (RAM, storage, disk, network) no longer start empty on every reload or page change.** Each graph's rolling ~5-minute buffer and its last rendered state are kept in the browser's `localStorage` and restored immediately on load, so the accumulated curve is there at once and keeps running instead of rebuilding from scratch. A snapshot older than the graph's own 5-minute window is dropped (no stale curves), and every storage access is guarded so a private window or blocked storage simply falls back to the old rebuild-live behavior.
+
 ## [v3.9.29] — 2026-11-11
 
 ### Fixed
