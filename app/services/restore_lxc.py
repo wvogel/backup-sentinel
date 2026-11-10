@@ -44,6 +44,34 @@ def parse_lxc_net(value: str) -> dict[str, Any]:
     return {"mac": mac, "ip": ip, "prefix": prefix}
 
 
+def rewrite_lxc_net_line(value: str, bridge: str, tag: int, trunks: int | None = None) -> str:
+    """Repoint an LXC ``netN`` to the sandbox bridge + VLAN, keeping ``hwaddr``/
+    ``ip``/``gw``/``name`` and dropping the old bridge/tag/firewall. The QEMU
+    ``rewrite_net_line`` already does exactly this for the shared comma-kv format
+    (its VirtIO-only ``mtu`` branch never triggers for a container's ``name=…``
+    first field), so we delegate to keep one rewrite. Imported locally so this
+    pure module never imports the heavy ``restore_server`` at load time."""
+    from app.services.restore_server import rewrite_net_line
+
+    return rewrite_net_line(value, bridge, tag, trunks=trunks)
+
+
+def bind_mount_deletes(config: dict[str, Any]) -> list[str]:
+    """The ``mpN`` keys that are **host bind-mounts** (source is a host path, not a
+    ``storage:volid``), ordered by index — to delete before an isolated boot. A
+    bind-mount's host path is not in the backup and must not be reconstructed;
+    volume-backed mountpoints restore normally and are kept."""
+    out: list[tuple[int, str]] = []
+    for key, value in config.items():
+        m = re.fullmatch(r"mp(\d+)", key)
+        if not m or not isinstance(value, str):
+            continue
+        source = value.split(",", 1)[0].strip()
+        if source.startswith("/"):  # host path → bind-mount
+            out.append((int(m.group(1)), key))
+    return [key for _, key in sorted(out)]
+
+
 def lxc_config_nics(config: dict[str, Any]) -> list[tuple[str, int]]:
     """``[(ip, prefix)]`` for each ``netN`` with a static CIDR, ordered by index."""
     nets: list[tuple[int, str]] = []
