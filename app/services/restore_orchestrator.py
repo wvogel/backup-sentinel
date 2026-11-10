@@ -281,6 +281,25 @@ def is_supported_guest(guest_type: str | None) -> bool:
     return (guest_type or "qemu") in SUPPORTED_GUEST_TYPES
 
 
+def storage_accepts_guest(content: str | set[str] | list[str], guest_type: str | None) -> bool:
+    """Whether a storage with this ``content`` can hold the restored guest: a
+    container needs ``rootdir``, a VM needs ``images``. ``content`` is PVE's
+    comma-list (string) or a set/list of its entries."""
+    want = "rootdir" if (guest_type or "qemu") == "lxc" else "images"
+    entries = content.split(",") if isinstance(content, str) else content
+    return want in {e.strip() for e in entries}
+
+
+def capable_target_storages(
+    targets: list[dict[str, Any]], content_by: dict[str, str], guest_type: str | None
+) -> list[str]:
+    """The ticked target storages (in the operator's order) whose content can hold
+    this guest type — a container never lands on an images-only storage, a VM never
+    on a container-only one."""
+    ordered = sorted((s for s in targets if s.get("use", True)), key=lambda s: s.get("order", 0))
+    return [s["storage"] for s in ordered if storage_accepts_guest(content_by.get(s["storage"], ""), guest_type)]
+
+
 def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[str, Any]) -> RunPlan | None:
     """Resolve source/snapshot/NICs and allocate resources. Returns None only for
     a resource wait (no free management IP); raises NotRunnable when the VM is
@@ -320,19 +339,33 @@ def build_plan(candidate: dict[str, Any], server: RestoreServer, config: dict[st
 
     label = sandbox_name(candidate.get("cluster_name") or "", candidate.get("vm_name") or "")
 
-    targets_sorted = sorted(
-        (s for s in config.get("target_storages", []) if s.get("use", True)), key=lambda s: s.get("order", 0)
-    )
-    if not targets_sorted:
+    all_targets = config.get("target_storages", [])
+    ticked = [s for s in all_targets if s.get("use", True)]
+    if not ticked:
         # No ticked target storage: PVE would reject the restore with a cryptic
         # "storage ID '' ..." 400. Fail with an actionable message instead.
         raise NotRunnable("no target storage selected — tick one in Settings → Restore")
+    # Keep only storages whose content can hold THIS guest (a container needs
+    # 'rootdir', a VM 'images'); when the host's content map can't be read, fall
+    # back to all ticked and let PVE's restore be the guard.
+    gtype = candidate.get("guest_type") or "qemu"
+    try:
+        content_by = server.storage_content_map()
+    except Exception as exc:
+        logger.debug("storage content map failed (using all ticked targets): %s", exc)
+        content_by = {}
+    if content_by:
+        ordered = capable_target_storages(all_targets, content_by, gtype)
+        if not ordered:
+            need = "rootdir" if gtype == "lxc" else "images"
+            raise NotRunnable(f"no selected target storage can hold a {gtype} guest (needs content '{need}')")
+    else:
+        ordered = [s["storage"] for s in sorted(ticked, key=lambda s: s.get("order", 0))]
     # Ordered fallback: the preferred (first) storage is used when it fits, else
     # the next one in order that does. The whole guest goes on one storage (PVE's
     # archive restore has no per-disk target), so we need a single target with
     # room; live free/capacity decides which.
     needed_bytes = snap.get("size")
-    ordered = [s["storage"] for s in targets_sorted]
     avail_by: dict[str, int | None] = {}
     total_by: dict[str, int | None] = {}
     try:
@@ -692,10 +725,14 @@ def ui_target_storages() -> dict[str, Any]:
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
-    # Only image-capable storages are restore targets; others (e.g. "local") are
-    # never shown or configurable here.
+    # Restore targets are storages that can hold a guest: image-capable (VM disks)
+    # OR rootdir-capable (container rootfs). Others (e.g. a backup-only "local") are
+    # never shown or configurable here. The row carries both flags so the UI can
+    # show which guest kinds a storage serves.
     for d in discovered:
-        if not d.get("images"):
+        img = bool(d.get("images"))
+        root = bool(d.get("rootdir"))
+        if not (img or root):
             continue
         name = d["storage"]
         seen.add(name)
@@ -704,16 +741,17 @@ def ui_target_storages() -> dict[str, Any]:
             {
                 "storage": name,
                 "type": d.get("type", ""),
+                "images": img,
+                "rootdir": root,
                 "disk_class": (s or {}).get("disk_class", "standard-ssd"),
                 "use": bool(s.get("use")) if s else False,
                 "order": (s or {}).get("order", 999),
                 "used": d.get("used"),
                 "free": d.get("avail"),
-                # Performance test: every row here is image-capable (filtered above),
-                # and the benchmark allocates a throwaway volume via pvesm alloc, so
-                # it works for block (lvmthin/zfs) and file (dir/nfs) storages alike.
-                # busy = in a running restore; perf = last run.
-                "benchmarkable": True,
+                # Benchmark (fio via a throwaway pvesm-alloc volume) runs on
+                # image-capable storages; a container-only (rootdir) storage is a
+                # valid target but not benchmarked. busy = in a running restore.
+                "benchmarkable": img,
                 "busy": name in busy,
                 "perf": perf.get(name),
             }
