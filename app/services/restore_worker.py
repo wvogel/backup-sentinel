@@ -239,7 +239,7 @@ def execute(
             plan.source,
             plan.snapshot_id,
             plan.target_storage,
-            on_progress=_progress_updater(server, run_id, plan.restore_vmid),
+            on_progress=_progress_updater(server, run_id, plan.restore_vmid, plan.guest_type),
             on_task=lambda upid: db_restore.update_run(run_id, task_upid=upid),
             should_cancel=should_cancel,
             disk_targets=plan.disk_targets,
@@ -510,7 +510,7 @@ def resume_run(
         if upid:
             server.poll_task(
                 upid,
-                on_progress=_progress_updater(server, run_id, plan.restore_vmid),
+                on_progress=_progress_updater(server, run_id, plan.restore_vmid, plan.guest_type),
                 now=now,
                 sleep=sleep,
                 should_cancel=should_cancel,
@@ -620,7 +620,7 @@ def fits_ram(free_bytes: int | None, total_bytes: int | None, needed_bytes: int 
     return usable >= needed_bytes
 
 
-def _progress_updater(server: Any, run_id: int, vmid: int) -> Callable[[dict], None]:
+def _progress_updater(server: Any, run_id: int, vmid: int, guest_type: str = "qemu") -> Callable[[dict], None]:
     """A stateful ``on_progress`` that turns pbs-restore's per-disk 0–100%% into
     overall progress across all the guest's volumes. pbs-restore reports "read N
     bytes" per disk and resets it at each disk, so sum it: completed disks' bytes
@@ -639,7 +639,7 @@ def _progress_updater(server: Any, run_id: int, vmid: int) -> Callable[[dict], N
             st["cur_drive"] = drive
             st["cur_read"] = 0
             try:  # (re)read the total as disks are allocated; max() keeps it from shrinking
-                st["total"] = max(st["total"] or 0, server.restore_total_bytes(vmid)) or None
+                st["total"] = max(st["total"] or 0, server.restore_total_bytes(vmid, guest_type)) or None
             except Exception as exc:
                 logger.debug("restore_total_bytes during progress failed: %s", exc)
         if read > st["cur_read"]:

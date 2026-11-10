@@ -35,7 +35,7 @@ class ProgressUpdaterTests(unittest.TestCase):
         # Two 100G disks → 200G total. Feed disk0 0→100G, then disk1 0→100G, exactly
         # as pbs-restore logs it (read resets at the second disk).
         class Server:
-            def restore_total_bytes(self, vmid):
+            def restore_total_bytes(self, vmid, guest_type="qemu"):
                 return 200 * G
 
         writes: list[dict] = []
@@ -54,7 +54,7 @@ class ProgressUpdaterTests(unittest.TestCase):
 
     def test_falls_back_to_per_disk_when_total_unknown(self) -> None:
         class Server:
-            def restore_total_bytes(self, vmid):
+            def restore_total_bytes(self, vmid, guest_type="qemu"):
                 return 0  # can't determine the total yet
 
         writes: list[dict] = []
