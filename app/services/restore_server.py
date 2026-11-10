@@ -939,6 +939,7 @@ class RestoreServer:
                     "type": s.get("type", ""),
                     "content": content,
                     "images": "images" in content,
+                    "rootdir": "rootdir" in content,  # container-capable (LXC rootfs)
                     # Usage is only on the node-status rows (first path), not the
                     # datacenter config; whichever path saw it first wins.
                     "used": s.get("used"),
@@ -1772,22 +1773,23 @@ class RestoreServer:
 
     # reaper -----------------------------------------------------------------
 
+    def storage_content_map(self) -> dict[str, str]:
+        """``{storage: content}`` for the host's storages (PVE's comma-list, e.g.
+        ``"images,rootdir"``), so the target selection can tell which storages can
+        hold a VM disk (``images``) vs a container rootfs (``rootdir``)."""
+        node = self.node()
+        return {s.get("storage"): (s.get("content") or "") for s in (self.pve.get(f"/nodes/{node}/storage") or [])}
+
     def _lxc_storage(self) -> str:
         """The storage the helper container's rootfs goes on: the first selected
         target storage, in the operator's order, that accepts LXC rootfs (content
         'rootdir'). An images-only target (fine for a VM disk, not a container) is
         skipped — so the set may differ from the VM restore target. No separate
         setting; it's derived from the same target-storage selection."""
-        node = self.node()
-        content = {s.get("storage"): (s.get("content") or "") for s in (self.pve.get(f"/nodes/{node}/storage") or [])}
-        selected = sorted(
-            (s for s in self.config.get("target_storages", []) if s.get("use", True)),
-            key=lambda s: s.get("order", 9999),
-        )
-        for t in selected:
-            if "rootdir" in content.get(t["storage"], ""):
-                return t["storage"]
-        return ""
+        from app.services.restore_orchestrator import capable_target_storages
+
+        ordered = capable_target_storages(self.config.get("target_storages", []), self.storage_content_map(), "lxc")
+        return ordered[0] if ordered else ""
 
     def ensure_helper_template(self) -> str:
         """The helper CT template on the restore host, as a volid — uploaded via
