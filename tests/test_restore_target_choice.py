@@ -1,6 +1,30 @@
-from app.services.restore_orchestrator import choose_target_storage
+from app.services.restore_orchestrator import (
+    capable_target_storages,
+    choose_target_storage,
+    storage_accepts_guest,
+)
 
 GB = 1024**3
+
+
+def test_storage_accepts_guest_by_content():
+    assert storage_accepts_guest("images,rootdir", "lxc")
+    assert storage_accepts_guest("rootdir", "lxc")
+    assert not storage_accepts_guest("images", "lxc")
+    assert storage_accepts_guest("images,rootdir", "qemu")
+    assert not storage_accepts_guest("rootdir", "qemu")
+
+
+def test_capable_targets_filter_by_guest_and_keep_order():
+    targets = [
+        {"storage": "img-only", "use": True, "order": 0},
+        {"storage": "ct-store", "use": True, "order": 1},
+        {"storage": "both", "use": True, "order": 2},
+        {"storage": "unticked", "use": False, "order": 3},
+    ]
+    content = {"img-only": "images", "ct-store": "rootdir", "both": "images,rootdir", "unticked": "rootdir"}
+    assert capable_target_storages(targets, content, "lxc") == ["ct-store", "both"]
+    assert capable_target_storages(targets, content, "qemu") == ["img-only", "both"]
 
 
 def _caps(order, avail, total):

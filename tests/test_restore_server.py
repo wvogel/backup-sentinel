@@ -422,6 +422,18 @@ def test_verify_host_identity_refuses_production():
     srv.verify_host_identity({"10.1.2.3"})
 
 
+def test_lxc_nics_reads_static_ips_from_config():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/lxc/9000/config": {
+            "net0": "name=eth0,bridge=vmbr0,hwaddr=AA:BB:CC:DD:EE:FF,ip=172.30.10.9/24,gw=172.30.10.1",
+            "net1": "name=eth1,hwaddr=BB:BB:BB:BB:BB:BB,ip=dhcp",
+        },
+    }
+    srv = _server(responses)
+    assert srv.lxc_nics(9000) == [("172.30.10.9", 24)]
+
+
 def test_rewrite_nics_only_touches_net_lines_and_keeps_mac():
     responses = {
         "/nodes": [{"node": "r1", "status": "online"}],
@@ -522,6 +534,69 @@ def test_start_restore_task_discovers_running_upid_not_a_finished_one():
     got = srv._start_restore_task(9000, "store:backup/vm/100/x", "zfs", "r1", sleep=lambda s: None)
     assert got == running
     assert any("pvesh create /nodes/r1/qemu" in c and "nohup" in c for c in srv.ssh.commands)
+
+
+def test_restore_total_bytes_sizes_container_from_rootdir():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage/ct-store/content": [
+            {"volid": "ct-store:subvol-9000-disk-0", "size": 8 * 1024**3},  # rootfs
+            {"volid": "ct-store:subvol-9000-disk-1", "size": 2 * 1024**3},  # a volume mountpoint
+        ],
+    }
+    cfg = {
+        "ssh_host": "10.0.0.9",
+        "api_url": "https://10.0.0.9:8006",
+        "sandbox_bridge": "vmbr9",
+        "target_storages": [{"storage": "ct-store", "use": True}],
+    }
+    srv = RestoreServer(cfg, FakePve(responses), FakeSsh())
+    assert srv.restore_total_bytes(9000, guest_type="lxc") == 10 * 1024**3
+
+
+def test_start_restore_task_uses_lxc_endpoint_for_container():
+    running = "UPID:r1:0000ABCD:00002000:vzrestore:9000:root@pam:"
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/tasks": [{"upid": running, "id": "9000", "type": "vzrestore", "starttime": 2000}],
+    }
+    srv = _server(responses)
+    got = srv._start_restore_task(
+        9000, "store:backup/ct/100/x", "ct-store", "r1", guest_type="lxc", sleep=lambda s: None
+    )
+    assert got == running
+    cmd = next(c for c in srv.ssh.commands if "pvesh create" in c)
+    assert "/nodes/r1/lxc" in cmd and "-ostemplate" in cmd
+
+
+def test_rewrite_config_for_sandbox_lxc_repoints_net_and_drops_bind_mount():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/lxc/9000/config": {
+            "net0": "name=eth0,bridge=vmbr0,hwaddr=AA:BB:CC:DD:EE:FF,ip=10.0.0.5/24,gw=10.0.0.1,tag=5",
+            "mp0": "/host/data,mp=/data",  # bind-mount → delete
+            "mp1": "pool:subvol-9000-disk-1,mp=/db",  # volume mount → keep
+            "hostname": "ct",
+        },
+    }
+    srv = _server(responses)
+    srv.rewrite_config_for_sandbox(9000, 901, "lxc", name="clu-ct")
+    data = next(d for p, d in srv.pve.posts if p == "/nodes/r1/lxc/9000/config")
+    assert "bridge=vmbr9" in data["net0"] and "tag=901" in data["net0"]
+    assert "hwaddr=AA:BB:CC:DD:EE:FF" in data["net0"] and "ip=10.0.0.5/24" in data["net0"]
+    assert data.get("hostname") == "clu-ct"  # a container is renamed via 'hostname', not 'name'
+    assert "mp0" in (data.get("delete") or "") and "mp1" not in (data.get("delete") or "")
+
+
+def test_rewrite_config_for_sandbox_qemu_delegates_to_rewrite_nics():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/config": {"net0": "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0,tag=5", "name": "web"},
+    }
+    srv = _server(responses)
+    srv.rewrite_config_for_sandbox(9000, 901, "qemu", name="clu-web")
+    data = next(d for p, d in srv.pve.posts if p == "/nodes/r1/qemu/9000/config")
+    assert data["name"] == "clu-web" and "bridge=vmbr9" in data["net0"]
 
 
 def test_provision_helper_rootfs_on_first_container_capable_target():
