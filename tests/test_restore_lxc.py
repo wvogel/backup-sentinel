@@ -38,6 +38,8 @@ def test_rewrite_keeps_hwaddr_and_ip_repoints_bridge_and_tag():
     assert "bridge=vmbr9" in out and "tag=901" in out
     assert "hwaddr=AA:BB:CC:DD:EE:FF" in out and "ip=10.0.0.5/24" in out
     assert "bridge=vmbr0" not in out and "tag=7" not in out
+    # No gateway in the isolated sandbox — drop the dangling default route.
+    assert "gw=" not in out
 
 
 def test_rewrite_adds_trunk_for_internally_tagged_guest():

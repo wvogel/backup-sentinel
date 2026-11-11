@@ -53,7 +53,11 @@ def rewrite_lxc_net_line(value: str, bridge: str, tag: int, trunks: int | None =
     pure module never imports the heavy ``restore_server`` at load time."""
     from app.services.restore_server import rewrite_net_line
 
-    return rewrite_net_line(value, bridge, tag, trunks=trunks)
+    rewritten = rewrite_net_line(value, bridge, tag, trunks=trunks)
+    # Drop gw=: the isolated sandbox has no gateway, so the container's default
+    # route would point at a non-existent host. Reachability is on-link (the helper
+    # pins a host in the container's own subnet), so the gateway is pure dead weight.
+    return ",".join(p for p in rewritten.split(",") if not p.startswith("gw="))
 
 
 def bind_mount_deletes(config: dict[str, Any]) -> list[str]:
