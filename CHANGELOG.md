@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.10.1] — 2026-11-11
+
+### Changed
+
+- **The LXC sandbox config rewrite now drops `gw=`.** A restored container kept its original default gateway, which points at a host that does not exist in the isolated sandbox — dead weight (reachability is on-link, via a helper host pinned in the container's own subnet). The gateway is now stripped along with the bridge/tag/firewall. The two remaining review nits from the LXC feature are now closed.
+
 ## [v3.10.0] — 2026-11-11
 
 Milestone release consolidating **LXC container restore testing** — built, reviewed and verified end-to-end on the live restore host (a Corosync Qdevice restored, booted and answered on TCP 5403). The feature and its on-host fixes shipped incrementally in v3.9.26–v3.9.30; this release adds the remaining UI polish and documentation and marks the feature complete.
