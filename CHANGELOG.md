@@ -5,6 +5,19 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.10.0] — 2026-11-11
+
+Milestone release consolidating **LXC container restore testing** — built, reviewed and verified end-to-end on the live restore host (a Corosync Qdevice restored, booted and answered on TCP 5403). The feature and its on-host fixes shipped incrementally in v3.9.26–v3.9.30; this release adds the remaining UI polish and documentation and marks the feature complete.
+
+### Added
+
+- **Target-storage capability badges.** The storage list under *Settings → Restore server* now marks each storage **VM** (image-capable, `content=images`) and/or **CT** (container-capable, `content=rootdir`), so it is obvious which guest kind a storage can hold — container-only storages are now selectable and labelled as such.
+- **Documentation.** README, the admin and user guides (de/en) now describe container restore testing: `pct restore` onto a `rootdir` storage, config-based IP discovery (no guest agent), the per-guest storage capability, and setting a container's service port (e.g. 5403 for a Qdevice).
+
+### Summary of the LXC feature (shipped v3.9.26–v3.10.0)
+
+- Restore tests cover **LXC containers** alongside QEMU VMs, reusing the whole probe/queue/UI pipeline; guest-type dispatch runs `pct restore`/`pct start`, rewrites the container config for the sandbox (netN repoint, bind-mounts dropped, `hostname` rename) via PUT, discovers the IP from the `netN` config, and gates target storages by `rootdir` capability. Per-disk distribution across storages stays VM-only.
+
 ## [v3.9.30] — 2026-11-11
 
 ### Changed

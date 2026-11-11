@@ -3515,6 +3515,22 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* Icons sit inline before the name; a plain (non-flex) cell keeps the table
    row heights aligned. */
 .restore-storage-table td { vertical-align: middle; }
+/* Capability badges next to a storage name: VM = image-capable, CT = container
+   (rootdir) capable. A storage may carry both. */
+.cap-badges { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.cap-badge {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--chip-border, var(--line));
+  background: var(--chip, var(--sand));
+  color: var(--muted);
+  cursor: default;
+}
+.cap-badge.cap-ct { color: var(--accent-ink, var(--ink)); background: var(--accent-fill, var(--sage)); border-color: transparent; }
 /* The disk-class picker must fit its label (std-ssd, sata-hdd, …); the global
    select { width: 100% } otherwise squeezes it into the narrow column and clips
    the text to "sa"/"std". Auto width + room for the chevron. */

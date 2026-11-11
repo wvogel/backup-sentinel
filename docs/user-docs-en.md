@@ -298,3 +298,5 @@ Everything generated on the server -- PDF reports, Gotify and email notification
 Configure the dedicated PVE-Restore host once under **Settings → Restore server**. Then enable the test **per VM** (in the VM settings panel on the cluster page): pick a cadence (month/quarter/half-year/year, default half-year), optional TCP ports (e.g. 3389, 445) and whether to hold on failure. **Test now** queues a run immediately.
 
 The **Restore tests** page (`/restore`) shows running runs with percent and ETA, host capacity, and — after a failure with hold — the held environments. There you can **re-test** after a fix, **document as successful** on success (which reaps it), or **reap** it. The queue can be paused/resumed manually.
+
+This works the same for **VMs and LXC containers** — for a container just enter its service port as a TCP port (e.g. `5403` for a Corosync Qdevice), and the test verifies after the restore that the container boots and answers on that port.

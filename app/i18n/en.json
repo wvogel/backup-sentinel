@@ -716,6 +716,8 @@
   "restore.perf_nofio_hint": "fio is not installed on the restore host — no performance test without it.",
   "restore.perf_install_fio": "install fio",
   "restore.st_missing": "not visible right now",
+  "restore.cap_vm": "Can hold VM disks (content=images)",
+  "restore.cap_ct": "Can hold container rootfs (content=rootdir)",
   "restore.test_connection": "Test connection",
   "restore.test_ok": "All checks passed",
   "restore.test_fail": "Check failed",
