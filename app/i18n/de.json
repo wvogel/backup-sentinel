@@ -716,6 +716,8 @@
   "restore.perf_nofio_hint": "fio ist auf dem Restore-Host nicht installiert — ohne fio kein Performance-Test.",
   "restore.perf_install_fio": "fio installieren",
   "restore.st_missing": "derzeit nicht sichtbar",
+  "restore.cap_vm": "Kann VM-Disks aufnehmen (content=images)",
+  "restore.cap_ct": "Kann Container-Rootfs aufnehmen (content=rootdir)",
   "restore.test_connection": "Verbindung testen",
   "restore.test_ok": "Alle Prüfungen bestanden",
   "restore.test_fail": "Prüfung fehlgeschlagen",

@@ -251,7 +251,7 @@
           <tr draggable="true">
             <td class="drag-handle" data-tooltip="{{ t('restore.st_drag') }}" aria-hidden="true">⠿</td>
             <td><input type="checkbox" name="ts_use" value="{{ s.storage }}" {% if s.use %}checked{% endif %}></td>
-            <td class="store-name-cell">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class) }}<span class="store-name">{{ s.storage }}</span><input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</td>
+            <td class="store-name-cell">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class) }}<span class="store-name">{{ s.storage }}</span>{% if s.images or s.rootdir %}<span class="cap-badges">{% if s.images %}<span class="cap-badge cap-vm" data-tooltip="{{ t('restore.cap_vm') }}">VM</span>{% endif %}{% if s.rootdir %}<span class="cap-badge cap-ct" data-tooltip="{{ t('restore.cap_ct') }}">CT</span>{% endif %}</span>{% endif %}<input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</td>
             <td class="num">{{ s.used | size_coarse if s.used is not none else '–' }}</td>
             <td class="num">{{ s.free | size_coarse if s.free is not none else '–' }}</td>
             <td>

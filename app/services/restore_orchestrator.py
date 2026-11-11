@@ -772,6 +772,10 @@ def ui_target_storages() -> dict[str, Any]:
                     "use": bool(s.get("use", True)),
                     "order": s.get("order", 999),
                     "missing": True,
+                    # Capability is unknown while the host does not return the storage.
+                    "images": None,
+                    "rootdir": None,
+                    "benchmarkable": False,
                 }
             )
     rows.sort(key=lambda r: (not r["use"], r["order"], r["storage"]))
