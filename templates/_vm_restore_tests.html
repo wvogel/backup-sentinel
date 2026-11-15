@@ -1,0 +1,51 @@
+{#- One VM's restore tests, loaded into its details (vm-history.js). Runs show
+    every outcome (also cancelled/error) with the phase breakdown on the duration,
+    the checks and the log; manual tests their date and note. -#}
+{%- set result_labels = {"passed": t('cluster.result_passed'), "limited": t('cluster.result_limited'), "failed": t('cluster.result_failed'), "error": t('restore.result_error'), "cancelled": t('restore.result_cancelled'), "held": t('restore.result_held')} %}
+{%- set icons = {'passed': '✓', 'failed': '✗', 'error': '!', 'limited': '◐', 'held': '‖', 'cancelled': '⊘'} %}
+{%- if not entries %}
+<p class="muted">{{ t('cluster.vm_restore_tests_empty') }}</p>
+{%- else %}
+<div class="table-scroll">
+<table class="evidence-table vm-restore-tests">
+  <thead><tr>
+    <th>{{ t('restore.col_started') }}</th><th>{{ t('dashboard.evidence_end') }}</th><th>{{ t('restore.col_duration') }}</th>
+    <th>{{ t('restore.col_status') }}</th><th>{{ t('dashboard.evidence_checks') }}</th>
+  </tr></thead>
+  <tbody>
+  {%- for e in entries %}
+  {%- if e.kind == 'run' %}
+  {%- set _st = e.result or e.status %}
+  {%- set _pt = e|restore_phase_timings %}
+  <tr>
+    <td>
+      {%- if e.trigger == 'scheduled' %}<span class="trigger-icon" data-tooltip="{{ t('restore.trigger_scheduled') }}" aria-label="{{ t('restore.trigger_scheduled') }}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg></span>
+      {%- else %}<span class="trigger-icon" data-tooltip="{{ t('restore.trigger_manual') }}" aria-label="{{ t('restore.trigger_manual') }}"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M5 2.5l6.6 16.8 2.3-6.7 6.7-2.3z"/></svg></span>{% endif %}
+      {{ e.at|datetime_local('%d.%m.%Y %H:%M') if e.at else '–' }}</td>
+    <td>{{ e.finished_at|datetime_local('%d.%m. %H:%M') if e.finished_at else '–' }}</td>
+    <td{% if _pt %} data-tooltip="{% for p in _pt %}{{ t('restore.phase_' ~ p.phase) }} {{ p.text }}{% if p.rate_text %} · {{ p.rate_text }}{% endif %}{% if not loop.last %}&#10;{% endif %}{% endfor %}"{% endif %}>{% if e.duration_seconds %}<span{% if _pt %} class="phase-timings-cue"{% endif %}>{{ e.duration_seconds // 3600 }}:{{ '%02d'|format((e.duration_seconds % 3600) // 60) }}</span>{% else %}–{% endif %}</td>
+    <td>
+      {%- if e.status == 'running' %}<span class="status-icon status-running">⟳</span> {{ t('restore.state_running', pct=e.percent or 0) }}
+      {%- else %}<span class="status-icon status-{{ _st }}" data-tooltip="{{ e|restore_status_tooltip }}">{{ icons.get(_st, '•') }}</span> {{ result_labels.get(_st, _st) }}{% endif -%}
+    </td>
+    <td>
+      {%- set _chips = e.checks|restore_check_chips %}
+      {%- if _chips %}<span class="check-chips">{% for c in _chips %}<span class="check-chip {{ 'is-ok' if c.ok else 'is-bad' }}">{{ c.label }} {{ '✓' if c.ok else '✗' }}</span>{% endfor %}</span>{% endif %}
+      {%- if e.log %} <a href="#" class="restore-log-link" data-log="{{ e.log|run_log }}" data-log-title="{{ t('restore.show_log') }}">{{ t('restore.show_log') }}</a>{% endif %}
+      {%- if not _chips and not e.log %}<span class="muted">–</span>{% endif -%}
+    </td>
+  </tr>
+  {%- else %}
+  <tr>
+    <td>{{ e.tested_at|datetime_local('%d.%m.%Y') }}</td>
+    <td>–</td>
+    <td>{{ e.duration_minutes // 60 }}:{{ '%02d'|format(e.duration_minutes % 60) }}</td>
+    <td><span class="status-icon status-{{ e.result }}">{{ icons.get(e.result, '•') }}</span> {{ result_labels.get(e.result, e.result) }}</td>
+    <td>{% if e.evidence_note %}<a href="#" class="restore-log-link" data-log="{{ e.evidence_note }}" data-log-title="{{ t('cluster.evidence_note') }}">{{ t('cluster.show_log') }}</a>{% else %}<span class="muted">{{ t('dashboard.evidence_manual') }}</span>{% endif %}</td>
+  </tr>
+  {%- endif %}
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}

@@ -12,6 +12,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any
 
 from app import db_restore
@@ -101,6 +102,14 @@ def _probe_loop(
     doesn't drop us back to the DHCP fallback. A failed pass counts as not-green
     and the next follows; only a failure on the last pass before the window closes
     is raised."""
+    if run_id is not None:
+        # The live card counts down to the end of the window (first delay + window).
+        opened = _utcnow()
+        db_restore.update_run(
+            run_id,
+            probe_started_at=opened,
+            probe_ends_at=opened + timedelta(seconds=plan.first_delay + plan.window),
+        )
     sleep(plan.first_delay)
     deadline = now() + plan.window
     checks: dict[str, Any] = {}

@@ -3,6 +3,7 @@
 {% block content %}
 {% import "_storage_icons.html" as sicons with context %}
 {% import "_volume_bar.html" as vol with context %}
+{% import "_probe_countdown.html" as pc with context %}
 
 {% if action_error %}
 <p class="critical-text restore-action-error">
@@ -127,6 +128,7 @@
         {# Live during probing: the detected/DHCP IP and the checks already green. #}
         <span class="muted js-run-ip" data-ip-label="{{ t('restore.run_ip') }}"{% if not run.detected_ip %} hidden{% endif %}>{{ t('restore.run_ip') }} {{ run.detected_ip }}</span>
         <span class="run-checks js-run-checks">{% for c in run.checks|green_checks %}<span class="check-chip">✓ {{ c }}</span>{% endfor %}</span>
+        {{ pc.probe_countdown(run) }}
         {%- set _eta = run|restore_eta %}
         <span class="run-eta js-run-eta" data-eta-label="{{ t('restore.eta_label') }}"{% if not _eta %} hidden{% endif %}>{{ (t('restore.eta_label') ~ ' ' ~ _eta) if _eta else '' }}</span>
         {%- if run.disk_bytes %}<span class="muted run-size">{{ t('restore.size_label') }} {{ run.disk_bytes|size_coarse }}{% if run.disks and run.disks|length > 1 %} · {{ t('restore.disks_count', n=run.disks|length) }}{% endif %}</span>{% endif %}

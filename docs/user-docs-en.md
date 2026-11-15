@@ -28,7 +28,7 @@ At the top, one box titled *Restore tests* (the whole box links to `/restore`). 
 - **Critical** -- VMs whose restore test is well overdue.
 - **This month** -- Restore tests recorded in the current calendar month.
 
-Below on the left, the running restore with the same ring and details as on `/restore` (VM, phase, data read, throughput, ETA), updated live; with nothing running, the queue state. On the right, the restore server's RAM and storage rings.
+Below on the left, the running restore with the same ring and details as on `/restore` (VM, phase, data read, throughput, ETA), updated live; while the guest boots and its reachability is checked, a countdown with a bar runs down the probe window (first delay plus timeout) until the test gives up; with nothing running, the queue state. On the right, the restore server's RAM and storage rings.
 
 At the bottom, *Recovery evidence* lists the latest restore tests as a table: VM, start, end, duration, status and the checks the automated probe ran (ICMP, ARP, each TCP port; green = passed on at least one of the guest's IPs). Manually documented tests show their date and "documented manually". The duration's tooltip shows where the time went (preparation, backup check, helper container, restore with throughput, network adjustment, booting, reachability check). *Booting* runs from the start command until the first green check (ICMP, ARP or a port); after that, *reachability check* counts. If no check turns green, booting shows 0 s — how fast the guest booted is unknown then, not that it failed to boot.
 
@@ -83,7 +83,7 @@ The main table lists every VM in the cluster with sortable columns:
 | Protection     | Source (PBS/local), number of servers holding a backup (**×2**; current = 7 days, 9 with a weekly sync job) and verify state (**✓**/**?**/**✗**). Outlined only when all is well; coloured on warning/error |
 | Restore Test   | "due in N d", **open** (never tested), "N d overdue" or "–" (no test required). The tooltip shows the last test |
 
-Rows are striped. **Clicking a row** (marked by the ▶ before the VM name) opens its details below: the VM's settings and the history of the last 30 days with one bar per day (size, duration, throughput, reused data). Close them with **Collapse**, a click on free space in the details, or another click on the row.
+Rows are striped. **Clicking a row** (marked by the ▶ before the VM name) opens its details below: the VM's settings, the history of the last 30 days with one bar per day (size, duration, throughput, reused data) and its latest 10 restore tests — automated runs with every outcome (also cancelled or error) with trigger, duration (phases in the tooltip), checks and log, plus manually documented tests. Close them with **Collapse**, a click on free space in the details, or another click on the row.
 
 **Node filter bar** -- Buttons above the table let you filter VMs by node. **Problems (n)** at the end shows only VMs with a problem: backup critical or warning, restore test critically overdue, or verify failed or not verified for over 30 days. A VM never tested ("open") alone does not count; n is the number of such VMs.
 
@@ -91,7 +91,7 @@ Rows are striped. **Clicking a row** (marked by the ▶ before the VM name) open
 
 **Backup frequency** -- In a VM's details (click the row) you can override the auto-detected frequency (daily / weekly / none / auto).
 
-**Restore-test due dates** -- The Restore Test column warns ahead of the test interval expiring. The lead time scales with the interval: **yearly** intervals warn **1 month** early, **quarterly** (or shorter) ones **2 weeks** early. Once the interval has elapsed the entry turns red ("N d overdue"). The tooltip shows the last test and the interval. The symbols from left: **clock** = automated restore test on (blue) or off (grey), then the cadence, the dot for the last result, and on the right the **circular arrow** for the live state — still while the VM waits in the queue, spinning while its restore runs.
+**Restore-test due dates** -- The Restore Test column warns ahead of the test interval expiring. The lead time scales with the interval: **yearly** intervals warn **1 month** early, **quarterly** (or shorter) ones **2 weeks** early. Once the interval has elapsed the entry turns red ("N d overdue"). The tooltip shows the last run's result with its date and, separately, the last valid test (passed, limited or documented manually) — only that one resets the due date, a cancelled or failed run does not. The symbols from left: **clock** = automated restore test on (blue) or off (grey), then the cadence, the dot for the last result, and on the right the **circular arrow** for the live state — still while the VM waits in the queue, spinning while its restore runs.
 
 **Restore interval** -- In a VM's details a picker sets how often a VM must be tested: **90 d**, **180 d** (default), **365 d** or **none**. Weekly backups use at least 365 days. A VM never tested so far is **open**: it counts as due, but not as critically overdue. The *Document restore test* form accepts several VMs at once (Ctrl/⌘), e.g. for a full restore drill.
 

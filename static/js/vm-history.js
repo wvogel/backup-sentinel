@@ -127,6 +127,27 @@
       }
     }
 
+    // The VM's restore tests (runs of every outcome + manual ones), rendered by
+    // the server as a fragment so it matches the tables elsewhere.
+    const rt = document.createElement("div");
+    rt.className = "vm-restore-tests-box muted";
+    rt.textContent = T("cluster.history_loading");
+    const st = sectionBox(T("restore.runs_title"));
+    st.append(rt);
+    cell.append(st);
+    fetch(`/clusters/${encodeURIComponent(slug)}/vms/${row.dataset.vmId}/restore-tests`)
+      .then((resp) => {
+        if (!resp.ok) throw new Error(resp.status);
+        return resp.text();
+      })
+      .then((html) => {
+        rt.classList.remove("muted");
+        rt.innerHTML = html; // our own server-rendered (escaped) fragment
+      })
+      .catch(() => {
+        rt.textContent = T("cluster.vm_restore_tests_error");
+      });
+
     if (frag) {
       const rs = frag.querySelector(".vm-restore-settings");
       if (rs) {

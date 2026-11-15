@@ -453,7 +453,7 @@ def restore_progress(request: Request) -> JSONResponse:
     from app.i18n import t
     from app.services.human_format import format_size_coarse
     from app.services.restore_probe import green_check_labels
-    from app.web.common import restore_eta_text
+    from app.web.common import restore_eta_text, restore_probe_countdown
 
     out = []
     for r in db_restore.list_runs(limit=20, status="running"):
@@ -475,6 +475,8 @@ def restore_progress(request: Request) -> JSONResponse:
                 # shows forward motion through the (possibly long) probe window.
                 "detected_ip": r.get("detected_ip") or "",
                 "checks_green": green_check_labels(r.get("checks") or {}),
+                # Reachability window: seconds left / total, or None outside it.
+                "countdown": restore_probe_countdown(r),
             }
         )
     # Carry the host's raw resource numbers so the /restore graphs update live,

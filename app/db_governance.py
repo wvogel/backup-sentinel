@@ -293,7 +293,9 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         row["is_problem"] = is_problem(row)
         # Last automated/manual restore-RUN result for the VM-list result dot
         # (has failed/error too, unlike restore_tests which only logs passed/limited).
-        row["last_restore_run_result"] = run_results.get(row["id"])
+        last_run = run_results.get(row["id"]) or {}
+        row["last_restore_run_result"] = last_run.get("result")
+        row["last_restore_run_at"] = last_run.get("finished_at")
         # A run waiting in the queue or restoring right now (state icon).
         row["restore_run_active"] = active_runs.get(row["id"])
         # Can the restore server actually restore this VM? True/False iff one of

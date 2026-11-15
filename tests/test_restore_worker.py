@@ -289,6 +289,22 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(pt["booting"], 20)  # start → ARP green on the 3rd pass
         self.assertEqual(pt["probing"], 10)  # ARP green → all green
 
+    def test_probe_window_is_recorded_for_the_countdown(self):
+        run_id = self._run()
+        execute(
+            run_id,
+            _plan(self.vm_id, first_delay=30, window=600),
+            FakeServer(),
+            production_hosts=set(),
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": True, "ports": {"443": True}}},
+        )
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT probe_started_at, probe_ends_at FROM restore_runs WHERE id = %s", (run_id,))
+            row = cur.fetchone()
+        self.assertEqual((row["probe_ends_at"] - row["probe_started_at"]).total_seconds(), 630)
+
     def test_no_green_check_shows_booting_as_zero(self):
         # We don't know how fast it booted — not "it never booted": booting 0 s,
         # the whole wait is probing.
