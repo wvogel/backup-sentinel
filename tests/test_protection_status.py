@@ -44,3 +44,21 @@ class VerifyStatusTests(unittest.TestCase):
 
     def test_no_pbs_has_no_verify_status(self) -> None:
         self.assertIsNone(verify_status(has_pbs=False, verify_failed_at=NOW))
+
+
+def copy_status(**overrides):
+    return _protection_status(row(**overrides), NOW)[0]
+
+
+class CopyStatusTests(unittest.TestCase):
+    def test_two_current_copies_are_ok(self) -> None:
+        self.assertEqual(copy_status(copy_count=2, copy_current=2), "ok")
+
+    def test_stale_second_copy_still_counts_but_warns(self) -> None:
+        self.assertEqual(copy_status(copy_count=2, copy_current=1), "warning")
+
+    def test_one_server_is_single(self) -> None:
+        self.assertEqual(copy_status(copy_count=1, copy_current=1), "single")
+
+    def test_no_copy_has_no_status(self) -> None:
+        self.assertIsNone(copy_status(copy_count=0, copy_current=0))
