@@ -3193,7 +3193,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
 #vm-table tr[data-vm-id]:hover .vm-expand-icon { color: var(--ink); }
 #vm-table tr.is-expanded .vm-expand-icon { transform: rotate(90deg); color: var(--ink); }
 .vm-detail-row { cursor: pointer; }
-.vm-detail-row :is(a, button, select, input, textarea, label, form, .vm-history-bars) { cursor: auto; }
+/* :where (no specificity): with :is the .vm-history-bars class lifted this rule
+   above the pointer rule below, so links and buttons got the text cursor. */
+.vm-detail-row :where(a, button, select, input, textarea, label, form, .vm-history-bars) { cursor: auto; }
 .vm-detail-row :is(a, button, select, label) { cursor: pointer; }
 /* Arrow-only button in a small top-right gutter; both boxes reserve the same
    gutter (margin-right on .vm-section) so they end at the same width. */
