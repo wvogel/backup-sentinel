@@ -359,11 +359,33 @@ window.copyText = copyText;
   tip.setAttribute("role", "tooltip");
   let current = null;
 
+  // One block per line; "• item" lines get a hanging indent so a wrapped
+  // item continues under its text, not at the tooltip's left edge.
+  function render(text) {
+    tip.replaceChildren(
+      ...text.split("\n").map((line) => {
+        const row = document.createElement("div");
+        const item = line.match(/^[\s\u2003]*•\s*(.*)$/);
+        if (item) {
+          row.className = "tip-item";
+          const mark = document.createElement("span");
+          mark.textContent = "•";
+          const body = document.createElement("span");
+          body.textContent = item[1];
+          row.append(mark, body);
+        } else {
+          row.textContent = line || "\u00a0";
+        }
+        return row;
+      }),
+    );
+  }
+
   function show(el) {
     const text = el.dataset.tooltip;
     if (!text) return;
     current = el;
-    tip.textContent = text;
+    render(text);
     tip.hidden = false;
     if (!tip.isConnected) document.body.append(tip);
     const r = el.getBoundingClientRect();
