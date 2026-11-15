@@ -587,6 +587,9 @@ thead th {
   .vm-table-scroll { overflow: visible; }
   #vm-table thead th { top: var(--topbar-h); }
 }
+/* Tables inside a VM's details (restore tests) are not the VM table's header:
+   without this they inherit its sticky offset and cover their own first row. */
+#vm-table .vm-detail-row thead th { position: static; top: auto; }
 
 .sortable {
   cursor: pointer;
