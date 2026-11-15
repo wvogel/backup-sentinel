@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.11.1] — 2026-11-15
+
+### Fixed
+
+- **First restore test in the VM details was hidden.** The table header in the details inherited the VM table's sticky offset under the top bar and covered the newest entry. Tables inside the details no longer stick.
+
 ## [v3.11.0] — 2026-11-15
 
 ### Added
