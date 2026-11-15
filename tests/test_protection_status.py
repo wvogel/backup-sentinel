@@ -62,3 +62,38 @@ class CopyStatusTests(unittest.TestCase):
 
     def test_no_copy_has_no_status(self) -> None:
         self.assertIsNone(copy_status(copy_count=0, copy_current=0))
+
+
+class RestoreDotTests(unittest.TestCase):
+    def dot(self, **row):
+        from app.db_governance import restore_dot_result
+
+        return restore_dot_result(row)
+
+    def test_documented_test_after_a_cancelled_run_is_green(self) -> None:
+        # lab-berlin: cancelled 06.11., documented by hand as passed 15.11.
+        self.assertEqual(
+            self.dot(
+                last_restore_run_result="cancelled",
+                last_restore_run_at=datetime(2026, 11, 6, 22, 42, tzinfo=UTC),
+                last_restore_result="passed",
+                last_restore_tested_at=datetime(2026, 11, 15).date(),
+            ),
+            "passed",
+        )
+
+    def test_failed_run_after_the_last_test_shows_the_failure(self) -> None:
+        self.assertEqual(
+            self.dot(
+                last_restore_run_result="failed",
+                last_restore_run_at=datetime(2026, 11, 10, tzinfo=UTC),
+                last_restore_result="passed",
+                last_restore_tested_at=datetime(2026, 11, 3).date(),
+            ),
+            "failed",
+        )
+
+    def test_only_a_cancelled_run_leaves_the_dot_open(self) -> None:
+        self.assertIsNone(
+            self.dot(last_restore_run_result="cancelled", last_restore_run_at=datetime(2026, 11, 6, tzinfo=UTC))
+        )

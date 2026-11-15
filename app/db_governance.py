@@ -296,6 +296,7 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         last_run = run_results.get(row["id"]) or {}
         row["last_restore_run_result"] = last_run.get("result")
         row["last_restore_run_at"] = last_run.get("finished_at")
+        row["restore_dot_result"] = restore_dot_result(row)
         # A run waiting in the queue or restoring right now (state icon).
         row["restore_run_active"] = active_runs.get(row["id"])
         # Can the restore server actually restore this VM? True/False iff one of
@@ -337,6 +338,20 @@ def is_problem(row: dict[str, Any]) -> bool:
 
 
 VERIFY_MAX_AGE_DAYS = 30
+
+
+def restore_dot_result(row: dict[str, Any]) -> str | None:
+    """Result behind the restore column's dot: the newer of the last run and the
+    last valid test (passed/limited, automated or documented by hand). A
+    cancelled or held run says nothing about the backup, so it is skipped — a
+    test documented after a cancelled run shows green, not grey."""
+    run_result, run_at = row.get("last_restore_run_result"), row.get("last_restore_run_at")
+    if run_result in ("cancelled", "held"):
+        run_result = run_at = None
+    test_result, tested_at = row.get("last_restore_result"), row.get("last_restore_tested_at")
+    if tested_at and (not run_result or not run_at or tested_at >= run_at.date()):
+        return test_result
+    return run_result
 
 
 def _protection_status(row: dict[str, Any], now: datetime) -> tuple[str | None, str | None]:
