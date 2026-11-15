@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.10.3] — 2026-11-15
+
+### Fixed
+
+- **Wrapped list items in tooltips keep their indent.** A long "• …" line (e.g. a stale copy in the protection tooltip) wrapped back to the tooltip's left edge. Tooltip lines starting with "•" are now rendered as list items with a hanging indent, so the continuation lines up under the item's text — in every tooltip.
+
 ## [v3.10.2] — 2026-11-15
 
 ### Fixed

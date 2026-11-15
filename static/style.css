@@ -2553,6 +2553,11 @@ details[open] > .encryption-alert-summary::before {
   pointer-events: none;
 }
 .tooltip-float[hidden] { display: none; }
+.tooltip-float .tip-item {
+  display: flex;
+  gap: 0.45em;
+  padding-left: 1em;
+}
 
 /* ── Notification page ───────────────────────────────────────────────────── */
 .notification-type-backup_critical,
