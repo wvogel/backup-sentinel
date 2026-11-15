@@ -42,6 +42,8 @@ _UPDATABLE = frozenset(
         "eta",
         "phase",
         "detected_ip",
+        "probe_started_at",
+        "probe_ends_at",
         "result",
         "restore_test_id",
         "log",
@@ -299,19 +301,50 @@ def queue_state() -> str:
     return "idle"
 
 
-def latest_run_result_by_vm() -> dict[int, str]:
-    """The most recent finished restore-run result per VM (passed/limited/
-    failed/error), for the VM-list result dot. Newest finished run wins."""
+def vm_restore_history(vm_id: int, limit: int = 10) -> list[dict[str, Any]]:
+    """One VM's restore tests for its details, newest first: its runs (every
+    outcome, also cancelled/error; queued ones are left out) and the manually
+    documented tests that no run stands behind. Each entry has ``kind`` "run" or
+    "manual" and ``at`` (when it started / was tested) to sort by."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT DISTINCT ON (vm_id) vm_id, result
+            SELECT r.* FROM restore_runs r
+            WHERE r.vm_id = %s AND r.status <> 'queued'
+            ORDER BY COALESCE(r.started_at, r.queued_at) DESC, r.id DESC LIMIT %s
+            """,
+            (vm_id, limit),
+        )
+        runs = [{**r, "kind": "run", "at": r["started_at"] or r["queued_at"]} for r in cur.fetchall()]
+        cur.execute(
+            """
+            SELECT rt.* FROM restore_tests rt
+            WHERE rt.vm_id = %s AND NOT EXISTS (SELECT 1 FROM restore_runs r WHERE r.restore_test_id = rt.id)
+            ORDER BY rt.tested_at DESC, rt.created_at DESC LIMIT %s
+            """,
+            (vm_id, limit),
+        )
+        manual = [
+            {**m, "kind": "manual", "at": datetime.combine(m["tested_at"], datetime.min.time(), tzinfo=UTC)}
+            for m in cur.fetchall()
+        ]
+    return sorted(runs + manual, key=lambda e: e["at"], reverse=True)[:limit]
+
+
+def latest_run_result_by_vm() -> dict[int, dict[str, Any]]:
+    """The most recent finished restore run per VM as ``{"result", "finished_at"}``
+    (passed/limited/failed/error/cancelled), for the VM-list result dot and its
+    tooltip. Newest finished run wins."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT ON (vm_id) vm_id, result, finished_at
             FROM restore_runs
             WHERE result IS NOT NULL
             ORDER BY vm_id, finished_at DESC NULLS LAST, id DESC
             """
         )
-        return {r["vm_id"]: r["result"] for r in cur.fetchall()}
+        return {r["vm_id"]: {"result": r["result"], "finished_at": r["finished_at"]} for r in cur.fetchall()}
 
 
 def active_run_by_vm() -> dict[int, dict[str, Any]]:

@@ -262,6 +262,10 @@ def init_db() -> None:
             # The restored guest's IP as discovered at probe time (override,
             # recorded, or guest agent), shown read-only in the VM's settings.
             cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS detected_ip TEXT")
+            # The reachability window of the current boot (start command → give
+            # up), for the live card's countdown and progress bar.
+            cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS probe_started_at TIMESTAMPTZ")
+            cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS probe_ends_at TIMESTAMPTZ")
             # Operator asked to abort a running run; the worker's long loops poll
             # this and tear the environment down cleanly (status → cancelled).
             cur.execute(

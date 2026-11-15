@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.11.0] — 2026-11-15
+
+### Added
+
+- **Countdown for the reachability window.** While a restored guest boots and its reachability is checked, the live restore card (on `/restore` and the dashboard) shows "Probe window: 3:42 left" with a bar of the time already used — the first delay plus the timeout, i.e. until the test gives up. It ticks every second between the 3-second polls.
+- **Restore tests in the VM details.** Expanding a VM on the cluster page now shows a *Restore tests* section with its latest 10 tests: automated runs with every outcome (also cancelled and error) with trigger, start, end, duration (phase breakdown on hover), status, checks and log, plus manually documented tests.
+
+### Fixed
+
+- **Restore-test tooltip mixed up two dates and showed raw status names.** It paired the last run's result with the date of the last valid test (e.g. "Last result: cancelled (03.11.2026)" while the cancelled run was later) and showed "cancelled" untranslated. It now lists the last run's result with its own date and, separately, the last valid test (passed, limited or documented) — the one that governs the due date. Cancelled and held results are translated.
+
 ## [v3.10.5] — 2026-11-15
 
 ### Changed

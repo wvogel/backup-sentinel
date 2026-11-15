@@ -209,6 +209,16 @@ def vm_history(cluster_slug: str, vm_id: int) -> dict:
     }
 
 
+@router.get("/clusters/{cluster_slug}/vms/{vm_id}/restore-tests", response_class=HTMLResponse)
+def vm_restore_tests(request: Request, cluster_slug: str, vm_id: int) -> HTMLResponse:
+    """The VM's restore tests as an HTML fragment for its details section."""
+    cluster = db.get_cluster_by_slug(cluster_slug)
+    if not cluster or not db.get_vm_for_cluster(cluster["id"], vm_id):
+        raise HTTPException(status_code=404, detail="VM not found")
+    context = {"entries": db.vm_restore_history(vm_id)}
+    return templates.TemplateResponse(request, "_vm_restore_tests.html", common_context(request) | context)
+
+
 @router.get("/clusters/{cluster_slug}", response_class=HTMLResponse)
 def cluster_detail(request: Request, cluster_slug: str) -> HTMLResponse:
     cluster = db.get_cluster_by_slug(cluster_slug)

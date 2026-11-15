@@ -13,7 +13,7 @@
 {# Restore-RUN result → tone for the result dot (fail=red, warn=yellow, partial=blue, success=green). #}
 {% set restore_run_tone = {"passed": "success", "limited": "partial", "failed": "fail", "error": "warn"} %}
 {% set cadence_short = {"month": t('restore.cad_short_month'), "quarter": t('restore.cad_short_quarter'), "half_year": t('restore.cad_short_half_year'), "year": t('restore.cad_short_year')} %}
-{% set restore_run_result_labels = {"passed": t('cluster.result_passed'), "limited": t('cluster.result_limited'), "failed": t('cluster.result_failed'), "error": t('restore.result_error')} %}
+{% set restore_run_result_labels = {"passed": t('cluster.result_passed'), "limited": t('cluster.result_limited'), "failed": t('cluster.result_failed'), "error": t('restore.result_error'), "cancelled": t('restore.result_cancelled'), "held": t('restore.result_held')} %}
 <section class="hero-card cluster-hero">
   <div class="cluster-hero-main">
     <h2>
@@ -200,8 +200,10 @@
           {%- set restore_tip %}
             {{- t('restore.auto') }}: {{ t('common.on') if row.auto_restore_enabled else t('common.off') }}
             {{- ' · ' }}{{ t('restore.cadence') }}: {{ t('restore.cadence_' ~ row.restore_cadence) }}
-            {%- if _res %} · {{ t('restore.last_result') }}: {{ restore_run_result_labels.get(_res, _res) }}{% endif %}
-            {%- if row.last_restore_tested_at %} ({{ row.last_restore_tested_at|datetime_local('%d.%m.%Y') }}){% else %} · {{ t('common.never') }}{% endif %}
+            {#- The last run (any outcome) and the last test that counts (passed/limited
+                or documented) are two things: only the latter resets the due clock. #}
+            {%- if _res %} · {{ t('restore.last_result') }}: {{ restore_run_result_labels.get(_res, _res) }}{% if row.last_restore_run_at %} ({{ row.last_restore_run_at|datetime_local('%d.%m.%Y') }}){% endif %}{% endif %}
+            {{- ' · ' }}{{ t('restore.last_valid_test') }}: {% if row.last_restore_tested_at %}{{ row.last_restore_tested_at|datetime_local('%d.%m.%Y') }} ({{ restore_result_labels.get(row.last_restore_result, row.last_restore_result) }}){% else %}{{ t('common.never') }}{% endif %}
             {%- if row.restore_due_status == 'critical' %} · {{ t('cluster.restore_overdue', days=row.restore_days) }}{% endif %}
             {%- set _active = row.restore_run_active %}
             {%- if _active and _active.status == 'running' %} · {{ t('restore.state_running', pct=_active.percent or 0) }}

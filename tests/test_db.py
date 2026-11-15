@@ -559,6 +559,33 @@ class VmHistoryTests(DbTestCase):
         self.assertEqual(len(ok.json()["events"]), 3)
         self.assertEqual(client.get("/api/clusters/test/vms/999999/history").status_code, 404)
 
+    def test_vm_details_list_its_restore_tests(self) -> None:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_clusters
+
+        app = FastAPI()
+        app.include_router(routes_clusters.router)
+        client = TestClient(app)
+        url = f"/clusters/test/vms/{self.vm_id}/restore-tests"
+        self.assertIn("noch keine Restore-Tests", client.get(url).text)
+
+        cancelled = db.create_run(self.vm_id, trigger="manual")
+        db.update_run(
+            cancelled, status="cancelled", result="cancelled", started_at=NOW - timedelta(days=2), duration_seconds=330
+        )
+        db.create_run(self.vm_id)  # still queued: not a test yet
+        db.create_restore_test(self.vm_id, (NOW - timedelta(days=5)).date(), "passed", "full", 20, "by hand")
+        history = db.vm_restore_history(self.vm_id)
+        self.assertEqual([(e["kind"], e.get("status")) for e in history], [("run", "cancelled"), ("manual", None)])
+
+        html = client.get(url).text
+        self.assertIn("abgebrochen", html)
+        self.assertIn("0:05", html)
+        self.assertIn("erfolgreich", html)
+        self.assertEqual(client.get("/clusters/test/vms/999999/restore-tests").status_code, 404)
+
 
 class WeeklyStatsTests(DbTestCase):
     def test_counts_failures_and_lists_full_runs_of_the_last_week(self) -> None:

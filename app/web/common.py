@@ -135,6 +135,29 @@ def restore_eta_text(run: dict, now: datetime | None = None) -> str:
     return "~" + format_duration(int(remaining))
 
 
+def restore_probe_countdown(run: dict, now: datetime | None = None) -> dict | None:
+    """Live countdown of the reachability window while a run boots/probes:
+    ``{"remaining", "total", "text", "pct"}`` (pct = share already elapsed), or
+    None when no window is open. ``text`` is m:ss (h:mm:ss from an hour)."""
+    if run.get("status") != "running" or run.get("phase") not in ("booting", "probing"):
+        return None
+    began, ends = run.get("probe_started_at"), run.get("probe_ends_at")
+    if not isinstance(began, datetime) or not isinstance(ends, datetime):
+        return None
+    total = (ends - began).total_seconds()
+    if total <= 0:
+        return None
+    remaining = max(0, int((ends - (now or datetime.now(UTC))).total_seconds()))
+    h, rest = divmod(remaining, 3600)
+    text = f"{h}:{rest // 60:02d}:{rest % 60:02d}" if h else f"{rest // 60}:{rest % 60:02d}"
+    return {
+        "remaining": remaining,
+        "total": int(total),
+        "text": text,
+        "pct": round(min(100.0, max(0.0, 100 * (1 - remaining / total))), 1),
+    }
+
+
 # Pipeline order of the phases a run passes through, for the per-phase timing
 # breakdown. Unknown keys (future phases, or a resumed run's partial set) are
 # appended after these, in input order, so nothing is silently dropped.
@@ -188,6 +211,7 @@ templates.env.filters["size_coarse"] = format_size_coarse
 templates.env.filters["bitrate"] = format_bitrate
 templates.env.filters["green_checks"] = green_check_labels
 templates.env.filters["restore_phase_timings"] = restore_phase_timings
+templates.env.filters["probe_countdown"] = restore_probe_countdown
 templates.env.filters["spark_tooltip"] = spark_tooltip
 templates.env.filters["format_number"] = format_count
 

@@ -207,6 +207,13 @@
             checks.appendChild(chip);
           }
         }
+        const cd = card.querySelector(".js-run-countdown");
+        if (cd) {
+          cd.dataset.remaining = r.countdown ? r.countdown.remaining : "";
+          cd.dataset.total = r.countdown ? r.countdown.total : "";
+          cd.dataset.at = Date.now();
+          renderCountdown(cd);
+        }
         // Live ETA (only while restoring; "" otherwise → hide). Shown permanently
         // by the ring while present.
         const eta = card.querySelector(".js-run-eta");
@@ -237,6 +244,27 @@
       }
     }
   }
+
+  // Reachability countdown: the poll sets the seconds left (data-remaining, as
+  // of data-at); this counts down locally every second between polls.
+  function renderCountdown(cd) {
+    const total = Number(cd.dataset.total);
+    if (cd.dataset.remaining === "" || !(total > 0)) {
+      cd.hidden = true;
+      return;
+    }
+    const since = (Date.now() - Number(cd.dataset.at || Date.now())) / 1000;
+    const left = Math.max(0, Math.round(Number(cd.dataset.remaining) - since));
+    const h = Math.floor(left / 3600);
+    const m = Math.floor((left % 3600) / 60);
+    const s = String(left % 60).padStart(2, "0");
+    const time = h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+    cd.querySelector(".js-run-countdown-text").textContent = (cd.dataset.label || "{time}").replace("{time}", time);
+    cd.querySelector(".js-run-countdown-fill").style.width = Math.min(100, (100 * (total - left)) / total) + "%";
+    cd.hidden = false;
+  }
+  for (const cd of document.querySelectorAll(".js-run-countdown")) cd.dataset.at = Date.now();
+  setInterval(() => document.querySelectorAll(".js-run-countdown").forEach(renderCountdown), 1000);
 
   // Show the last-known curves immediately, before the first poll lands, so a
   // reload or page change doesn't flash empty graphs.

@@ -1,0 +1,8 @@
+{%- macro probe_countdown(run) -%}
+{#- Reachability window: time left until the test gives up, and a bar of the time already used. Ticks every second (restore-progress.js). -#}
+{%- set cd = run|probe_countdown %}
+<div class="run-countdown js-run-countdown" data-label="{{ t('restore.probe_countdown') }}" data-remaining="{{ cd.remaining if cd else '' }}" data-total="{{ cd.total if cd else '' }}"{% if not cd %} hidden{% endif %}>
+  <span class="run-countdown-text js-run-countdown-text">{{ t('restore.probe_countdown', time=cd.text) if cd else '' }}</span>
+  <span class="run-countdown-bar" aria-hidden="true"><span class="js-run-countdown-fill" style="width: {{ cd.pct if cd else 0 }}%"></span></span>
+</div>
+{%- endmacro -%}

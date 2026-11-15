@@ -4,6 +4,7 @@
 {% import "_nodes_tile.html" as tiles with context %}
 {% import "_storage_icons.html" as sicons with context %}
 {% import "_volume_bar.html" as vol with context %}
+{% import "_probe_countdown.html" as pc with context %}
 
 {# ── Restore tests: one box, heading in the border — KPI tiles on top like a
    cluster row's; below, the running restore left, utilization rings right. ── #}
@@ -54,6 +55,7 @@
         {%- if run.bytes_done %}{{ run.bytes_done|size_coarse }} {{ t('restore.read_label') }}{% endif %}
         {%- if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
       {%- set _eta = run|restore_eta %}
+      {{ pc.probe_countdown(run) }}
       <span class="run-eta js-run-eta" data-eta-label="{{ t('restore.eta_label') }}"{% if not _eta %} hidden{% endif %}>{{ (t('restore.eta_label') ~ ' ' ~ _eta) if _eta else '' }}</span>
       {%- if run.disk_bytes %}<span class="muted run-size">{{ t('restore.size_label') }} {{ run.disk_bytes|size_coarse }}</span>{% endif %}
       {%- if run.disks %}{{ vol.bar(run.disks, run.disk_bytes) }}{% endif %}

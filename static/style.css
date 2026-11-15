@@ -3835,6 +3835,24 @@ fieldset.rhost-graph { height: 58px; width: 100%; }
 /* Live green checks during probing: small ticked chips. */
 .run-checks { display: flex; flex-wrap: wrap; gap: 4px; }
 .run-checks:empty { display: none; }
+/* Reachability window: time left + a bar of the time already used. */
+.run-countdown { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+.run-countdown[hidden] { display: none; }
+.run-countdown-text { font-variant-numeric: tabular-nums; color: var(--muted); }
+.run-countdown-bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--chip);
+  border: 1px solid var(--chip-border);
+  overflow: hidden;
+}
+.run-countdown-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--running, #4a7eb5);
+  transition: width 1s linear;
+}
 .check-chip {
   font-size: 0.7rem;
   line-height: 1.5;
