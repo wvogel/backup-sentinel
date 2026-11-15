@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.10.4] — 2026-11-15
+
+### Changed
+
+- **Stale-copy note wraps as a whole.** In the protection tooltip, "(older than 9 days – stale, check the sync)" no longer breaks inside the parentheses; if it doesn't fit, it moves to the next line as a unit.
+
 ## [v3.10.3] — 2026-11-15
 
 ### Fixed
