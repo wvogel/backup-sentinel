@@ -891,6 +891,7 @@ pre {
   border-radius: var(--radius-tag);
   background: var(--chip);
   border: 1px solid var(--chip-border);
+  cursor: pointer;
 }
 .restore-log-link:hover {
   background: color-mix(in srgb, var(--chip) 70%, var(--accent) 10%);
