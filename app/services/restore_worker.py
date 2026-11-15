@@ -74,8 +74,12 @@ def _probe_loop(
     probe_fn: Callable[[Any, str, list[dict[str, Any]]], dict[str, Any]],
     run_id: int | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    on_first_green: Callable[[], None] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Poll until success or the window elapses. Returns (result, checks).
+
+    ``on_first_green`` is called once, right after the first pass in which any
+    check (ICMP, ARP or a port) answered — the end of the guest's boot.
 
     Targets are resolved fresh every pass:
     - **Operator override** (CIDR [+ VLAN]): the prober uses exactly that one IP,
@@ -142,6 +146,9 @@ def _probe_loop(
                 result = restore_probe.classify_multi(
                     checks, ips, require_icmp=plan.require_icmp, tcp_ports=plan.tcp_ports, had_ip=True
                 )
+                if on_first_green and restore_probe.green_check_labels(checks):
+                    on_first_green()
+                    on_first_green = None
         else:
             result, checks = "limited", {"note": "no target IP yet (no DHCP address, override, or guest agent)"}
         # Persist this pass's checks so the live card can list the ones already
@@ -201,6 +208,7 @@ def execute(
     # own restoring/finalizing flip (per progress tick) stays under "restoring".
     phase_timings: dict[str, float] = {}
     _phase = {"name": "setup", "since": start}
+    _boot = {"started": False}
 
     def _enter_phase(name: str) -> None:
         t = now()
@@ -256,19 +264,28 @@ def execute(
         server.rewrite_config_for_sandbox(
             plan.restore_vmid, plan.vlan_tag, plan.guest_type, plan.guest_vlan, name=plan.label
         )
-        _enter_phase("booting")
         # Never start while the restore still holds the config lock — a restore
         # that is still running (e.g. after an app restart resumed the tail, or a
         # stale task) would make the start fail with "can't lock file". Wait for
         # the lock to clear, then start.
         _is_lxc = plan.guest_type == "lxc"
         server.wait_unlocked(plan.restore_vmid, is_lxc=_is_lxc)
+        # "booting" runs from the start command until the first check turns green;
+        # from there on it is "probing" (no green at all: see the phase close below).
+        _enter_phase("booting")
         server.start_lxc(plan.restore_vmid) if _is_lxc else server.start(plan.restore_vmid)
-        _enter_phase("probing")
+        _boot["started"] = True
         if plan.primary_ip:
             db_restore.update_run(run_id, detected_ip=plan.primary_ip)  # recorded/override IP
         result, checks = _probe_loop(
-            server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id, should_cancel=should_cancel
+            server,
+            plan,
+            now=now,
+            sleep=sleep,
+            probe_fn=probe_fn,
+            run_id=run_id,
+            should_cancel=should_cancel,
+            on_first_green=lambda: _enter_phase("probing"),
         )
         if result != "passed":
             log_text = _failure_diag(server, plan)
@@ -289,7 +306,13 @@ def execute(
         log_text = _error_log(server, plan, str(exc))
 
     # Close the phase in flight (success, failure or cancel) so its time counts.
-    phase_timings[_phase["name"]] = phase_timings.get(_phase["name"], 0.0) + (now() - _phase["since"])
+    # Still "booting" after the start means no check ever turned green: we don't
+    # know how fast it booted, so booting shows 0 s (not "never booted") and the
+    # whole wait counts as probing.
+    closing = "probing" if _phase["name"] == "booting" and _boot["started"] else _phase["name"]
+    if closing != _phase["name"]:
+        phase_timings["booting"] = 0.0
+    phase_timings[closing] = phase_timings.get(closing, 0.0) + (now() - _phase["since"])
     duration = int(now() - start)
     timings = {k: round(v) for k, v in phase_timings.items()}
     return _finalize(run_id, plan, result, checks, duration, server, log=log_text, phase_timings=timings)

@@ -257,6 +257,47 @@ class WorkerTest(unittest.TestCase):
             self.assertIsInstance(pt[phase], int)
             self.assertGreaterEqual(pt[phase], 0)
 
+    def _timed_run(self, passes, **plan_over):
+        # Clock only moves in sleep(), so each phase's time is exactly the probe
+        # cadence; `passes` gives one probe result per pass (last one repeats).
+        run_id = self._run()
+        clock = {"t": 0.0}
+        results = iter(passes)
+        last = {}
+
+        def probe(s, hv, t):
+            last["r"] = next(results, last.get("r"))
+            return last["r"]
+
+        res = execute(
+            run_id,
+            _plan(self.vm_id, **{"interval": 10, "window": 100, **plan_over}),
+            FakeServer(),
+            production_hosts=set(),
+            now=lambda: clock["t"],
+            sleep=lambda secs: clock.__setitem__("t", clock["t"] + secs),
+            probe_fn=probe,
+        )
+        return res, self._phase_timings(run_id)
+
+    def test_booting_lasts_until_the_first_green_check(self):
+        nothing = {"10.0.0.50": {"icmp": False, "arp": False, "ports": {"443": False}}}
+        arp_only = {"10.0.0.50": {"icmp": False, "arp": True, "ports": {"443": False}}}
+        full = {"10.0.0.50": {"icmp": True, "ports": {"443": True}}}
+        res, pt = self._timed_run([nothing, nothing, arp_only, full])
+        self.assertEqual(res, "passed")
+        self.assertEqual(pt["booting"], 20)  # start → ARP green on the 3rd pass
+        self.assertEqual(pt["probing"], 10)  # ARP green → all green
+
+    def test_no_green_check_shows_booting_as_zero(self):
+        # We don't know how fast it booted — not "it never booted": booting 0 s,
+        # the whole wait is probing.
+        nothing = {"10.0.0.50": {"icmp": False, "arp": False, "ports": {"443": False}}}
+        res, pt = self._timed_run([nothing], window=30)
+        self.assertEqual(res, "failed")
+        self.assertEqual(pt["booting"], 0)
+        self.assertEqual(pt["probing"], 30)
+
     def test_lxc_run_passes_and_boots_via_start_lxc(self):
         # A container restore runs the full pipeline to `passed`, discovers its IP
         # via lxc_nics (no guest agent), and boots with start_lxc (not the VM start).
