@@ -407,6 +407,60 @@ class RecoverStuckRunsTest(unittest.TestCase):
         self.assertEqual(n, 0)
         self.assertEqual(db_restore.get_run(rid)["status"], "running")
 
+    def test_does_not_overwrite_a_run_the_worker_just_finished(self):
+        # Race seen live: the worker's teardown empties the host, the watchdog's
+        # snapshot still says 'running', the worker records "limited" — and the
+        # watchdog then overwrote it with "stuck" and unlinked the restore test.
+        rid = self._running(age_min=60)
+
+        class FinishesMeanwhile(_RecoverServer):
+            def present_vmids(self_inner):
+                db_restore.record_run_result(rid, self.vm_id, "limited", duration_seconds=3600)
+                return set()
+
+        n = orch.recover_stuck_runs(FinishesMeanwhile(present=()), CONFIG)
+        self.assertEqual(n, 0)
+        run = db_restore.get_run(rid)
+        self.assertEqual(run["result"], "limited")
+        self.assertIsNotNone(run["restore_test_id"])
+
+    def test_stuck_write_is_skipped_when_run_is_no_longer_running(self):
+        rid = self._running(age_min=60)
+        db_restore.record_run_result(rid, self.vm_id, "passed", duration_seconds=60)
+        self.assertFalse(db_restore.finalize_stuck_run(rid, {"error": "stuck"}))
+        self.assertEqual(db_restore.get_run(rid)["result"], "passed")
+
+    def test_migration_9_relinks_a_run_the_watchdog_overwrote(self):
+        from app.db_migrations import MIGRATIONS
+
+        rid = self._running(age_min=75)
+        db_restore.record_run_result(rid, self.vm_id, "limited", duration_seconds=4400)
+        test_id = db_restore.get_run(rid)["restore_test_id"]
+        with db.connect() as conn, conn.cursor() as cur:  # what the old watchdog left behind
+            cur.execute("UPDATE restore_runs SET status='running' WHERE id=%s", (rid,))
+            conn.commit()
+        db_restore.record_run_result(
+            rid,
+            self.vm_id,
+            "error",
+            duration_seconds=0,
+            checks={"error": "recovered: run was stuck 'running' with no environment on the host"},
+        )
+        other = self._running(age_min=30)  # a genuine stuck run: no test row → untouched
+        db_restore.finalize_stuck_run(other, {"error": "recovered: run was stuck 'running' with no environment"})
+        with db.connect() as conn, conn.cursor() as cur:  # recovered long before that test row
+            cur.execute("UPDATE restore_runs SET finished_at = NOW() - INTERVAL '20 minutes' WHERE id=%s", (other,))
+            conn.commit()
+        stmts = next(m for v, _, m in MIGRATIONS if v == 9)
+        with db.connect() as conn, conn.cursor() as cur:
+            for sql in stmts:
+                cur.execute(sql)
+            conn.commit()
+        run = db_restore.get_run(rid)
+        self.assertEqual((run["status"], run["result"], run["restore_test_id"]), ("limited", "limited", test_id))
+        self.assertGreaterEqual(run["duration_seconds"], 74 * 60)
+        self.assertEqual(db_restore.get_run(other)["result"], "error")
+
 
 def test_target_storages_from_rows():
     from app.web.routes_restore import _target_storages_from_rows

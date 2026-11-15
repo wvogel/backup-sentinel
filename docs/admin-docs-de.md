@@ -442,6 +442,8 @@ Das Skript übergibt außerdem `data/` und `reports/` an den Benutzer, unter dem
 
 Die Anwendung führt Datenbank-Migrationen beim Start automatisch durch -- manuelle Migrationsschritte sind nicht erforderlich.
 
+Ein laufender Restore-Test übersteht ein Update: Ein bereits gestarteter Restore läuft auf dem Restore-Host weiter und wird nach dem Neustart fortgesetzt. Ein Lauf, der beim Neustart noch vor dem Restore stand (Vorprüfung, Helper), wird verworfen und an seinem Platz neu in die Queue gestellt.
+
 ### Rollback
 
 Falls ein Update Probleme verursacht:

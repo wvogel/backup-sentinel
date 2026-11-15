@@ -442,6 +442,8 @@ The script also hands `data/` and `reports/` to the user the application runs as
 
 The application applies database migrations automatically on startup -- no manual migration steps are needed.
 
+A running restore test survives an update: a restore that has already started keeps running on the restore host and is resumed after the restart. A run that was still before its restore at the restart (pre-flight, helper) is dropped and put back into the queue at its place.
+
 ### Rollback
 
 If an update causes issues:

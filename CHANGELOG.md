@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.12.2] — 2026-11-15
+
+### Fixed
+
+- **A finished restore test was overwritten as "stuck".** The worker tears down the restored VM and its helper first and records the result right after. If the stuck-run watchdog checked in exactly those seconds, it saw a 'running' run with an empty host and marked it "error: recovered: run was stuck 'running'". That overwrote the real result (e.g. *limited*) and unlinked its restore test, which then looked manually documented. The watchdog now re-reads the run and only writes while it is still 'running'. Migration 9 restores the result of runs that were already overwritten this way (their probe checks stay lost).
+- **A deploy before the restore began ended the run as an error.** A run interrupted during pre-flight or helper start has nothing on the host to resume. It used to wait for a VM that never came and was then ended by the watchdog. Now its half-built helper is removed and the run goes back into the queue at its place.
+
 ## [v3.12.1] — 2026-11-15
 
 ### Changed

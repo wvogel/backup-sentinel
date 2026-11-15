@@ -498,6 +498,10 @@ def reconcile_on_startup() -> None:
         db_restore.update_run(r["id"], status="error", result="error", finished_at=_utcnow())
 
 
+# Phases a run passes before its restore task exists on the host.
+_PRE_RESTORE_PHASES = (None, "setup", "preflight", "helper")
+
+
 def resume_run(
     run_id: int,
     plan: RunPlan,
@@ -546,6 +550,27 @@ def resume_run(
             upid = server.find_running_restore_upid(plan.restore_vmid)
         except Exception as exc:
             logger.debug("resume: restore-task discovery (ignored): %s", exc)
+    # Interrupted BEFORE the restore task began (setup/preflight/helper): nothing
+    # on the host is worth resuming, and waiting for a VM that will never appear
+    # only ended in the "stuck" self-heal as an error. Drop the half-built helper
+    # and put the run back into the queue — it simply starts over.
+    _is_lxc = plan.guest_type == "lxc"
+    phase = (db_restore.get_run(run_id) or {}).get("phase")
+    if not upid and phase in _PRE_RESTORE_PHASES:
+        try:
+            vm_there = server.exists(plan.restore_vmid, is_lxc=_is_lxc)
+        except Exception as exc:
+            logger.debug("resume: restore-VM existence check (ignored): %s", exc)
+            vm_there = True  # unsure → take the normal resume path
+        if not vm_there:
+            try:
+                if plan.helper_vmid and server.exists(plan.helper_vmid, is_lxc=True):
+                    server.destroy(plan.helper_vmid, is_lxc=True)
+            except Exception as exc:
+                logger.warning("resume: dropping helper of run %s failed: %s", run_id, exc)
+            if db_restore.requeue_run(run_id):
+                logger.info("resume: run %s was interrupted before its restore began — re-queued", run_id)
+                return "queued"
     result = "error"
     checks: dict[str, Any] = {}
     try:
@@ -560,7 +585,6 @@ def resume_run(
         # Never write config or boot while the restore still holds the flock. If it
         # does not clear, the restore is still in progress — leave the run 'running'
         # and tear NOTHING down; the next resume pass picks it up.
-        _is_lxc = plan.guest_type == "lxc"
         try:
             server.wait_unlocked(plan.restore_vmid, is_lxc=_is_lxc, sleep=sleep)
         except RestoreCancelled:

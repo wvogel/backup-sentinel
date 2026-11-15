@@ -139,6 +139,35 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        9,
+        "Re-link restore runs the stuck-run watchdog overwrote right after they finished",
+        # Before v3.12.2 the watchdog could mark a run "stuck" in the seconds
+        # between the worker's teardown and its result write: the run read
+        # "error" and its passed/limited restore test lost its link (it then
+        # looked manually documented). The worker's test row is still there,
+        # written moments before the watchdog's finished_at — restore the run's
+        # real outcome from it. (Its probe checks were overwritten and stay lost.)
+        [
+            """
+            UPDATE restore_runs r
+            SET status = t.result, result = t.result, restore_test_id = t.id, checks = NULL,
+                finished_at = t.created_at,
+                duration_seconds = GREATEST(0, EXTRACT(EPOCH FROM t.created_at - r.started_at)::int)
+            FROM restore_tests t
+            WHERE r.result = 'error'
+              AND r.restore_test_id IS NULL
+              AND r.started_at IS NOT NULL
+              AND r.checks->>'error' LIKE 'recovered: run was stuck%'
+              AND t.vm_id = r.vm_id
+              AND t.recovery_type = 'auto-full-vm'
+              AND t.result IN ('passed', 'limited')
+              AND t.created_at BETWEEN r.finished_at - INTERVAL '5 minutes' AND r.finished_at
+              AND t.created_at > r.started_at
+              AND NOT EXISTS (SELECT 1 FROM restore_runs o WHERE o.restore_test_id = t.id)
+            """,
+        ],
+    ),
 ]
 
 

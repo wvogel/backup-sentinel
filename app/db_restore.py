@@ -280,6 +280,44 @@ def request_cancel(run_id: int) -> bool:
     return ok
 
 
+def finalize_stuck_run(run_id: int, checks: dict[str, Any]) -> bool:
+    """Mark a wedged run 'error' — but ONLY while it is still 'running'. The
+    self-heal watchdog decides "stuck" from a snapshot; if the worker finishes the
+    run in between (its teardown empties the host just before it records the real
+    result), an unconditional write would overwrite a passed/limited outcome with
+    "stuck" and unlink its restore test. Returns whether it was applied."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE restore_runs SET status = 'error', result = 'error', finished_at = %s, "
+            "duration_seconds = 0, checks = %s WHERE id = %s AND status = 'running'",
+            (datetime.now(UTC), Jsonb(checks), run_id),
+        )
+        ok = cur.rowcount > 0
+        conn.commit()
+    return ok
+
+
+def requeue_run(run_id: int) -> bool:
+    """Put a 'running' run back into the queue (same place, same trigger) and clear
+    what its start allocated. Used when an app restart interrupted a run BEFORE its
+    restore task began — there is nothing on the host to resume, so the run simply
+    starts over instead of ending as an error. Returns whether it was applied."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE restore_runs SET status = 'queued', started_at = NULL, phase = NULL,
+                restore_vmid = NULL, helper_vmid = NULL, vlan_tag = NULL, mgmt_ip = NULL,
+                task_upid = NULL, cancel_requested = FALSE, percent = NULL, bytes_done = NULL,
+                throughput_bps = NULL, eta = NULL
+            WHERE id = %s AND status = 'running'
+            """,
+            (run_id,),
+        )
+        ok = cur.rowcount > 0
+        conn.commit()
+    return ok
+
+
 def cancel_requested(run_id: int) -> bool:
     """Whether a cancel was requested for this run (polled by the worker loops)."""
     with connect() as conn, conn.cursor() as cur:

@@ -782,6 +782,46 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(res, "passed")
         self.assertIn("provision_helper", srv.calls)  # gone helper rebuilt
 
+    def test_resume_requeues_a_run_interrupted_before_its_restore(self):
+        # A deploy hit while the helper was coming up: no restore task, no VM.
+        # Nothing to resume — drop the helper and put the run back in the queue
+        # instead of letting the stuck self-heal end it as an error.
+        run_id = self._run()
+        db_restore.update_run(run_id, status="running", restore_vmid=9000, helper_vmid=9001, phase="helper")
+
+        class NoVm(FakeServer):
+            def exists(self, vmid, is_lxc=False):
+                self.calls.append(f"exists:{vmid}")
+                return vmid == 9001  # only the half-built helper
+
+        srv = NoVm()
+        res = resume_run(run_id, _plan(self.vm_id), srv, None, now=lambda: 0.0, sleep=lambda s: None)
+        self.assertEqual(res, "queued")
+        self.assertIn("destroy", srv.calls)
+        self.assertNotIn("start", srv.calls)
+        run = db_restore.get_run(run_id)
+        self.assertEqual(run["status"], "queued")
+        self.assertIsNone(run["started_at"])
+        self.assertIsNone(run["helper_vmid"])
+        self.assertIsNone(run["result"])
+
+    def test_resume_does_not_requeue_once_the_restore_began(self):
+        # Phase "restoring" without a persisted UPID (deploy right after the task
+        # started): must take the normal resume path, never start over.
+        run_id = self._run()
+        db_restore.update_run(run_id, status="running", restore_vmid=9000, helper_vmid=9001, phase="restoring")
+        res = resume_run(
+            run_id,
+            _plan(self.vm_id),
+            FakeServer(),
+            None,
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": True, "ports": {"443": True}}},
+        )
+        self.assertEqual(res, "passed")
+        self.assertNotEqual(db_restore.get_run(run_id)["status"], "queued")
+
     def test_resume_leaves_a_still_locked_restore_running(self):
         # The restore is still copying (VM locked): resume must tear NOTHING down
         # and leave the run 'running' for the next pass.

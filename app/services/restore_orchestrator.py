@@ -943,6 +943,11 @@ def recover_stuck_runs(server: RestoreServer, config: dict[str, Any]) -> int:
             alive = server.task_running(upid)
         if alive:
             continue
+        # Re-read: the snapshot above may be stale — a run whose worker finished in
+        # the meantime (teardown just emptied the host) is not stuck.
+        fresh = db_restore.get_run(run["id"]) or {}
+        if fresh.get("status") != "running":
+            continue
         logger.warning("recovering stuck restore run %s: 'running' but nothing on the host", run["id"])
         # Signal cancel first: if a resume/worker thread is still looping on this
         # run (e.g. a post-deploy resume stuck probing a guest whose environment is
@@ -957,15 +962,12 @@ def recover_stuck_runs(server: RestoreServer, config: dict[str, Any]) -> int:
             restore_worker._teardown(server, plan_from_run(run, config))  # best-effort, usually a no-op
         except Exception as exc:
             logger.debug("stuck-run teardown (ignored): %s", exc)
-        db_restore.record_run_result(
-            run["id"],
-            run["vm_id"],
-            "error",
-            duration_seconds=0,
-            checks={"error": "recovered: run was stuck 'running' with no environment on the host"},
-            status="error",
-        )
-        recovered += 1
+        # Only if it is STILL 'running': the worker may have finished it meanwhile
+        # (its own teardown empties the host right before it records the result).
+        if db_restore.finalize_stuck_run(
+            run["id"], {"error": "recovered: run was stuck 'running' with no environment on the host"}
+        ):
+            recovered += 1
     return recovered
 
 
