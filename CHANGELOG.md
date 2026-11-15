@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.10.5] — 2026-11-15
+
+### Changed
+
+- **Restore phase "Booting" ends at the first green check.** It used to cover only the start command (always ~0 s), and the whole boot was counted as "Reachability check". Booting now runs from the start command until the first check answers (ICMP, ARP or a port); from there on it is the reachability check. The live card shows "Booting" until then. If no check turns green, booting shows 0 s and the whole wait counts as the reachability check — we don't know how fast the guest booted, not that it didn't. Waiting for the restore's config lock before the start now counts as "Network adjustment".
+
 ## [v3.10.4] — 2026-11-15
 
 ### Changed
