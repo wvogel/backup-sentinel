@@ -450,6 +450,9 @@ class CopiesAndVerifyTests(DbTestCase):
         main = {"storage": "pbs-main", "location": "pbs:aa/nas-b1"}
         alias = {"storage": "pbs-main/nas-b1", "location": "pbs:aa/nas-b1/ns"}
         offsite = {"storage": "pbs-offsite", "location": "pbs:bb/backup"}
+        db.sync_cluster_inventory(
+            self.cid, [{"name": "pve1", "status": "online"}], [_vm(100, "a"), _vm(101, "b"), _vm(102, "c")]
+        )
         self.sync(
             [
                 {**_event(100, NOW), **main},
@@ -457,12 +460,17 @@ class CopiesAndVerifyTests(DbTestCase):
                 {**_event(100, NOW - timedelta(days=1)), **offsite},
                 {**_event(101, NOW), **main},
                 {**_event(101, NOW - timedelta(days=20)), **offsite},  # too old
+                {**_event(102, NOW), **main},
             ]
         )
         self.assertEqual(self.row(100)["copy_count"], 2)
-        self.assertEqual(self.row(101)["copy_count"], 1)
-        self.assertEqual(self.row(101)["copy_status"], "single")
-        single_copy_verified = {**self.row(101), "verify_status": "ok"}
+        # The 20-day-old offsite copy still exists: ×2, but its sync stopped.
+        self.assertEqual(self.row(101)["copy_count"], 2)
+        self.assertEqual(self.row(101)["copy_current"], 1)
+        self.assertEqual(self.row(101)["copy_status"], "warning")
+        self.assertEqual(self.row(102)["copy_count"], 1)
+        self.assertEqual(self.row(102)["copy_status"], "single")
+        single_copy_verified = {**self.row(102), "verify_status": "ok"}
         self.assertFalse(db_governance.is_problem(single_copy_verified))
 
     def test_verify_status(self) -> None:
@@ -829,7 +837,8 @@ class ClusterPageTests(DbTestCase):
         db.sync_backup_events_for_source(self.cid, "pbs", events)
         db.update_backup_event_storages(self.cid, events)
         row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
-        self.assertEqual(row["copy_count"], 1)  # 8 days: too old for the default 7
+        self.assertEqual(row["copy_count"], 2)  # the old copy still exists …
+        self.assertEqual(row["copy_current"], 1)  # … but 8 days is too old for the default 7
         job = {
             "job_id": "s",
             "direction": "pull",
@@ -847,7 +856,7 @@ class ClusterPageTests(DbTestCase):
         }
         db.replace_pbs_sync_jobs(pbs_id, [job])
         row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
-        self.assertEqual(row["copy_count"], 2)  # fed weekly: 9 days count
+        self.assertEqual(row["copy_current"], 2)  # fed weekly: 9 days count
         self.assertEqual([c["current"] for c in row["copy_history"]], [True, True])
 
 
@@ -976,6 +985,13 @@ class VmDiskTests(DbTestCase):
         db.sync_cluster_inventory(self.cid, [], [_vm(100, "a")])
         row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
         self.assertEqual(len(row["disks"]), 2)
+        self.assertEqual(row["disk_bytes"], 44 * 1024**3)
+
+    def test_resync_with_maxdisk_only_keeps_the_sum_of_all_disks(self) -> None:
+        # FS-MD: config fetch failed, PVE's maxdisk is just the boot disk (scsi0).
+        self._sync_with_disks()
+        db.sync_cluster_inventory(self.cid, [], [{**_vm(100, "a"), "disk_bytes": 20 * 1024**3}])
+        row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]
         self.assertEqual(row["disk_bytes"], 44 * 1024**3)
 
     def test_disks_replaced_when_layout_changes(self) -> None:

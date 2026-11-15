@@ -119,6 +119,18 @@ def sync_cluster_inventory(cluster_id: int, nodes: list[dict[str, str]], vms: li
                         "INSERT INTO vm_disks (vm_id, ordinal, dev, storage, size_bytes) VALUES (%s, %s, %s, %s, %s)",
                         (vm_id, ordinal, disk["dev"], disk["storage"], int(disk["size_bytes"])),
                     )
+            else:
+                # Config not read this time: disk_bytes fell back to PVE's
+                # maxdisk, which is only the boot disk. Keep the size in step
+                # with the known breakdown (sum of all volumes).
+                cur.execute(
+                    """
+                    UPDATE vms SET disk_bytes = d.total
+                    FROM (SELECT SUM(size_bytes) AS total FROM vm_disks WHERE vm_id = %s) d
+                    WHERE vms.id = %s AND d.total > 0
+                    """,
+                    (vm_id, vm_id),
+                )
         # VMs we still know but PVE no longer reports have been deleted (or
         # moved to another cluster). Keep the rows so their remaining backups
         # stay visible, but flag them from the first sync they went missing.

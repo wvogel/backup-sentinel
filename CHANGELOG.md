@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.10.2] — 2026-11-15
+
+### Fixed
+
+- **Protection pill counts every server that holds a copy.** A second copy older than its window (7 days, 9 with a weekly sync job) used to drop out of the count, so a guest stored on two PBS showed **PBS ×1** while the tooltip listed both. It now shows **×2**; the stale copy is marked "stale, check the sync" in the tooltip and turns the pill yellow (warning) until both servers are current again — a second copy whose sync stopped only protects the past. A guest on a single server stays blue ("single").
+- **Size column shows the sum of all volumes.** When a sync could not read a guest's `qm config`, the size fell back to PVE's `maxdisk` — only the boot disk — and overwrote the stored total (e.g. **100 GB ·10** for a VM with 6.9 TB on ten disks, while the tooltip listed all ten). The size now stays the sum of the known volumes.
+
 ## [v3.10.1] — 2026-11-11
 
 ### Changed

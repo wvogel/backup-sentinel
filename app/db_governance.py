@@ -220,8 +220,10 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
         )
 
         row["restore_class"] = row["criticality"] if row["restore_required"] else "none"
-        # A server counts as a copy while its latest backup of the guest is
-        # recent: 7 days, or longer where weekly sync jobs feed it.
+        # Every server holding a backup of the guest is a copy (shown as ×N);
+        # it is current while its latest backup is recent: 7 days, or longer
+        # where weekly sync jobs feed it. A stale copy still exists but means
+        # its sync has stopped.
         latest_by_server = {srv: datetime.fromisoformat(ts) for srv, ts in (row.get("copy_latest") or {}).items()}
         current = {
             srv
@@ -229,7 +231,8 @@ def vm_governance_rows(cluster_id: int | None = None) -> list[dict[str, Any]]:
             if latest >= now - timedelta(days=windows.get(srv, COPY_WINDOW_DAYS))
         }
         row["copy_servers"] = sorted(current)
-        row["copy_count"] = len(current)
+        row["copy_count"] = len(latest_by_server)
+        row["copy_current"] = len(current)
         row["copy_server_names"] = sorted(server_name(s) for s in current)
         row["copy_history"] = sorted(
             (
@@ -343,8 +346,11 @@ def _protection_status(row: dict[str, Any], now: datetime) -> tuple[str | None, 
     if row["vm_gone"]:
         return None, None
     copy_status = None
-    if row["copy_count"]:
-        copy_status = "ok" if row["copy_count"] >= 2 else "single"
+    if row["copy_count"] >= 2:
+        # A second copy that stopped being refreshed protects only the past.
+        copy_status = "ok" if row.get("copy_current", row["copy_count"]) >= 2 else "warning"
+    elif row["copy_count"]:
+        copy_status = "single"
     verify_status = None
     if row["has_pbs"]:
         failed_at, verified_at = row["verify_failed_at"], row["last_verified_at"]
