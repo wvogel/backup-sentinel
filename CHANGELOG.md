@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.11.3] — 2026-11-15
+
+### Fixed
+
+- **Text cursor over links and buttons in the VM details.** "Show log" and the other links and buttons in an expanded VM showed the text cursor instead of the pointer: the cursor reset used `:is(…, .vm-history-bars)`, whose class raised its specificity above the pointer rule. It now uses `:where()`.
+
 ## [v3.11.2] — 2026-11-15
 
 ### Fixed
