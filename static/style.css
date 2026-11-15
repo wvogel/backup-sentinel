@@ -3436,6 +3436,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
   color: var(--running);
 }
 .restore-symbols .run-state svg { width: 15px; height: 15px; display: block; }
+/* Custom probe timeout (stopwatch + "+"); an empty slot otherwise. */
+.restore-symbols .timeout-ind { width: 15px; height: 15px; display: inline-block; color: var(--muted); }
+.restore-symbols .timeout-ind svg { width: 15px; height: 15px; display: block; }
 .restore-symbols .run-state:not(.run-queued, .run-running) svg { visibility: hidden; }
 .restore-symbols .run-running svg { animation: run-state-spin 1.6s linear infinite; }
 @keyframes run-state-spin {

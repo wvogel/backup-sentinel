@@ -695,6 +695,7 @@
   "restore.probe_vlan_hint": "Only needed when the guest tags internally (its IP is on a VLAN sub-interface). The VID is trunked through into the sandbox.",
   "restore.run_ip": "IP",
   "restore.probe_timeout": "Timeout (min)",
+  "restore.custom_timeout": "Custom timeout: {minutes} min",
   "restore.probe_timeout_hint": "How long the restore test waits for the guest before failing (it keeps re-probing throughout). Empty = default (5 min). Raise it for slow-booting guests like tomedo.",
   "restore.save_policy": "Save",
   "restore.storage_save_first": "Save the API access first — then the app reads the available storages.",

@@ -578,6 +578,13 @@ class VmHistoryTests(DbTestCase):
         row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]  # what the page renders
         self.assertEqual(row["probe_window_seconds"], 720)
 
+        from app.web import routes_clusters
+
+        app.include_router(routes_clusters.router)
+        page = client.get("/clusters/test").text
+        self.assertIn('value="12"', page)  # the field shows the saved timeout
+        self.assertIn("Angepasster Timeout: 12 Min.", page)  # marker in the list
+
     def test_vm_details_list_its_restore_tests(self) -> None:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
