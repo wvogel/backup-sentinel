@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.12.1] — 2026-11-15
+
+### Changed
+
+- **"Show log" links always show the pointer.** `.restore-log-link` sets `cursor: pointer` itself, so it no longer depends on where the link sits (VM details, cluster restore tests).
+
 ## [v3.12.0] — 2026-11-15
 
 ### Added
