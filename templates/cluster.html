@@ -230,6 +230,13 @@
               <span class="run-state{% if _active %} run-{{ _active.status }}{% endif %}" id="run-state-{{ row.id }}" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 103-7.7L3 8"/></svg>
               </span>
+              {#- Custom probe timeout: stopwatch + "+", minutes on hover. Always a
+                  slot (empty without an override), so the columns stay aligned. -#}
+              {%- if row.probe_window_seconds %}
+              <span class="timeout-ind is-custom" data-tooltip="{{ t('restore.custom_timeout', minutes=row.probe_window_seconds // 60) }}" aria-label="{{ t('restore.custom_timeout', minutes=row.probe_window_seconds // 60) }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="14" r="7"/><path d="M10 14v-3.5M8 3h4M10 3v4"/><path d="M19.5 2.5v6M16.5 5.5h6"/></svg>
+              </span>
+              {%- else %}<span class="timeout-ind" aria-hidden="true"></span>{% endif %}
             </span>
             {%- endif %}
             {%- if not row.vm_gone %}

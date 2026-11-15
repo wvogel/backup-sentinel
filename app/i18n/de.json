@@ -695,6 +695,7 @@
   "restore.probe_vlan_hint": "Nur nötig, wenn der Gast intern taggt (IP auf einem VLAN-Sub-Interface). Die VID wird zusätzlich ins Sandbox-Netz durchgereicht.",
   "restore.run_ip": "IP",
   "restore.probe_timeout": "Timeout (Min.)",
+  "restore.custom_timeout": "Angepasster Timeout: {minutes} Min.",
   "restore.probe_timeout_hint": "Wie lange der Restore-Test auf den Gast wartet, bevor er fehlschlägt (es wird laufend neu geprüft). Leer = Standard (5 Min.). Für langsam bootende Gäste wie erp höher setzen.",
   "restore.save_policy": "Speichern",
   "restore.storage_save_first": "Zuerst API-Zugang speichern — danach liest die App die verfügbaren Storages aus.",

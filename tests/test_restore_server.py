@@ -247,6 +247,35 @@ def test_rewrite_nics_strips_hostpci_before_start():
     assert delete["delete"] == "hostpci0,hostpci1"  # both passthrough devices removed via root
 
 
+def test_rewrite_nics_strips_cpu_and_ram_affinity():
+    # The scratch host's CPU differs: pinned cores / host NUMA nodes may not exist.
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/config": {
+            "net0": "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0",
+            "affinity": "0-7",
+            "numa": 1,
+            "numa0": "cpus=0-3,hostnodes=0,memory=8192,policy=bind",
+            "numa1": "cpus=4-7,hostnodes=1,memory=8192,policy=bind",
+        },
+    }
+    srv = _server(responses)
+    srv.rewrite_nics(9000, 901)
+    cfg_posts = [d for p, d in srv.pve.posts if p == "/nodes/r1/qemu/9000/config"]
+    delete = next(d for d in cfg_posts if "delete" in d)
+    assert delete["delete"] == "affinity,numa0,numa1"  # numa: 1 (emulation only) stays
+
+
+def test_rewrite_nics_without_host_bound_settings_deletes_nothing():
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/qemu/9000/config": {"net0": "virtio=AA:BB:CC:DD:EE:01,bridge=vmbr0", "numa": 1},
+    }
+    srv = _server(responses)
+    srv.rewrite_nics(9000, 901)
+    assert not any("delete" in d for _, d in srv.pve.posts)
+
+
 def test_eject_cdroms_empties_source_isos_only():
     config = {
         "ide2": "nas-pve-berlin:iso/virtio.iso,media=cdrom",  # source ISO → eject

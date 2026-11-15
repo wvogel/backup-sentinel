@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.12.0] — 2026-11-15
+
+### Added
+
+- **Custom probe timeout marked in the VM list.** A VM with its own timeout shows a stopwatch with "+" at the right end of the restore column; hovering it shows the minutes ("Custom timeout: 12 min"). VMs on the global default keep an empty slot, so the symbols stay aligned.
+
+### Changed
+
+- **Restored VMs lose CPU and RAM affinity before they start.** The restore host's CPU differs from production, so cores pinned with `affinity` and memory bound to host NUMA nodes with `numaN` (`hostnodes=…`) may not exist there and could stop the VM from starting. Both are removed together with PCI passthrough (as root); `numa: 1` (NUMA emulation without host binding) stays.
+
 ## [v3.11.4] — 2026-11-15
 
 ### Fixed

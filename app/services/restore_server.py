@@ -1641,7 +1641,11 @@ class RestoreServer:
         - drop every ``hostpciN`` PCI passthrough: the physical device doesn't
           exist (or isn't free) on the scratch host, so the VM couldn't start with
           it. The restore itself set it (we restore as root), so it's removed here
-          before the start."""
+          before the start;
+        - drop CPU and RAM affinity: ``affinity`` pins vCPUs to host cores and
+          ``numaN`` (``hostnodes=…``) binds guest memory to host NUMA nodes — the
+          scratch host's CPU differs, so those cores/nodes may not exist there.
+          ``numa: 1`` (NUMA emulation without host binding) stays."""
         node = self.node()
         config = self.pve.get(f"/nodes/{node}/qemu/{vmid}/config") or {}
         bridge = self.config["sandbox_bridge"]
@@ -1654,11 +1658,12 @@ class RestoreServer:
         changes.update(eject_cdroms(config))
         if changes:
             self.pve.post(f"/nodes/{node}/qemu/{vmid}/config", changes)
-        # Deleting hostpci is root-only (like setting it), so it goes over SSH —
-        # separately from the token-safe NIC/CD-ROM update above.
-        hostpci = sorted(k for k in config if re.fullmatch(r"hostpci\d+", k))
-        if hostpci:
-            self.pve_root.post(f"/nodes/{node}/qemu/{vmid}/config", {"delete": ",".join(hostpci)})
+        # Deleting hostpci (and the affinity settings) is root-only like setting
+        # them, so it goes over SSH — separately from the token-safe update above.
+        host_bound = sorted(k for k in config if re.fullmatch(r"hostpci\d+", k))
+        host_bound += [k for k in sorted(config) if k == "affinity" or re.fullmatch(r"numa\d+", k)]
+        if host_bound:
+            self.pve_root.post(f"/nodes/{node}/qemu/{vmid}/config", {"delete": ",".join(host_bound)})
 
     def start(self, vmid: int) -> None:
         self.pve.post(f"/nodes/{self.node()}/qemu/{vmid}/status/start", {})

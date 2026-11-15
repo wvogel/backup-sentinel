@@ -469,7 +469,7 @@ Backup Sentinel can *prove* a restore, not just document it, by driving a **dedi
 - **Guest-agent audit** (`VM.GuestAgent.Audit` or `VM.Monitor`) on the production cluster tokens for IP discovery; otherwise set the primary IP per VM manually.
   Only IPs on the VM's **real NICs** (MAC listed in the VM config) are probed; Docker bridges, `wg0` and other guest-internal interfaces are skipped. If the helper's DHCP handed out the IP, it is probed first.
 - **Management network** (static, no DHCP): interface/bridge, optional VLAN id and an IP range (from–to). One IP per helper; when exhausted the queue waits. The sandbox never talks outside, so no gateway and always /24.
-- **Sandbox bridge**: a portless, VLAN-aware bridge (default `vmbr9`, MTU 1500) the app ensures idempotently over SSH — traffic never leaves the host. The restored VM's NICs are pinned to MTU 1500 on it, so a jumbo-frame source VM (`mtu=9000`) still starts.
+- **Sandbox bridge**: a portless, VLAN-aware bridge (default `vmbr9`, MTU 1500) the app ensures idempotently over SSH — traffic never leaves the host. The restored VM's NICs are pinned to MTU 1500 on it, so a jumbo-frame source VM (`mtu=9000`) still starts. Before the start the app also removes PCI passthrough (`hostpciN`) and CPU and RAM affinity (`affinity`, `numaN` with `hostnodes`): the restore host has a different CPU, so the pinned cores or NUMA nodes may not exist there. `numa: 1` (NUMA emulation without host binding) stays.
 
 ### Operation
 
