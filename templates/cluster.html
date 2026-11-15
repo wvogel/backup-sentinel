@@ -196,7 +196,7 @@
             {%- else %}<span class="muted">–</span>{% endif -%}
           </td>
           {%- set _res = row.last_restore_run_result %}
-          {%- set _res_tone = restore_run_tone.get(_res, 'open') %}
+          {%- set _res_tone = restore_run_tone.get(row.restore_dot_result, 'open') %}
           {%- set restore_tip %}
             {{- t('restore.auto') }}: {{ t('common.on') if row.auto_restore_enabled else t('common.off') }}
             {{- ' · ' }}{{ t('restore.cadence') }}: {{ t('restore.cadence_' ~ row.restore_cadence) }}

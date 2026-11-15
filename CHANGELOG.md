@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.11.2] — 2026-11-15
+
+### Fixed
+
+- **Restore dot stayed grey after a documented test.** The dot in the restore column only reflected the last automated run, so a cancelled run kept it grey even after a successful test was documented by hand. It now shows the newer of the last run and the last valid test (passed/limited, automated or manual); cancelled and held runs say nothing about the backup and are skipped.
+
 ## [v3.11.1] — 2026-11-15
 
 ### Fixed
