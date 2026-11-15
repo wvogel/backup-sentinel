@@ -559,6 +559,25 @@ class VmHistoryTests(DbTestCase):
         self.assertEqual(len(ok.json()["events"]), 3)
         self.assertEqual(client.get("/api/clusters/test/vms/999999/history").status_code, 404)
 
+    def test_probe_timeout_is_saved_and_shown_again(self) -> None:
+        # The page must read the saved timeout back: the autosave form posts every
+        # field, so an empty timeout field would reset it on the next change.
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.web import routes_restore
+
+        app = FastAPI()
+        app.include_router(routes_restore.router)
+        client = TestClient(app)
+        resp = client.post(
+            f"/restore/vm/{self.vm_id}/policy",
+            data={"probe_timeout_minutes": "12", "restore_cadence": "half_year", "ajax": "1"},
+        )
+        self.assertLess(resp.status_code, 400)
+        row = {r["vmid"]: r for r in db.vm_governance_rows(self.cid)}[100]  # what the page renders
+        self.assertEqual(row["probe_window_seconds"], 720)
+
     def test_vm_details_list_its_restore_tests(self) -> None:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient

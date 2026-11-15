@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.11.4] — 2026-11-15
+
+### Fixed
+
+- **Per-VM probe timeout was saved but never shown — and then lost.** The cluster page did not read `probe_window_seconds`, so the *Timeout (Min.)* field always came back empty with the grey default. Because the restore settings save every field on each change, the next change to any other field sent the empty timeout and reset it to the global default. The saved value is now shown again and kept.
+
 ## [v3.11.3] — 2026-11-15
 
 ### Fixed
