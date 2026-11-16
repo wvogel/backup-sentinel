@@ -44,6 +44,7 @@ _UPDATABLE = frozenset(
         "detected_ip",
         "probe_started_at",
         "probe_ends_at",
+        "disk_progress",
         "result",
         "restore_test_id",
         "log",
@@ -101,7 +102,7 @@ def update_run(run_id: int, **fields: Any) -> None:
     values: list[Any] = []
     for c in cols:
         v = fields[c]
-        values.append(Jsonb(v) if c == "checks" and v is not None else v)
+        values.append(Jsonb(v) if c in ("checks", "disk_progress") and v is not None else v)
     assignments = ", ".join(f"{c} = %s" for c in cols)
     with connect() as conn, conn.cursor() as cur:
         cur.execute(f"UPDATE restore_runs SET {assignments} WHERE id = %s", (*values, run_id))

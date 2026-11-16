@@ -453,7 +453,7 @@ def restore_progress(request: Request) -> JSONResponse:
     from app.i18n import t
     from app.services.human_format import format_size_coarse
     from app.services.restore_probe import green_check_labels
-    from app.web.common import restore_eta_text, restore_probe_countdown
+    from app.web.common import restore_disk_fills, restore_eta_text, restore_probe_countdown
 
     out = []
     for r in db_restore.list_runs(limit=20, status="running"):
@@ -477,6 +477,8 @@ def restore_progress(request: Request) -> JSONResponse:
                 "checks_green": green_check_labels(r.get("checks") or {}),
                 # Reachability window: seconds left / total, or None outside it.
                 "countdown": restore_probe_countdown(r),
+                # Per-disk fill of the disk bar (disk key → 0–100), or None.
+                "disks": restore_disk_fills(r),
             }
         )
     # Carry the host's raw resource numbers so the /restore graphs update live,

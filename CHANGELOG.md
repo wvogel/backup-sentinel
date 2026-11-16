@@ -5,7 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v3.13.1] — 2026-11-16
+## [v3.14.0] — 2026-11-16
+
+### Added
+
+- **The disk bar of a running restore shows its progress.** Each disk fills with the share already copied; the part still to come is dimmed, and the disk being restored pulses at its edge. With several disks you see which one is being restored. The worker records the per-disk percent from pbs-restore (`disk_progress`, also kept across a resume after a deploy); a single disk without it follows the run's percent, and after the copy every disk is full. The bar updates live with the progress poll.
+
+### Changed
+
+- **Restore ETA is a point in time.** The running-restore card showed a duration ("ETA ~5 h 37 min"), the backup tiles a time ("until 10:41"). The restore card now says "until 16:20" too (with the date when it is not today), set like the card's other lines instead of bold.
+
+
 
 ### Fixed
 

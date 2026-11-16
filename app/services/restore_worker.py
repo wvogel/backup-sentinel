@@ -695,6 +695,12 @@ def _progress_updater(server: Any, run_id: int, vmid: int, guest_type: str = "qe
     to the raw per-disk percent until the total is known, so an unrecognised log
     format or a server that can't report sizes behaves exactly as before."""
     st = {"done_base": 0, "cur_read": 0, "cur_drive": None, "total": None}
+    # Per-disk percent ("scsi0": 100), for the disk bar. Seeded from the run, so a
+    # resume after an app restart keeps the disks already copied.
+    try:
+        disks: dict[str, int] = dict((db_restore.get_run(run_id) or {}).get("disk_progress") or {})
+    except Exception:
+        disks = {}
 
     def on_progress(p: dict[str, Any]) -> None:
         drive = p.get("drive")
@@ -702,6 +708,7 @@ def _progress_updater(server: Any, run_id: int, vmid: int, guest_type: str = "qe
         if drive and drive != st["cur_drive"]:
             if st["cur_drive"] is not None:
                 st["done_base"] += st["cur_read"]  # the previous disk is fully restored
+                disks[_disk_dev(st["cur_drive"])] = 100
             st["cur_drive"] = drive
             st["cur_read"] = 0
             try:  # (re)read the total as disks are allocated; max() keeps it from shrinking
@@ -711,9 +718,18 @@ def _progress_updater(server: Any, run_id: int, vmid: int, guest_type: str = "qe
         if read > st["cur_read"]:
             st["cur_read"] = read  # read climbs within a disk
         fields = overall_restore_fields(st["done_base"] + st["cur_read"], st["total"]) if drive else None
-        db_restore.update_run(run_id, **(fields or _progress_fields(p)))
+        fields = dict(fields or _progress_fields(p))
+        if drive and "percent" in p:
+            disks[_disk_dev(drive)] = max(disks.get(_disk_dev(drive), 0), min(100, int(p["percent"])))
+            fields["disk_progress"] = dict(disks)
+        db_restore.update_run(run_id, **fields)
 
     return on_progress
+
+
+def _disk_dev(drive: str) -> str:
+    """pbs-restore's archive drive name → the guest's disk key: "drive-scsi0" → "scsi0"."""
+    return drive.removeprefix("drive-")
 
 
 def _progress_fields(p: dict[str, Any]) -> dict[str, Any]:

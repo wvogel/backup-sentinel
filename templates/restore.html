@@ -130,9 +130,9 @@
         <span class="run-checks js-run-checks">{% for c in run.checks|green_checks %}<span class="check-chip">✓ {{ c }}</span>{% endfor %}</span>
         {{ pc.probe_countdown(run) }}
         {%- set _eta = run|restore_eta %}
-        <span class="run-eta js-run-eta" data-eta-label="{{ t('restore.eta_label') }}"{% if not _eta %} hidden{% endif %}>{{ (t('restore.eta_label') ~ ' ' ~ _eta) if _eta else '' }}</span>
+        <span class="run-eta js-run-eta"{% if not _eta %} hidden{% endif %}>{{ _eta }}</span>
         {%- if run.disk_bytes %}<span class="muted run-size">{{ t('restore.size_label') }} {{ run.disk_bytes|size_coarse }}{% if run.disks and run.disks|length > 1 %} · {{ t('restore.disks_count', n=run.disks|length) }}{% endif %}</span>{% endif %}
-        {%- if run.disks %}{{ vol.bar(run.disks, run.disk_bytes, legend=True) }}{% endif %}
+        {%- if run.disks %}{{ vol.bar(run.disks, run.disk_bytes, legend=True, fills=run|disk_fills) }}{% endif %}
       </div>
       <form action="/restore/runs/{{ run.id }}/cancel" method="post" class="inline-form running-cancel js-confirm-form" data-confirm-title="{{ t('restore.cancel_confirm_title') }}" data-confirm-body="{{ t('restore.cancel_confirm') }}" data-confirm-ok="{{ t('restore.cancel_run') }}">
         <button type="submit" class="button-secondary" title="{{ t('restore.cancel_run') }}">⏹ {{ t('restore.cancel_run') }}</button>
@@ -207,7 +207,7 @@
         <td>
           {%- if run.status == 'running' -%}
             {%- set _row_eta = run|restore_eta -%}
-            <span class="status-icon status-running js-row-status" data-tooltip="{{ t('restore.phase_' ~ (run.phase or 'restoring')) }}{% if _row_eta %} · {{ t('restore.eta_label') }} {{ _row_eta }}{% endif %}" aria-label="{{ run.status }}">⟳&nbsp;<span class="js-row-pct">{{ run.percent or 0 }}%</span></span>
+            <span class="status-icon status-running js-row-status" data-tooltip="{{ t('restore.phase_' ~ (run.phase or 'restoring')) }}{% if _row_eta %} · {{ _row_eta }}{% endif %}" aria-label="{{ run.status }}">⟳&nbsp;<span class="js-row-pct">{{ run.percent or 0 }}%</span></span>
           {%- else -%}
             {#- The icon is the bucket; the hover spells out every probed IP with
                 ICMP + each port individually, so "limited" shows exactly what
