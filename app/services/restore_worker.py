@@ -316,14 +316,14 @@ def execute(
 
     # Close the phase in flight (success, failure or cancel) so its time counts.
     # Still "booting" after the start means no check ever turned green: we don't
-    # know how fast it booted, so booting shows 0 s (not "never booted") and the
-    # whole wait counts as probing.
+    # know how fast it booted, so booting is unknown (None, shown as "–" — not
+    # "never booted") and the whole wait counts as probing.
     closing = "probing" if _phase["name"] == "booting" and _boot["started"] else _phase["name"]
-    if closing != _phase["name"]:
-        phase_timings["booting"] = 0.0
     phase_timings[closing] = phase_timings.get(closing, 0.0) + (now() - _phase["since"])
     duration = int(now() - start)
-    timings = {k: round(v) for k, v in phase_timings.items()}
+    timings: dict[str, int | None] = {k: round(v) for k, v in phase_timings.items()}
+    if closing != _phase["name"]:
+        timings["booting"] = None
     return _finalize(run_id, plan, result, checks, duration, server, log=log_text, phase_timings=timings)
 
 
@@ -681,11 +681,11 @@ def _last_mark(run_id: int) -> str | None:
     return marks[-1][0] if marks else None
 
 
-def timings_from_marks(started_at: Any, marks: Any, end: datetime) -> dict[str, int] | None:
+def timings_from_marks(started_at: Any, marks: Any, end: datetime) -> dict[str, int | None] | None:
     """``{phase: seconds}`` from the run's start, its ``phase_marks`` ([[phase, iso
     timestamp], …]) and its end. The time before the first mark is "setup". A run
     still "booting" at the end never saw a green check: as in ``execute``, booting
-    shows 0 s and the wait counts as probing. None without start or marks (runs
+    is unknown (None, shown as "–") and the wait counts as probing. None without start or marks (runs
     from before the marks existed)."""
     if not isinstance(started_at, datetime) or not marks:
         return None
@@ -701,10 +701,13 @@ def timings_from_marks(started_at: Any, marks: Any, end: datetime) -> dict[str, 
     out: dict[str, float] = {}
     for (phase, t0), (_next, t1) in zip(points, [*points[1:], ("", end)], strict=True):
         out[phase] = out.get(phase, 0.0) + max(0.0, (t1 - t0).total_seconds())
-    if points[-1][0] == "booting":
-        out["probing"] = out.get("probing", 0.0) + out["booting"]
-        out["booting"] = 0.0
-    return {k: round(v) for k, v in out.items()}
+    no_green = points[-1][0] == "booting"
+    if no_green:
+        out["probing"] = out.get("probing", 0.0) + out.pop("booting")
+    timings: dict[str, int | None] = {k: round(v) for k, v in out.items()}
+    if no_green:
+        timings["booting"] = None
+    return timings
 
 
 def fits_disk(free_bytes: int | None, needed_bytes: int | None, safety: float = 1.2) -> bool:

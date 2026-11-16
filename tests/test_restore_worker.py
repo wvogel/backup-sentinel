@@ -306,13 +306,13 @@ class WorkerTest(unittest.TestCase):
             row = cur.fetchone()
         self.assertEqual((row["probe_ends_at"] - row["probe_started_at"]).total_seconds(), 630)
 
-    def test_no_green_check_shows_booting_as_zero(self):
-        # We don't know how fast it booted — not "it never booted": booting 0 s,
-        # the whole wait is probing.
+    def test_no_green_check_leaves_booting_unknown(self):
+        # We don't know how fast it booted — not "it never booted": booting is
+        # unknown (shown as "–"), the whole wait is probing.
         nothing = {"10.0.0.50": {"icmp": False, "arp": False, "ports": {"443": False}}}
         res, pt = self._timed_run([nothing], window=30)
         self.assertEqual(res, "failed")
-        self.assertEqual(pt["booting"], 0)
+        self.assertIsNone(pt["booting"])
         self.assertEqual(pt["probing"], 30)
 
     def test_lxc_run_passes_and_boots_via_start_lxc(self):

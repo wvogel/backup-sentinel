@@ -170,6 +170,22 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
     ),
     # 10: a one-off data fix for a single run (16.11.2026), applied and then
     # removed again. The version number is taken — never reuse it.
+    (
+        11,
+        "Booting without a green check is unknown, not 0 s; correct the 16.11. run",
+        [
+            """
+            UPDATE restore_runs SET phase_timings = jsonb_set(phase_timings, '{booting}', 'null'::jsonb)
+            WHERE phase_timings->>'booting' = '0'
+            """,
+            """
+            UPDATE restore_runs SET phase_timings = phase_timings
+                || jsonb_build_object('booting', NULL::int, 'probing', 703)
+            WHERE id = 329 AND phase_timings->>'booting' = '1'
+              AND started_at BETWEEN TIMESTAMPTZ '2026-11-16 10:12:00+00' AND TIMESTAMPTZ '2026-11-16 10:14:00+00'
+            """,
+        ],
+    ),
 ]
 
 
