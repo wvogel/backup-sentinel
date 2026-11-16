@@ -149,6 +149,18 @@ class RunningBackupLabelTests(unittest.TestCase):
         self.assertIn("1,6 GiB/s", details[1])
         self.assertIn("155 MiB/s", details[1])
 
+    def test_tile_disk_bar_segments(self) -> None:
+        from app.web.routes_clusters import running_backup_info
+
+        progress = {"disks": [{"dev": "scsi0", "storage": "nfs-a", "size_bytes": 150 * GIB, "fill": 40}]}
+        set_language("de")
+        (seg,) = running_backup_info(progress)["disks"]
+        self.assertEqual(seg["fill"], 40)
+        self.assertTrue(seg["cls"].startswith("vol-s"))
+        self.assertIn("scsi0", seg["label"])
+        self.assertIn("nfs-a", seg["tip"])
+        self.assertEqual(running_backup_info({})["disks"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

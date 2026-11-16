@@ -28,6 +28,34 @@
     }
   }
 
+  // Disk bar of a tile, as on the running-restore card: one segment per disk
+  // (width ∝ size, colour = storage), filled up to what was sent of it; the disk
+  // being backed up pulses at its edge. Null when the log names no disks.
+  function diskBar(json) {
+    let disks;
+    try {
+      disks = JSON.parse(json || "[]");
+    } catch (_e) {
+      return null;
+    }
+    if (!Array.isArray(disks) || !disks.length) return null;
+    const bar = document.createElement("span");
+    bar.className = "vol-bar running-item-bar";
+    for (const d of disks) {
+      const seg = document.createElement("span");
+      seg.className = "vol-seg vol-seg-fill " + d.cls + (d.fill > 0 && d.fill < 100 ? " is-active" : "");
+      seg.style.flex = String(d.flex);
+      seg.style.setProperty("--fill", d.fill + "%");
+      seg.dataset.tooltip = d.tip;
+      const label = document.createElement("span");
+      label.className = "vol-seg-label";
+      label.textContent = d.label;
+      seg.append(label);
+      bar.append(seg);
+    }
+    return bar;
+  }
+
   // One tile per running backup: progress ring, name, detail lines.
   function renderBanner() {
     const rows = table.querySelectorAll("tbody tr.is-running");
@@ -68,6 +96,8 @@
         line.textContent = text;
         body.append(line);
       }
+      const bar = diskBar(tr.dataset.runningDisks);
+      if (bar) body.append(bar);
       if (tr.dataset.runningWarning) {
         const warn = document.createElement("span");
         warn.className = "running-slow";
@@ -92,6 +122,7 @@
         tr.dataset.runningLine = info.line;
         tr.dataset.runningDetails = (info.details || []).join("\n");
         tr.dataset.runningWarning = info.warning || "";
+        tr.dataset.runningDisks = JSON.stringify(info.disks || []);
         if (info.percent === null || info.percent === undefined) tr.style.removeProperty("--pct");
         else tr.style.setProperty("--pct", info.percent);
         tr.title = [info.line, info.warning, info.title].filter(Boolean).join("\n");
@@ -103,6 +134,7 @@
         delete tr.dataset.runningLine;
         delete tr.dataset.runningDetails;
         delete tr.dataset.runningWarning;
+        delete tr.dataset.runningDisks;
         tr.removeAttribute("title");
       }
     }

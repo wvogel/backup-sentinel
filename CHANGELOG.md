@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.15.0] — 2026-11-16
+
+### Added
+
+- **Running-backup tiles show a disk bar.** Like the running-restore card: one segment per disk (width by size, colour by storage), filled up to what the backup has sent of it; the disk in progress pulses at its edge. PVE backs up a VM's disks one after another in the order of its log (`include disk …`), so the overall percentage maps onto the disks in that order. Each disk weighs what it contributes to the run: its dirty data in an incremental run, its whole size when its bitmap was unusable, nothing when it is clean. EFI vars and TPM state are left out, as in the size column.
+
 ## [v3.14.0] — 2026-11-16
 
 ### Added
