@@ -12,7 +12,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app import db_restore
@@ -223,7 +223,7 @@ def execute(
         t = now()
         phase_timings[_phase["name"]] = phase_timings.get(_phase["name"], 0.0) + (t - _phase["since"])
         _phase["name"], _phase["since"] = name, t
-        db_restore.update_run(run_id, phase=name)
+        db_restore.mark_phase(run_id, name)
 
     try:
         server.verify_host_identity(production_hosts)
@@ -612,11 +612,11 @@ def resume_run(
                 plan.label,
             )
         if not running:
-            db_restore.update_run(run_id, phase="network")
+            db_restore.mark_phase(run_id, "network")
             server.rewrite_config_for_sandbox(
                 plan.restore_vmid, plan.vlan_tag, plan.guest_type, plan.guest_vlan, name=plan.label
             )
-            db_restore.update_run(run_id, phase="booting")
+            db_restore.mark_phase(run_id, "booting")
             try:
                 server.start_lxc(plan.restore_vmid) if _is_lxc else server.start(plan.restore_vmid)
             except Exception as exc:
@@ -624,10 +624,28 @@ def resume_run(
         # Advance the phase to probing — without this a resumed run kept the stale
         # "finalizing" (Cache-Flush) the restore's last 100% progress callback set,
         # so the card showed "finalizing" while it was really checking reachability.
-        # (A resumed run records no per-phase timings — it missed the copy phase.)
-        db_restore.update_run(run_id, phase="probing")
+        # A guest booted before the restart keeps its booting/probing mark; one
+        # booted just now is "booting" until its first check turns green.
+        # (Also replaces a stale "finalizing" from the restore's last progress tick.)
+        last = _last_mark(run_id)
+        if last not in ("booting", "probing"):
+            db_restore.mark_phase(run_id, "probing")
+        else:
+            db_restore.update_run(run_id, phase=last)
+
+        def _first_green() -> None:
+            if _last_mark(run_id) == "booting":
+                db_restore.mark_phase(run_id, "probing")
+
         result, checks = _probe_loop(
-            server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id, should_cancel=should_cancel
+            server,
+            plan,
+            now=now,
+            sleep=sleep,
+            probe_fn=probe_fn,
+            run_id=run_id,
+            should_cancel=should_cancel,
+            on_first_green=_first_green,
         )
     except RestoreCancelled as exc:
         logger.info("restore run %s cancelled during resume: %s", run_id, exc)
@@ -652,7 +670,41 @@ def resume_run(
     duration = _seconds_since(run.get("started_at"))
     if duration is None:
         duration = int(now() - start)
-    return _finalize(run_id, plan, result, checks, duration, server)
+    # Per-phase timings from the marks the run left on its way (also before the
+    # restart) — a resumed run shows where its time went like any other.
+    timings = timings_from_marks(run.get("started_at"), run.get("phase_marks"), _utcnow())
+    return _finalize(run_id, plan, result, checks, duration, server, phase_timings=timings)
+
+
+def _last_mark(run_id: int) -> str | None:
+    marks = (db_restore.get_run(run_id) or {}).get("phase_marks") or []
+    return marks[-1][0] if marks else None
+
+
+def timings_from_marks(started_at: Any, marks: Any, end: datetime) -> dict[str, int] | None:
+    """``{phase: seconds}`` from the run's start, its ``phase_marks`` ([[phase, iso
+    timestamp], …]) and its end. The time before the first mark is "setup". A run
+    still "booting" at the end never saw a green check: as in ``execute``, booting
+    shows 0 s and the wait counts as probing. None without start or marks (runs
+    from before the marks existed)."""
+    if not isinstance(started_at, datetime) or not marks:
+        return None
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=UTC)
+    points: list[tuple[str, datetime]] = [("setup", started_at)]
+    for item in marks:
+        try:
+            ts = datetime.fromisoformat(item[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        points.append((str(item[0]), ts if ts.tzinfo else ts.replace(tzinfo=UTC)))
+    out: dict[str, float] = {}
+    for (phase, t0), (_next, t1) in zip(points, [*points[1:], ("", end)], strict=True):
+        out[phase] = out.get(phase, 0.0) + max(0.0, (t1 - t0).total_seconds())
+    if points[-1][0] == "booting":
+        out["probing"] = out.get("probing", 0.0) + out["booting"]
+        out["booting"] = 0.0
+    return {k: round(v) for k, v in out.items()}
 
 
 def fits_disk(free_bytes: int | None, needed_bytes: int | None, safety: float = 1.2) -> bool:

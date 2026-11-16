@@ -71,3 +71,32 @@ def test_disk_fills_are_full_after_the_copy_and_absent_when_not_running():
     run = {"status": "running", "phase": "probing", "disks": DISKS}
     assert restore_disk_fills(run) == {"scsi0": 100, "scsi1": 100}
     assert restore_disk_fills({**run, "status": "passed"}) is None
+
+
+def test_timings_from_marks():
+    from app.services.restore_worker import timings_from_marks
+
+    marks = [
+        ["preflight", (START + timedelta(seconds=10)).isoformat()],
+        ["restoring", (START + timedelta(seconds=40)).isoformat()],
+        ["booting", (START + timedelta(seconds=100)).isoformat()],
+        ["probing", (START + timedelta(seconds=130)).isoformat()],
+    ]
+    end = START + timedelta(seconds=200)
+    assert timings_from_marks(START, marks, end) == {
+        "setup": 10,
+        "preflight": 30,
+        "restoring": 60,
+        "booting": 30,
+        "probing": 70,
+    }
+    # Never green: booting 0 s, the wait counts as probing (as in execute).
+    assert timings_from_marks(START, marks[:3], end) == {
+        "setup": 10,
+        "preflight": 30,
+        "restoring": 60,
+        "booting": 0,
+        "probing": 100,
+    }
+    assert timings_from_marks(None, marks, end) is None
+    assert timings_from_marks(START, [], end) is None

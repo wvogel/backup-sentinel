@@ -281,6 +281,19 @@ def request_cancel(run_id: int) -> bool:
     return ok
 
 
+def mark_phase(run_id: int, phase: str) -> None:
+    """Enter a pipeline phase: set the live ``phase`` and append ``[phase, now]`` to
+    ``phase_marks``, the durable record the per-phase timings are computed from."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE restore_runs SET phase = %s, "
+            "phase_marks = COALESCE(phase_marks, '[]'::jsonb) || jsonb_build_array(jsonb_build_array(%s::text, %s::text)) "
+            "WHERE id = %s",
+            (phase, phase, datetime.now(UTC).isoformat(), run_id),
+        )
+        conn.commit()
+
+
 def finalize_stuck_run(run_id: int, checks: dict[str, Any]) -> bool:
     """Mark a wedged run 'error' — but ONLY while it is still 'running'. The
     self-heal watchdog decides "stuck" from a snapshot; if the worker finishes the

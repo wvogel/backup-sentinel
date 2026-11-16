@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.16.0] — 2026-11-16
+
+### Fixed
+
+- **Runs resumed after a deploy had no phase breakdown on the duration.** The timings were kept only in the worker's memory, so a run resumed after an app restart recorded none, and hovering its duration showed nothing. Every phase change is now stored with its time (`phase_marks`), also by the resume, and the timings are computed from it at the end. The restart's downtime counts towards the phase in progress (the restore keeps running on the host). Migration 10 restores the breakdown of the 6.5 TB run of 16.11. that two deploys resumed, from the restore host's PVE task list.
+
 ## [v3.15.0] — 2026-11-16
 
 ### Added
