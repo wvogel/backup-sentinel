@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.13.0] — 2026-11-16
+
+### Changed
+
+- **Expected finish of running backups no longer trusts the average of the whole run.** A full read (dirty bitmap invalid or new) walks every disk end to end; unallocated space passes at several GiB/s with `write: 0 B/s`, real data at the storage's speed. Extrapolating the run's average mixed both, and the ETA drifted with every empty stretch (seen on a 3.1 TiB VM on qcow2, all bitmaps invalid). The ETA now projects the remaining real data at the current data rate — the time-weighted median throughput of the last 30 minutes, which empty stretches barely move — and the remaining empty space at the empty-space rate.
+- **Allocated disk size sharpens the estimate.** For a full read the disks named in the log (`include disk …`) are looked up once per VM via PVE's volume info; on file-based storages (qcow2/raw on directory, NFS, CIFS) its `used` is the allocated size, so the data still to come is allocated minus data read so far — wherever the empty space sits, typically at the end of a disk. PVE only answers with `VM.Config.Disk` (or `Datastore.Allocate`); the bootstrap does not grant it. Without it, or on storages that report nothing, the rest is assumed to have the mix of data and empty space seen so far.
+- **Progress positions above 1 TiB come from the percentage.** vzdump rounds "1.0 TiB" to one decimal, coarser than one percent of a few TiB; where that is the case the logged percentage is the position.
+
 ## [v3.12.2] — 2026-11-15
 
 ### Fixed

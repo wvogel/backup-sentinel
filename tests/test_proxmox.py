@@ -127,10 +127,11 @@ class ProgressTimesTests(unittest.TestCase):
         self.assertEqual(progress["started_at_label"], "09.10.2026 20:05")
 
     def test_eta_extrapolates_from_vm_start_and_runtime(self) -> None:
-        # 1d 9m 56s = 86996 s for 47 % → 185098 s in total after the VM start.
+        # Current rate: 0.4 TiB in the last 2534 s (165.5 MiB/s); 19.7 TiB left
+        # → 124800 s after 1d 9m 56s (86996 s) since the VM start.
         progress = self._progress(self.LOG)
-        self.assertEqual(progress["eta"], datetime(2026, 10, 11, 21, 30, 4, tzinfo=UTC))
-        self.assertEqual(progress["eta_label"], "11.10.2026 23:30")
+        self.assertEqual(progress["eta"], datetime(2026, 10, 12, 4, 55, 2, tzinfo=UTC))
+        self.assertEqual(progress["eta_label"], "12.10.2026 06:55")
 
     def test_backup_started_line_is_read_in_local_time_without_pbs_archive(self) -> None:
         lines = [line for line in self.LOG if "archive" not in line]

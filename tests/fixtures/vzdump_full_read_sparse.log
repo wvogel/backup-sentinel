@@ -1,0 +1,77 @@
+INFO: creating Proxmox Backup Server archive 'vm/144/2026-11-16T03:33:38Z'
+INFO: enabling encryption
+Formatting '/mnt/pve/fleecing/images/144/vm-144-fleece-0.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off preallocation=off compression_type=zlib size=161061273600 lazy_refcounts=off refcount_bits=16
+Formatting '/mnt/pve/fleecing/images/144/vm-144-fleece-1.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off preallocation=off compression_type=zlib size=2199023255552 lazy_refcounts=off refcount_bits=16
+Formatting '/mnt/pve/fleecing/images/144/vm-144-fleece-2.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off preallocation=off compression_type=zlib size=1099511627776 lazy_refcounts=off refcount_bits=16
+INFO: drive-scsi0: attaching fleecing image fleecing:144/vm-144-fleece-0.qcow2 to QEMU
+INFO: drive-scsi1: attaching fleecing image fleecing:144/vm-144-fleece-1.qcow2 to QEMU
+INFO: drive-scsi2: attaching fleecing image fleecing:144/vm-144-fleece-2.qcow2 to QEMU
+INFO: issuing guest-agent 'fs-freeze' command
+INFO: starting backup via QMP command
+INFO: issuing guest-agent 'fs-thaw' command
+INFO: started backup task 'cb95c564-530a-4b54-822b-eaf2ea4a66fb'
+INFO: resuming VM again
+INFO: scsi0: dirty-bitmap status: existing bitmap was invalid and has been cleared
+INFO: scsi1: dirty-bitmap status: existing bitmap was invalid and has been cleared
+INFO: scsi2: dirty-bitmap status: existing bitmap was invalid and has been cleared
+INFO:   0% (828.0 MiB of 3.1 TiB) in 3s, read: 276.0 MiB/s, write: 252.0 MiB/s
+INFO:   1% (32.4 GiB of 3.1 TiB) in 3m 22s, read: 162.4 MiB/s, write: 161.9 MiB/s
+INFO:   2% (64.6 GiB of 3.1 TiB) in 6m 18s, read: 187.2 MiB/s, write: 187.2 MiB/s
+INFO:   3% (96.7 GiB of 3.1 TiB) in 9m 35s, read: 167.2 MiB/s, write: 167.2 MiB/s
+INFO:   4% (129.0 GiB of 3.1 TiB) in 13m 57s, read: 126.1 MiB/s, write: 126.1 MiB/s
+INFO:   5% (161.1 GiB of 3.1 TiB) in 16m 51s, read: 189.2 MiB/s, write: 189.2 MiB/s
+INFO:   6% (202.0 GiB of 3.1 TiB) in 16m 59s, read: 5.1 GiB/s, write: 101.0 MiB/s
+INFO:   7% (229.4 GiB of 3.1 TiB) in 17m 2s, read: 9.1 GiB/s, write: 0 B/s
+INFO:   8% (267.8 GiB of 3.1 TiB) in 17m 6s, read: 9.6 GiB/s, write: 0 B/s
+INFO:   9% (292.0 GiB of 3.1 TiB) in 17m 9s, read: 8.1 GiB/s, write: 0 B/s
+INFO:  10% (328.2 GiB of 3.1 TiB) in 17m 13s, read: 9.0 GiB/s, write: 0 B/s
+INFO:  11% (363.2 GiB of 3.1 TiB) in 17m 17s, read: 8.8 GiB/s, write: 0 B/s
+INFO:  12% (391.1 GiB of 3.1 TiB) in 17m 20s, read: 9.3 GiB/s, write: 0 B/s
+INFO:  13% (421.1 GiB of 3.1 TiB) in 17m 23s, read: 10.0 GiB/s, write: 0 B/s
+INFO:  14% (455.3 GiB of 3.1 TiB) in 17m 27s, read: 8.5 GiB/s, write: 0 B/s
+INFO:  15% (483.9 GiB of 3.1 TiB) in 17m 30s, read: 9.5 GiB/s, write: 0 B/s
+INFO:  16% (521.9 GiB of 3.1 TiB) in 17m 34s, read: 9.5 GiB/s, write: 0 B/s
+INFO:  17% (549.7 GiB of 3.1 TiB) in 17m 37s, read: 9.2 GiB/s, write: 0 B/s
+INFO:  18% (583.2 GiB of 3.1 TiB) in 17m 41s, read: 8.4 GiB/s, write: 0 B/s
+INFO:  19% (616.9 GiB of 3.1 TiB) in 17m 45s, read: 8.4 GiB/s, write: 0 B/s
+INFO:  20% (646.7 GiB of 3.1 TiB) in 17m 49s, read: 7.5 GiB/s, write: 0 B/s
+INFO:  21% (677.4 GiB of 3.1 TiB) in 17m 52s, read: 10.2 GiB/s, write: 0 B/s
+INFO:  22% (714.0 GiB of 3.1 TiB) in 17m 56s, read: 9.2 GiB/s, write: 0 B/s
+INFO:  23% (746.0 GiB of 3.1 TiB) in 18m, read: 8.0 GiB/s, write: 0 B/s
+INFO:  24% (777.5 GiB of 3.1 TiB) in 18m 4s, read: 7.9 GiB/s, write: 0 B/s
+INFO:  25% (805.6 GiB of 3.1 TiB) in 18m 41s, read: 778.9 MiB/s, write: 185.0 MiB/s
+INFO:  26% (837.8 GiB of 3.1 TiB) in 21m 35s, read: 189.4 MiB/s, write: 189.4 MiB/s
+INFO:  27% (870.1 GiB of 3.1 TiB) in 25m 37s, read: 136.6 MiB/s, write: 136.6 MiB/s
+INFO:  28% (909.9 GiB of 3.1 TiB) in 26m 27s, read: 815.4 MiB/s, write: 141.6 MiB/s
+INFO:  29% (942.1 GiB of 3.1 TiB) in 26m 31s, read: 8.0 GiB/s, write: 0 B/s
+INFO:  30% (976.0 GiB of 3.1 TiB) in 26m 35s, read: 8.5 GiB/s, write: 0 B/s
+INFO:  31% (1004.5 GiB of 3.1 TiB) in 26m 39s, read: 7.1 GiB/s, write: 0 B/s
+INFO:  32% (1.0 TiB of 3.1 TiB) in 27m 23s, read: 621.2 MiB/s, write: 163.7 MiB/s
+INFO:  33% (1.0 TiB of 3.1 TiB) in 30m 18s, read: 187.7 MiB/s, write: 187.6 MiB/s
+INFO:  34% (1.1 TiB of 3.1 TiB) in 33m 20s, read: 181.5 MiB/s, write: 181.5 MiB/s
+INFO:  35% (1.1 TiB of 3.1 TiB) in 36m 31s, read: 172.5 MiB/s, write: 172.4 MiB/s
+INFO:  36% (1.1 TiB of 3.1 TiB) in 39m 43s, read: 172.9 MiB/s, write: 172.9 MiB/s
+INFO:  37% (1.2 TiB of 3.1 TiB) in 42m 48s, read: 177.7 MiB/s, write: 177.7 MiB/s
+INFO:  38% (1.2 TiB of 3.1 TiB) in 46m 38s, read: 143.0 MiB/s, write: 143.0 MiB/s
+INFO:  39% (1.2 TiB of 3.1 TiB) in 55m 15s, read: 63.9 MiB/s, write: 63.9 MiB/s
+INFO:  40% (1.3 TiB of 3.1 TiB) in 59m 3s, read: 144.7 MiB/s, write: 144.7 MiB/s
+INFO:  41% (1.3 TiB of 3.1 TiB) in 1h 2m 5s, read: 181.2 MiB/s, write: 181.1 MiB/s
+INFO:  42% (1.3 TiB of 3.1 TiB) in 1h 5m 7s, read: 181.3 MiB/s, write: 181.3 MiB/s
+INFO:  43% (1.4 TiB of 3.1 TiB) in 1h 8m 5s, read: 186.4 MiB/s, write: 186.3 MiB/s
+INFO:  44% (1.4 TiB of 3.1 TiB) in 1h 11m, read: 187.5 MiB/s, write: 187.5 MiB/s
+INFO:  45% (1.4 TiB of 3.1 TiB) in 1h 14m 45s, read: 146.5 MiB/s, write: 146.5 MiB/s
+INFO:  46% (1.4 TiB of 3.1 TiB) in 1h 18m 9s, read: 162.0 MiB/s, write: 162.0 MiB/s
+INFO:  47% (1.5 TiB of 3.1 TiB) in 1h 21m 14s, read: 178.5 MiB/s, write: 178.5 MiB/s
+INFO:  48% (1.5 TiB of 3.1 TiB) in 1h 24m 18s, read: 179.8 MiB/s, write: 179.8 MiB/s
+INFO:  49% (1.5 TiB of 3.1 TiB) in 1h 27m 40s, read: 162.4 MiB/s, write: 162.3 MiB/s
+INFO:  50% (1.6 TiB of 3.1 TiB) in 1h 30m 43s, read: 180.9 MiB/s, write: 180.9 MiB/s
+INFO:  51% (1.6 TiB of 3.1 TiB) in 1h 35m 1s, read: 128.0 MiB/s, write: 128.0 MiB/s
+INFO:  52% (1.6 TiB of 3.1 TiB) in 1h 38m 7s, read: 177.7 MiB/s, write: 177.6 MiB/s
+INFO:  53% (1.7 TiB of 3.1 TiB) in 1h 41m 1s, read: 188.6 MiB/s, write: 188.6 MiB/s
+INFO:  54% (1.7 TiB of 3.1 TiB) in 1h 45m 29s, read: 123.2 MiB/s, write: 123.1 MiB/s
+INFO:  55% (1.7 TiB of 3.1 TiB) in 1h 48m 52s, read: 163.1 MiB/s, write: 163.1 MiB/s
+INFO:  56% (1.8 TiB of 3.1 TiB) in 1h 51m 54s, read: 181.2 MiB/s, write: 181.2 MiB/s
+INFO:  57% (1.8 TiB of 3.1 TiB) in 1h 54m 50s, read: 186.9 MiB/s, write: 186.9 MiB/s
+INFO:  58% (1.8 TiB of 3.1 TiB) in 1h 57m 51s, read: 182.8 MiB/s, write: 182.8 MiB/s
+INFO:  59% (1.9 TiB of 3.1 TiB) in 2h 44s, read: 190.7 MiB/s, write: 190.7 MiB/s
+INFO:  60% (1.9 TiB of 3.1 TiB) in 2h 3m 40s, read: 187.3 MiB/s, write: 187.3 MiB/s
