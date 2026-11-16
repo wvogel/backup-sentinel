@@ -90,13 +90,13 @@ def test_timings_from_marks():
         "booting": 30,
         "probing": 70,
     }
-    # Never green: booting 0 s, the wait counts as probing (as in execute).
+    # Never green: booting unknown, the wait counts as probing (as in execute).
     assert timings_from_marks(START, marks[:3], end) == {
         "setup": 10,
         "preflight": 30,
         "restoring": 60,
-        "booting": 0,
         "probing": 100,
+        "booting": None,
     }
     assert timings_from_marks(None, marks, end) is None
     assert timings_from_marks(START, [], end) is None

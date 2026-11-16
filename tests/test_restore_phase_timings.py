@@ -71,3 +71,9 @@ def test_unknown_phase_kept_after_known_ones():
 def test_non_numeric_entries_skipped():
     got = restore_phase_timings({"phase_timings": {"setup": "x", "helper": 3}})
     assert [p["phase"] for p in got] == ["helper"]
+
+
+def test_unknown_booting_shows_a_dash():
+    # No check turned green: how long it booted is unknown — "–", not "0 s".
+    out = restore_phase_timings({"phase_timings": {"booting": None, "probing": 600}})
+    assert [(p["phase"], p["text"]) for p in out] == [("booting", "–"), ("probing", "10:00")]

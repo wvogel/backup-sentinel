@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.17.0] — 2026-11-16
+
+### Fixed
+
+- **"Booting" is "–" when no check turned green.** It used to read "0 s", which looked like a measured value. Now it says that the boot time is unknown; the whole wait after the start counts as the reachability check. Existing runs are converted.
+- **The resumed run of 16.11. showed "Booting 1 s".** v3.16.0 restored its breakdown from the start of the probe window, not from the first green check, which was never recorded for it. Its booting is now "–" and the 11:43 after the start count as the reachability check.
+
 ## [v3.16.1] — 2026-11-16
 
 ### Removed

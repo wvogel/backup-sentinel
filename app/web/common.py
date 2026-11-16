@@ -216,6 +216,9 @@ def restore_phase_timings(run: dict) -> list[dict]:
     out: list[dict] = []
     for phase in known + extra:
         secs = pt.get(phase)
+        if secs is None:  # booting without any green check: how long is unknown
+            out.append({"phase": phase, "seconds": None, "text": "–"})
+            continue
         if not isinstance(secs, (int, float)) or isinstance(secs, bool):
             continue
         item = {"phase": phase, "seconds": round(secs), "text": _fmt_phase_secs(secs)}
