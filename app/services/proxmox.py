@@ -683,6 +683,10 @@ def fetch_backup_details(
             parsed = _parse_item(item, vmid)
             if parsed is None:
                 continue
+            # A PBS snapshot still being synced or backed up has no manifest and so
+            # no size yet; PVE then lists it with size 1. Not a copy until finished.
+            if storage_types.get(item.get("_storage_id", "")) == "pbs" and (parsed["size_bytes"] or 0) <= 1:
+                continue
             parsed["storage"] = item.get("_storage_id", "")
             parsed["storage_type"] = storage_types.get(parsed["storage"], "")
             parsed["location"] = _location(parsed["storage"])

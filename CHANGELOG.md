@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.17.2] — 2026-11-16
+
+### Fixed
+
+- **A backup still being synced counted as a copy and was offered for a restore test.** PBS writes a snapshot's manifest last; until then the snapshot already exists but has no size, and PVE lists it with size 1. Seen live: a pull sync of VM 142 had just created its first snapshot on the offsite datastore. The cluster page showed "PBS ×2", and the restore host listed the half-synced snapshot as a restore source. Unfinished PBS snapshots (no size from PBS, size ≤ 1 from PVE) now count as no copy, and the restore picks only finished snapshots. A manual test waits with a clear message ("no finished backup yet, e.g. the sync is still running") until the next sync after the copy is complete.
+
 ## [v3.17.1] — 2026-11-16
 
 ### Removed
