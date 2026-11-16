@@ -1570,3 +1570,19 @@ def test_compute_io_rates_ignores_counter_reset():
     prev = {"t": 100.0, "disk": {"sda": (9, 9, 9)}, "net": {}}
     cur = {"t": 110.0, "disk": {"sda": (1, 1, 1)}, "net": {}, "link_bps": 0}  # counters went backwards
     assert compute_io_rates(prev, cur, disk_max_bps=550_000_000)["have"] is False
+
+
+def test_list_snapshots_marks_a_snapshot_being_synced_incomplete():
+    # PVE lists a snapshot still being synced with size 1 (no PBS manifest yet).
+    responses = {
+        "/nodes": [{"node": "r1", "status": "online"}],
+        "/nodes/r1/storage/pbs-off/content?content=backup&vmid=142": [
+            {"volid": "pbs-off:backup/vm/142/2026-11-15T22:18:57Z", "ctime": 1_763_245_137, "size": 1},
+            {"volid": "pbs-off:backup/vm/142/2026-11-08T22:10:00Z", "ctime": 1_762_640_000, "size": 2 * 1024**4},
+        ],
+    }
+    snaps = _server(responses).list_snapshots("pbs-off", 142)
+    assert [s["complete"] for s in snaps] == [False, True]
+    from app.services.restore_match import pick_latest_complete
+
+    assert pick_latest_complete(snaps)["snapshot_id"].endswith("2026-11-08T22:10:00Z")

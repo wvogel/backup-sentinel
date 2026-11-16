@@ -167,7 +167,7 @@ def fetch_pbs_backups(
     logger.info("PBS %s: %d total snapshots", conn_label, len(snapshots))
 
     events: list[dict[str, Any]] = []
-    skipped_vmid = skipped_old = 0
+    skipped_vmid = skipped_old = skipped_unfinished = 0
 
     for namespace, snap in snapshots:
         backup_type = str(snap.get("backup-type") or "")
@@ -201,6 +201,12 @@ def fetch_pbs_backups(
                 size_bytes = int(snap["size"])
         except (TypeError, ValueError):
             pass
+        # PBS knows a snapshot's size only from its manifest, written last — a
+        # snapshot still being synced (or backed up) has none yet. It is no copy
+        # until then: it must neither count as one nor be offered for a restore.
+        if size_bytes is None:
+            skipped_unfinished += 1
+            continue
 
         encrypted = _is_encrypted(snap.get("files"))
 
@@ -228,12 +234,13 @@ def fetch_pbs_backups(
         )
 
     logger.info(
-        "PBS %s: %d events for %d VMs (skipped: %d not-in-cluster, %d too-old)",
+        "PBS %s: %d events for %d VMs (skipped: %d not-in-cluster, %d too-old, %d unfinished)",
         conn_label,
         len(events),
         len({e["vmid"] for e in events}),
         skipped_vmid,
         skipped_old,
+        skipped_unfinished,
     )
     return events
 

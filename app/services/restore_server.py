@@ -880,8 +880,9 @@ class RestoreServer:
 
     def list_snapshots(self, pbs_storage: str, src_vmid: int) -> list[dict[str, Any]]:
         """Backups of ``src_vmid`` in a local PBS storage, newest-first candidates
-        for restore. PVE lists only finished snapshots, so each counts as
-        complete (completeness, not verification; spec §3, §7)."""
+        for restore. Completeness, not verification (spec §3, §7): PVE also lists
+        a snapshot that is still being synced or backed up — without a manifest
+        PBS reports no size and PVE shows 1 — and that one is not complete."""
         node = self.node()
         content = self.pve.get(f"/nodes/{node}/storage/{pbs_storage}/content?content=backup&vmid={src_vmid}") or []
         out = []
@@ -891,7 +892,7 @@ class RestoreServer:
                     "snapshot_id": vol.get("volid", ""),
                     "backup_time": vol.get("ctime", 0),
                     "size": vol.get("size"),
-                    "complete": True,
+                    "complete": int(vol.get("size") or 0) > 1,
                 }
             )
         return out

@@ -45,6 +45,17 @@ class FetchAllPBSBackupsTests(unittest.TestCase):
         self.assertEqual([e["guest_name"] for e in events], ["mgmfw"])
         self.assertEqual([e["location"] for e in events], ["pbs:pbs-fh-muc/nas-b1"])
 
+    def test_snapshot_still_being_synced_is_no_copy(self) -> None:
+        # Seen live: a pull sync of vm/142 had created the snapshot, but its
+        # manifest — and with it the size — comes last. Until then it is no copy.
+        snapshots = [
+            {"backup-type": "vm", "backup-id": "142", "backup-time": 1_763_245_137, "size": None},
+            {"backup-type": "vm", "backup-id": "142", "backup-time": 1_763_100_000, "size": 10},
+        ]
+        with mock.patch.object(pbs, "_pbs_get_json", return_value=snapshots):
+            events = pbs.fetch_pbs_backups({**CONN, "name": "pbs-aboe-muc"}, {142}, datastore="nas-off")
+        self.assertEqual([e["size_bytes"] for e in events], [10])
+
     def test_without_namespace_only_root_is_read(self) -> None:
         snap = {"backup-type": "vm", "backup-id": "121", "backup-time": 1_760_000_000, "size": 10}
         calls = []

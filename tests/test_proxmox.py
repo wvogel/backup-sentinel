@@ -421,6 +421,19 @@ class BackupLocationTaggingTests(unittest.TestCase):
             _latest, events, _errors = fetch_backup_details("https://pve", "a", [{"name": "pve1"}], [{"vmid": 100}])
         self.assertEqual(sorted(str(e["location"]) for e in events), ["None", "pve:nfs"])
 
+    def test_unfinished_pbs_snapshot_is_skipped(self):
+        # PVE lists a PBS snapshot that is still being synced with size 1 (PBS has
+        # no size before the manifest). It must not become a second copy.
+        def fake(base_url, path, auth_header, **kwargs):
+            if path.endswith("/content"):
+                storage = path.split("/storage/")[1].split("/")[0]
+                return [{"volid": f"{storage}:backup/vm/100/x", "vmid": 100, "ctime": 1_700_000_000, "size": 1}]
+            return self.fake(base_url, path, auth_header, **kwargs)
+
+        with mock.patch.object(proxmox, "_pve_get_json", side_effect=fake):
+            _latest, events, _errors = fetch_backup_details("https://pve", "a", [{"name": "pve1"}], [{"vmid": 100}])
+        self.assertEqual([e["location"] for e in events], ["pve:nfs"])  # the vzdump file stays
+
 
 class FetchBackupDetailsTests(unittest.TestCase):
     def _fake_pve(self, base_url, path, auth_header, **kwargs):
