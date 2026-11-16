@@ -419,7 +419,7 @@ def list_datastore_usage(cluster_id: int | None = None) -> list[dict[str, Any]]:
         SELECT u.pbs_id, u.store, u.total_bytes, u.used_bytes, u.avail_bytes, u.updated_at,
                -- A full date in the past is no forecast (see fetch_datastore_usage).
                CASE WHEN u.estimated_full_at > NOW() THEN u.estimated_full_at END AS estimated_full_at,
-               p.name AS pbs_name, p.cluster_id
+               p.name AS pbs_name, p.cluster_id, p.fingerprint AS pbs_fingerprint
         FROM pbs_datastore_usage u
         JOIN pbs_connections p ON p.id = u.pbs_id
     """

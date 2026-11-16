@@ -106,6 +106,20 @@ class WeeklyReport:
         return sum(len(s.items) for s in self.problems)
 
 
+def _unique_datastores(datastores: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each datastore once. A PBS attached to several clusters has one connection
+    (and so one usage row) per cluster — the same store would be listed once per
+    cluster. Same PBS = same certificate fingerprint, else the same name."""
+    seen: set[tuple[str, str]] = set()
+    out = []
+    for d in datastores:
+        key = ((d.get("pbs_fingerprint") or d["pbs_name"]).strip().lower(), d["store"])
+        if key not in seen:
+            seen.add(key)
+            out.append(d)
+    return out
+
+
 def collect(
     rows: list[dict[str, Any]],
     datastores: list[dict[str, Any]],
@@ -158,7 +172,7 @@ def collect(
                     d["status"],
                     pct=d["pct"],
                 )
-                for d in datastores
+                for d in _unique_datastores(datastores)
                 if d["status"] in ("critical", "warning")
             ],
         ),
