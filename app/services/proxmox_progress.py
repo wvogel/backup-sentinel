@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextvars
+import itertools
 import logging
 import math
 import re
@@ -44,6 +45,8 @@ _DIRTY_RE = re.compile(
     r"using fast incremental mode .*?,\s*(?P<dirty>[\d.]+\s+[KMGTPE]?i?B)\s+dirty\s+of\s+(?P<full>[\d.]+\s+[KMGTPE]?i?B)\s+total",
     re.IGNORECASE,
 )
+# vzdump names every disk it backs up: "include disk 'scsi0' 'local:144/vm-144-disk-0.qcow2' 150G".
+_INCLUDE_DISK_RE = re.compile(r"include disk '(?P<drive>[\w-]+)' '(?P<volid>[^']+)'", re.IGNORECASE)
 _VMID_RE = re.compile(r"\b(?:VM|CT)\s+(?P<vmid>\d+)\b|\b(?:qemu|lxc)[/-](?P<vmid2>\d+)\b", re.IGNORECASE)
 
 
@@ -158,8 +161,10 @@ def _vm_started_at(log_lines: list[str]) -> datetime | None:
     return None
 
 
-def _parse_running_backup_progress(task: dict[str, Any], log_lines: list[str]) -> dict[str, Any]:
-    return _localize(_parse_progress_data(task, log_lines))
+def _parse_running_backup_progress(
+    task: dict[str, Any], log_lines: list[str], allocated_bytes: int | None = None
+) -> dict[str, Any]:
+    return _localize(_parse_progress_data(task, log_lines, allocated_bytes))
 
 
 def _localize(progress: dict[str, Any]) -> dict[str, Any]:
@@ -173,8 +178,13 @@ def _localize(progress: dict[str, Any]) -> dict[str, Any]:
     return localized
 
 
-def _parse_progress_data(task: dict[str, Any], log_lines: list[str]) -> dict[str, Any]:
-    """Progress of the running VM from its log section, without translated text."""
+def _parse_progress_data(
+    task: dict[str, Any], log_lines: list[str], allocated_bytes: int | None = None
+) -> dict[str, Any]:
+    """Progress of the running VM from its log section, without translated text.
+
+    `allocated_bytes`: space the VM's disks actually occupy on their storage,
+    if known — sharpens the ETA of a full read (see `_estimate_remaining_seconds`)."""
     progress: dict[str, Any] = {}
 
     start_raw = task.get("starttime") or task.get("start-time")
@@ -219,14 +229,109 @@ def _parse_progress_data(task: dict[str, Any], log_lines: list[str]) -> dict[str
             # "elapsed" counts from the VM's start, not from when the line was
             # written — large VMs log progress only every ~30 min.
             if percent > 0 and elapsed_seconds is not None and started_at is not None:
-                total_seconds = math.ceil(elapsed_seconds * 100 / percent)
-                eta = started_at + timedelta(seconds=total_seconds)
+                # A full read (no dirty bitmap) may skip unallocated space; the
+                # disks' allocated size then tells how much real data is left.
+                allocated = allocated_bytes if "delta_bytes" not in progress else None
+                remaining = _estimate_remaining_seconds(_progress_samples(log_lines), allocated)
+                if remaining is None:  # too few samples: average of the run so far
+                    remaining = elapsed_seconds * 100 / percent - elapsed_seconds
+                eta = started_at + timedelta(seconds=math.ceil(elapsed_seconds + remaining))
                 progress["eta"] = eta
                 progress["eta_label"] = _fmt_local(eta)
                 progress["eta_short"] = _fmt_short(eta)
             break
 
     return progress
+
+
+# ── ETA ──────────────────────────────────────────────────────────────────────
+# A full read (dirty bitmap invalid or new) walks every disk end to end, but
+# unallocated space costs next to nothing: PVE logs those stretches at several
+# GiB/s with "write: 0 B/s", real data at the storage's speed. Extrapolating
+# the average of the whole run therefore mixes both: after a long empty
+# stretch the ETA is far too early, during a dense one too late. The estimate
+# splits them: remaining real data at the current data rate, remaining empty
+# space at the empty-space rate.
+_ETA_WINDOW_SECONDS = 30 * 60  # current data rate: the last 30 minutes of the run
+# Empty space is read at least this many times faster than data, even before
+# the run has seen any (seen: ~50× on qcow2 over NFS).
+_HOLE_SPEEDUP_MIN = 10
+
+
+def _progress_samples(log_lines: list[str]) -> list[tuple[int, int, int]]:
+    """(elapsed seconds, bytes read, total bytes) per progress line, in order.
+
+    The byte counts are rounded to one decimal of their unit — from 1 TiB on
+    that is a 100 GiB step, coarser than one percent. There the percentage
+    (which vzdump logs when it changes) is the better position."""
+    samples: list[tuple[int, int, int]] = []
+    for line in log_lines:
+        match = _PROGRESS_RE.search(line)
+        if not match:
+            continue
+        elapsed = _parse_elapsed_to_seconds(match.group("elapsed"))
+        written = parse_size(match.group("written"))
+        total = parse_size(match.group("total"))
+        if elapsed is None or written is None or not total:
+            continue
+        # One decimal of the label's unit; coarser than a percent → use the percent.
+        unit = re.sub(r"^[\d.\s]+", "", match.group("written"))
+        if (parse_size(f"1 {unit}") or 0) / 10 > total / 100:
+            written = total * int(match.group("pct")) // 100
+        samples.append((elapsed, written, total))
+    return samples
+
+
+def _weighted_median(pairs: list[tuple[float, float]]) -> float | None:
+    """Median of values weighted by duration: (value, weight) pairs."""
+    pairs = sorted(p for p in pairs if p[1] > 0)
+    half = sum(w for _, w in pairs) / 2
+    seen = 0.0
+    for value, weight in pairs:
+        seen += weight
+        if seen >= half:
+            return value
+    return None
+
+
+def _estimate_remaining_seconds(
+    samples: list[tuple[int, int, int]], allocated_bytes: int | None = None
+) -> float | None:
+    """Seconds left after the last progress line; None with too few samples.
+
+    Data rate: median throughput weighted by time — empty stretches take only
+    seconds, so it is the rate of real data even in a run full of them (over
+    the last `_ETA_WINDOW_SECONDS` for the forecast, over the whole run for
+    what was read so far).
+
+    Real data left: with `allocated_bytes` the disks' allocated size minus the
+    data read so far — empty space may sit anywhere, often at the end of a
+    disk. Without it, the rest is assumed to hold data and empty space in the
+    same share as what was read so far.
+    """
+    if len(samples) < 2:
+        return None
+    points = [(0, 0), *((e, b) for e, b, _ in samples)]
+    intervals = [(e1 - e0, b1 - b0, e1) for (e0, b0), (e1, b1) in itertools.pairwise(points) if e1 > e0 and b1 >= b0]
+    if not intervals:
+        return None
+    end = points[-1][0]
+    rate_all = _weighted_median([(db / dt, dt) for dt, db, _ in intervals])
+    window_start = end - _ETA_WINDOW_SECONDS
+    rate_now = _weighted_median(
+        [(db / dt, min(dt, e1 - window_start)) for dt, db, e1 in intervals if e1 > window_start]
+    )
+    if not rate_all or not rate_now:
+        return None
+    read = points[-1][1]
+    remaining = max(0, samples[-1][2] - read)
+    data_read = sum(min(db, dt * rate_all) for dt, db, _ in intervals)
+    if allocated_bytes:
+        data_left = min(remaining, max(0.0, allocated_bytes - data_read))
+    else:
+        data_left = remaining * min(1.0, data_read / read) if read else remaining
+    hole_rate = max(max(db / dt for dt, db, _ in intervals), rate_now * _HOLE_SPEEDUP_MIN)
+    return data_left / rate_now + (remaining - data_left) / hole_rate
 
 
 # ── Reading the task logs ────────────────────────────────────────────────────
@@ -240,13 +345,51 @@ _LOG_PAGE = 1000
 class _TaskLog:
     read: int = 0  # log lines read so far
     section: list[str] = field(default_factory=list)  # from the last "Starting Backup" on
+    # Allocated bytes of the section's disks, once asked (None: unknown).
+    allocated_asked: bool = False
+    allocated: int | None = None
 
 
 def _with_lines(state: _TaskLog, lines: list[str], read: int) -> _TaskLog:
     for i in range(len(lines) - 1, -1, -1):
         if START_RE.search(lines[i]):
-            return _TaskLog(read, lines[i:])
-    return _TaskLog(read, state.section + lines)
+            return _TaskLog(read, lines[i:])  # next VM: ask its disks anew
+    return _TaskLog(read, state.section + lines, state.allocated_asked, state.allocated)
+
+
+def _included_disks(log_lines: list[str]) -> list[str]:
+    """Volume IDs of the disks vzdump backs up ("include disk" lines)."""
+    return list(dict.fromkeys(m.group("volid") for line in log_lines if (m := _INCLUDE_DISK_RE.search(line))))
+
+
+def _needs_allocated(log_lines: list[str]) -> bool:
+    """Only a full read of a VM can skip empty space: progress lines are there,
+    disks are named, and no fast incremental mode (dirty bitmap) is in use."""
+    return (
+        any(_PROGRESS_RE.search(line) for line in log_lines)
+        and bool(_included_disks(log_lines))
+        and not any(_DIRTY_RE.search(line) for line in log_lines)
+    )
+
+
+def _allocated_bytes(volids: list[str], get_volume: Callable[[str, str], dict[str, Any]]) -> int | None:
+    """Space the disks occupy on their storage; None if any disk can't tell.
+
+    `get_volume(storage, volid)` is PVE's volume info. Its "used" is only
+    meaningful for file-based storages (qcow2/raw on dir, NFS, CIFS: the
+    allocated size per qemu-img); other plugins mostly report 0. Reading it
+    needs `Datastore.Audit` on the storage and `VM.Config.Disk` on the VM
+    (or `Datastore.Allocate` on the storage) — without them the ETA works
+    without it."""
+    total = 0
+    for volid in volids:
+        storage = volid.split(":", 1)[0]
+        info = get_volume(storage, volid)
+        used, size = info.get("used"), info.get("size")
+        if not isinstance(used, int) or not isinstance(size, int) or used <= 0:
+            return None
+        total += min(used, size)
+    return total or None
 
 
 def _read_task_log(get_page: Callable[[int, int], tuple[list[str], int | None]], state: _TaskLog) -> _TaskLog:
@@ -347,13 +490,31 @@ def _fetch_running_backup_progress(
         except ProxmoxSyncError as exc:
             logger.warning("Cannot inspect running backup task %s on %s: %s", upid, node_name, exc)
             return None
+        section = _current_vm_log(state.section)
+        if not state.allocated_asked and _needs_allocated(section):
+            state.allocated_asked = True  # once per VM: the size barely moves during the backup
+
+            def get_volume(storage: str, volid: str) -> dict[str, Any]:
+                return _pve_get_dict(
+                    base_url,
+                    f"{node_path(node_name)}/storage/{parse.quote(storage, safe='')}"
+                    f"/content/{parse.quote(volid, safe='')}",
+                    auth_header,
+                    timeout=max(timeout, 10.0),
+                    retries=0,
+                )
+
+            try:
+                state.allocated = _allocated_bytes(_included_disks(section), get_volume)
+            except ProxmoxSyncError as exc:  # usually 403: VM.Config.Disk not granted
+                logger.info("No allocated disk size for task %s on %s (ETA without it): %s", upid, node_name, exc)
         with _task_logs_lock:
             _task_logs[key] = state
 
         vmid = _extract_vmid_from_task({**task, **status}, state.section)
         if vmid is None:
             return None
-        return vmid, _parse_progress_data({**task, **status}, _current_vm_log(state.section))
+        return vmid, _parse_progress_data({**task, **status}, section, state.allocated)
 
     task_lists = dict(zip(nodes, _pve_pool.map(list_tasks, nodes), strict=True))
     complete = all(tasks is not None for tasks in task_lists.values())
