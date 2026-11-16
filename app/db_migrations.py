@@ -168,37 +168,8 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
             """,
         ],
     ),
-    (
-        10,
-        "Phase timings of the 6.5 TB restore run that two deploys resumed (16.11.2026)",
-        # Before v3.16.0 a resumed run recorded no phase timings. This run (tomedo-
-        # aboe-muc, resumed by two deploys) gets them back from the restore host's
-        # PVE task list: helper 10:13:39–10:13:51Z, qmrestore 10:13:51–16:10:27Z,
-        # config + start 16:10:27–16:10:29Z, teardown 16:22:12Z. Booting/probing
-        # split at the recorded first green check (probe_started_at). Guarded by
-        # id, start time and missing timings, so it touches nothing else.
-        [
-            """
-            UPDATE restore_runs r SET phase_timings = jsonb_build_object(
-                'setup', GREATEST(0, EXTRACT(EPOCH FROM TIMESTAMPTZ '2026-11-16 10:13:39+00' - r.started_at))::int,
-                'helper', 12,
-                'restoring', 21396,
-                'network', 2,
-                'booting', b.secs,
-                'probing', 703 - b.secs)
-            FROM (
-                SELECT id, CASE
-                    WHEN probe_started_at > TIMESTAMPTZ '2026-11-16 16:10:29+00'
-                     AND probe_started_at < TIMESTAMPTZ '2026-11-16 16:22:12+00'
-                    THEN EXTRACT(EPOCH FROM probe_started_at - TIMESTAMPTZ '2026-11-16 16:10:29+00')::int
-                    ELSE 0 END AS secs
-                FROM restore_runs WHERE id = 329
-            ) b
-            WHERE r.id = b.id AND r.id = 329 AND r.phase_timings IS NULL
-              AND r.started_at BETWEEN TIMESTAMPTZ '2026-11-16 10:12:00+00' AND TIMESTAMPTZ '2026-11-16 10:14:00+00'
-            """,
-        ],
-    ),
+    # 10: a one-off data fix for a single run (16.11.2026), applied and then
+    # removed again. The version number is taken — never reuse it.
 ]
 
 
