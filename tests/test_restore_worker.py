@@ -1,6 +1,7 @@
 """Worker pipeline tests: pure helpers always; branching logic DB-gated with a
 fake RestoreServer."""
 
+import json
 import os
 import unittest
 
@@ -667,6 +668,45 @@ class WorkerTest(unittest.TestCase):
         db_restore.update_run(run_id, status="running")
         reconcile_on_startup()
         self.assertEqual(db_restore.get_run(run_id)["status"], "error")
+
+    def test_resumed_run_records_phase_timings(self):
+        # A deploy hit mid-copy: the marks from before the restart plus those the
+        # resume adds give the full breakdown, as for an uninterrupted run.
+        from datetime import UTC, datetime, timedelta
+
+        run_id = self._run()
+        t0 = datetime.now(UTC) - timedelta(hours=6)
+        db_restore.update_run(run_id, status="running", restore_vmid=9000, helper_vmid=9001, started_at=t0)
+        with db.connect() as conn, conn.cursor() as cur:
+            marks = [
+                ["preflight", t0 + timedelta(seconds=5)],
+                ["helper", t0 + timedelta(seconds=8)],
+                ["restoring", t0 + timedelta(seconds=20)],
+            ]
+            cur.execute(
+                "UPDATE restore_runs SET phase_marks = %s::jsonb WHERE id = %s",
+                (json.dumps([[p, ts.isoformat()] for p, ts in marks]), run_id),
+            )
+            conn.commit()
+
+        class NotRunning(FakeServer):
+            def is_running(self, vmid, is_lxc=False):
+                return False
+
+        res = resume_run(
+            run_id,
+            _plan(self.vm_id),
+            NotRunning(),
+            "UPID:restore:abcd",
+            now=lambda: 0.0,
+            sleep=lambda s: None,
+            probe_fn=lambda s, hv, t: {"10.0.0.50": {"icmp": True, "ports": {"443": True}}},
+        )
+        self.assertEqual(res, "passed")
+        pt = db_restore.get_run(run_id)["phase_timings"]
+        self.assertEqual((pt["setup"], pt["preflight"], pt["helper"]), (5, 3, 12))
+        self.assertGreater(pt["restoring"], 5 * 3600)
+        self.assertEqual(set(pt), {"setup", "preflight", "helper", "restoring", "network", "booting", "probing"})
 
     def test_resume_reattaches_and_preserves_present_helper(self):
         # A deploy mid-restore must NOT kill the helper. Resume re-attaches to the
