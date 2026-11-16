@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Allocated disk size sharpens the estimate.** For a full read the disks named in the log (`include disk …`) are looked up once per VM via PVE's volume info; on file-based storages (qcow2/raw on directory, NFS, CIFS) its `used` is the allocated size, so the data still to come is allocated minus data read so far — wherever the empty space sits, typically at the end of a disk. PVE only answers with `VM.Config.Disk` (or `Datastore.Allocate`); the bootstrap does not grant it. Without it, or on storages that report nothing, the rest is assumed to have the mix of data and empty space seen so far.
 - **Progress positions above 1 TiB come from the percentage.** vzdump rounds "1.0 TiB" to one decimal, coarser than one percent of a few TiB; where that is the case the logged percentage is the position.
 
+### Fixed
+
+- **Weekly report listed the same datastore once per cluster.** A PBS attached to several clusters has one connection — and one usage row — per cluster, so a filling datastore appeared up to three times under *Datastores*. It is now listed once (same PBS = same certificate fingerprint, else the same name).
+
 ## [v3.12.2] — 2026-11-15
 
 ### Fixed

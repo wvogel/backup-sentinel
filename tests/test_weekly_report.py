@@ -69,6 +69,20 @@ class BuildTests(unittest.TestCase):
         self.assertNotIn("ok-vm", body)
         self.assertNotIn("'gone'", body)
 
+    def test_a_pbs_attached_to_several_clusters_lists_its_store_once(self):
+        # One connection (and usage row) per cluster for the same PBS.
+        store = {"pbs_name": "pbs-a", "store": "nas-b1", "pct": 91, "status": "warning", "estimated_full_at": None}
+        other = {**store, "pbs_name": "pbs-b", "pbs_fingerprint": "BB"}
+        report = weekly_report.collect(
+            [_row(vm_name="ok-vm")],
+            [store, {**store}, {**store, "pbs_name": "PBS-A "}, other, {**other, "pbs_name": "pbs-b-alias"}],
+            {"full_runs": [], "failed": 0},
+            self.NOW,
+        )
+        section = next(s for s in report.problems if s.key == "weekly.section_datastores")
+        self.assertEqual([i.name for i in section.items], ["nas-b1", "nas-b1"])
+        self.assertEqual([i.cluster for i in section.items], ["pbs-a", "pbs-b"])
+
     def test_all_good_says_so(self):
         _subject, body = self.build([_row(vm_name="ok-vm")])
         self.assertIn("weekly.all_good", body)
