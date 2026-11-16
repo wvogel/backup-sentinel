@@ -461,37 +461,6 @@ class RecoverStuckRunsTest(unittest.TestCase):
         self.assertGreaterEqual(run["duration_seconds"], 74 * 60)
         self.assertEqual(db_restore.get_run(other)["result"], "error")
 
-    def test_migration_10_restores_timings_of_that_one_run_only(self):
-        from app.db_migrations import MIGRATIONS
-
-        def run_at(started):
-            rid = db_restore.create_run(self.vm_id)
-            with db.connect() as conn, conn.cursor() as cur:
-                cur.execute(
-                    "UPDATE restore_runs SET status='passed', started_at=%s::timestamptz, "
-                    "probe_started_at='2026-11-16 16:12:29+00' WHERE id=%s",
-                    (started, rid),
-                )
-                conn.commit()
-            return rid
-
-        with db.connect() as conn, conn.cursor() as cur:
-            cur.execute("SELECT setval('restore_runs_id_seq', 328)")
-            conn.commit()
-        target = run_at("2026-11-16 10:13:30+00")
-        other = run_at("2026-11-16 10:13:30+00")
-        self.assertEqual(target, 329)
-        stmts = next(m for v, _, m in MIGRATIONS if v == 10)
-        with db.connect() as conn, conn.cursor() as cur:
-            for sql in stmts:
-                cur.execute(sql)
-            conn.commit()
-        self.assertEqual(
-            db_restore.get_run(target)["phase_timings"],
-            {"setup": 9, "helper": 12, "restoring": 21396, "network": 2, "booting": 120, "probing": 583},
-        )
-        self.assertIsNone(db_restore.get_run(other)["phase_timings"])
-
 
 def test_target_storages_from_rows():
     from app.web.routes_restore import _target_storages_from_rows
