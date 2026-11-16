@@ -13,14 +13,16 @@
 {%- else %}<span class="muted">–</span>{% endif -%}
 {%- endmacro -%}
 
-{# Segmented bar. `fill` (0..1) optionally overlays progress as a dimmed tail. #}
-{%- macro bar(disks, total_bytes=None, legend=False) -%}
+{# Segmented bar. `fills` ({dev: 0–100}, running restores) dims each disk's part
+   still to be copied, so the bar shows which disk is being restored. #}
+{%- macro bar(disks, total_bytes=None, legend=False, fills=None) -%}
 {%- set sum_bytes = disks|map(attribute='size_bytes')|sum %}
 {%- set tot = total_bytes or sum_bytes %}
 {%- if disks %}
 <div class="vol-bar" role="img" aria-label="{{ _disk_title(disks) }}">
   {%- for d in disks %}
-  <span class="vol-seg {{ d.storage|vol_seg_class }}" style="flex: {{ (d.size_bytes // 1000000) or 1 }}" data-tooltip="{{ d.dev }} {{ d.size_bytes|size_coarse }} · {{ d.storage }}"><span class="vol-seg-label">{{ d.dev }} · {{ d.size_bytes|size_coarse }}</span></span>
+  {%- set f = fills[d.dev] if fills is not none and d.dev in fills else none %}
+  <span class="vol-seg {{ d.storage|vol_seg_class }}{% if f is not none %} vol-seg-fill{% if 0 < f < 100 %} is-active{% endif %}{% endif %}" data-dev="{{ d.dev }}" style="flex: {{ (d.size_bytes // 1000000) or 1 }}{% if f is not none %}; --fill: {{ f }}%{% endif %}" data-tooltip="{{ d.dev }} {{ d.size_bytes|size_coarse }} · {{ d.storage }}"><span class="vol-seg-label">{{ d.dev }} · {{ d.size_bytes|size_coarse }}</span></span>
   {%- endfor %}
 </div>
 {%- if legend %}

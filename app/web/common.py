@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -132,7 +132,31 @@ def restore_eta_text(run: dict, now: datetime | None = None) -> str:
     if elapsed <= 0:
         return ""
     remaining = elapsed * (100 - pct) / pct
-    return "~" + format_duration(int(remaining))
+    eta = (now or datetime.now(UTC)) + timedelta(seconds=remaining)
+    # A point in time like the running-backup tiles ("until 16:20"), with the
+    # day once it is not today.
+    local, today = eta.astimezone(APP_TIMEZONE), (now or datetime.now(UTC)).astimezone(APP_TIMEZONE).date()
+    return t("cluster.running_until", time=local.strftime("%H:%M" if local.date() == today else "%d.%m. %H:%M"))
+
+
+# Phases after the data copy: every disk is fully restored by then.
+_POST_COPY_PHASES = ("finalizing", "network", "booting", "probing")
+
+
+def restore_disk_fills(run: dict) -> dict[str, int] | None:
+    """Per-disk fill (0–100) for the disk bar of a running restore, by disk key
+    ("scsi0"), or None when the bar shows plain sizes. From the per-disk progress
+    the worker records; a single disk falls back to the run's percent (older runs,
+    or before the first disk line)."""
+    if run.get("status") != "running":
+        return None
+    disks = run.get("disks") or []
+    if run.get("phase") in _POST_COPY_PHASES:
+        return {d["dev"]: 100 for d in disks}
+    fills = {k: int(v) for k, v in (run.get("disk_progress") or {}).items()}
+    if not fills and len(disks) == 1:
+        fills = {disks[0]["dev"]: int(run.get("percent") or 0)}
+    return {d["dev"]: fills.get(d["dev"], 0) for d in disks} if disks else fills
 
 
 def restore_probe_countdown(run: dict, now: datetime | None = None) -> dict | None:
@@ -204,6 +228,7 @@ def restore_phase_timings(run: dict) -> list[dict]:
 templates.env.filters["datetime_local"] = datetime_local
 templates.env.filters["restore_status_tooltip"] = restore_status_tooltip
 templates.env.filters["restore_eta"] = restore_eta_text
+templates.env.filters["disk_fills"] = restore_disk_fills
 templates.env.filters["run_log"] = format_run_log
 templates.env.filters["restore_check_chips"] = restore_check_chips
 templates.env.filters["format_bytes"] = format_size

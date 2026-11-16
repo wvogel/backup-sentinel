@@ -266,6 +266,9 @@ def init_db() -> None:
             # up), for the live card's countdown and progress bar.
             cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS probe_started_at TIMESTAMPTZ")
             cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS probe_ends_at TIMESTAMPTZ")
+            # Per-disk copy progress while restoring ({"scsi0": 100, "scsi1": 42}),
+            # so the disk bar of the running card shows which disk is being copied.
+            cur.execute("ALTER TABLE restore_runs ADD COLUMN IF NOT EXISTS disk_progress JSONB")
             # Operator asked to abort a running run; the worker's long loops poll
             # this and tear the environment down cleanly (status → cancelled).
             cur.execute(

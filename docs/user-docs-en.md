@@ -28,7 +28,7 @@ At the top, one box titled *Restore tests* (the whole box links to `/restore`). 
 - **Critical** -- VMs whose restore test is well overdue.
 - **This month** -- Restore tests recorded in the current calendar month.
 
-Below on the left, the running restore with the same ring and details as on `/restore` (VM, phase, data read, throughput, ETA), updated live; while the guest boots and its reachability is checked, a countdown with a bar runs down the probe window (first delay plus timeout) until the test gives up; with nothing running, the queue state. On the right, the restore server's RAM and storage rings.
+Below on the left, the running restore with the same ring and details as on `/restore` (VM, phase, data read, throughput, expected finish, disk bar with progress), updated live; while the guest boots and its reachability is checked, a countdown with a bar runs down the probe window (first delay plus timeout) until the test gives up; with nothing running, the queue state. On the right, the restore server's RAM and storage rings.
 
 At the bottom, *Recovery evidence* lists the latest restore tests as a table: VM, start, end, duration, status and the checks the automated probe ran (ICMP, ARP, each TCP port; green = passed on at least one of the guest's IPs). Manually documented tests show their date and "documented manually". The duration's tooltip shows where the time went (preparation, backup check, helper container, restore with throughput, network adjustment, booting, reachability check). *Booting* runs from the start command until the first green check (ICMP, ARP or a port); after that, *reachability check* counts. If no check turns green, booting shows 0 s — how fast the guest booted is unknown then, not that it failed to boot.
 
@@ -297,6 +297,6 @@ Everything generated on the server -- PDF reports, Gotify and email notification
 
 Configure the dedicated PVE-Restore host once under **Settings → Restore server**. Then enable the test **per VM** (in the VM settings panel on the cluster page): pick a cadence (month/quarter/half-year/year, default half-year), optional TCP ports (e.g. 3389, 445) and whether to hold on failure. **Test now** queues a run immediately.
 
-The **Restore tests** page (`/restore`) shows running runs with percent and ETA, host capacity, and — after a failure with hold — the held environments. There you can **re-test** after a fix, **document as successful** on success (which reaps it), or **reap** it. The queue can be paused/resumed manually.
+The **Restore tests** page (`/restore`) shows running runs with percent and expected finish ("until 16:20", like the backup tiles; with the date on another day). The disk bar below fills disk by disk with the share already copied; the disk being restored pulses at its edge. It also shows the host capacity and — after a failure with hold — the held environments. There you can **re-test** after a fix, **document as successful** on success (which reaps it), or **reap** it. The queue can be paused/resumed manually.
 
 This works the same for **VMs and LXC containers** — for a container just enter its service port as a TCP port (e.g. `5403` for a Corosync Qdevice), and the test verifies after the restore that the container boots and answers on that port.

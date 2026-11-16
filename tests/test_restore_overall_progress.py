@@ -39,7 +39,10 @@ class ProgressUpdaterTests(unittest.TestCase):
                 return 200 * G
 
         writes: list[dict] = []
-        with mock.patch.object(restore_worker.db_restore, "update_run", lambda run_id, **kw: writes.append(kw)):
+        with (
+            mock.patch.object(restore_worker.db_restore, "update_run", lambda run_id, **kw: writes.append(kw)),
+            mock.patch.object(restore_worker.db_restore, "get_run", lambda run_id: None),
+        ):
             on_progress = restore_worker._progress_updater(Server(), run_id=1, vmid=9000)
             for r in (0, 50 * G, 100 * G):
                 on_progress({"drive": "drive-scsi0", "percent": 0, "bytes_done": r})
@@ -58,11 +61,33 @@ class ProgressUpdaterTests(unittest.TestCase):
                 return 0  # can't determine the total yet
 
         writes: list[dict] = []
-        with mock.patch.object(restore_worker.db_restore, "update_run", lambda run_id, **kw: writes.append(kw)):
+        with (
+            mock.patch.object(restore_worker.db_restore, "update_run", lambda run_id, **kw: writes.append(kw)),
+            mock.patch.object(restore_worker.db_restore, "get_run", lambda run_id: None),
+        ):
             on_progress = restore_worker._progress_updater(Server(), run_id=1, vmid=9000)
             on_progress({"drive": "drive-scsi0", "percent": 7, "bytes_done": 7 * G})
         # No total → the raw per-disk percent is kept (no wrong overall number).
         self.assertEqual(writes[-1]["percent"], 7)
+
+    def test_records_per_disk_progress_for_the_disk_bar(self) -> None:
+        class Server:
+            def restore_total_bytes(self, vmid, guest_type="qemu"):
+                return 200 * G
+
+        writes: list[dict] = []
+        with (
+            mock.patch.object(restore_worker.db_restore, "update_run", lambda run_id, **kw: writes.append(kw)),
+            # Resumed run: scsi0 was already done before the app restart.
+            mock.patch.object(restore_worker.db_restore, "get_run", lambda run_id: {"disk_progress": {"scsi0": 100}}),
+        ):
+            on_progress = restore_worker._progress_updater(Server(), run_id=1, vmid=9000)
+            on_progress({"drive": "drive-scsi1", "percent": 10, "bytes_done": 10 * G})
+            on_progress({"drive": "drive-scsi1", "percent": 42, "bytes_done": 42 * G})
+            on_progress({"drive": "drive-scsi2", "percent": 3, "bytes_done": 1 * G})
+        self.assertEqual(writes[1]["disk_progress"], {"scsi0": 100, "scsi1": 42})
+        # Moving on to the next disk marks the previous one complete.
+        self.assertEqual(writes[2]["disk_progress"], {"scsi0": 100, "scsi1": 100, "scsi2": 3})
 
 
 if __name__ == "__main__":

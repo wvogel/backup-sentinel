@@ -219,12 +219,20 @@
         const eta = card.querySelector(".js-run-eta");
         if (eta) {
           if (r.eta) {
-            eta.textContent = (eta.dataset.etaLabel || "ETA") + " " + r.eta;
+            eta.textContent = r.eta;
             eta.hidden = false;
           } else {
             eta.textContent = "";
             eta.hidden = true;
           }
+        }
+        // Disk bar: fill each disk up to its copied share; the one in progress pulses.
+        for (const [dev, fill] of Object.entries(r.disks || {})) {
+          const seg = card.querySelector(`.vol-seg[data-dev="${CSS.escape(dev)}"]`);
+          if (!seg) continue;
+          seg.classList.add("vol-seg-fill");
+          seg.classList.toggle("is-active", fill > 0 && fill < 100);
+          seg.style.setProperty("--fill", fill + "%");
         }
       }
       // The runs table lists the same run: update its status cell too, so the
@@ -238,7 +246,7 @@
         if (rstatus) {
           let tip = r.phase;
           if (r.progress) tip += " · " + r.progress;
-          if (r.eta) tip += " · ETA " + r.eta; // on hover, during restoring
+          if (r.eta) tip += " · " + r.eta; // on hover, during restoring
           rstatus.dataset.tooltip = tip;
         }
       }

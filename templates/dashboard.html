@@ -56,9 +56,9 @@
         {%- if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
       {%- set _eta = run|restore_eta %}
       {{ pc.probe_countdown(run) }}
-      <span class="run-eta js-run-eta" data-eta-label="{{ t('restore.eta_label') }}"{% if not _eta %} hidden{% endif %}>{{ (t('restore.eta_label') ~ ' ' ~ _eta) if _eta else '' }}</span>
+      <span class="run-eta js-run-eta"{% if not _eta %} hidden{% endif %}>{{ _eta }}</span>
       {%- if run.disk_bytes %}<span class="muted run-size">{{ t('restore.size_label') }} {{ run.disk_bytes|size_coarse }}</span>{% endif %}
-      {%- if run.disks %}{{ vol.bar(run.disks, run.disk_bytes) }}{% endif %}
+      {%- if run.disks %}{{ vol.bar(run.disks, run.disk_bytes, fills=run|disk_fills) }}{% endif %}
     </div>
   </div>
   {% elif rp %}
