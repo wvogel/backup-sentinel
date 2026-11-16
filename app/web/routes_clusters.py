@@ -15,11 +15,11 @@ from app.models import RestoreTestCreate
 from app.services import sync_progress, topology_store
 from app.services.backup_status import RESTORE_CLASSES, assess_slow_backup, format_duration
 from app.services.bootstrap import slugify_cluster
-from app.services.human_format import format_rate, format_size
+from app.services.human_format import format_rate, format_size, format_size_coarse
 from app.services.proxmox_progress import running_backup_progress_cached, running_backup_progress_peek
 from app.services.reporting import build_compliance_summary
 from app.services.vzdump_log import parse_size
-from app.web.common import common_context, datetime_local, settings_actor, templates
+from app.web.common import common_context, datetime_local, settings_actor, templates, vol_seg_class
 from app.web.sync import background_sync, refresh_sync_job_states, sync_executor, sync_logs, syncing_clusters
 
 router = APIRouter()
@@ -124,6 +124,19 @@ def running_backup_info(progress: dict | None, typical_seconds: int | None = Non
         "line": " · ".join(parts) or t("cluster.backup_running"),
         "warning": t("cluster.running_slow", typical=format_duration(slow[0])) if slow else "",
         "title": progress.get("title", ""),
+        # Disk bar of the tile: one segment per disk (width ∝ size, colour =
+        # storage), filled up to what the backup has sent of it.
+        "disks": [
+            {
+                "dev": d["dev"],
+                "label": f"{d['dev']} · {format_size_coarse(d['size_bytes'])}",
+                "tip": f"{d['dev']} {format_size_coarse(d['size_bytes'])} · {d['storage']}",
+                "cls": vol_seg_class(d["storage"]),
+                "flex": max(1, d["size_bytes"] // 1_000_000),
+                "fill": d["fill"],
+            }
+            for d in progress.get("disks") or []
+        ],
     }
 
 

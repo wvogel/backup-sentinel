@@ -2844,6 +2844,9 @@ details[open] > .encryption-alert-summary::before {
   font-weight: 500;
 }
 .running-item-meta { color: var(--muted); font-size: 0.8rem; }
+/* Disk bar in a running-backup tile (same bar as the running-restore card). */
+.running-item-body:has(.running-item-bar) { flex: 1; }
+.running-item-bar { margin-top: 5px; max-width: none; }
 .running-slow { color: var(--warn); font-weight: 700; font-size: 0.8rem; white-space: nowrap; }
 
 /* Dashboard cluster card. */

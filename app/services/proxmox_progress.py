@@ -47,6 +47,17 @@ _DIRTY_RE = re.compile(
 )
 # vzdump names every disk it backs up: "include disk 'scsi0' 'local:144/vm-144-disk-0.qcow2' 150G".
 _INCLUDE_DISK_RE = re.compile(r"include disk '(?P<drive>[\w-]+)' '(?P<volid>[^']+)'", re.IGNORECASE)
+# The same line with the disk's size ("150G", "2T", "512M"), for the tile's disk bar.
+_INCLUDE_DISK_SIZE_RE = re.compile(
+    r"include disk '(?P<drive>[\w-]+)' '(?P<volid>[^']+)' (?P<size>\d+(?:\.\d+)?)(?P<unit>[KMGTP])\b", re.IGNORECASE
+)
+# Per disk: "scsi0: dirty-bitmap status: OK (4.0 GiB of 150.0 GiB dirty)" / "OK (drive clean)"
+# / "existing bitmap was invalid…" / "created new" (the last two: the whole disk is read).
+_DIRTY_STATUS_RE = re.compile(r"(?P<drive>[\w-]+): dirty-bitmap status: (?P<status>.*)", re.IGNORECASE)
+_DIRTY_OF_RE = re.compile(r"\((?P<dirty>[\d.]+\s*[KMGTPE]?i?B) of [^)]*dirty\)", re.IGNORECASE)
+_DISK_UNIT = {"K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4, "P": 1024**5}
+# Tiny helper volumes, left out of the disk bar (as in the size column).
+_BAR_SKIP_DRIVES = ("tpmstate", "efidisk")
 _VMID_RE = re.compile(r"\b(?:VM|CT)\s+(?P<vmid>\d+)\b|\b(?:qemu|lxc)[/-](?P<vmid2>\d+)\b", re.IGNORECASE)
 
 
@@ -241,7 +252,53 @@ def _parse_progress_data(
                 progress["eta_short"] = _fmt_short(eta)
             break
 
+    # Disk bar of the tile: which disk the backup is on and how far.
+    if (bar := _disk_bar(log_lines, progress.get("percent"))) is not None:
+        progress["disks"] = bar
     return progress
+
+
+# ── Disk bar ─────────────────────────────────────────────────────────────────
+# PVE backs up a VM's disks one after another, in the order vzdump lists them
+# ("include disk …"): in a full read of disks of 150 GiB, 2 TiB and 1 TiB the
+# first ~150 GiB are the first disk's data, then the second disk starts. So the
+# overall percentage maps onto the disks in that order — weighted by what each
+# disk contributes to the run: its dirty data in an incremental run, its whole
+# size when its bitmap was unusable, nothing when it is clean.
+
+
+def _disk_bar(log_lines: list[str], percent: int | None) -> list[dict[str, Any]] | None:
+    """Per disk ``{dev, storage, size_bytes, fill}`` (fill 0–100) in backup order, or
+    None when the log names no disks (containers, older PVE)."""
+    disks: list[dict[str, Any]] = []
+    for line in log_lines:
+        m = _INCLUDE_DISK_SIZE_RE.search(line)
+        if m and not m.group("drive").startswith(_BAR_SKIP_DRIVES):
+            size = int(float(m.group("size")) * _DISK_UNIT[m.group("unit").upper()])
+            disks.append({"dev": m.group("drive"), "storage": m.group("volid").split(":", 1)[0], "size_bytes": size})
+    if not disks:
+        return None
+    weights = {d["dev"]: float(d["size_bytes"]) for d in disks}
+    for line in log_lines:
+        m = _DIRTY_STATUS_RE.search(line)
+        if not m or m.group("drive") not in weights:
+            continue
+        status = m.group("status")
+        if "clean" in status.lower():
+            weights[m.group("drive")] = 0.0
+        elif (dirty := _DIRTY_OF_RE.search(status)) and (size := parse_size(dirty.group("dirty"))) is not None:
+            weights[m.group("drive")] = float(size)
+    total = sum(weights.values())
+    pos = total * max(0, min(100, percent or 0)) / 100
+    start = 0.0
+    for d in disks:
+        w = weights[d["dev"]]
+        if w > 0:
+            d["fill"] = round(max(0.0, min(1.0, (pos - start) / w)) * 100)
+        else:  # nothing to send: done as soon as the run gets there
+            d["fill"] = 100 if pos >= start and (percent or 0) > 0 else 0
+        start += w
+    return disks
 
 
 # ── ETA ──────────────────────────────────────────────────────────────────────
