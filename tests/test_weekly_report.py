@@ -75,7 +75,13 @@ class BuildTests(unittest.TestCase):
         other = {**store, "pbs_name": "pbs-b", "pbs_fingerprint": "BB"}
         report = weekly_report.collect(
             [_row(vm_name="ok-vm")],
-            [store, {**store}, {**store, "pbs_name": "PBS-A "}, other, {**other, "pbs_name": "pbs-b-alias"}],
+            [
+                store,
+                {**store, "pbs_fingerprint": "AA"},  # same name, one connection has a fingerprint
+                {**store, "pbs_name": "PBS-A ", "pbs_fingerprint": "CC"},  # same name, another fingerprint
+                other,
+                {**other, "pbs_name": "pbs-b-alias"},  # same fingerprint, other name
+            ],
             {"full_runs": [], "failed": 0},
             self.NOW,
         )

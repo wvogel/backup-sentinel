@@ -109,14 +109,17 @@ class WeeklyReport:
 def _unique_datastores(datastores: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Each datastore once. A PBS attached to several clusters has one connection
     (and so one usage row) per cluster — the same store would be listed once per
-    cluster. Same PBS = same certificate fingerprint, else the same name."""
+    cluster. Same PBS = same name or same certificate fingerprint (a connection
+    may not have stored one)."""
     seen: set[tuple[str, str]] = set()
     out = []
     for d in datastores:
-        key = ((d.get("pbs_fingerprint") or d["pbs_name"]).strip().lower(), d["store"])
-        if key not in seen:
-            seen.add(key)
+        keys = {("name:" + d["pbs_name"].strip().lower(), d["store"])}
+        if d.get("pbs_fingerprint"):
+            keys.add(("fp:" + d["pbs_fingerprint"].strip().lower(), d["store"]))
+        if not keys & seen:
             out.append(d)
+        seen |= keys
     return out
 
 
