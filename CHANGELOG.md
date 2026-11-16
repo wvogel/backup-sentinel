@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.13.1] — 2026-11-16
+
+### Fixed
+
+- **Weekly report still showed a datastore twice.** The connections of the same PBS in different clusters can carry different (or no) certificate fingerprints, so v3.13.0 still kept two of three. A datastore now counts as the same if the PBS has the same name *or* the same fingerprint.
+
 ## [v3.13.0] — 2026-11-16
 
 ### Changed
