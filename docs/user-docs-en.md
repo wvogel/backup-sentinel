@@ -38,7 +38,7 @@ Below, one row per cluster, all of the same height:
 
 - The cluster **name**, under it the **sync symbols**: a server symbol for PVE and a database symbol per PBS. Their color shows how current the data is: green = last sync succeeded and at most two sync intervals ago (one missed run is fine), yellow = older or the latest attempt failed, red = no successful sync for over 24 hours or the last PBS sync failed, grey = PBS never synced. One shared tooltip gives PVE's state, last successful sync and, if any, "error state since", and each PBS's last sync and its result.
 - Next to the name, what is **running right now**: "1 backup", "2 backups", "1 replication" with a turning symbol (tooltip: the VMs, or source → target). Short of room they move next to the symbols; the row does not grow.
-- On the right the **tiles**: nodes, VMs, critical, warnings, encrypted, restore due. Tiles that need attention have a colored border. With a quorum device (QDevice) the nodes tile shows a small "+Q" next to the count (tooltip: state and QNetd host); it turns yellow when the QDevice is not connected.
+- On the right the **tiles**: nodes, VMs, critical, warnings, encrypted, restore due. "Restore due" counts VMs whose restore test is overdue or has never run — not the heads-up "due in N d". Tiles that need attention have a colored border. With a quorum device (QDevice) the nodes tile shows a small "+Q" next to the count (tooltip: state and QNetd host); it turns yellow when the QDevice is not connected.
 
 Click a cluster row to navigate to the cluster detail page.
 

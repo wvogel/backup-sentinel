@@ -49,8 +49,10 @@ def cadence_days(cadence: str) -> int:
 
 
 RESTORE_CLASSES = (*RESTORE_CLASS_INTERVALS, "none")
-# Restore statuses that count as "due" ("open" = never tested yet).
-RESTORE_DUE_STATUSES = frozenset({"open", "warning", "critical"})
+# Restore statuses that count as "due": never tested yet ("open") or expired
+# ("critical"). "warning" is only the heads-up before the due date — it shows
+# as "due in N d" on the VM but is not due yet, so it is not counted.
+RESTORE_DUE_STATUSES = frozenset({"open", "critical"})
 
 
 def format_duration(seconds: int) -> str:

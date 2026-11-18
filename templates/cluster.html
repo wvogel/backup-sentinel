@@ -139,7 +139,7 @@
       </thead>
       <tbody>
         {% for row in vm_rows %}
-        {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['open', 'warning', 'critical'] %}restore-overdue {% endif %}{% if row.vm_gone %}vm-gone{% endif %}{% if row.is_problem %} problem{% endif %}{% endset %}
+        {% set row_tags %}{% if row.backup_severity == 'critical' %}backup-critical {% endif %}{% if row.backup_severity == 'warning' %}backup-warning {% endif %}{% if row.restore_due_status in ['open', 'critical'] %}restore-overdue {% endif %}{% if row.vm_gone %}vm-gone{% endif %}{% if row.is_problem %} problem{% endif %}{% endset %}
         <tr class="{% if row.vm_gone %}vm-gone-row{% endif %}{% if row.running %} is-running{% endif %}"{% if row.running and row.running.percent is not none %} style="--pct:{{ row.running.percent }}"{% endif %} data-node-name="{{ row.node_name }}" data-tags="{{ row_tags.strip() }}" data-vmid="{{ row.vmid }}" data-vm-id="{{ row.id }}" aria-expanded="false" data-vm-name="{{ row.vm_name }}"{% if row.live_backup_progress %} data-live="1"{% endif %}{% if row.running %} data-running-warning="{{ row.running.warning }}" data-running-details="{{ row.running.details|join('\n') }}" data-running-disks="{{ row.running.disks|tojson|forceescape }}" title="{{ row.running.line }}{% if row.running.warning %}&#10;{{ row.running.warning }}{% endif %}{% if row.running.title %}&#10;{{ row.running.title }}{% elif row.in_progress_since %}&#10;{{ t('progress.start', time=row.in_progress_since|datetime_local) }}{% endif %}"{% endif %}>
           {%- set protect_lines = [] -%}
           {%- if row.copy_count -%}
