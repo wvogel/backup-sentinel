@@ -27,6 +27,7 @@ class ReportingTests(unittest.TestCase):
         governance_rows = [
             {"restore_required": True, "restore_due_status": "warning"},
             {"restore_required": True, "restore_due_status": "critical"},
+            {"restore_required": True, "restore_due_status": "open"},
             {"restore_required": False, "restore_due_status": "ok"},
         ]
         restore_tests = [
@@ -36,7 +37,8 @@ class ReportingTests(unittest.TestCase):
 
         summary = build_compliance_summary(governance_rows, restore_tests)
 
-        self.assertEqual(summary["restore_required"], 2)
+        self.assertEqual(summary["restore_required"], 3)
+        # The heads-up ("warning", due in N days) is not due yet.
         self.assertEqual(summary["restore_overdue"], 2)
         self.assertEqual(summary["restore_critical"], 1)
         self.assertGreaterEqual(summary["tested_this_month"], 1)

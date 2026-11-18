@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.17.3] — 2026-11-18
+
+### Fixed
+
+- **"Restore due" counted tests that were not due yet.** The tile, its filter, the dashboard, the weekly report and the metrics also counted the heads-up before the due date (from 14 days ahead; on a monthly cadence that starts 16 days after a passed test). Seen live: fw-central and srv01-aboe-muc, tested successfully on 1 and 2 November, showed as "2 restore due". Only overdue and never-tested VMs count now; the heads-up stays on the VM as "due in N d".
+
 ## [v3.17.2] — 2026-11-16
 
 ### Fixed
