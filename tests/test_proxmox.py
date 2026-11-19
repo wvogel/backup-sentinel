@@ -147,7 +147,22 @@ class RunningBackupsForClustersTests(unittest.TestCase):
     def setUp(self) -> None:
         proxmox_progress._cache.clear()
 
-    def test_page_loads_never_wait_and_refresh_in_the_background(self) -> None:
+    def test_nothing_cached_fetches_live_before_answering(self) -> None:
+        # A page opened after a quiet spell must show running backups at
+        # once, not only after a reload.
+        def fake_fetch(cluster, nodes, timeout=5.0):
+            if cluster["id"] == 1:
+                return {103: {"percent": 48}}, True
+            if cluster["id"] == 2:
+                return {}, False  # a node's task list failed
+            raise RuntimeError("boom")
+
+        clusters = [({"id": i}, ["n1"]) for i in (1, 2, 3)]
+        with mock.patch.object(proxmox_progress, "_fetch_running_backup_progress", side_effect=fake_fetch):
+            result = proxmox_progress.cached_running_backups(clusters)
+        self.assertEqual(result, {1: {103: {"percent": 48, "label": "Backup 48%", "title": ""}}, 2: None, 3: None})
+
+    def test_slow_clusters_are_waited_for_only_briefly(self) -> None:
         import threading
 
         release = threading.Event()
@@ -161,8 +176,11 @@ class RunningBackupsForClustersTests(unittest.TestCase):
             raise RuntimeError("boom")
 
         clusters = [({"id": i}, ["n1"]) for i in (1, 2, 3)]
-        with mock.patch.object(proxmox_progress, "_fetch_running_backup_progress", side_effect=fake_fetch):
-            # Nothing cached: answers at once, refreshes behind the scenes.
+        with (
+            mock.patch.object(proxmox_progress, "_fetch_running_backup_progress", side_effect=fake_fetch),
+            mock.patch.object(proxmox_progress, "_PAGE_WAIT_SECONDS", 0.05),
+        ):
+            # Slower than the wait: answers without it, refreshes behind the scenes.
             self.assertEqual(proxmox_progress.cached_running_backups(clusters), {1: None, 2: None, 3: None})
             release.set()
             proxmox_progress._executor.submit(lambda: None).result()
