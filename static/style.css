@@ -2986,6 +2986,15 @@ html[data-theme="dark"] .node-filter-button.is-active {
   opacity: 0.045;
   animation: topo-flow var(--sweep-time, 2.4s) linear infinite;
 }
+/* Chevrons of a running backup: cut out of the pipe in the panel colour —
+   dark on the light-blue pipe in dark mode, white on the blue one in light
+   mode — so they read clearly, unlike a faint light streak. */
+.topo-chevron {
+  fill: none;
+  stroke: var(--panel);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .topo-active .topo-line.topo-line-sync { animation: topo-flow var(--flow-time, 1s) linear infinite; }
 @keyframes topo-flow { to { stroke-dashoffset: var(--flow-shift, -24px); } }
 @media (prefers-reduced-motion: reduce) {
