@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.17.4] — 2026-11-19
+
+### Fixed
+
+- **The overview showed running backups only after a reload.** The overview reads running backups from a short-lived cache and never waited for PVE. When nobody had looked for a few minutes, the cache was stale. The page then showed only the sync's in-progress markers, which expire after 6 hours, so long backups were missing. The refresh it started filled the cache only for the next load, and the overview has no live poll. With nothing recent cached, the overview now fetches all clusters live in parallel and waits up to 4 seconds. A slow or unreachable cluster still falls back as before.
+
 ## [v3.17.3] — 2026-11-18
 
 ### Fixed

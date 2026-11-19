@@ -11,6 +11,7 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import wait as wait_futures
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -605,6 +606,10 @@ _executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="backup-progres
 _inflight: dict[Any, Future[tuple[dict[int, dict[str, Any]], bool]]] = {}
 # How old a cached result may be and still be shown while a refresh runs.
 _PEEK_MAX_AGE = 300.0
+# How long the overview waits for live data when nothing recent is cached
+# (all clusters together). Without it, a page opened after a quiet spell
+# showed no running backups until the next reload.
+_PAGE_WAIT_SECONDS = 4.0
 
 
 def _localize_all(progress: dict[int, dict[str, Any]]) -> dict[int, dict[str, Any]]:
@@ -660,23 +665,49 @@ def running_backup_progress_peek(
     recent is cached. A stale or missing entry is refreshed in the background,
     so the next look (or the page's poll) gets live data.
     """
+    progress, complete, _future = _peek(cluster, nodes)
+    return progress, complete
+
+
+def _peek(
+    cluster: dict[str, Any], nodes: list[str]
+) -> tuple[dict[int, dict[str, Any]] | None, bool, Future[tuple[dict[int, dict[str, Any]], bool]] | None]:
+    """`running_backup_progress_peek` plus the refresh it started, if any."""
+    future = None
     with _cache_lock:
         hit = _cache.get(cluster["id"])
         age = time.monotonic() - hit[0] if hit else None
         if age is None or age >= _CACHE_MAX_AGE:
-            _refresh_future(cluster, nodes)
+            future = _refresh_future(cluster, nodes)
     if hit and age is not None and age < _PEEK_MAX_AGE:
-        return _localize_all(hit[1]), hit[2]
-    return None, False
+        return _localize_all(hit[1]), hit[2], future
+    return None, False, future
 
 
 def cached_running_backups(
     clusters: list[tuple[dict[str, Any], list[str]]],
 ) -> dict[int, dict[int, dict[str, Any]] | None]:
-    """Running backups of several clusters from the cache, without waiting;
-    None for a cluster with no recent or no complete data."""
+    """Running backups of several clusters; None for a cluster with no recent
+    or no complete data.
+
+    Recent cached data is used as is. Clusters with nothing recent cached are
+    fetched live in parallel, waiting at most `_PAGE_WAIT_SECONDS` in total —
+    a slow or unreachable cluster then gets None (the caller falls back to
+    the sync's in-progress markers) and is filled in by the next look.
+    """
     result: dict[int, dict[int, dict[str, Any]] | None] = {}
+    pending: dict[int, Future[tuple[dict[int, dict[str, Any]], bool]]] = {}
     for cluster, nodes in clusters:
-        progress, complete = running_backup_progress_peek(cluster, nodes)
+        progress, complete, future = _peek(cluster, nodes)
+        if progress is None and future is not None:
+            pending[cluster["id"]] = future
+            continue
         result[cluster["id"]] = progress if progress is not None and complete else None
+    if pending:
+        done, _ = wait_futures(pending.values(), timeout=_PAGE_WAIT_SECONDS)
+        for cid, future in pending.items():
+            result[cid] = None
+            if future in done and future.exception() is None:
+                progress, complete = future.result()
+                result[cid] = _localize_all(progress) if complete else None
     return result
