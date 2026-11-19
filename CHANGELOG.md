@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.17.5] — 2026-11-19
+
+### Fixed
+
+- **The disk bar of a running backup appeared only after the page had been open for a while.** Only the live poll (every 30 seconds) built the bar. The tiles the server delivers on page load had none. The server-rendered tile now carries the same disk bar.
+
 ## [v3.17.4] — 2026-11-19
 
 ### Fixed
