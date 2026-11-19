@@ -93,8 +93,67 @@
     return group;
   }
 
-  // Only while data moves (running backup or sync): a light streak runs
-  // through the pipe as in a running VM row, a replication's blocks move.
+  // Backup pipes: chevrons (›) cut into the pipe travel along it, round
+  // corners and on into the arrowhead. One animation loop drives every set;
+  // a set whose pipe was redrawn away drops out of it.
+  var chevronSets = [];
+  var chevronLoop = false;
+  var CHEVRON_SPEED = 70; // px/s
+
+  function chevrons(target, d, width) {
+    var probe = document.createElementNS(SVG_NS, "path");
+    probe.setAttribute("d", d);
+    probe.setAttribute("fill", "none");
+    target.appendChild(probe);
+    var total = probe.getTotalLength();
+    var gap = Math.max(18, width * 1.4);
+    var half = width * 0.3, depth = width * 0.24;
+    var items = [];
+    for (var i = 0; i < Math.ceil(total / gap) + 2; i++) {
+      var c = document.createElementNS(SVG_NS, "path");
+      c.setAttribute("d", "M" + -depth + "," + -half + " L0,0 L" + -depth + "," + half);
+      c.setAttribute("class", "topo-chevron");
+      c.setAttribute("stroke-width", Math.max(2, width * 0.13));
+      target.appendChild(c);
+      items.push(c);
+    }
+    chevronSets.push({ probe: probe, items: items, total: total, gap: gap });
+    if (!chevronLoop) {
+      chevronLoop = true;
+      requestAnimationFrame(chevronTick);
+    }
+  }
+
+  function chevronTick(now) {
+    chevronSets = chevronSets.filter(function (set) { return set.probe.isConnected; });
+    if (!chevronSets.length) {
+      chevronLoop = false;
+      return;
+    }
+    chevronSets.forEach(function (set) {
+      // Wall-clock phase: a redraw or a page reload carries on seamlessly.
+      var shift = (((performance.timeOrigin + now) / 1000) * CHEVRON_SPEED) % set.gap;
+      set.items.forEach(function (c, i) {
+        var at = shift + (i - 1) * set.gap;
+        if (at < 0 || at > set.total) {
+          c.style.display = "none";
+          return;
+        }
+        var a = set.probe.getPointAtLength(Math.max(0, at - 1));
+        var b = set.probe.getPointAtLength(Math.min(set.total, at + 1));
+        var p = set.probe.getPointAtLength(at);
+        var angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+        c.style.display = "";
+        // Fade in at the start, out at the tip.
+        c.style.opacity = Math.max(0, Math.min(1, at / set.gap, (set.total - at) / set.gap));
+        c.setAttribute("transform", "translate(" + p.x + "," + p.y + ") rotate(" + angle + ")");
+      });
+    });
+    requestAnimationFrame(chevronTick);
+  }
+
+  // Only while data moves (running backup or sync): chevrons run through a
+  // backup pipe, a replication's blocks move with a light streak over them.
   function animate(svg, path, arrowhead, r, edge, cls) {
     if (calm || !edge.active) return;
     var width = r.width;
@@ -110,6 +169,10 @@
     var cycle = length + streak; // from just before the start to past the end
     var time = Math.max(1.6, cycle / 260).toFixed(2) + "s";
     var target = shapeMask(svg, path, arrowhead);
+    if (edge.kind !== "sync") {
+      chevrons(target, d, width);
+      return;
+    }
     STREAK_LAYERS.forEach(function (share) {
       var dash = streak * share;
       var start = (streak + dash) / 2; // centre half a streak before the start

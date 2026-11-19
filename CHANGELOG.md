@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.18.0] — 2026-11-19
+
+### Changed
+
+- **A running backup's pipe in the diagram now shows travelling chevrons.** The soft light streak was barely visible on the light-blue pipe. Chevrons (›) now run through it, cut out in the panel colour, round corners and on into the arrowhead. That reads clearly in dark and light mode and differs from a replication's moving blocks, which keep their streak. The chevrons keep time with the clock, so a refresh or reload does not restart them. They stay still with reduced motion.
+
 ## [v3.17.6] — 2026-11-19
 
 ### Changed
