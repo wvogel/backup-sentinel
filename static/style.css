@@ -2781,7 +2781,9 @@ details[open] > .encryption-alert-summary::before {
 }
 .running-item {
   display: flex;
-  align-items: center;
+  /* Top-aligned: tiles of one row have equal height but differing content
+     (slow-warning, disk bar); centred, their first lines would not line up. */
+  align-items: flex-start;
   justify-content: flex-start; /* a button, but laid out like a box */
   gap: 12px;
   width: 100%;

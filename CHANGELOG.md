@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.17.6] — 2026-11-19
+
+### Changed
+
+- **Running backup tiles start at the top.** The tiles of a row share one height but not their content: some have a "slow" line, and the disk bars differ. Centred vertically, the names and the rings sat at different heights. Ring and text now start at the top edge.
+
 ## [v3.17.5] — 2026-11-19
 
 ### Fixed
