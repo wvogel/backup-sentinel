@@ -102,6 +102,10 @@
         <span class="running-item-body">
           <span class="running-item-name">{{ row.vm_name }}<span class="running-item-id">{{ row.vmid }}</span></span>
           {%- for line in row.running.details %}<span class="running-item-meta">{{ line }}</span>{% endfor %}
+          {#- Same disk bar as backup-progress.js builds on each poll. #}
+          {%- if row.running.disks %}<span class="vol-bar running-item-bar">
+            {%- for d in row.running.disks %}<span class="vol-seg vol-seg-fill {{ d.cls }}{% if 0 < d.fill < 100 %} is-active{% endif %}" style="flex: {{ d.flex }}; --fill: {{ d.fill }}%" data-tooltip="{{ d.tip }}"><span class="vol-seg-label">{{ d.label }}</span></span>{% endfor -%}
+          </span>{% endif %}
           {%- if row.running.warning %}<span class="running-slow">{{ row.running.warning }}</span>{% endif %}
         </span>
       </button>

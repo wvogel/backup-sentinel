@@ -772,6 +772,26 @@ class ClusterPageTests(DbTestCase):
             html = self.client.get("/clusters/test").text
         self.assertIn("is-running", html)
 
+    def test_running_tile_has_its_disk_bar_on_load(self) -> None:
+        # Not only after the first poll: the server-rendered tile carries it too.
+        progress = {
+            100: {
+                "percent": 40,
+                "line": "Backup 40%",
+                "disks": [
+                    {"dev": "scsi0", "storage": "nas3", "size_bytes": 100 * 2**30, "fill": 100},
+                    {"dev": "scsi1", "storage": "nas3", "size_bytes": 250 * 2**30, "fill": 20},
+                ],
+            }
+        }
+        with mock.patch("app.web.routes_clusters.running_backup_progress_peek", return_value=(progress, True)):
+            html = self.client.get("/clusters/test").text
+        tile = html.split('class="running-item"', 1)[1].split("</button>", 1)[0]
+        self.assertIn("running-item-bar", tile)
+        self.assertIn("scsi0 · 100 GB", tile)
+        self.assertIn("--fill: 20%", tile)
+        self.assertEqual(tile.count("is-active"), 1)  # only the disk in progress
+
     def test_overview_shows_running_replication(self) -> None:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
