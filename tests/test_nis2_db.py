@@ -193,12 +193,17 @@ class Nis2RoutesTestCase(Nis2DbTestCase):
         self.assertEqual(self.client.get("/reports/preview?month=10-2026").status_code, 400)
 
     def test_set_report_since(self) -> None:
-        res = self.client.post("/clusters/test/report-since", data={"report_since": "2026-07"}, follow_redirects=False)
+        with patch("app.web.routes_clusters.sync_executor") as executor:
+            res = self.client.post(
+                "/clusters/test/report-since", data={"report_since": "2026-07"}, follow_redirects=False
+            )
         self.assertEqual(res.status_code, 303)
+        executor.submit.assert_called_once_with(report_archive.rebuild_report_archive)
         self.assertEqual(db.get_cluster_by_slug("test")["report_since"], date(2026, 7, 1))
         self.assertEqual(db.get_settings_dict("report_archive_format")["report_archive_format"], "0")
         self.assertIn('value="2026-07"', self.client.get("/settings").text)
-        self.client.post("/clusters/test/report-since", data={"report_since": ""})
+        with patch("app.web.routes_clusters.sync_executor"):
+            self.client.post("/clusters/test/report-since", data={"report_since": ""})
         self.assertIsNone(db.get_cluster_by_slug("test")["report_since"])
         bad = self.client.post("/clusters/test/report-since", data={"report_since": "07/2026"})
         self.assertEqual(bad.status_code, 400)

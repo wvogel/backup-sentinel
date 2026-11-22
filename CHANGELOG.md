@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.9] — 2026-11-22
+
+### Changed
+
+- **Changing "NIS2 evidence from" rebuilds the archive right away**, in the background, instead of with the next sync up to an hour later.
+
 ## [v3.19.8] — 2026-11-22
 
 ### Added

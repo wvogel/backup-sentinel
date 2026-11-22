@@ -202,7 +202,7 @@ Jede Cluster-Karte hat einen Button **PBS hinzufügen**, um einen Proxmox Backup
 2. Den Befehl kopieren und auf dem PBS-Host als root ausführen.
 3. Die Seite wartet auf den Abschluss. Nach der Verbindung erscheint der PBS unter dem Cluster mit eigenem Sync-Symbol (Klick öffnet sein Log).
 
-Über den PBS steht **NIS2-Nachweis ab**: der erste Monat, den der NIS2-Bericht für diesen Cluster misst. Das braucht es, wenn die VMs erst später eingezogen sind und ältere Snapshots mitgebracht haben – sonst zählten sie für Monate, in denen der Cluster noch leer war. Leer = ab Aufnahme in Backup Sentinel. Davor erscheint der Cluster in keinem Bericht, und Monate ohne gemessene VM bekommen gar keinen Bericht. Eine Änderung erstellt die Monatsberichte im Archiv beim nächsten Sync neu (ohne E-Mail); Zwischenberichte bleiben.
+Über den PBS steht **NIS2-Nachweis ab**: der erste Monat, den der NIS2-Bericht für diesen Cluster misst. Das braucht es, wenn die VMs erst später eingezogen sind und ältere Snapshots mitgebracht haben – sonst zählten sie für Monate, in denen der Cluster noch leer war. Leer = ab Aufnahme in Backup Sentinel. Davor erscheint der Cluster in keinem Bericht, und Monate ohne gemessene VM bekommen gar keinen Bericht. Eine Änderung erstellt die Monatsberichte im Archiv sofort im Hintergrund neu (ohne E-Mail); Zwischenberichte bleiben.
 
 Jeder angebundene PBS hat zwei Felder:
 

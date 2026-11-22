@@ -202,7 +202,7 @@ Each cluster card has an **Add PBS** button to connect a Proxmox Backup Server:
 2. Copy the command and run it on the PBS host as root.
 3. The page waits for completion. Once connected, the PBS appears under the cluster with its own sync symbol (click opens its log).
 
-Above the PBS sits **NIS2 evidence from**: the first month the NIS2 report measures for this cluster. It is needed when the VMs moved in later and brought older snapshots — otherwise they would count for months in which the cluster was still empty. Empty = since it was added to Backup Sentinel. Before it, the cluster appears in no report, and months without any measured VM get no report at all. A change recreates the monthly reports in the archive with the next sync (without email); interim reports stay.
+Above the PBS sits **NIS2 evidence from**: the first month the NIS2 report measures for this cluster. It is needed when the VMs moved in later and brought older snapshots — otherwise they would count for months in which the cluster was still empty. Empty = since it was added to Backup Sentinel. Before it, the cluster appears in no report, and months without any measured VM get no report at all. A change recreates the monthly reports in the archive right away in the background (without email); interim reports stay.
 
 Each connected PBS has two fields:
 

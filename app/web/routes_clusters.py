@@ -407,6 +407,7 @@ def update_report_since(request: Request, cluster_slug: str, report_since: str =
     if month != cluster.get("report_since"):
         db.set_cluster_report_since(cluster["id"], month)
         report_archive.request_archive_rebuild()
+        sync_executor.submit(report_archive.rebuild_report_archive)  # now, not with the next sync
         try:
             db.append_audit_event(
                 settings_actor(request), "cluster.report_since", cluster_slug, f"report_since={value or '-'}"
