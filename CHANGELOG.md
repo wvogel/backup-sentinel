@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.18.1] — 2026-11-22
+
+### Fixed
+
+- **The reports page tiles now sit in one grid.** The totals at the top and the counts of each cluster used different gaps (12 vs 8 px), so the cluster columns sat up to 16 px to the right of the tiles above them. Only the last column lined up. A VM's pills sat 4 px further right still. Every row now uses the same gap and right edge, so all columns line up at any width.
+
 ## [v3.18.0] — 2026-11-19
 
 ### Changed

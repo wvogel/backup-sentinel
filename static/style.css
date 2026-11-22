@@ -1327,8 +1327,9 @@ html[data-theme="dark"] .brand-logo-dark {
   padding: var(--pad-box) var(--pad-card);
 }
 
+/* Pull the pills out of the row's padding so they end where the cluster tiles do. */
 .vm-summary-row .report-status-cols {
-  margin-right: -16px;
+  margin-right: calc(-1 * var(--pad-card));
 }
 
 .vm-backup-summary::-webkit-details-marker { display: none; }
@@ -2308,7 +2309,8 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 .report-status-cols {
   display: grid;
   grid-template-columns: repeat(5, 90px);
-  gap: 8px;
+  /* Same gap as the totals tiles above, so every column lines up. */
+  gap: var(--gap);
   margin-left: auto;
   flex-shrink: 0;
 }
