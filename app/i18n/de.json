@@ -815,7 +815,7 @@
   "nis2.app_gaps": "Anhang · Lücken über RPO",
   "nis2.app_gaps_sub": "Alle Lücken im Zeitraum. Eine Lücke liegt vor, wenn zwischen zwei erfolgreichen Backups mehr als RPO + {tolerance} h liegen; gezählt wird dann die ganze Zeit über dem RPO.",
   "nis2.app_protocol": "Anhang · Restore-Testprotokoll",
-  "nis2.app_protocol_sub": "Jeder im Zeitraum abgeschlossene Restore-Versuch, automatisch oder dokumentiert – auch fehlgeschlagene. Ein nicht voll bestandener Versuch, nach dem dieselbe VM im Zeitraum einen Test bestanden hat, ist ausgegraut und zählt nicht.",
+  "nis2.app_protocol_sub": "Jeder im Zeitraum abgeschlossene Restore-Test, automatisch oder dokumentiert, mit jeder einzelnen Prüfung.",
   "nis2.app_calendar": "Anhang · Backup-Kalender",
   "nis2.app_calendar_sub": "Je VM und Tag: im RPO gesichert oder von einer Lücke betroffen. Leer: VM bestand an dem Tag (noch) nicht.",
   "nis2.cal_ok": "im RPO",
@@ -825,7 +825,7 @@
   "nis2.m_rpo_2": "Als Backup zählt jede erfolgreiche Sicherung, auch wenn sie später durch Aufbewahrungsregeln gelöscht wurde. Eine Lücke liegt vor, wenn zwischen zwei erfolgreichen Backups mehr als RPO + {tolerance} h liegen (die Toleranz fängt verschobene Startzeiten ab). Liegt eine Lücke vor, zählt die gesamte Zeit über dem RPO als nicht gesichert. Wöchentlich gesicherte VMs haben mindestens 180 h RPO.",
   "nis2.m_rpo_3": "Lückenlosigkeit = gesicherte VM-Stunden ÷ gemessene VM-Stunden.",
   "nis2.m_restore_1": "Testpflichtig sind VMs mit Backup-Pflicht, bei denen der Restore-Test nicht abgeschaltet ist. Ein Test ist gültig, wenn ein bestandener (oder eingeschränkt bestandener) Restore-Test innerhalb des Prüfintervalls der VM liegt (Turnus: Monat, Quartal, Halbjahr, Jahr; bei wöchentlichen Backups mindestens ein Jahr).",
-  "nis2.m_restore_2": "Restore-Nachweis = VMs mit gültigem Test am letzten Tag des Zeitraums ÷ testpflichtige VMs. Das Protokoll enthält jeden Versuch, auch fehlgeschlagene; automatische Tests stellen die VM isoliert wieder her, starten sie und prüfen die Erreichbarkeit (ICMP/ARP und konfigurierte TCP-Ports). Ein nicht voll bestandener Versuch (fehlgeschlagen, Fehler, abgebrochen oder eingeschränkt) zählt nicht, wenn dieselbe VM danach im Zeitraum einen Test bestanden hat; er bleibt im Protokoll sichtbar.",
+  "nis2.m_restore_2": "Restore-Nachweis = VMs mit gültigem Test am letzten Tag des Zeitraums ÷ testpflichtige VMs. Automatische Tests stellen die VM isoliert wieder her, starten sie und prüfen die Erreichbarkeit (ICMP/ARP und konfigurierte TCP-Ports). Ein nicht voll bestandener Versuch (fehlgeschlagen, Fehler, abgebrochen oder eingeschränkt) entfällt, wenn dieselbe VM danach im Zeitraum einen Test bestanden hat.",
   "nis2.m_targets_title": "Ziele und Bewertung",
   "nis2.m_targets": "Lückenlosigkeit: erfüllt ab {rpo_good} %, Hinweis ab {rpo_warn} %, darunter Handlungsbedarf. Restore-Nachweis: erfüllt ab {restore_good} %, Hinweis ab {restore_warn} %, darunter Handlungsbedarf. Die Gesamtbewertung ist die schlechtere der beiden; ist eine VM am Ende des Zeitraums außerhalb ihres RPO, mindestens „Hinweis“.",
   "nis2.m_rounding": "Prozentwerte sind ganze Zahlen und werden abgeschnitten, nie aufgerundet: 100 % steht nur, wenn nichts gefehlt hat. Stunden ebenso.",
@@ -865,6 +865,5 @@
   "reports.untested": "ohne Test",
   "reports.all": "Gesamt",
   "reports.no_clusters": "Noch keine Cluster registriert.",
-  "reports.trigger_interim": "Zwischenbericht",
-  "nis2.superseded": "ersetzt durch den bestandenen Test vom {at} – zählt nicht"
+  "reports.trigger_interim": "Zwischenbericht"
 }

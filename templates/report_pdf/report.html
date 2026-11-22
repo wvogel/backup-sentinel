@@ -96,16 +96,11 @@ td.wrap { white-space: normal; }
 .appendix tr { break-inside: avoid; }
 table.fixed { table-layout: fixed; }
 table.fixed td { overflow: hidden; text-overflow: ellipsis; }
-tr.has-note td { border-bottom: 0; }
-tr.noterow td { border-top: 0; padding-top: 0; white-space: normal; }
-/* Superseded by a later passed test of the same VM: on record, not counted. */
-tr.superseded td { opacity: .55; }
 .chk { white-space: nowrap; margin-right: 1mm; }
 .chk.ok { color: var(--ok); }
 .chk.bad { color: var(--critical); font-weight: 600; }
 .chk.doc { color: var(--muted); }
 table.fixed td.wrap { white-space: normal; overflow: visible; }
-.supersede { font-size: 7pt; color: var(--muted); font-style: italic; }
 .cal { table-layout: fixed; }
 .cal th.d, .cal td.d { padding: .35mm .25mm; text-align: center; font-size: 5.6pt; letter-spacing: 0; }
 .cal td { border-top: 0; padding: .35mm 1.5mm .35mm 0; font-size: 7pt; overflow: hidden; text-overflow: ellipsis; }
@@ -248,7 +243,7 @@ body { width: 210mm; margin: 8mm auto; }
       </div>
     </div>
 
-    {%- set shown = c.protocol_counted %}
+    {%- set shown = c.protocol %}
     <div class="section"><div class="sh">{{ tr('tests_title') }}{% if shown|length > 4 %}<em>{{ tr('more_in_appendix', n=shown|length - 4) }}</em>{% endif %}</div>
       {% if shown %}
       <table style="font-size: 8.2pt">
@@ -296,10 +291,9 @@ body { width: 210mm; margin: 8mm auto; }
     <thead><tr><th>{{ tr('col_date') }}</th><th>{{ tr('col_vm') }}</th><th>{{ tr('col_snapshot') }}</th><th>{{ tr('col_result') }}</th><th class="num">{{ tr('col_duration') }}</th><th>{{ tr('col_checks') }}</th></tr></thead>
     <tbody>
     {% for p in c.protocol %}
-    <tr class="{{ 'has-note superseded' if p.superseded_by }}"><td>{{ p.at_label }}</td><td><b>{{ p.vm_name }}</b> <span class="muted">{{ p.vmid }}</span></td><td class="muted">{{ p.snapshot or '–' }}</td>
+    <tr><td>{{ p.at_label }}</td><td><b>{{ p.vm_name }}</b> <span class="muted">{{ p.vmid }}</span></td><td class="muted">{{ p.snapshot or '–' }}</td>
       <td><span class="res" style="color: {{ pal.tone(p.result_tone) }}">● {{ p.result_label }}</span></td><td class="num">{{ p.duration_label }}</td>
       <td class="wrap">{{ checks(p) }}</td></tr>
-    {% if p.superseded_by %}<tr class="noterow superseded"><td></td><td colspan="5"><div class="supersede">↳ {{ tr('superseded', at=p.superseded_by) }}</div></td></tr>{% endif %}
     {% endfor %}
     </tbody>
   </table>

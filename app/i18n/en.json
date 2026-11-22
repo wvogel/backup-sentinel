@@ -815,7 +815,7 @@
   "nis2.app_gaps": "Appendix · Gaps beyond RPO",
   "nis2.app_gaps_sub": "All gaps in the period. A gap exists when more than RPO + {tolerance} h lie between two successful backups; then the whole time beyond the RPO counts.",
   "nis2.app_protocol": "Appendix · Restore test log",
-  "nis2.app_protocol_sub": "Every restore attempt finished in the period, automatic or documented — failed ones included. An attempt that did not fully pass, followed by a passed test of the same VM in the period, is greyed out and not counted.",
+  "nis2.app_protocol_sub": "Every restore test finished in the period, automatic or documented, with each single check.",
   "nis2.app_calendar": "Appendix · Backup calendar",
   "nis2.app_calendar_sub": "Per VM and day: protected within RPO or touched by a gap. Empty: the VM did not exist (yet) that day.",
   "nis2.cal_ok": "within RPO",
@@ -825,7 +825,7 @@
   "nis2.m_rpo_2": "Every successful backup counts, even if retention deleted it later. A gap exists when more than RPO + {tolerance} h lie between two successful backups (the tolerance absorbs shifted start times). Then the whole time beyond the RPO counts as unprotected. Weekly backed-up VMs have an RPO of at least 180 h.",
   "nis2.m_rpo_3": "Backup continuity = protected VM hours ÷ measured VM hours.",
   "nis2.m_restore_1": "VMs that require backups and have restore testing enabled require tests. A test is valid when a passed (or limited) restore test lies within the VM's test interval (cadence: month, quarter, half-year, year; at least one year for weekly backups).",
-  "nis2.m_restore_2": "Restore evidence = VMs with a valid test on the last day of the period ÷ VMs requiring tests. The log lists every attempt, failed ones included; automatic tests restore the VM in isolation, boot it and check reachability (ICMP/ARP and configured TCP ports). An attempt that did not fully pass (failed, error, cancelled or limited) does not count when the same VM passed a test later in the period; it stays visible in the log.",
+  "nis2.m_restore_2": "Restore evidence = VMs with a valid test on the last day of the period ÷ VMs requiring tests. Automatic tests restore the VM in isolation, boot it and check reachability (ICMP/ARP and configured TCP ports). An attempt that did not fully pass (failed, error, cancelled or limited) is left out when the same VM passed a test later in the period.",
   "nis2.m_targets_title": "Targets and rating",
   "nis2.m_targets": "Backup continuity: met from {rpo_good} %, remark from {rpo_warn} %, below that action required. Restore evidence: met from {restore_good} %, remark from {restore_warn} %, below that action required. The overall rating is the worse of the two; a VM outside its RPO at the end of the period makes it at least a remark.",
   "nis2.m_rounding": "Percentages are whole numbers, truncated, never rounded up: 100 % only when nothing was missed. Hours likewise.",
@@ -865,6 +865,5 @@
   "reports.untested": "untested",
   "reports.all": "Overall",
   "reports.no_clusters": "No clusters registered yet.",
-  "reports.trigger_interim": "interim",
-  "nis2.superseded": "superseded by the passed test of {at} — not counted"
+  "reports.trigger_interim": "interim"
 }

@@ -189,8 +189,8 @@ def _protocol_rows(raw: list[dict], guests_by_id: dict[int, dict], tz: str, lang
 
 def _mark_superseded(rows: list[dict]) -> None:
     """A not fully passed attempt (failed, error, cancelled, limited) is superseded
-    when the same guest passed a test later in the period: it stays in the
-    appendix log, but no longer counts. `rows` are in time order."""
+    when the same guest passed a test later in the period; the report leaves it
+    out. `rows` are in time order."""
     for i, row in enumerate(rows):
         row["superseded_by"] = None
         if row["result"] == "passed":
@@ -287,6 +287,7 @@ def _scope_detail(
     vm_ids = {g["id"] for g, *_ in kpis["coverages"]}
     ok = sum(counts.get(i, (0, 0))[0] for i in vm_ids)
     failed = sum(counts.get(i, (0, 0))[1] for i in vm_ids)
+    # A superseded attempt is left out entirely (figures, cluster page, appendix).
     counted = [p for p in protocol if not p["superseded_by"]]
     passed_runs = [p for p in counted if p["result"] in _PASSED]
     durations = [p["duration_seconds"] for p in passed_runs if p["duration_seconds"]]
@@ -319,8 +320,7 @@ def _scope_detail(
         "day_pcts": day_pcts,
         "day_tones": [m.day_tone(p) for p in day_pcts],
         "calendar": cal_rows,
-        "protocol": protocol,  # every attempt (appendix)
-        "protocol_counted": counted,  # without superseded attempts (figures, cluster page)
+        "protocol": counted,
     }
     s["verdict"] = m.verdict(s["rpo_pct"], s["restore_pct"], open_gap=s["open_gaps"] > 0)
     s["verdict_label"] = tl(lang, f"nis2.verdict_{s['verdict']}")

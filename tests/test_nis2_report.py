@@ -56,14 +56,13 @@ class BuildTest(unittest.TestCase):
         self.assertNotIn("srv-mar-25", names)  # weekly: 3 days off is within 180 h
         self.assertIn("srv-mar-22", names)
 
-    def test_failed_attempt_superseded_by_later_pass_is_kept_but_not_counted(self):
+    def test_failed_attempt_followed_by_a_pass_is_left_out(self):
         mar = self.by["pve-dresden"]
-        failed = next(p for p in mar["protocol"] if p["result"] == "failed")
-        self.assertNotIn("note", failed)  # no failure details in the report
-        self.assertEqual(failed["superseded_by"], "14.10. 16:23")  # srv-mar-07 passed three days later
-        self.assertNotIn(failed, mar["protocol_counted"])
+        self.assertNotIn("failed", [p["result"] for p in mar["protocol"]])  # srv-mar-07 passed three days later
+        self.assertEqual(len(mar["protocol"]), 3)
         self.assertEqual((mar["tests_passed"], mar["tests_run"]), (3, 3))
-        self.assertEqual(len(mar["protocol"]), 4)  # still on record in the appendix
+        html = nis2_render.render_html(self.r)
+        self.assertNotIn("● fehlgeschlagen", html)
 
     def test_supersede_rules(self):
         rows = [
