@@ -5,6 +5,28 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.0] — 2026-11-22
+
+### Added
+
+- **NIS2 evidence report — replaces the backup report.** The old PDF listed every backup event per VM over dozens of pages. The new report proves what NIS2 (Art. 21 (2) c) asks for: gap-free backups and logged restore tests. It is written for the IT lead, management and auditors.
+  - **Two key figures, defined precisely.**
+    - *Backup continuity* is the share of time every VM had a successful backup within its RPO. A gap only counts when more than RPO + 12 h lie between two backups (schedule drift is no gap); then the whole time beyond the RPO counts. VMs without a backup job are measured too, as daily, from when they were first seen. Pruned backups still count.
+    - *Restore evidence* is the share of VMs requiring tests with a passed test within their cadence.
+  - **No rounding up.** Percentages are whole numbers, truncated: "100 %" only when nothing was missed. Colours follow the printed number.
+  - **Structure.** An overview page with the verdict in plain words, both figures as rings with their target, 12-month trends and a cluster table with traffic lights, plus sign-off lines for IT lead and management. Then one page per cluster with a daily strip, the gaps beyond RPO, the test status, the tests due and the period's tests. The appendix holds all gaps, the complete restore test log (failed attempts included, with the reason), the backup calendar per VM and day, and the method.
+  - **Files.** Each report is written as one overall PDF, one PDF per cluster and a JSON file with every computed value.
+  - **Rendering.** The report is built as HTML/CSS and printed with WeasyPrint. Charts are inline SVG. It uses the theme colours and the header wordmark. The brand font comes from the new `BSENTINEL_BRAND_FONT_URL`; without it, the image's Inter is used.
+- **/reports shows the month so far.** Each cluster row now shows continuity, restore evidence, gaps, untested VMs and the verdict, in the same grid as the totals. **Preview** opens the report in the browser (overall or per cluster). **Create interim report** archives the current state. The archive offers the overall PDF, each cluster's PDF and the JSON.
+
+### Fixed
+
+- **A manual report no longer suppresses the month's automatic report.** The monthly run skipped any month that already had a report, including a snapshot made by hand mid-month. Now only an earlier automatic report counts.
+
+### Removed
+
+- The per-event backup report (ReportLab) and its drill-down on /reports, along with ReportLab and svglib. Archived old reports stay downloadable.
+
 ## [v3.18.2] — 2026-11-22
 
 ### Changed

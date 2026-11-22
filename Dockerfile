@@ -23,9 +23,14 @@ WORKDIR /app
 RUN groupadd --system --gid 1000 app \
     && useradd --system --uid 1000 --gid app --no-create-home app
 
-COPY requirements.txt requirements-nodeps.txt ./
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir --no-deps -r requirements-nodeps.txt
+# WeasyPrint (NIS2 PDF report) renders with Pango/HarfBuzz; Inter is the
+# report font when no brand font (BSENTINEL_BRAND_FONT_URL) is configured.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-inter fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY templates ./templates
@@ -38,6 +43,7 @@ COPY --from=helper /restore-helper.tar.gz /app/assets/restore-helper.tar.gz
 RUN mkdir -p /data /reports && chown -R app:app /data /reports /app
 
 ENV BSENTINEL_DATA_DIR=/data \
+    XDG_CACHE_HOME=/tmp/cache \
     BSENTINEL_REPORT_DIR=/reports \
     PYTHONUNBUFFERED=1
 

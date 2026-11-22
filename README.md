@@ -29,7 +29,7 @@ Compliance-focused monitoring for Proxmox backup infrastructure. Track backup st
 - **Logs** — Sync logs and restore-test notes open in a dialog with one-click copy
 - **Restore test documentation** — Record and track recovery tests (full, partial, file-based) for compliance evidence
 - **Automated restore testing** — A dedicated PVE-Restore scratch server restores each VM's latest complete backup on a per-VM schedule (month / quarter / half-year / year), boots it in a fully isolated sandbox, verifies it is up and on the network (ARP/ICMP liveness + optional TCP ports — so even a firewalled Windows guest is confirmed), then tears everything down — cancellable at any time, with the full log and result in the same restore-test data store. See [Automated restore testing](#automated-restore-testing)
-- **Reports** — Monthly PDF/JSON reports with per-cluster and per-VM breakdown, archive for audit; weekly HTML email summary
+- **NIS2 evidence report** — Monthly (and on-demand interim) PDF report proving gap-free backups against each VM's RPO and logged restore tests: executive overview, one page per cluster, restore test log, backup calendar and method; overall and per-cluster PDFs plus JSON, archived for audits; weekly HTML email summary
 - **Notifications** — Gotify push for failed syncs, critical backups, slow backups, failed verifies, datastores filling up and anomalies (bundled, deduplicated, held back during quiet hours); SMTP email for sync outages over 24 h, the monthly PDF report and the weekly report; history with CSV export at `/notifications`
 - **Multi-cluster** — Monitor multiple PVE clusters and PBS instances from one place
 - **Monitoring** — `/healthz` and Prometheus metrics at `/metrics`
@@ -153,7 +153,6 @@ backup-sentinel/
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pip install --no-deps -r requirements-nodeps.txt
 
 # Run locally (requires PostgreSQL)
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

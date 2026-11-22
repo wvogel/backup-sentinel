@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from calendar import monthrange
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -100,24 +99,43 @@ def cluster_summaries(
 
 
 def archive_monthly_report(
-    report_month: date, trigger_mode: str, pdf_path: Any, json_path: Any, report: dict[str, Any]
+    report_month: date,
+    trigger_mode: str,
+    pdf_path: Any,
+    json_path: Any,
+    report: dict[str, Any],
+    files: dict[str, str] | None = None,
 ) -> None:
+    """Archive one generation. `files` maps "all" / a cluster slug to its PDF."""
     now = datetime.now(UTC)
     snapshot = serialize_report_payload(report)
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO monthly_reports (report_month, generated_at, trigger_mode, pdf_path, json_path, snapshot_json)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO monthly_reports
+                (report_month, generated_at, trigger_mode, pdf_path, json_path, snapshot_json, files)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
-            (report_month, now, trigger_mode, str(pdf_path), str(json_path), Jsonb(snapshot)),
+            (
+                report_month,
+                now,
+                trigger_mode,
+                str(pdf_path),
+                str(json_path),
+                Jsonb(snapshot),
+                Jsonb(files) if files is not None else None,
+            ),
         )
         conn.commit()
 
 
 def list_monthly_reports() -> list[MonthlyReportRow]:
     with connect() as conn, conn.cursor() as cur:
-        cur.execute("SELECT * FROM monthly_reports ORDER BY generated_at DESC")
+        # Without the snapshot: old reports stored every backup event there.
+        cur.execute(
+            "SELECT id, report_month, generated_at, trigger_mode, pdf_path, json_path, files"
+            " FROM monthly_reports ORDER BY generated_at DESC"
+        )
         return list(cur.fetchall())
 
 
@@ -499,66 +517,13 @@ def cleanup_stale_inprogress_backups(cluster_id: int, max_age_hours: int = 48) -
         return merged + aborted
 
 
-def list_backup_events_for_period(
-    period_start: datetime, period_end: datetime, cluster_id: int | None = None
-) -> list[dict[str, Any]]:
-    params: list[Any] = [period_start, period_end]
-    query = """
-        SELECT
-            be.id, be.started_at, be.finished_at, be.duration_seconds,
-            be.size_bytes, be.encrypted, be.verify_state,
-            be.status, be.upid, be.source, be.removed_at,
-            v.name AS vm_name, v.vmid, v.node_name,
-            c.name AS cluster_name, c.slug AS cluster_slug, c.id AS cluster_id
-        FROM backup_events be
-        JOIN vms v ON v.id = be.vm_id
-        JOIN clusters c ON c.id = v.cluster_id
-        WHERE be.started_at >= %s AND be.started_at < %s
-    """
-    if cluster_id is not None:
-        query += " AND v.cluster_id = %s"
-        params.append(cluster_id)
-    query += " ORDER BY c.name, v.name, be.started_at DESC"
-    with connect() as conn, conn.cursor() as cur:
-        cur.execute(query, params)
-        return list(cur.fetchall())
-
-
-def list_all_report_backup_events(cluster_id: int | None = None, *, limit: int = 50_000) -> list[dict[str, Any]]:
-    params: list[Any] = []
-    query = """
-        SELECT
-            be.id, be.started_at, be.finished_at, be.duration_seconds,
-            be.size_bytes, be.encrypted, be.verify_state,
-            be.status, be.upid, be.source, be.removed_at,
-            v.name AS vm_name, v.vmid, v.node_name,
-            c.name AS cluster_name, c.slug AS cluster_slug, c.id AS cluster_id
-        FROM backup_events be
-        JOIN vms v ON v.id = be.vm_id
-        JOIN clusters c ON c.id = v.cluster_id
-        WHERE 1 = 1
-    """
-    if cluster_id is not None:
-        query += " AND v.cluster_id = %s"
-        params.append(cluster_id)
-    query += " ORDER BY c.name, v.name, be.started_at DESC LIMIT %s"
-    params.append(limit)
-    with connect() as conn, conn.cursor() as cur:
-        cur.execute(query, params)
-        return list(cur.fetchall())
-
-
 def get_monthly_report_for_month(month: date) -> MonthlyReportRow | None:
+    """The automatic report of a month — a manual interim report does not count,
+    or one made mid-month would suppress the month's real report."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT * FROM monthly_reports WHERE report_month = %s ORDER BY generated_at DESC LIMIT 1",
+            "SELECT * FROM monthly_reports WHERE report_month = %s AND trigger_mode = 'auto'"
+            " ORDER BY generated_at DESC LIMIT 1",
             (month,),
         )
         return cur.fetchone()
-
-
-def backup_events_for_month(year: int, month: int, cluster_id: int | None = None) -> list[dict[str, Any]]:
-    month_start = datetime(year, month, 1, tzinfo=UTC)
-    _, last_day = monthrange(year, month)
-    month_end = datetime(year, month, last_day, 23, 59, 59, tzinfo=UTC)
-    return list_backup_events_for_period(month_start, month_end, cluster_id)

@@ -13,10 +13,13 @@ DATABASE_URL = os.getenv(
 _raw_app_url = os.getenv("APP_URL", "")
 APP_BASE_URL = _raw_app_url.replace("http://", "https://", 1) if _raw_app_url.startswith("http://") else _raw_app_url
 DEFAULT_TIMEZONE = os.getenv("BSENTINEL_DEFAULT_TIMEZONE", "Europe/Berlin")
-APP_VERSION = "v3.18.2"
+APP_VERSION = "v3.19.0"
 LOGOUT_URL = os.getenv("BSENTINEL_LOGOUT_URL", "/oauth2/sign_out")
 BRAND_LOGO_LIGHT_URL = os.getenv("BSENTINEL_BRAND_LOGO_LIGHT_URL") or ""
 BRAND_LOGO_DARK_URL = os.getenv("BSENTINEL_BRAND_LOGO_DARK_URL") or ""
+# Brand font for the PDF report: a URL with {weight} → Regular/Medium/SemiBold/Bold,
+# e.g. https://example.com/fonts/Brand-{weight}.woff2. Empty: system sans-serif.
+BRAND_FONT_URL = os.getenv("BSENTINEL_BRAND_FONT_URL") or ""
 
 FOOTER_LINKS = os.getenv("FOOTER_LINKS", "")
 COPYRIGHT_TEXT = os.getenv("COPYRIGHT_TEXT", "")

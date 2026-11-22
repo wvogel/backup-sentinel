@@ -542,13 +542,7 @@ def auto_generate_monthly_report() -> None:
         return
     logger.info("Auto report: generating the report for %s", last_month)
     try:
-        pdf_path = generate_archived_report(
-            last_month,
-            ts("report.monthly_period", month=last_month.strftime("%m/%Y")),
-            first_of_current.astimezone(UTC),
-            "auto",
-            now,
-        )
+        pdf_path = generate_archived_report(last_month, "auto", now.astimezone(UTC))
         logger.info("Auto report: PDF written: %s", pdf_path)
         send_monthly_report_email(pdf_path, last_month.strftime("%m/%Y"))
     except Exception as exc:

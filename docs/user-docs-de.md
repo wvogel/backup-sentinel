@@ -129,31 +129,32 @@ Eine Tabelle unterhalb des Formulars zeigt die jüngsten Restore-Tests für dies
 
 ## Berichte
 
-Die Berichtsseite (`/reports`) stellt monatliche Backup-Compliance-Berichte bereit.
+Die Berichtsseite (`/reports`) erstellt den **NIS2-Nachweis** zur Datensicherung (NIS2 Art. 21 (2) c, BSIG § 30 (1) Nr. 3): Er belegt lückenlose Backups und protokollierte Restore-Tests. Der Bericht richtet sich an IT-Leitung, Geschäftsführung und Auditoren: vorne eine Management-Zusammenfassung, dahinter die Belege.
 
-### Aktuelle Berichtszusammenfassung
+### Die beiden Kennzahlen
 
-Eine Hero-Karte am oberen Rand zeigt aggregierte Statistiken für den aktuellen Berichtszeitraum:
+- **Backup-Lückenlosigkeit** -- Anteil der Zeit, in der jede VM ein erfolgreiches Backup hatte, das nicht älter als ihr RPO war (Richtlinie der VM, Standard 24 h, wöchentlich gesicherte VMs mindestens 180 h). Gemessen wird jede VM mit Backup-Pflicht, auch VMs ohne eingerichteten Backup-Job (wie täglich), ab dem Zeitpunkt, an dem Backup Sentinel sie zuerst gesehen hat. Durch Aufbewahrung später gelöschte Backups zählen mit. Eine **Lücke** liegt erst vor, wenn zwischen zwei erfolgreichen Backups mehr als **RPO + 12 h** liegen; verschobene Startzeiten zählen also nicht. Liegt eine Lücke vor, zählt die gesamte Zeit über dem RPO. Ziel ≥ 99 %, Hinweis ab 98 %.
+- **Restore-Nachweis** -- Anteil der testpflichtigen VMs mit bestandenem (oder eingeschränkt bestandenem) Restore-Test innerhalb ihres Prüfintervalls (Turnus der VM), automatisch oder dokumentiert, am letzten Tag des Zeitraums. Ziel ≥ 90 %, Hinweis ab 80 %.
 
-- **Backups gesamt** -- Anzahl der Backup-Events.
-- **OK** -- Erfolgreiche Backups.
-- **Fehler** -- Fehlgeschlagene Backups.
-- **Gelöscht** -- Backups, die vom Speicher entfernt wurden.
-- **PDF-Snapshot**-Button -- Erzeugt auf Anforderung einen PDF-Bericht für den aktuellen Monat.
+Prozentwerte sind ganze Zahlen und werden **abgeschnitten, nie aufgerundet**: 100 % steht nur, wenn nichts gefehlt hat. Die Farbe richtet sich nach der gedruckten Zahl. Die Gesamtbewertung („Erfüllt“, „Erfüllt mit Hinweisen“, „Handlungsbedarf“) ist die schlechtere der beiden Kennzahlen. Ist eine VM am Ende des Zeitraums außerhalb ihres RPO, lautet sie mindestens „Hinweis“.
 
-### Cluster-Aufschlüsselung
+### Die Seite
 
-Unterhalb der Zusammenfassung wird jeder Cluster als aufklappbare Karte mit seiner VM-Anzahl und denselben Kennzahlen wie die Zusammenfassung dargestellt. Beim Aufklappen werden die VM-Details sichtbar:
+Oben stehen die Werte des laufenden Monats bis heute: Lückenlosigkeit, Restore-Nachweis, Lücken, VMs ohne gültigen Test und die Gesamtbewertung. **Vorschau** öffnet den Bericht im Browser. **Zwischenbericht erstellen** archiviert den aktuellen Stand als PDF. Darunter steht je Cluster eine Zeile mit denselben Kacheln und der Bewertung; die Kachel **Vorschau** zeigt den Bericht nur dieses Clusters.
 
-- Jede VM ist ein verschachtelter aufklappbarer Bereich.
-- VMs mit Fehlern oder Löschungen sind standardmäßig aufgeklappt.
-- Die innere Tabelle zeigt einzelne Backup-Events mit Datum, Größe, Verschlüsselungsstatus, Verifikationsstatus und Ergebnis.
+### Der Bericht (PDF)
+
+1. **Gesamtübersicht** -- Bewertung in Klartext, die beiden Kennzahlen als Ringe mit Ziel, vier Zahlen (erfolgreiche Backups, Lücken, bestandene Restore-Tests mit Ø Dauer, VMs ohne gültigen Test), der Verlauf beider Kennzahlen über 12 Monate (Monate vor Beginn der Aufzeichnung bleiben leer, nie 0 %), eine Tabelle der Cluster mit Ampel und Felder zur Kenntnisnahme durch IT-Leitung und Geschäftsführung.
+2. **Je Cluster eine Seite** -- Bewertung, Kennzahlen, ein Streifen mit der Lückenlosigkeit je Tag, die Lücken über RPO (letztes Backup davor, nächstes Backup, Stunden über RPO), der Teststatus der VMs (gültig, überfällig, nie getestet), die fälligen Tests und die Restore-Tests des Zeitraums.
+3. **Anhang** -- alle Lücken, das vollständige **Restore-Testprotokoll** (jeder abgeschlossene Versuch, auch fehlgeschlagene, mit Snapshot, Ergebnis, Dauer, Prüfungen und bei Fehlschlägen dem Grund), der **Backup-Kalender** je VM und Tag sowie eine Seite zur **Methode**.
+
+Zu jedem Bericht entsteht außerdem je Cluster ein eigenes PDF (Clusterseite mit Kenntnisnahme und Anhängen dieses Clusters) und eine JSON-Datei mit allen berechneten Werten.
 
 ### Berichtsarchiv
 
-Am unteren Rand steht eine Liste zuvor erstellter Berichte mit Monat, Erstellungszeit, Modus (automatisch oder manuell) und Download als PDF/JSON. Berichte werden im `/reports`-Volume gespeichert und bleiben über Container-Neustarts hinweg erhalten. **Löschen** entfernt einen archivierten Bericht nach einer Rückfrage.
+Am unteren Rand stehen alle erstellten Berichte mit Monat, Erstellungszeit und Art (automatisch oder Zwischenbericht). **Gesamt** lädt den Gesamtbericht, die Cluster-Namen laden das jeweilige Cluster-PDF, **JSON** die Daten. Berichte liegen im `/reports`-Volume. Ein archivierter Bericht ist der eingefrorene Nachweis seines Monats und ändert sich nicht mehr, auch wenn später VMs gelöscht werden. **Löschen** entfernt einen Bericht samt aller Dateien nach einer Rückfrage. Ältere Berichte aus der Zeit vor dem NIS2-Bericht bleiben als PDF/JSON abrufbar.
 
-Der Bericht des Vormonats wird beim ersten Sync nach dem Monatswechsel automatisch erstellt und, wenn E-Mail aktiv ist, als PDF an die Empfänger geschickt. Sie können jederzeit über den PDF-Snapshot-Button einen Bericht manuell auslösen.
+Der Bericht des Vormonats entsteht beim ersten Sync nach dem Monatswechsel automatisch und geht, wenn E-Mail aktiv ist, als PDF an die Empfänger. Ein Zwischenbericht verhindert den automatischen Monatsbericht nicht.
 
 ---
 

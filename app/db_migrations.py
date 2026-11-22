@@ -169,6 +169,25 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         ],
     ),
     # 10, 11: one-off data fixes, applied and removed. Numbers taken — never reuse.
+    (
+        12,
+        "NIS2 report: when a guest was first seen; per-scope report files",
+        # first_seen_at: a guest never backed up (or backed up late) counts as
+        # uncovered from when it was first seen. Existing guests get their
+        # earliest backup, or the migration time.
+        [
+            "ALTER TABLE vms ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ",
+            """
+            UPDATE vms SET first_seen_at = COALESCE(
+                (SELECT MIN(be.started_at) FROM backup_events be WHERE be.vm_id = vms.id), now()
+            )
+            WHERE first_seen_at IS NULL
+            """,
+            "ALTER TABLE vms ALTER COLUMN first_seen_at SET DEFAULT now()",
+            "ALTER TABLE vms ALTER COLUMN first_seen_at SET NOT NULL",
+            "ALTER TABLE monthly_reports ADD COLUMN IF NOT EXISTS files JSONB",
+        ],
+    ),
 ]
 
 

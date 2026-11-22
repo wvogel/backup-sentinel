@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ tr('title') }} · {{ month_label }}</title>
+{%- set footer_left = 'Backup Sentinel ' ~ version ~ ' · ' ~ tr('generated', at=generated_label) ~ ' · ' ~ (tr('trigger_auto') if r.trigger == 'auto' else tr('trigger_manual')) %}
+<style>
+{% for f in fonts %}
+@font-face { font-family: "Brand Sans"; font-weight: {{ f.weight }}; src: url({{ f.src }}); }
+{% endfor %}
+:root {
+  --ink: {{ pal.primary }}; --rule: {{ pal.rule }}; --muted: {{ pal.muted }};
+  --sand: {{ pal.sand }}; --paper: {{ pal.paper }}; --sage: {{ pal.sage }};
+  --ok: {{ pal.ok }}; --warn: {{ pal.warn }}; --critical: {{ pal.critical }};
+}
+@page {
+  size: A4;
+  margin: 16mm 16mm 17mm;
+  @top-left { content: "BACKUP SENTINEL · {{ tr('band_label')|e }}"; font: 700 6.8pt "Brand Sans", Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif; letter-spacing: .12em; color: {{ pal.muted }}; vertical-align: bottom; padding-bottom: 4mm; }
+  @top-right { content: "{{ month_label|e }}{% if r.period.interim %} · {{ tr('interim')|e }}{% endif %}"; font: 6.8pt "Brand Sans", Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif; color: {{ pal.muted }}; vertical-align: bottom; padding-bottom: 4mm; }
+  @bottom-left { content: "{{ footer_left|e }}"; width: 58%; font: 6.8pt "Brand Sans", Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif; color: {{ pal.muted }}; border-top: .3mm solid {{ pal.sage }}; vertical-align: middle; }
+  @bottom-right { content: "{{ tr('legal_basis')|e }}   ·   {{ tr('page')|e }} " counter(page) " {{ tr('of')|e }} " counter(pages); width: 42%; text-align: right; font: 6.8pt "Brand Sans", Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif; color: {{ pal.muted }}; border-top: .3mm solid {{ pal.sage }}; vertical-align: middle; white-space: pre; }
+}
+@page exec {
+  margin: 0 0 17mm;
+  @top-left { content: none; }
+  @top-right { content: none; }
+  @bottom-left { padding-left: 16mm; }
+  @bottom-right { padding-right: 16mm; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: "Brand Sans", Inter, "Segoe UI", -apple-system, Roboto, "DejaVu Sans", Arial, sans-serif; color: var(--ink); font-size: 9.3pt; line-height: 1.35; background: #fff; }
+.exec { page: exec; break-before: page; }
+.exec:first-child { break-before: auto; }
+.appendix { break-before: page; }
+.band { background: {{ pal.primary }}; height: 23mm; padding: 0 16mm; display: flex; align-items: center; justify-content: space-between; border-bottom: 2.2mm solid var(--rule); }
+.brand { display: flex; align-items: center; gap: 3mm; }
+.brand img.logo { height: 9mm; display: block; }
+.brand img.wordmark { height: 6.4mm; display: block; }
+.brand .wordmark-text { color: #c7ced8; font-size: 15pt; letter-spacing: -.01em; }
+.band .meta { text-align: right; color: {{ pal.band_ink }}; font-size: 8.3pt; line-height: 1.5; }
+.band .meta b { display: block; color: {{ pal.label }}; font-size: 7.3pt; letter-spacing: .14em; text-transform: uppercase; }
+.body { padding: 6mm 16mm 0; }
+.eyebrow { font-size: 7.3pt; letter-spacing: .14em; text-transform: uppercase; color: var(--rule); font-weight: 700; }
+h1 { font-size: 22pt; margin: 1.2mm 0 .8mm; letter-spacing: -.02em; line-height: 1.1; }
+h2.app { font-size: 15pt; margin: 0 0 1mm; letter-spacing: -.01em; }
+.sub { color: var(--muted); font-size: 9.2pt; }
+.verdict { margin: 4mm 0 3.5mm; padding: 3.2mm 5mm; border-radius: 3mm; display: flex; gap: 4mm; align-items: center; background: var(--sand); }
+.verdict .dot { width: 10mm; height: 10mm; border-radius: 50%; flex: none; text-align: center; line-height: 10mm; color: #fff; font-weight: 700; font-size: 13pt; }
+.verdict h3 { margin: 0; font-size: 12.5pt; }
+.verdict p { margin: .8mm 0 0; color: #3d3d66; }
+.heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+.hero { border: .3mm solid var(--sage); border-radius: 3mm; padding: 3.5mm 4.5mm; display: flex; gap: 5mm; align-items: center; }
+.hero svg { flex: none; }
+.hero h4 { margin: 0 0 1mm; font-size: 11pt; }
+.goal { font-size: 7.2pt; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+.hero p { margin: 1.3mm 0 0; color: #3d3d66; font-size: 8.4pt; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-top: 5mm; }
+.kpi { background: var(--paper); border-radius: 2.5mm; padding: 3mm 3.5mm; }
+.kpi strong { display: block; font-size: 15pt; letter-spacing: -.01em; }
+.kpi span { color: var(--muted); font-size: 7.6pt; display: block; line-height: 1.3; }
+.section { margin-top: 4.2mm; }
+.sh { margin: 0 0 2.2mm; font-size: 7.6pt; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; border-bottom: .3mm solid var(--sage); padding-bottom: 1.4mm; }
+.sh em { font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 500; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+.legend span { margin-left: 3mm; white-space: nowrap; }
+.legend i { display: inline-block; width: 2.4mm; height: 2.4mm; border-radius: .6mm; margin-right: 1mm; vertical-align: -.2mm; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 6.9pt; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; padding: 0 2mm 1.4mm; white-space: nowrap; }
+td { padding: 1.5mm 2mm; border-top: .3mm solid #ece9e3; vertical-align: middle; white-space: nowrap; }
+td.wrap { white-space: normal; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.bar { height: 2mm; background: var(--sand); border-radius: 1mm; overflow: hidden; width: 15mm; display: inline-block; vertical-align: middle; margin-right: 2mm; }
+.bar span { display: block; height: 100%; border-radius: 1mm; }
+.pill { display: inline-block; padding: .6mm 2.4mm; border-radius: 3mm; font-size: 7.4pt; font-weight: 600; }
+.res { font-weight: 600; }
+.days { display: flex; gap: .9mm; }
+.day { flex: 1; height: 7mm; border-radius: 1mm; }
+.daynums { display: flex; gap: .9mm; margin-top: 1mm; }
+.daynums span { flex: 1; text-align: center; font-size: 5.8pt; color: var(--muted); }
+.donutwrap { display: flex; gap: 5mm; align-items: center; }
+.dl div { margin: .9mm 0; font-size: 8.4pt; }
+.dl i { display: inline-block; width: 2.4mm; height: 2.4mm; border-radius: .6mm; margin-right: 1.4mm; }
+.sig { margin-top: 11mm; display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; font-size: 7.4pt; color: var(--muted); }
+.sig div { border-top: .3mm solid var(--ink); padding-top: 1.4mm; }
+.empty { color: var(--muted); font-size: 8.6pt; padding: 1.5mm 0; }
+/* Appendix tables */
+.appendix h2.app + .sub { margin-bottom: 4mm; }
+.appendix .group { margin: 5mm 0 1.5mm; font-weight: 700; font-size: 10pt; }
+.appendix table { font-size: 8pt; }
+.appendix thead { display: table-header-group; }
+.appendix tr { break-inside: avoid; }
+.note { white-space: pre-wrap; font-size: 7pt; color: var(--critical); }
+table.fixed { table-layout: fixed; }
+table.fixed td { overflow: hidden; text-overflow: ellipsis; }
+tr.has-note td { border-bottom: 0; }
+tr.noterow td { border-top: 0; padding-top: 0; white-space: normal; }
+.cal { table-layout: fixed; }
+.cal th.d, .cal td.d { padding: .35mm .25mm; text-align: center; font-size: 5.6pt; letter-spacing: 0; }
+.cal td { border-top: 0; padding: .35mm 1.5mm .35mm 0; font-size: 7pt; overflow: hidden; text-overflow: ellipsis; }
+.cal td.d i { display: block; height: 2.8mm; border-radius: .5mm; }
+.method p { margin: 0 0 2.6mm; max-width: 165mm; }
+.method h3 { font-size: 10pt; margin: 5mm 0 1.5mm; }
+/* Browser preview: sheets on a grey desk */
+{% if preview %}
+html { background: #8a8a99; }
+body { width: 210mm; margin: 8mm auto; }
+.exec, .appendix { background: #fff; margin-bottom: 8mm; padding-bottom: 10mm; box-shadow: 0 2mm 6mm rgba(0,0,0,.25); }
+.appendix { padding: 14mm 16mm; }
+{% endif %}
+</style>
+</head>
+<body>
+{%- macro band(title, sub) -%}
+<div class="band">
+  <div class="brand">{% if logo %}<img class="logo" src="{{ logo }}" alt="">{% endif %}{% if wordmark_png %}<img class="wordmark" src="{{ wordmark_png }}" alt="Backup Sentinel">{% else %}<b class="wordmark-text">BACKUP SENTINEL</b>{% endif %}</div>
+  <div class="meta"><b>{{ tr('band_label') }}</b>{{ title }}<br>{{ sub }}</div>
+</div>
+{%- endmacro -%}
+
+{%- macro verdict_box(s, title=None) -%}
+<div class="verdict">
+  <div class="dot" style="background: {{ pal.tone(s.verdict) }}">{{ '✓' if s.verdict == 'ok' else '!' }}</div>
+  <div><h3>{{ title or s.verdict_title }}</h3><p>{{ s.summary|join(' ') }}</p></div>
+</div>
+{%- endmacro -%}
+
+{%- macro heroes(s, size, rpo_sub, restore_sub) -%}
+<div class="heroes">
+  <div class="hero">{{ ring(s.rpo_pct, s.rpo_tone, size) }}<div>
+    <div class="goal">{{ tr('goal', pct=targets.rpo[0]) }}</div><h4>{{ tr('kpi_rpo') }}</h4><p>{{ rpo_sub }}</p></div></div>
+  <div class="hero">{{ ring(s.restore_pct, s.restore_tone, size) }}<div>
+    <div class="goal">{{ tr('goal', pct=targets.restore[0]) }}</div><h4>{{ tr('kpi_restore') }}</h4><p>{{ restore_sub }}</p></div></div>
+</div>
+{%- endmacro -%}
+
+{%- macro pct(v) -%}{{ '–' if v is none else v ~ ' %' }}{%- endmacro -%}
+
+{%- macro signoff() -%}
+<div class="section"><div class="sh">{{ tr('signoff') }}</div>
+  <div class="sig"><div>{{ tr('sign_it') }}</div><div>{{ tr('sign_md') }}</div></div></div>
+{%- endmacro -%}
+
+{# ───────────── Overall page ───────────── #}
+{% if r.overall %}
+{%- set o = r.overall %}
+<section class="exec">
+  {{ band(tr('monthly_report', month=month_label) if not r.period.interim else tr('interim_report', month=month_label), range_label) }}
+  <div class="body">
+    <div class="eyebrow">{{ tr('overview_eyebrow', clusters=o.clusters, vms=o.vms) }}</div>
+    <h1>{{ tr('title') }}</h1>
+    <div class="sub">{{ tr('subtitle') }}</div>
+    {{ verdict_box(o) }}
+    {{ heroes(o, 100, tr('kpi_rpo_def'), tr('kpi_restore_def')) }}
+    <div class="kpis">
+      <div class="kpi"><strong>{{ o.backups_ok_label }}</strong><span>{{ tr('fig_backups', failed=o.backups_failed)|safe }}</span></div>
+      <div class="kpi"><strong style="color: {{ pal.tone('ok' if not o.gap_count else ('critical' if o.open_gaps else 'warn')) }}">{{ o.gap_count }}</strong><span>{{ (tr('fig_gaps', hours=o.gap_hours, longest=o.longest_gap_hours) if o.gap_count else tr('fig_no_gaps'))|safe }}</span></div>
+      <div class="kpi"><strong>{{ o.tests_passed }}/{{ o.tests_run }}</strong><span>{{ tr('fig_tests', avg=o.avg_test_label)|safe }}</span></div>
+      {%- set missing = o.restore.overdue + o.restore.never %}
+      <div class="kpi"><strong style="color: {{ pal.tone('critical' if missing else 'ok') }}">{{ missing }}</strong><span>{{ tr('fig_untested', overdue=o.restore.overdue, never=o.restore.never)|safe }}</span></div>
+    </div>
+    <div class="section two">
+      <div><div class="sh">{{ tr('trend_rpo') }}<em>{{ tr('target', pct=targets.rpo[0]) }}</em></div>{{ trend(o.trend.rpo, 95, 100, targets.rpo[0], pal.primary) }}</div>
+      <div><div class="sh">{{ tr('trend_restore') }}<em>{{ tr('target', pct=targets.restore[0]) }}</em></div>{{ trend(o.trend.restore, 0, 100, targets.restore[0], pal.rule) }}</div>
+    </div>
+    <div class="section"><div class="sh">{{ tr('clusters') }}<em>{{ tr('clusters_hint') }}</em></div>
+      <table>
+        <thead><tr><th>{{ tr('col_cluster') }}</th><th class="num">{{ tr('col_vms') }}</th><th>{{ tr('kpi_rpo') }}</th><th class="num">{{ tr('col_gaps') }}</th><th>{{ tr('kpi_restore') }}</th><th class="num">{{ tr('col_open') }}</th><th>{{ tr('col_status') }}</th></tr></thead>
+        <tbody>
+        {% for c in r.clusters %}
+        <tr>
+          <td><b>{{ c.name }}</b></td><td class="num">{{ c.vms }}</td>
+          <td><span class="bar"><span style="width: {{ ((c.rpo_pct or 0) - 95) * 20 if (c.rpo_pct or 0) > 95 else 0 }}%; background: {{ pal.tone(c.rpo_tone) }}"></span></span><b>{{ pct(c.rpo_pct) }}</b></td>
+          <td class="num">{{ c.gap_count or '–' }}</td>
+          <td><span class="bar"><span style="width: {{ c.restore_pct or 0 }}%; background: {{ pal.tone(c.restore_tone) }}"></span></span><b>{{ pct(c.restore_pct) }}</b></td>
+          <td class="num">{{ (c.restore.overdue + c.restore.never) or '–' }}</td>
+          <td><span class="pill" style="background: {{ pal.soft(c.verdict) }}; color: {{ pal.tone(c.verdict) }}">{{ tr('status_' ~ c.verdict) }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ signoff() }}
+  </div>
+</section>
+{% endif %}
+
+{# ───────────── One page per cluster ───────────── #}
+{% for c in r.clusters %}
+<section class="exec">
+  {{ band(tr('cluster_label', name=c.name), month_label ~ (' · ' ~ tr('interim') if r.period.interim else '')) }}
+  <div class="body">
+    <div class="eyebrow">{{ tr('cluster_eyebrow', vms=c.vms, nodes=c.nodes) }}</div>
+    <h1>{{ c.name }}</h1>
+    {{ verdict_box(c, c.verdict_title) }}
+    {{ heroes(c, 96,
+        (tr('rpo_sub', n=c.gap_count, hours=c.gap_hours, longest=c.longest_gap_hours) if c.gap_count else tr('no_gaps_period')),
+        (tr('restore_sub', passed=c.tests_passed, run=c.tests_run, avg=c.avg_test_label) if c.tests_run else tr('sum_no_tests'))) }}
+
+    <div class="section"><div class="sh">{{ tr('days_title') }}<em class="legend"><span><i style="background: {{ pal.ok }}"></i>{{ tr('day_ok') }}</span><span><i style="background: {{ pal.warn }}"></i>{{ tr('day_warn', pct=targets.day[1]) }}</span><span><i style="background: {{ pal.critical }}"></i>{{ tr('day_critical', pct=targets.day[1]) }}</span></em></div>
+      <div class="days">{% for tone in c.day_tones %}<div class="day" style="background: {{ pal.tone(tone) if tone else pal.paper }}"></div>{% endfor %}</div>
+      <div class="daynums">{% for d in r.period.days %}<span>{{ d.day }}</span>{% endfor %}</div>
+    </div>
+
+    <div class="section"><div class="sh">{{ tr('gaps_title') }}{% if c.gaps|length > 4 %}<em>{{ tr('more_in_appendix', n=c.gaps|length - 4) }}</em>{% endif %}</div>
+      {% if c.gaps %}
+      <table>
+        <thead><tr><th>{{ tr('col_vm') }}</th><th>{{ tr('col_prev') }}</th><th>{{ tr('col_next') }}</th><th class="num">{{ tr('col_without') }}</th><th class="num">{{ tr('col_rpo') }}</th><th class="num">{{ tr('col_over') }}</th></tr></thead>
+        <tbody>
+        {% for g in c.gaps[:4] %}
+        <tr><td><b>{{ g.vm_name }}</b></td><td>{{ g.prev_label }}</td><td{% if g.open %} style="color: {{ pal.critical }}; font-weight: 600"{% endif %}>{{ g.next_label }}</td>
+          <td class="num">{{ g.without_hours }} h</td><td class="num">{{ g.rpo_hours }} h</td>
+          <td class="num" style="color: {{ pal.critical if g.open or g.over_hours >= 24 else pal.warn }}; font-weight: 600">{{ g.over_hours }} h</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty">{{ tr('no_gaps_period') }}</div>{% endif %}
+    </div>
+
+    <div class="section two">
+      <div><div class="sh">{{ tr('test_state') }}</div>
+        {% if c.restore_total %}
+        <div class="donutwrap">{{ donut([(c.restore.valid, pal.ok), (c.restore.overdue, pal.warn), (c.restore.never, pal.critical)]) }}
+          <div class="dl"><div><i style="background: {{ pal.ok }}"></i><b>{{ c.restore.valid }}</b> {{ tr('state_valid') }}</div><div><i style="background: {{ pal.warn }}"></i><b>{{ c.restore.overdue }}</b> {{ tr('state_overdue') }}</div><div><i style="background: {{ pal.critical }}"></i><b>{{ c.restore.never }}</b> {{ tr('state_never') }}</div></div></div>
+        {% else %}<div class="empty">{{ tr('no_restore_scope') }}</div>{% endif %}
+      </div>
+      <div><div class="sh">{{ tr('due_title') }}{% if c.due|length > c.due_shown|length %}<em>+ {{ c.due|length - c.due_shown|length }}</em>{% endif %}</div>
+        {% if c.due_shown %}
+        <table style="font-size: 8.4pt"><tbody>
+        {% for d in c.due_shown %}<tr><td><b>{{ d.vm_name }}</b></td><td style="color: {{ pal.critical if d.state == 'never' or (d.overdue_days or 0) > 30 else pal.warn }}">{{ tr('due_never') if d.state == 'never' else tr('due_overdue', days=d.overdue_days) }}</td></tr>{% endfor %}
+        </tbody></table>
+        {% else %}<div class="empty">{{ tr('nothing_due') }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="section"><div class="sh">{{ tr('tests_title') }}{% if c.protocol|length > 4 %}<em>{{ tr('more_in_appendix', n=c.protocol|length - 4) }}</em>{% endif %}</div>
+      {% if c.protocol %}
+      <table style="font-size: 8.2pt">
+        <thead><tr><th>{{ tr('col_date') }}</th><th>{{ tr('col_vm') }}</th><th>{{ tr('col_snapshot') }}</th><th>{{ tr('col_result') }}</th><th class="num">{{ tr('col_duration') }}</th><th>{{ tr('col_checks') }}</th></tr></thead>
+        <tbody>
+        {% for p in c.protocol[-4:]|reverse %}
+        <tr><td>{{ p.at_label }}</td><td><b>{{ p.vm_name }}</b></td><td class="muted">{{ p.snapshot or p.trigger }}</td>
+          <td><span class="res" style="color: {{ pal.tone(p.result_tone) }}">● {{ p.result_label }}</span></td>
+          <td class="num">{{ p.duration_label }}</td><td class="muted">{{ p.checks or '–' }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty">{{ tr('sum_no_tests') }}</div>{% endif %}
+    </div>
+    {% if r.single %}{{ signoff() }}{% endif %}
+  </div>
+</section>
+{% endfor %}
+
+{# ───────────── Appendix A: gaps ───────────── #}
+{% if r.clusters|selectattr('gap_count')|list %}
+<section class="appendix">
+  <h2 class="app">{{ tr('app_gaps') }}</h2>
+  <div class="sub">{{ tr('app_gaps_sub', tolerance=tolerance) }}</div>
+  {% for c in r.clusters if c.gaps %}
+  <div class="group">{{ c.name }}</div>
+  <table class="fixed">
+    <colgroup><col style="width: 46mm"><col><col><col style="width: 24mm"><col style="width: 16mm"><col style="width: 20mm"></colgroup>
+    <thead><tr><th>{{ tr('col_vm') }}</th><th>{{ tr('col_prev') }}</th><th>{{ tr('col_next') }}</th><th class="num">{{ tr('col_without') }}</th><th class="num">{{ tr('col_rpo') }}</th><th class="num">{{ tr('col_over') }}</th></tr></thead>
+    <tbody>{% for g in c.gaps %}<tr><td><b>{{ g.vm_name }}</b> <span class="muted">{{ g.vmid }}</span></td><td>{{ g.prev_label }}</td><td>{{ g.next_label }}</td><td class="num">{{ g.without_hours }} h</td><td class="num">{{ g.rpo_hours }} h</td><td class="num"><b>{{ g.over_hours }} h</b></td></tr>{% endfor %}</tbody>
+  </table>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ───────────── Appendix B: restore-test protocol ───────────── #}
+<section class="appendix">
+  <h2 class="app">{{ tr('app_protocol') }}</h2>
+  <div class="sub">{{ tr('app_protocol_sub') }}</div>
+  {% for c in r.clusters %}
+  <div class="group">{{ c.name }}</div>
+  {% if c.protocol %}
+  <table class="fixed">
+    <colgroup><col style="width: 19mm"><col style="width: 36mm"><col style="width: 29mm"><col style="width: 37mm"><col style="width: 23mm"><col style="width: 15mm"><col></colgroup>
+    <thead><tr><th>{{ tr('col_date') }}</th><th>{{ tr('col_vm') }}</th><th>{{ tr('col_trigger') }}</th><th>{{ tr('col_snapshot') }}</th><th>{{ tr('col_result') }}</th><th class="num">{{ tr('col_duration') }}</th><th>{{ tr('col_checks') }}</th></tr></thead>
+    <tbody>
+    {% for p in c.protocol %}
+    <tr class="{{ 'has-note' if p.note }}"><td>{{ p.at_label }}</td><td><b>{{ p.vm_name }}</b> <span class="muted">{{ p.vmid }}</span></td><td class="muted">{{ p.trigger }}</td><td class="muted">{{ p.snapshot or '–' }}</td>
+      <td><span class="res" style="color: {{ pal.tone(p.result_tone) }}">● {{ p.result_label }}</span></td><td class="num">{{ p.duration_label }}</td>
+      <td>{{ p.checks or '–' }}</td></tr>
+    {% if p.note %}<tr class="noterow"><td></td><td colspan="6"><div class="note">{{ p.note }}</div></td></tr>{% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">{{ tr('sum_no_tests') }}</div>{% endif %}
+  {% endfor %}
+</section>
+
+{# ───────────── Appendix C: backup calendar ───────────── #}
+<section class="appendix">
+  <h2 class="app">{{ tr('app_calendar') }}</h2>
+  <div class="sub">{{ tr('app_calendar_sub') }} <span class="legend"><span><i style="background: {{ pal.cal_ok }}"></i>{{ tr('cal_ok') }}</span><span><i style="background: {{ pal.critical }}"></i>{{ tr('cal_gap') }}</span></span></div>
+  {% for c in r.clusters %}
+  <div class="group">{{ c.name }}</div>
+  <table class="cal">
+    <colgroup><col style="width: 34mm">{% for d in r.period.days %}<col>{% endfor %}</colgroup>
+    <thead><tr><th></th>{% for d in r.period.days %}<th class="d">{{ d.day }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for row in c.calendar %}
+    <tr><td>{{ row.vm_name }}</td>{% for cell in row.cells %}<td class="d"><i style="background: {{ pal.cal_ok if cell == 'ok' else (pal.critical if cell == 'critical' else 'transparent') }}"></i></td>{% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+</section>
+
+{# ───────────── Appendix D: method ───────────── #}
+<section class="appendix method">
+  <h2 class="app">{{ tr('app_method') }}</h2>
+  <h3>{{ tr('kpi_rpo') }}</h3>
+  <p>{{ tr('m_rpo_1') }}</p>
+  <p>{{ tr('m_rpo_2', tolerance=tolerance) }}</p>
+  <p>{{ tr('m_rpo_3') }}</p>
+  <h3>{{ tr('kpi_restore') }}</h3>
+  <p>{{ tr('m_restore_1') }}</p>
+  <p>{{ tr('m_restore_2') }}</p>
+  <h3>{{ tr('m_targets_title') }}</h3>
+  <p>{{ tr('m_targets', rpo_good=targets.rpo[0], rpo_warn=targets.rpo[1], restore_good=targets.restore[0], restore_warn=targets.restore[1]) }}</p>
+  <p>{{ tr('m_rounding') }}</p>
+  <h3>{{ tr('m_sources_title') }}</h3>
+  <p>{{ tr('m_sources') }}</p>
+  <p>{{ tr('m_limits') }}</p>
+  <p class="muted">{{ tr('m_generated', at=generated_label, version=version) }}</p>
+</section>
+</body>
+</html>

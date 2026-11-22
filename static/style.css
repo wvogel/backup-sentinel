@@ -911,15 +911,17 @@ pre {
   width: 100%;
 }
 
-/* Columns right-aligned to match stat box grid: repeat(5, 90px) gap 8px */
-.archive-table col:nth-child(1) { width: auto; }  /* spacer */
-.archive-table col:nth-child(2) { width: 90px; }  /* month */
-.archive-table col:nth-child(3) { width: 188px; } /* generated = 2×90 + 8 gap */
-.archive-table col:nth-child(4) { width: 120px; } /* mode: "automatisch" fits */
-.archive-table col:nth-child(5) { width: 90px; }  /* PDF */
-.archive-table col:nth-child(6) { width: 90px; }  /* JSON */
-.archive-table col:nth-child(7) { width: 90px; }  /* delete */
-.archive-table col:nth-child(8) { width: 90px; }  /* empty */
+/* Month, generated and mode fixed; the PDFs (overall + one per cluster) take the rest. */
+.archive-table col:nth-child(1) { width: 0; }      /* spacer */
+.archive-table col:nth-child(2) { width: 90px; }   /* month */
+.archive-table col:nth-child(3) { width: 170px; }  /* generated */
+.archive-table col:nth-child(4) { width: 140px; }  /* mode: "Zwischenbericht" fits */
+.archive-table col:nth-child(5) { width: auto; }   /* PDFs */
+.archive-table col:nth-child(6) { width: 90px; }   /* JSON */
+.archive-table col:nth-child(7) { width: 90px; }   /* delete */
+.archive-table col:nth-child(8) { width: 0; }      /* empty */
+.archive-dl-cell { display: flex; flex-wrap: wrap; gap: 6px; }
+.archive-dl-cluster { font-weight: 500; }
 
 .archive-table thead th {
   top: var(--topbar-h);
@@ -2306,6 +2308,25 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   gap: var(--gap) 24px;
 }
 .report-hero > p { margin: 0; }
+.report-hero-text p { margin: 0; }
+/* Verdict of the month so far + the report preview, under the subtitle. */
+.report-hero-verdict { display: flex; align-items: center; gap: 10px; margin-top: 10px !important; }
+.report-preview-link { padding: 4px 12px; font-size: 0.8rem; }
+.verdict-pill { font-weight: 700; }
+.verdict-pill.is-ok { background: var(--ok-soft); color: var(--ok); }
+.verdict-pill.is-warn { background: var(--warn-soft); color: var(--warn); }
+.verdict-pill.is-critical { background: var(--critical-soft); color: var(--critical); }
+/* Cluster rows on /reports: a plain row (no drill-down), same grid as the totals. */
+.report-cluster-static {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--pad-card);
+}
+/* The preview sits in the column of the "create" button above it. */
+.report-preview-tile { color: var(--accent); transition: border-color 0.15s; }
+.report-preview-tile:hover { border-color: var(--accent); }
 
 .report-status-cols {
   display: grid;

@@ -119,17 +119,3 @@ def list_distinct_filters(days: int = 30) -> dict[str, list[str]]:
         )
         channels = [r["channel"] for r in cur.fetchall()]
         return {"types": types, "clusters": clusters, "channels": channels}
-
-
-def list_notification_logs_for_period(period_start: datetime, period_end: datetime) -> list[NotificationLogRow]:
-    with connect() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT id, notification_type, title, message, cluster_name, channel, created_at
-            FROM notification_log
-            WHERE created_at >= %s AND created_at < %s
-            ORDER BY created_at DESC
-            """,
-            (period_start, period_end),
-        )
-        return [NotificationLogRow(**row) for row in cur.fetchall()]

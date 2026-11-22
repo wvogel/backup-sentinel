@@ -102,6 +102,7 @@ Your reverse proxy should forward traffic to the OAuth2-Proxy container on port 
 | `BSENTINEL_INSECURE_SSL` | `false` | Disable SSL certificate verification for Proxmox/PBS APIs. Set to `true` if using self-signed certificates. |
 | `BSENTINEL_BRAND_LOGO_LIGHT_URL` | *(empty = no logo)* | Logo URL for light theme. Also shown in the weekly report header (SVG is converted to PNG and embedded; relative URLs outside `/static/` need `APP_URL`). |
 | `BSENTINEL_BRAND_LOGO_DARK_URL` | *(empty = no logo)* | Logo URL for dark theme. |
+| `BSENTINEL_BRAND_FONT_URL` | *(empty = system font)* | Font of the PDF report: a URL with `{weight}`, replaced by `Regular`, `Medium`, `SemiBold` and `Bold`, e.g. `https://example.com/fonts/Brand-{weight}.woff2`. The files are fetched and embedded when a report is generated; without them the report uses a system font. |
 | `BSENTINEL_LOGOUT_URL` | `/oauth2/sign_out` | Logout redirect URL. |
 | `FOOTER_LINKS` | *(empty)* | Footer links. Format: `Label1\|URL1,Label2\|URL2` |
 | `COPYRIGHT_TEXT` | *(empty)* | Copyright text in the footer (e.g. `© 2026 Your Company`). |

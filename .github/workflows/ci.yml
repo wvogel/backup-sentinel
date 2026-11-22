@@ -62,8 +62,9 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # WeasyPrint (NIS2 PDF report) needs Pango/HarfBuzz.
+          sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-inter fonts-dejavu-core
           pip install --quiet -r requirements.txt pytest httpx
-          pip install --quiet --no-deps -r requirements-nodeps.txt
 
       - name: Run tests
         run: pytest tests/ -v

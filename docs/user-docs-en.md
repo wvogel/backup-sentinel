@@ -129,31 +129,32 @@ A table below the form shows the most recent restore tests for this cluster, inc
 
 ## Reports
 
-The reports page (`/reports`) provides monthly backup compliance reports.
+The reports page (`/reports`) produces the **NIS2 evidence report** for data backup (NIS2 Art. 21 (2) c): proof of gap-free backups and logged restore tests. It is written for the IT lead, management and auditors: an executive summary first, the evidence behind it.
 
-### Current Report Summary
+### The two key figures
 
-A hero card at the top shows aggregated stats for the current reporting period:
+- **Backup continuity** -- share of time in which every VM had a successful backup no older than its RPO (VM policy, default 24 h, weekly backed-up VMs at least 180 h). Every VM that requires backups is measured -- VMs without a backup job too (as daily) -- from when Backup Sentinel first saw it. Backups later removed by retention still count. A **gap** only exists when more than **RPO + 12 h** lie between two successful backups, so shifted start times don't count. Then the whole time beyond the RPO counts. Target ≥ 99 %, remark from 98 %.
+- **Restore evidence** -- share of VMs requiring tests with a passed (or limited) restore test within their test interval (the VM's cadence), automatic or documented, on the last day of the period. Target ≥ 90 %, remark from 80 %.
 
-- **Total backups** -- Number of backup events.
-- **OK** -- Successful backups.
-- **Errors** -- Failed backups.
-- **Deleted** -- Backups that were deleted from storage.
-- **PDF Snapshot** button -- Generate a PDF report for the current month on demand.
+Percentages are whole numbers, **truncated, never rounded up**: 100 % only when nothing was missed. Colours follow the printed number. The overall rating ("Met", "Met with remarks", "Action required") is the worse of the two figures; a VM outside its RPO at the end of the period makes it at least a remark.
 
-### Cluster Breakdown
+### The page
 
-Below the summary, each cluster is shown as a collapsible card with its VM count and the same figures as the summary. Expand a cluster to see per-VM backup details:
+At the top: the current month up to today -- continuity, restore evidence, gaps, VMs without a valid test and the rating. **Preview** opens the report in the browser; **Create interim report** archives the current state as PDF. Below, one row per cluster with the same tiles and its rating; the **Preview** tile shows the report of just that cluster.
 
-- Each VM is a nested collapsible section.
-- VMs with failures or deletions are expanded by default.
-- The inner table shows individual backup events with date, size, encryption status, verification status, and result.
+### The report (PDF)
 
-### Report Archive
+1. **Overview** -- the rating in plain words, both key figures as rings with their target, four figures (successful backups, gaps, passed restore tests with average duration, VMs without a valid test), both figures over 12 months (months before recording began stay empty, never 0 %), a cluster table with traffic lights and acknowledgement lines for the IT lead and management.
+2. **One page per cluster** -- rating, key figures, a strip with continuity per day, the gaps beyond RPO (last backup before, next backup, hours over RPO), the test status of the VMs (valid, overdue, never tested), the tests due and the period's restore tests.
+3. **Appendix** -- all gaps, the complete **restore test log** (every finished attempt, failed ones included, with snapshot, result, duration, checks and the reason of a failure), the **backup calendar** per VM and day, and a page on the **method**.
 
-At the bottom, a list of previously generated reports with month, creation time, mode (automatic or manual) and PDF/JSON download. Reports are stored in the `/reports` volume and persist across container restarts. **Delete** removes an archived report after a confirmation.
+Each report also produces one PDF per cluster (its cluster page with acknowledgement and that cluster's appendices) and a JSON file with every computed value.
 
-The previous month's report is generated automatically on the first sync after the month changes and, if email is enabled, sent as a PDF to the recipients. You can also trigger a snapshot at any time using the PDF Snapshot button.
+### Report archive
+
+At the bottom: every report created, with month, creation time and kind (automatic or interim). **Overall** downloads the overall report, the cluster names their cluster PDF, **JSON** the data. Reports are stored in the `/reports` volume. An archived report is the frozen evidence of its month and does not change, even if VMs are deleted later. **Delete** removes a report with all its files after a confirmation. Reports from before the NIS2 report stay downloadable as PDF/JSON.
+
+The previous month's report is created automatically with the first sync after the month changes and, if email is enabled, sent as PDF. An interim report does not suppress the automatic monthly report.
 
 ---
 

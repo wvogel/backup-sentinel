@@ -27,8 +27,9 @@ test:
     # Throwaway service DB: enables tests/test_db.py (they truncate tables).
     BSENTINEL_DB_TESTS: "1"
   before_script:
+    # WeasyPrint (NIS2 PDF report) needs Pango/HarfBuzz.
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-inter fonts-dejavu-core >/dev/null
     - pip install --quiet -r requirements.txt pytest httpx
-    - pip install --quiet --no-deps -r requirements-nodeps.txt
   script:
     - pytest tests/ -v
 
