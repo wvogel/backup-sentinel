@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.14] — 2026-11-22
+
+### Fixed
+
+- **Restore coverage on the dashboard counted a still-valid test as missing.** A test that expires within the next 30 days (14 for shorter intervals) shows the heads-up "due in N d" but is valid. "Fällig" already ignored that heads-up; coverage and "Getestet" did not, so 84/88 = 95 % although only 2 VMs were due. Such a VM now counts as covered (here 86/88 = 97 %), as in the NIS2 report. The percentage is also truncated instead of rounded to a decimal first, so it never shows 100 % while a VM is missing.
+
 ## [v3.19.13] — 2026-11-22
 
 ### Changed

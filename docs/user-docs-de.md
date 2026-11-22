@@ -22,7 +22,7 @@ Das Dashboard (`/`) bietet eine Gesamt-Übersicht über alle überwachten Proxmo
 Oben steht ein Kasten *Restore-Tests* (der ganze Kasten führt zu `/restore`). Rechts sechs Kacheln, so breit wie die der Cluster-Zeilen:
 
 - **Queue** -- Restore-Tests, die in der Warteschlange stehen.
-- **Abdeckung** -- Anteil der VMs mit dokumentiertem Restore-Test. Grün (>= 80 %), Gelb (>= 50 %), Rot (< 50 %).
+- **Abdeckung** -- Anteil der testpflichtigen VMs mit gültigem Restore-Test (auch wenn er bald abläuft), ganze Prozent, abgeschnitten. Grün (>= 80 %), Gelb (>= 50 %), Rot (< 50 %).
 - **Getestet** -- VMs mit Restore-Test von denen, die einen brauchen (z. B. „12/83“).
 - **Fällig** -- VMs, deren Restore-Test-Intervall abgelaufen ist oder bald abläuft.
 - **Kritisch** -- VMs, deren Restore-Test deutlich überfällig ist.

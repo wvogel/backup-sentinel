@@ -22,7 +22,7 @@ The dashboard (`/`) provides a high-level overview of all monitored Proxmox clus
 At the top, one box titled *Restore tests* (the whole box links to `/restore`). On the right, six tiles as wide as the cluster rows' tiles:
 
 - **Queue** -- Restore tests waiting in the queue.
-- **Coverage** -- Share of VMs with a documented restore test. Green (>= 80 %), yellow (>= 50 %), red (< 50 %).
+- **Coverage** -- Share of VMs that need restore tests and have a valid one (also when it expires soon), whole percent, truncated. Green (>= 80 %), yellow (>= 50 %), red (< 50 %).
 - **Tested** -- VMs with a restore test out of those that need one (e.g. "12/83").
 - **Due** -- VMs whose restore-test interval has expired or is about to.
 - **Critical** -- VMs whose restore test is well overdue.

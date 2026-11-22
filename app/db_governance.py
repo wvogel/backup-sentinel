@@ -672,10 +672,13 @@ def restore_test_coverage(rows: list[dict[str, Any]] | None = None) -> dict[str,
         if row["restore_required"] and row["status_backup_kind"] != "none" and row["last_restore_tested_at"] is not None
     )
     overdue = sum(1 for row in rows if row["restore_due_status"] in RESTORE_DUE_STATUSES)
+    # A valid test counts: "warning" is only the heads-up before it expires.
     ok = sum(
         1
         for row in rows
-        if row["restore_required"] and row["status_backup_kind"] != "none" and row["restore_due_status"] == "ok"
+        if row["restore_required"]
+        and row["status_backup_kind"] != "none"
+        and row["restore_due_status"] in ("ok", "warning")
     )
-    pct = round(ok / required * 100, 1) if required > 0 else 100.0
+    pct = (100 * ok) // required if required > 0 else 100  # whole percent, truncated: 100 only when complete
     return {"required": required, "tested": tested, "ok": ok, "overdue": overdue, "pct": pct}
