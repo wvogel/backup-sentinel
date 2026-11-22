@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.8] — 2026-11-22
+
+### Added
+
+- **"NIS2 evidence from" per cluster (Settings → Cluster).** The first month the NIS2 report measures for a cluster. VMs that moved in later brought older snapshots, and the report then counted them for months in which the cluster was still empty (pve-kiel had two VMs in March). Before that month the cluster appears in no report and gets no cluster PDF; a month without any measured VM gets no report at all. A change recreates the archive's monthly reports with the next sync, without email; interim reports stay.
+
 ## [v3.19.7] — 2026-11-22
 
 ### Changed

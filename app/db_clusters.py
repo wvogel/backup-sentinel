@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from app.db_core import connect
@@ -32,6 +32,13 @@ def get_cluster_by_slug(cluster_slug: str) -> ClusterRow | None:
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT * FROM clusters WHERE slug = %s", (cluster_slug,))
         return cur.fetchone()
+
+
+def set_cluster_report_since(cluster_id: int, month: date | None) -> None:
+    """First month the NIS2 report measures this cluster in (None: since it was added)."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE clusters SET report_since = %s WHERE id = %s", (month, cluster_id))
+        conn.commit()
 
 
 def delete_cluster(cluster_slug: str) -> bool:

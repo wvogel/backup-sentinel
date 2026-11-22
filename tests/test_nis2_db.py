@@ -83,6 +83,21 @@ class Nis2DbTestCase(unittest.TestCase):
         # older snapshots are what retention left over: not measured
         self.assertEqual(db.nis2_recording_start_by_cluster()[self.cid], added)
 
+    def test_no_cluster_page_before_its_evidence_start(self) -> None:
+        db.set_cluster_report_since(self.cid, date(2026, 10, 1))
+        start = db.nis2_recording_start_by_cluster()[self.cid]
+        self.assertEqual(start, datetime(2026, 9, 30, 22, tzinfo=UTC))  # 1.10. local midnight
+        sept = nis2_report.build_nis2_report(
+            date(2026, 9, 1), trigger="auto", lang="de", now=datetime(2026, 11, 1, 6, tzinfo=UTC)
+        )
+        self.assertEqual(sept["clusters"], [])  # no VM measured: no cluster page, no cluster PDF
+        self.assertEqual(sept["overall"]["vms"], 0)
+        octo = nis2_report.build_nis2_report(
+            date(2026, 10, 1), trigger="auto", lang="de", now=datetime(2026, 11, 1, 6, tzinfo=UTC)
+        )
+        self.assertEqual([c["slug"] for c in octo["clusters"]], ["test"])
+        self.assertEqual(octo["clusters"][0]["trend"]["rpo"][-2], None)  # September: a hole
+
     def test_guest_rows_mark_unconfigured(self) -> None:
         kinds = {g["id"]: g["backup_kind"] for g in db.nis2_guest_rows()}
         self.assertEqual(kinds[self.nojob], "unconfigured")
@@ -145,6 +160,17 @@ class Nis2DbTestCase(unittest.TestCase):
             # once per layout: a later run (or a deleted report) changes nothing
             db.delete_monthly_report(rows[0]["id"])
             self.assertEqual(report_archive.rebuild_report_archive(now), 0)
+            # a new evidence start rebuilds every monthly report, keeps interim ones
+            report_archive.generate_archived_report(date(2026, 11, 1), "manual", now)
+            db.set_cluster_report_since(self.cid, date(2026, 10, 1))
+            report_archive.request_archive_rebuild()
+            # September: no cluster measured, so no report at all
+            self.assertEqual(report_archive.rebuild_report_archive(now), 1)
+            rows = db.list_monthly_reports()
+            self.assertEqual(
+                sorted((r["report_month"], r["trigger_mode"]) for r in rows),
+                [(date(2026, 10, 1), "auto"), (date(2026, 11, 1), "manual")],
+            )
 
 
 class Nis2RoutesTestCase(Nis2DbTestCase):
@@ -165,6 +191,17 @@ class Nis2RoutesTestCase(Nis2DbTestCase):
         self.assertIn("Anhang", res.text)
         self.assertEqual(self.client.get("/reports/preview?cluster=nope").status_code, 404)
         self.assertEqual(self.client.get("/reports/preview?month=10-2026").status_code, 400)
+
+    def test_set_report_since(self) -> None:
+        res = self.client.post("/clusters/test/report-since", data={"report_since": "2026-07"}, follow_redirects=False)
+        self.assertEqual(res.status_code, 303)
+        self.assertEqual(db.get_cluster_by_slug("test")["report_since"], date(2026, 7, 1))
+        self.assertEqual(db.get_settings_dict("report_archive_format")["report_archive_format"], "0")
+        self.assertIn('value="2026-07"', self.client.get("/settings").text)
+        self.client.post("/clusters/test/report-since", data={"report_since": ""})
+        self.assertIsNone(db.get_cluster_by_slug("test")["report_since"])
+        bad = self.client.post("/clusters/test/report-since", data={"report_since": "07/2026"})
+        self.assertEqual(bad.status_code, 400)
 
     def test_download_scopes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, patch.object(report_archive, "REPORT_DIR", Path(tmp)):

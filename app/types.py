@@ -26,6 +26,7 @@ class ClusterRow(TypedDict):
     last_pve_sync_failure_notified_at: datetime | None
     consecutive_sync_failures: int
     qdevice: dict[str, str] | None
+    report_since: date | None
 
 
 class NodeRow(TypedDict):

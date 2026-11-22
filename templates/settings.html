@@ -40,6 +40,14 @@
                 data-delete-url="/clusters/{{ cluster.slug }}/delete">{{ t('settings.delete_cluster') }}</button>
       </div>
 
+      <form action="/clusters/{{ cluster.slug }}/report-since" method="post" class="inline-form pbs-namespace-form report-since-form">
+        <label class="muted" title="{{ t('settings.report_since_hint') }}">
+          {{ t('settings.report_since') }}
+          <input type="month" name="report_since" value="{{ cluster.report_since.strftime('%Y-%m') if cluster.report_since else '' }}">
+        </label>
+        <button type="submit" class="button-secondary">{{ t('common.save') }}</button>
+      </form>
+
       <div class="settings-cluster-sublist">
         {% for pbs in cluster.pbs_connections %}
         <div class="settings-subcard">

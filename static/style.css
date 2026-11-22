@@ -4123,3 +4123,7 @@ html[data-theme="dark"] .vol-s2 { background: #dfb97f; }
 html[data-theme="dark"] .vol-s3 { background: #b9a3e3; }
 html[data-theme="dark"] .vol-s4 { background: #e3a3bf; }
 html[data-theme="dark"] .vol-s5 { background: #8fcbd6; }
+
+/* NIS2 evidence start of a cluster, above its PBS list. */
+.report-since-form { margin: 0 0 8px; }
+.report-since-form input { width: auto; }

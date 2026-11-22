@@ -195,6 +195,13 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         # version 1. report_archive rebuilds older versions once.
         ["ALTER TABLE monthly_reports ADD COLUMN IF NOT EXISTS format INT NOT NULL DEFAULT 1"],
     ),
+    (
+        14,
+        "NIS2 report: per-cluster start of the evidence",
+        # First month the NIS2 report measures a cluster in, set by the user (e.g.
+        # its VMs moved in later, with older snapshots). NULL: since it was added.
+        ["ALTER TABLE clusters ADD COLUMN IF NOT EXISTS report_since DATE"],
+    ),
 ]
 
 

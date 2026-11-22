@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from app.config import DEFAULT_TIMEZONE
 from app.db_core import connect
 
 __all__ = [
@@ -126,19 +128,27 @@ def nis2_restore_protocol(start: datetime, end: datetime, start_date: date, end_
         return list(cur.fetchall())
 
 
-def nis2_recording_start_by_cluster() -> dict[int, datetime]:
-    """When Backup Sentinel's complete backup record of each cluster begins: its
-    first backup, but not before the cluster was added. Older snapshots are only
-    what retention left over — their pruned neighbours were never recorded, so
-    measuring there would show gaps that never were."""
+def nis2_recording_start_by_cluster(tz: str = DEFAULT_TIMEZONE) -> dict[int, datetime]:
+    """When the NIS2 evidence of each cluster begins: its first backup, but not
+    before the cluster was added — older snapshots are only what retention left
+    over, their pruned neighbours were never recorded, so measuring there would
+    show gaps that never were — and not before the month set as "evidence from"
+    (`report_since`, e.g. the VMs moved in later)."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT v.cluster_id, GREATEST(MIN(be.started_at), MIN(c.created_at)) AS first
+            SELECT v.cluster_id, GREATEST(MIN(be.started_at), MIN(c.created_at)) AS first,
+                   MIN(c.report_since) AS report_since
             FROM backup_events be
             JOIN vms v ON v.id = be.vm_id
             JOIN clusters c ON c.id = v.cluster_id
             GROUP BY v.cluster_id
             """
         )
-        return {r["cluster_id"]: r["first"] for r in cur.fetchall()}
+        out = {}
+        for r in cur.fetchall():
+            first, since = r["first"], r["report_since"]
+            if since is not None:
+                first = max(first, datetime(since.year, since.month, since.day, tzinfo=ZoneInfo(tz)))
+            out[r["cluster_id"]] = first
+        return out

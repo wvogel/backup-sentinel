@@ -12,7 +12,7 @@ from starlette import status
 from app import db
 from app.i18n import get_language, t
 from app.models import RestoreTestCreate
-from app.services import sync_progress, topology_store
+from app.services import report_archive, sync_progress, topology_store
 from app.services.backup_status import RESTORE_CLASSES, assess_slow_backup, format_duration
 from app.services.bootstrap import slugify_cluster
 from app.services.human_format import format_rate, format_size, format_size_coarse
@@ -390,6 +390,29 @@ def update_pbs_settings(
         )
     except Exception:
         pass
+    return RedirectResponse(url="/settings", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/clusters/{cluster_slug}/report-since")
+def update_report_since(request: Request, cluster_slug: str, report_since: str = Form("")) -> RedirectResponse:
+    """First month the NIS2 report measures the cluster in ("YYYY-MM"; empty: since it was added)."""
+    cluster = db.get_cluster_by_slug(cluster_slug)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    value = report_since.strip()
+    try:
+        month = datetime.strptime(value, "%Y-%m").date() if value else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Month must be YYYY-MM") from None
+    if month != cluster.get("report_since"):
+        db.set_cluster_report_since(cluster["id"], month)
+        report_archive.request_archive_rebuild()
+        try:
+            db.append_audit_event(
+                settings_actor(request), "cluster.report_since", cluster_slug, f"report_since={value or '-'}"
+            )
+        except Exception:
+            pass
     return RedirectResponse(url="/settings", status_code=status.HTTP_303_SEE_OTHER)
 
 

@@ -58,17 +58,24 @@ def remove_archived_files(row: dict[str, Any]) -> None:
         Path(path).unlink(missing_ok=True)
 
 
+def request_archive_rebuild() -> None:
+    """Rebuild the archive with the next sync — the evidence start of a cluster
+    changed, so every monthly report must be measured anew."""
+    db.save_settings({_FORMAT_SETTING: "0"})
+
+
 def rebuild_report_archive(now: datetime | None = None) -> int:
-    """Once per REPORT_FORMAT: replace every report of an older layout and
-    reconstruct the monthly report of each finished month since recording
-    began. Interim reports of an older layout are dropped — the month's
-    report replaces them. Returns how many reports were written."""
+    """Once per REPORT_FORMAT (or after request_archive_rebuild): replace every
+    monthly report and every report of an older layout, reconstructing the
+    monthly report of each finished month since recording began. Interim
+    reports of an older layout are dropped — the month's report replaces them.
+    Returns how many reports were written."""
     settings = db.get_settings_dict(_FORMAT_SETTING)
     if int(settings.get(_FORMAT_SETTING) or 0) >= REPORT_FORMAT:
         return 0
     now = now or datetime.now(UTC)
     for row in db.list_monthly_reports():
-        if (row.get("format") or 1) < REPORT_FORMAT:
+        if row["trigger_mode"] == "auto" or (row.get("format") or 1) < REPORT_FORMAT:
             db.delete_monthly_report(row["id"])
             remove_archived_files(row)
     written = 0
