@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Layout version of the archived PDFs. Raise it when a change must reach the
 # archive too: rebuild_report_archive() then renders every month anew, once.
-REPORT_FORMAT = 2
+REPORT_FORMAT = 3
 _FORMAT_SETTING = "report_archive_format"
 
 

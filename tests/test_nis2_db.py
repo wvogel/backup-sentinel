@@ -156,7 +156,9 @@ class Nis2DbTestCase(unittest.TestCase):
             self.assertFalse(old.exists())
             rows = db.list_monthly_reports()
             self.assertEqual(sorted(r["report_month"] for r in rows), [date(2026, 9, 1), date(2026, 10, 1)])
-            self.assertTrue(all(r["trigger_mode"] == "auto" and r["format"] == 2 for r in rows))
+            self.assertTrue(
+                all(r["trigger_mode"] == "auto" and r["format"] == report_archive.REPORT_FORMAT for r in rows)
+            )
             # once per layout: a later run (or a deleted report) changes nothing
             db.delete_monthly_report(rows[0]["id"])
             self.assertEqual(report_archive.rebuild_report_archive(now), 0)
