@@ -271,8 +271,16 @@ def render_html(report: dict[str, Any], *, theme_colors: BaseColors | None = Non
         "donut": lambda parts: donut_svg(parts, pal),
         "wordmark_png": _wordmark_png(),
         "trend_labels": [_short_month(mo, lang) for mo in report["trend_months"]],
+        # The trends take the room the cluster table leaves (≈7 mm per extra cluster).
         "trend": lambda vals, lo, hi, target, color: trend_svg(
-            vals, [_short_month(mo, lang) for mo in report["trend_months"]], lo, hi, target, color, pal
+            vals,
+            [_short_month(mo, lang) for mo in report["trend_months"]],
+            lo,
+            hi,
+            target,
+            color,
+            pal,
+            h=max(96, 176 - 26 * max(0, len(report["clusters"]) - 4)),
         ),
         "month_label": _month_label(period["month"], lang),
         "range_label": f"{start_label} – {end_label}",

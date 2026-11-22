@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.3] — 2026-11-22
+
+### Changed
+
+- **NIS2 report: no acknowledgement and signature lines.** The overview page and the per-cluster PDFs no longer have them. The two 12-month trends use the space instead, and get smaller again as more cluster rows need room.
+
 ## [v3.19.2] — 2026-11-22
 
 ### Changed

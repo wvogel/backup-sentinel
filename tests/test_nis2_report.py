@@ -182,9 +182,9 @@ class RenderTest(unittest.TestCase):
         self.assertIn("Anhang ·", texts[5])
         self.assertNotIn("Anhang ·", " ".join(texts[:5]))
 
-    def test_cluster_pdf_has_signoff(self):
+    def test_cluster_pdf_is_one_cluster_page_without_signoff(self):
         html = nis2_render.render_html(nis2_report.cluster_view(self.r, "pve-kiel"))
-        self.assertIn("Geschäftsführung", html)
+        self.assertNotIn("Unterschrift", html)
         self.assertEqual(html.count('class="exec"'), 1)
 
 

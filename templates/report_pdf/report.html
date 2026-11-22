@@ -84,8 +84,6 @@ td.wrap { white-space: normal; }
 .donutwrap { display: flex; gap: 5mm; align-items: center; }
 .dl div { margin: .9mm 0; font-size: 8.4pt; }
 .dl i { display: inline-block; width: 2.4mm; height: 2.4mm; border-radius: .6mm; margin-right: 1.4mm; }
-.sig { margin-top: 11mm; display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; font-size: 7.4pt; color: var(--muted); }
-.sig div { border-top: .3mm solid var(--ink); padding-top: 1.4mm; }
 .empty { color: var(--muted); font-size: 8.6pt; padding: 1.5mm 0; }
 /* Appendix tables */
 .appendix h2.app + .sub { margin-bottom: 4mm; }
@@ -146,11 +144,6 @@ body { width: 210mm; margin: 8mm auto; }
 
 {%- macro pct(v) -%}{{ '–' if v is none else v ~ ' %' }}{%- endmacro -%}
 
-{%- macro signoff() -%}
-<div class="section"><div class="sh">{{ tr('signoff') }}</div>
-  <div class="sig"><div>{{ tr('sign_it') }}</div><div>{{ tr('sign_md') }}</div></div></div>
-{%- endmacro -%}
-
 {# ───────────── Overall page ───────────── #}
 {% if r.overall %}
 {%- set o = r.overall %}
@@ -190,7 +183,6 @@ body { width: 210mm; margin: 8mm auto; }
         </tbody>
       </table>
     </div>
-    {{ signoff() }}
   </div>
 </section>
 {% endif %}
@@ -258,7 +250,6 @@ body { width: 210mm; margin: 8mm auto; }
       </table>
       {% else %}<div class="empty">{{ tr('sum_no_tests') }}</div>{% endif %}
     </div>
-    {% if r.single %}{{ signoff() }}{% endif %}
   </div>
 </section>
 {% endfor %}

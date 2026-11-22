@@ -144,11 +144,11 @@ Oben stehen die Werte des laufenden Monats bis heute: Lückenlosigkeit, Restore-
 
 ### Der Bericht (PDF)
 
-1. **Gesamtübersicht** -- Bewertung in Klartext, die beiden Kennzahlen als Ringe mit Ziel, vier Zahlen (erfolgreiche Backups, Lücken, bestandene Restore-Tests mit Ø Dauer, VMs ohne gültigen Test), der Verlauf beider Kennzahlen über 12 Monate (Monate vor Beginn der Aufzeichnung bleiben leer, nie 0 %), eine Tabelle der Cluster mit Ampel und Felder zur Kenntnisnahme durch IT-Leitung und Geschäftsführung.
+1. **Gesamtübersicht** -- Bewertung in Klartext, die beiden Kennzahlen als Ringe mit Ziel, vier Zahlen (erfolgreiche Backups, Lücken, bestandene Restore-Tests mit Ø Dauer, VMs ohne gültigen Test), der Verlauf beider Kennzahlen über 12 Monate (Monate vor Beginn der Aufzeichnung bleiben leer, nie 0 %), eine Tabelle der Cluster mit Ampel.
 2. **Je Cluster eine Seite** -- Bewertung, Kennzahlen, ein Streifen mit der Lückenlosigkeit je Tag, die Lücken über RPO (letztes Backup davor, nächstes Backup, Stunden über RPO), der Teststatus der VMs (gültig, überfällig, nie getestet), die fälligen Tests und die Restore-Tests des Zeitraums.
 3. **Anhang** -- alle Lücken, das vollständige **Restore-Testprotokoll** (jeder abgeschlossene Test mit dem Datum des Snapshots, Ergebnis, Dauer und jeder einzelnen Prüfung samt Ergebnis: ICMP, ARP und jeder TCP-Port), der **Backup-Kalender** je VM und Tag sowie eine Seite zur **Methode**.
 
-Zu jedem Bericht entsteht außerdem je Cluster ein eigenes PDF (Clusterseite mit Kenntnisnahme und Anhängen dieses Clusters) und eine JSON-Datei mit allen berechneten Werten.
+Zu jedem Bericht entsteht außerdem je Cluster ein eigenes PDF (Clusterseite und Anhänge dieses Clusters) und eine JSON-Datei mit allen berechneten Werten.
 
 ### Berichtsarchiv
 
