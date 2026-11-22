@@ -26,6 +26,11 @@ class WholePctTest(unittest.TestCase):
 
     def test_empty_scope_is_none(self):
         self.assertIsNone(m.whole_pct(0, 0))
+        self.assertIsNone(m.exact_pct(0, 0))
+
+    def test_exact_pct_truncates_to_hundredths(self):
+        self.assertEqual(m.exact_pct(99999, 100000), 99.99)
+        self.assertEqual(m.exact_pct(2, 3), 66.66)
 
 
 class EffectiveRpoTest(unittest.TestCase):

@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.4] — 2026-11-22
+
+### Changed
+
+- **NIS2 report: the continuity trend looks like the mockup again.** Its scale was fixed at 95–100 %, so the line lay flat along the top. It now starts one whole number below the lowest value or the target (e.g. 98–99–100), with a grid line per whole percent. Both trend lines are drawn with exact values, truncated to hundredths, never rounded up, instead of the printed whole numbers that made them climb in steps. The printed figures don't change.
+
 ## [v3.19.3] — 2026-11-22
 
 ### Changed

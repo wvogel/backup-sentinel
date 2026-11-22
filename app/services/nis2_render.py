@@ -127,10 +127,25 @@ def ring_svg(pct: int | None, tone: str | None, pal: Palette, size: int = 100, s
     )
 
 
+def trend_scale(values: list[float | None], target: int, lo: int | None, hi: int) -> tuple[int, list[int]]:
+    """Lower bound and grid lines. `lo=None`: tight — the whole number below the
+    lowest value or the target, so small changes stay visible (98 – 99 – 100)."""
+    if lo is None:
+        floor = min(v for v in [*values, target] if v is not None)
+        lo = math.floor(floor) - (1 if float(floor).is_integer() else 0)
+        lo = max(0, min(lo, hi - 2))
+    span = hi - lo
+    if span <= 5:
+        ticks = list(range(lo, hi + 1))
+    else:
+        ticks = [lo, lo + span // 2, hi] if span % 2 == 0 else [lo, hi]
+    return lo, ticks
+
+
 def trend_svg(
-    values: list[int | None],
+    values: list[float | None],
     labels: list[str],
-    lo: int,
+    lo: int | None,
     hi: int,
     target: int,
     color: str,
@@ -139,6 +154,7 @@ def trend_svg(
     h: int = 96,
 ) -> Markup:
     """Area/line chart of whole percents; None is a hole ("keine Daten")."""
+    lo, ticks = trend_scale(values, target, lo, hi)
     pl, pr, pt, pb = 26, 6, 8, 16
     iw, ih = w - pl - pr, h - pt - pb
     step = iw / max(1, len(values))
@@ -148,7 +164,7 @@ def trend_svg(
         return pt + ih - ih * (v - lo) / (hi - lo)
 
     out = [f'<svg class="trend" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-size="8" fill="{pal.muted}">']
-    for g in (lo, hi):
+    for g in ticks:
         out.append(
             f'<line x1="{pl}" x2="{w - pr}" y1="{y(g):.1f}" y2="{y(g):.1f}" stroke="{pal.sage}" stroke-width=".6"/>'
         )

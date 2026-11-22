@@ -40,6 +40,13 @@ def whole_pct(part: int, whole: int) -> int | None:
     return (100 * part) // whole
 
 
+def exact_pct(part: int, whole: int) -> float | None:
+    """Percent truncated to two decimals — for drawing trend lines, never printed."""
+    if whole <= 0:
+        return None
+    return (10000 * part // whole) / 100
+
+
 def _tone(pct: int | None, targets: tuple[int, int]) -> str | None:
     if pct is None:
         return None

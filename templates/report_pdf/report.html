@@ -163,7 +163,7 @@ body { width: 210mm; margin: 8mm auto; }
       <div class="kpi"><strong style="color: {{ pal.tone('critical' if missing else 'ok') }}">{{ missing }}</strong><span>{{ tr('fig_untested', overdue=o.restore.overdue, never=o.restore.never)|safe }}</span></div>
     </div>
     <div class="section two">
-      <div><div class="sh">{{ tr('trend_rpo') }}<em>{{ tr('target', pct=targets.rpo[0]) }}</em></div>{{ trend(o.trend.rpo, 95, 100, targets.rpo[0], pal.primary) }}</div>
+      <div><div class="sh">{{ tr('trend_rpo') }}<em>{{ tr('target', pct=targets.rpo[0]) }}</em></div>{{ trend(o.trend.rpo, none, 100, targets.rpo[0], pal.primary) }}</div>
       <div><div class="sh">{{ tr('trend_restore') }}<em>{{ tr('target', pct=targets.restore[0]) }}</em></div>{{ trend(o.trend.restore, 0, 100, targets.restore[0], pal.rule) }}</div>
     </div>
     <div class="section"><div class="sh">{{ tr('clusters') }}<em>{{ tr('clusters_hint') }}</em></div>

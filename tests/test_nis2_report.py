@@ -104,7 +104,7 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(len(trend), 12)
         self.assertIsNone(trend[0])  # Nov 2025: no data yet
         self.assertNotIn(0, trend)
-        self.assertEqual(trend[-1], self.r["overall"]["rpo_pct"])
+        self.assertEqual(int(trend[-1]), self.r["overall"]["rpo_pct"])  # exact for the line, same whole part
 
     def test_overall_sums_clusters(self):
         o = self.r["overall"]
@@ -181,6 +181,15 @@ class RenderTest(unittest.TestCase):
             self.assertIn(name, texts[i])
         self.assertIn("Anhang ·", texts[5])
         self.assertNotIn("Anhang ·", " ".join(texts[:5]))
+
+    def test_trend_scale_is_tight_with_grid_lines(self):
+        self.assertEqual(nis2_render.trend_scale([None, 99, 100, 99], 99, None, 100), (98, [98, 99, 100]))
+        self.assertEqual(nis2_render.trend_scale([97, 100], 99, None, 100), (96, [96, 97, 98, 99, 100]))
+        self.assertEqual(nis2_render.trend_scale([100, 100], 99, None, 100), (98, [98, 99, 100]))
+        self.assertEqual(nis2_render.trend_scale([60], 99, None, 100), (59, [59, 100]))
+        self.assertEqual(nis2_render.trend_scale([None, None], 99, None, 100), (98, [98, 99, 100]))
+        self.assertEqual(nis2_render.trend_scale([40, 80], 90, 0, 100), (0, [0, 50, 100]))
+        self.assertEqual(nis2_render.trend_scale([98.2, 99.8], 99, None, 100), (98, [98, 99, 100]))
 
     def test_cluster_pdf_is_one_cluster_page_without_signoff(self):
         html = nis2_render.render_html(nis2_report.cluster_view(self.r, "pve-kiel"))

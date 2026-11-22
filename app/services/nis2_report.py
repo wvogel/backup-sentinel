@@ -111,6 +111,8 @@ def _scope_kpis(
         "uncovered_seconds": uncovered,
         "rpo_pct": m.whole_pct(window - uncovered, window),
         "restore_pct": m.whole_pct(restore["valid"], restore_total),
+        "rpo_exact": m.exact_pct(window - uncovered, window),
+        "restore_exact": m.exact_pct(restore["valid"], restore_total),
         "restore": restore,
         "restore_total": restore_total,
         "coverages": covs,
@@ -302,6 +304,8 @@ def _scope_detail(
         "rpo_tone": m.rpo_tone(kpis["rpo_pct"]),
         "restore_pct": kpis["restore_pct"],
         "restore_tone": m.restore_tone(kpis["restore_pct"]),
+        "rpo_exact": kpis["rpo_exact"],
+        "restore_exact": kpis["restore_exact"],
         "restore": kpis["restore"],
         "restore_total": kpis["restore_total"],
         "gaps": gaps,
@@ -390,9 +394,10 @@ def build_nis2_report(
         relevant = [data_start[c] for c in (cids or data_start) if c in data_start]
         first_data = min(relevant) if relevant else None
         for mo in months:
+            # The line is drawn with exact values (truncated to 0.01, never rounded up).
             if mo == month:
-                trend["rpo"].append(detail["rpo_pct"])
-                trend["restore"].append(detail["restore_pct"])
+                trend["rpo"].append(detail["rpo_exact"])
+                trend["restore"].append(detail["restore_exact"])
                 continue
             ms, me = m.month_bounds(mo, tz)
             if first_data is None or first_data >= me:
@@ -401,8 +406,8 @@ def build_nis2_report(
                 continue
             ref = (me - timedelta(microseconds=1)).astimezone(tz_obj).date()
             k = kpis_for(scope_guests, ms, me, ref)
-            trend["rpo"].append(k["rpo_pct"])
-            trend["restore"].append(k["restore_pct"])
+            trend["rpo"].append(k["rpo_exact"])
+            trend["restore"].append(k["restore_exact"])
         detail["trend"] = trend
         results.append(detail)
 
