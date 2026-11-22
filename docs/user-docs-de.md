@@ -134,7 +134,7 @@ Die Berichtsseite (`/reports`) erstellt den **NIS2-Nachweis** zur Datensicherung
 ### Die beiden Kennzahlen
 
 - **Backup-Lückenlosigkeit** -- Anteil der Zeit, in der jede VM ein erfolgreiches Backup hatte, das nicht älter als ihr RPO war (Richtlinie der VM, Standard 24 h, wöchentlich gesicherte VMs mindestens 180 h). Gemessen wird jede VM mit Backup-Pflicht, auch VMs ohne eingerichteten Backup-Job (wie täglich), ab dem Zeitpunkt, an dem Backup Sentinel sie zuerst gesehen hat. Durch Aufbewahrung später gelöschte Backups zählen mit. Eine **Lücke** liegt erst vor, wenn zwischen zwei erfolgreichen Backups mehr als **RPO + 12 h** liegen; verschobene Startzeiten zählen also nicht. Liegt eine Lücke vor, zählt die gesamte Zeit über dem RPO. Ziel ≥ 99 %, Hinweis ab 98 %.
-- **Restore-Nachweis** -- Anteil der testpflichtigen VMs mit bestandenem (oder eingeschränkt bestandenem) Restore-Test innerhalb ihres Prüfintervalls (Turnus der VM), automatisch oder dokumentiert, am letzten Tag des Zeitraums. Ziel ≥ 90 %, Hinweis ab 80 %.
+- **Restore-Nachweis** -- Anteil der testpflichtigen VMs mit bestandenem (oder eingeschränkt bestandenem) Restore-Test innerhalb ihres Prüfintervalls (Turnus der VM), automatisch oder dokumentiert, am letzten Tag des Zeitraums. Ziel ≥ 90 %, Hinweis ab 80 %. In den Testzahlen zählt ein nicht voll bestandener Versuch nicht, wenn dieselbe VM danach im selben Monat einen Test bestanden hat.
 
 Prozentwerte sind ganze Zahlen und werden **abgeschnitten, nie aufgerundet**: 100 % steht nur, wenn nichts gefehlt hat. Die Farbe richtet sich nach der gedruckten Zahl. Die Gesamtbewertung („Erfüllt“, „Erfüllt mit Hinweisen“, „Handlungsbedarf“) ist die schlechtere der beiden Kennzahlen. Ist eine VM am Ende des Zeitraums außerhalb ihres RPO, lautet sie mindestens „Hinweis“.
 
@@ -146,7 +146,7 @@ Oben stehen die Werte des laufenden Monats bis heute: Lückenlosigkeit, Restore-
 
 1. **Gesamtübersicht** -- Bewertung in Klartext, die beiden Kennzahlen als Ringe mit Ziel, vier Zahlen (erfolgreiche Backups, Lücken, bestandene Restore-Tests mit Ø Dauer, VMs ohne gültigen Test), der Verlauf beider Kennzahlen über 12 Monate (Monate vor Beginn der Aufzeichnung bleiben leer, nie 0 %), eine Tabelle der Cluster mit Ampel und Felder zur Kenntnisnahme durch IT-Leitung und Geschäftsführung.
 2. **Je Cluster eine Seite** -- Bewertung, Kennzahlen, ein Streifen mit der Lückenlosigkeit je Tag, die Lücken über RPO (letztes Backup davor, nächstes Backup, Stunden über RPO), der Teststatus der VMs (gültig, überfällig, nie getestet), die fälligen Tests und die Restore-Tests des Zeitraums.
-3. **Anhang** -- alle Lücken, das vollständige **Restore-Testprotokoll** (jeder abgeschlossene Versuch, auch fehlgeschlagene, mit Snapshot, Ergebnis, Dauer, Prüfungen und bei Fehlschlägen dem Grund), der **Backup-Kalender** je VM und Tag sowie eine Seite zur **Methode**.
+3. **Anhang** -- alle Lücken, das vollständige **Restore-Testprotokoll** (jeder abgeschlossene Versuch, auch fehlgeschlagene, mit dem Datum des Snapshots, Ergebnis, Dauer und jeder einzelnen Prüfung samt Ergebnis: ICMP, ARP und jeder TCP-Port; ein nicht voll bestandener Versuch, nach dem dieselbe VM im Monat einen Test bestanden hat, steht ausgegraut darin und zählt nicht), der **Backup-Kalender** je VM und Tag sowie eine Seite zur **Methode**.
 
 Zu jedem Bericht entsteht außerdem je Cluster ein eigenes PDF (Clusterseite mit Kenntnisnahme und Anhängen dieses Clusters) und eine JSON-Datei mit allen berechneten Werten.
 

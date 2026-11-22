@@ -5,6 +5,15 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.1] — 2026-11-22
+
+### Changed
+
+- **NIS2 report: a failed attempt followed by a pass no longer counts.** If a restore attempt did not fully pass (failed, error, cancelled or limited) and the same VM passed a test later in the same month, the earlier attempt drops out of the test figures, the verdict and the cluster page. It stays in the appendix log, greyed out and marked "superseded by the passed test of …".
+- **NIS2 report: the test log lists every check.** Each attempt shows every check it ran with its result: ICMP, ARP and each TCP port in numeric order, ✓ or ✗. Before, only the passed ones were listed. The trigger column (manual/scheduled) is gone.
+- **NIS2 report: the snapshot column shows only the snapshot's date.** The PBS/datastore source is gone, and with it the cut-off text.
+- **NIS2 report: no failure details.** Failure reasons and log lines are not in the report.
+
 ## [v3.19.0] — 2026-11-22
 
 ### Added

@@ -91,13 +91,21 @@ td.wrap { white-space: normal; }
 .appendix h2.app + .sub { margin-bottom: 4mm; }
 .appendix .group { margin: 5mm 0 1.5mm; font-weight: 700; font-size: 10pt; }
 .appendix table { font-size: 8pt; }
+.appendix td, .appendix th { padding-left: 1.5mm; padding-right: 1.5mm; }
 .appendix thead { display: table-header-group; }
 .appendix tr { break-inside: avoid; }
-.note { white-space: pre-wrap; font-size: 7pt; color: var(--critical); }
 table.fixed { table-layout: fixed; }
 table.fixed td { overflow: hidden; text-overflow: ellipsis; }
 tr.has-note td { border-bottom: 0; }
 tr.noterow td { border-top: 0; padding-top: 0; white-space: normal; }
+/* Superseded by a later passed test of the same VM: on record, not counted. */
+tr.superseded td { opacity: .55; }
+.chk { white-space: nowrap; margin-right: 1mm; }
+.chk.ok { color: var(--ok); }
+.chk.bad { color: var(--critical); font-weight: 600; }
+.chk.doc { color: var(--muted); }
+table.fixed td.wrap { white-space: normal; overflow: visible; }
+.supersede { font-size: 7pt; color: var(--muted); font-style: italic; }
 .cal { table-layout: fixed; }
 .cal th.d, .cal td.d { padding: .35mm .25mm; text-align: center; font-size: 5.6pt; letter-spacing: 0; }
 .cal td { border-top: 0; padding: .35mm 1.5mm .35mm 0; font-size: 7pt; overflow: hidden; text-overflow: ellipsis; }
@@ -135,6 +143,10 @@ body { width: 210mm; margin: 8mm auto; }
   <div class="hero">{{ ring(s.restore_pct, s.restore_tone, size) }}<div>
     <div class="goal">{{ tr('goal', pct=targets.restore[0]) }}</div><h4>{{ tr('kpi_restore') }}</h4><p>{{ restore_sub }}</p></div></div>
 </div>
+{%- endmacro -%}
+
+{%- macro checks(p) -%}
+{%- for c in p.checks %}{% if not loop.first %} {% endif %}<span class="chk {{ 'ok' if c.ok else ('bad' if c.ok is sameas false else 'doc') }}">{% if c.ok is not none %}{{ '✓' if c.ok else '✗' }} {% endif %}{{ c.label }}</span>{% else %}–{% endfor -%}
 {%- endmacro -%}
 
 {%- macro pct(v) -%}{{ '–' if v is none else v ~ ' %' }}{%- endmacro -%}
@@ -236,15 +248,16 @@ body { width: 210mm; margin: 8mm auto; }
       </div>
     </div>
 
-    <div class="section"><div class="sh">{{ tr('tests_title') }}{% if c.protocol|length > 4 %}<em>{{ tr('more_in_appendix', n=c.protocol|length - 4) }}</em>{% endif %}</div>
-      {% if c.protocol %}
+    {%- set shown = c.protocol_counted %}
+    <div class="section"><div class="sh">{{ tr('tests_title') }}{% if shown|length > 4 %}<em>{{ tr('more_in_appendix', n=shown|length - 4) }}</em>{% endif %}</div>
+      {% if shown %}
       <table style="font-size: 8.2pt">
         <thead><tr><th>{{ tr('col_date') }}</th><th>{{ tr('col_vm') }}</th><th>{{ tr('col_snapshot') }}</th><th>{{ tr('col_result') }}</th><th class="num">{{ tr('col_duration') }}</th><th>{{ tr('col_checks') }}</th></tr></thead>
         <tbody>
-        {% for p in c.protocol[-4:]|reverse %}
-        <tr><td>{{ p.at_label }}</td><td><b>{{ p.vm_name }}</b></td><td class="muted">{{ p.snapshot or p.trigger }}</td>
+        {% for p in shown[-4:]|reverse %}
+        <tr><td>{{ p.at_label }}</td><td><b>{{ p.vm_name }}</b></td><td class="muted">{{ p.snapshot }}</td>
           <td><span class="res" style="color: {{ pal.tone(p.result_tone) }}">● {{ p.result_label }}</span></td>
-          <td class="num">{{ p.duration_label }}</td><td class="muted">{{ p.checks or '–' }}</td></tr>
+          <td class="num">{{ p.duration_label }}</td><td class="wrap">{{ checks(p) }}</td></tr>
         {% endfor %}
         </tbody>
       </table>
@@ -279,14 +292,14 @@ body { width: 210mm; margin: 8mm auto; }
   <div class="group">{{ c.name }}</div>
   {% if c.protocol %}
   <table class="fixed">
-    <colgroup><col style="width: 19mm"><col style="width: 36mm"><col style="width: 29mm"><col style="width: 37mm"><col style="width: 23mm"><col style="width: 15mm"><col></colgroup>
-    <thead><tr><th>{{ tr('col_date') }}</th><th>{{ tr('col_vm') }}</th><th>{{ tr('col_trigger') }}</th><th>{{ tr('col_snapshot') }}</th><th>{{ tr('col_result') }}</th><th class="num">{{ tr('col_duration') }}</th><th>{{ tr('col_checks') }}</th></tr></thead>
+    <colgroup><col style="width: 18mm"><col style="width: 29mm"><col style="width: 24mm"><col style="width: 28mm"><col style="width: 19mm"><col></colgroup>
+    <thead><tr><th>{{ tr('col_date') }}</th><th>{{ tr('col_vm') }}</th><th>{{ tr('col_snapshot') }}</th><th>{{ tr('col_result') }}</th><th class="num">{{ tr('col_duration') }}</th><th>{{ tr('col_checks') }}</th></tr></thead>
     <tbody>
     {% for p in c.protocol %}
-    <tr class="{{ 'has-note' if p.note }}"><td>{{ p.at_label }}</td><td><b>{{ p.vm_name }}</b> <span class="muted">{{ p.vmid }}</span></td><td class="muted">{{ p.trigger }}</td><td class="muted">{{ p.snapshot or '–' }}</td>
+    <tr class="{{ 'has-note superseded' if p.superseded_by }}"><td>{{ p.at_label }}</td><td><b>{{ p.vm_name }}</b> <span class="muted">{{ p.vmid }}</span></td><td class="muted">{{ p.snapshot or '–' }}</td>
       <td><span class="res" style="color: {{ pal.tone(p.result_tone) }}">● {{ p.result_label }}</span></td><td class="num">{{ p.duration_label }}</td>
-      <td>{{ p.checks or '–' }}</td></tr>
-    {% if p.note %}<tr class="noterow"><td></td><td colspan="6"><div class="note">{{ p.note }}</div></td></tr>{% endif %}
+      <td class="wrap">{{ checks(p) }}</td></tr>
+    {% if p.superseded_by %}<tr class="noterow superseded"><td></td><td colspan="5"><div class="supersede">↳ {{ tr('superseded', at=p.superseded_by) }}</div></td></tr>{% endif %}
     {% endfor %}
     </tbody>
   </table>

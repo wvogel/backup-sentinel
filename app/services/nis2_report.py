@@ -19,11 +19,10 @@ from app.i18n import tl
 from app.services import nis2_metrics as m
 from app.services.backup_status import format_duration
 from app.services.human_format import format_count
-from app.services.restore_probe import green_check_labels
+from app.services.restore_probe import check_chips
 
 TREND_MONTHS = 12
 DUE_LIST_LIMIT = 4
-FAILED_LOG_LINES = 8
 _PASSED = ("passed", "limited")
 
 
@@ -137,22 +136,20 @@ _SNAP_TIME = re.compile(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z?")
 
 
 def _snapshot_label(row: dict, tz: str, lang: str) -> str:
-    where = "/".join(p for p in (row.get("source_pbs"), row.get("source_datastore")) if p)
-    when = ""
+    """When the restored backup was taken — what matters, not where it lies."""
     found = _SNAP_TIME.search(row.get("snapshot_id") or "")
-    if found:
-        snap_at = datetime.fromisoformat(found.group(1)).replace(tzinfo=UTC)
-        when = _fmt_dt(snap_at, tz, lang)
-    return " · ".join(p for p in (where, when) if p)
+    if not found:
+        return ""
+    return _fmt_dt(datetime.fromisoformat(found.group(1)).replace(tzinfo=UTC), tz, lang)
 
 
-def _failure_reason(row: dict) -> str:
-    checks = row.get("checks") if isinstance(row.get("checks"), dict) else {}
-    reason = checks.get("error") or checks.get("note") or ""
-    if not reason and row.get("log"):
-        lines = [ln for ln in str(row["log"]).splitlines() if ln.strip()]
-        reason = "\n".join(lines[-FAILED_LOG_LINES:])
-    return str(reason)
+def _check_order(chip: dict) -> tuple:
+    """ICMP, ARP, then TCP ports in numeric order."""
+    label = chip["label"]
+    if not label.startswith("TCP "):
+        return (0, label != "ICMP", 0)
+    port = label[4:]
+    return (1, 0, int(port) if port.isdigit() else 1 << 20)
 
 
 def _protocol_rows(raw: list[dict], guests_by_id: dict[int, dict], tz: str, lang: str) -> list[dict]:
@@ -162,35 +159,45 @@ def _protocol_rows(raw: list[dict], guests_by_id: dict[int, dict], tz: str, lang
         if g is None:
             continue
         passed = r["result"] in _PASSED
+        # Every check the run made — ICMP, ARP, each TCP port — passed or not.
         if r["kind"] == "run":
-            checks = " · ".join(green_check_labels(r.get("checks") or {}))
-            trigger = tl(lang, f"restore.trigger_{r['trigger']}") if r.get("trigger") else ""
+            checks = sorted(check_chips(r.get("checks")), key=_check_order)
         else:
-            checks = r.get("recovery_type") or ""
-            trigger = tl(lang, "nis2.trigger_documented")
+            checks = [{"label": r.get("recovery_type") or tl(lang, "nis2.trigger_documented"), "ok": None}]
         rows.append(
             {
                 "at": r["at"],
                 "at_label": _fmt_dt(r["at"], tz, lang),
+                "vm_id": r["vm_id"],
                 "vm_name": g["vm_name"],
                 "vmid": g["vmid"],
                 "cluster_id": g["cluster_id"],
                 "cluster_name": g["cluster_name"],
                 "kind": r["kind"],
-                "trigger": trigger,
-                "snapshot": _snapshot_label(r, tz, lang) if r["kind"] == "run" else "",
+                "snapshot": _snapshot_label(r, tz, lang) if r["kind"] == "run" else tl(lang, "nis2.trigger_documented"),
                 "result": r["result"],
                 "result_tone": "ok" if r["result"] == "passed" else ("warn" if passed else "critical"),
                 "result_label": tl(lang, f"nis2.result_{r['result']}"),
                 "duration_seconds": r.get("duration_seconds"),
                 "duration_label": format_duration(r["duration_seconds"]) if r.get("duration_seconds") else "–",
                 "checks": checks,
-                "note": ""
-                if passed
-                else (_failure_reason(r) if r["kind"] == "run" else (r.get("evidence_note") or "")),
             }
         )
+    _mark_superseded(rows)
     return rows
+
+
+def _mark_superseded(rows: list[dict]) -> None:
+    """A not fully passed attempt (failed, error, cancelled, limited) is superseded
+    when the same guest passed a test later in the period: it stays in the
+    appendix log, but no longer counts. `rows` are in time order."""
+    for i, row in enumerate(rows):
+        row["superseded_by"] = None
+        if row["result"] == "passed":
+            continue
+        later = next((x for x in rows[i + 1 :] if x["vm_id"] == row["vm_id"] and x["result"] == "passed"), None)
+        if later:
+            row["superseded_by"] = later["at_label"]
 
 
 def _summary_sentences(s: dict, lang: str) -> list[str]:
@@ -280,7 +287,8 @@ def _scope_detail(
     vm_ids = {g["id"] for g, *_ in kpis["coverages"]}
     ok = sum(counts.get(i, (0, 0))[0] for i in vm_ids)
     failed = sum(counts.get(i, (0, 0))[1] for i in vm_ids)
-    passed_runs = [p for p in protocol if p["result"] in _PASSED]
+    counted = [p for p in protocol if not p["superseded_by"]]
+    passed_runs = [p for p in counted if p["result"] in _PASSED]
     durations = [p["duration_seconds"] for p in passed_runs if p["duration_seconds"]]
     nodes = {g["node_name"] for g, *_ in kpis["coverages"] if g["missing_since"] is None}
 
@@ -303,7 +311,7 @@ def _scope_detail(
         "backups_ok": ok,
         "backups_ok_label": format_count(ok, lang),
         "backups_failed": failed,
-        "tests_run": len(protocol),
+        "tests_run": len(counted),
         "tests_passed": len(passed_runs),
         "avg_test_label": format_duration(sum(durations) // len(durations)) if durations else "–",
         "due": due,
@@ -311,7 +319,8 @@ def _scope_detail(
         "day_pcts": day_pcts,
         "day_tones": [m.day_tone(p) for p in day_pcts],
         "calendar": cal_rows,
-        "protocol": protocol,
+        "protocol": protocol,  # every attempt (appendix)
+        "protocol_counted": counted,  # without superseded attempts (figures, cluster page)
     }
     s["verdict"] = m.verdict(s["rpo_pct"], s["restore_pct"], open_gap=s["open_gaps"] > 0)
     s["verdict_label"] = tl(lang, f"nis2.verdict_{s['verdict']}")

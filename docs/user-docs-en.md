@@ -134,7 +134,7 @@ The reports page (`/reports`) produces the **NIS2 evidence report** for data bac
 ### The two key figures
 
 - **Backup continuity** -- share of time in which every VM had a successful backup no older than its RPO (VM policy, default 24 h, weekly backed-up VMs at least 180 h). Every VM that requires backups is measured -- VMs without a backup job too (as daily) -- from when Backup Sentinel first saw it. Backups later removed by retention still count. A **gap** only exists when more than **RPO + 12 h** lie between two successful backups, so shifted start times don't count. Then the whole time beyond the RPO counts. Target ≥ 99 %, remark from 98 %.
-- **Restore evidence** -- share of VMs requiring tests with a passed (or limited) restore test within their test interval (the VM's cadence), automatic or documented, on the last day of the period. Target ≥ 90 %, remark from 80 %.
+- **Restore evidence** -- share of VMs requiring tests with a passed (or limited) restore test within their test interval (the VM's cadence), automatic or documented, on the last day of the period. Target ≥ 90 %, remark from 80 %. In the test counts, an attempt that did not fully pass does not count when the same VM passed a test later that month.
 
 Percentages are whole numbers, **truncated, never rounded up**: 100 % only when nothing was missed. Colours follow the printed number. The overall rating ("Met", "Met with remarks", "Action required") is the worse of the two figures; a VM outside its RPO at the end of the period makes it at least a remark.
 
@@ -146,7 +146,7 @@ At the top: the current month up to today -- continuity, restore evidence, gaps,
 
 1. **Overview** -- the rating in plain words, both key figures as rings with their target, four figures (successful backups, gaps, passed restore tests with average duration, VMs without a valid test), both figures over 12 months (months before recording began stay empty, never 0 %), a cluster table with traffic lights and acknowledgement lines for the IT lead and management.
 2. **One page per cluster** -- rating, key figures, a strip with continuity per day, the gaps beyond RPO (last backup before, next backup, hours over RPO), the test status of the VMs (valid, overdue, never tested), the tests due and the period's restore tests.
-3. **Appendix** -- all gaps, the complete **restore test log** (every finished attempt, failed ones included, with snapshot, result, duration, checks and the reason of a failure), the **backup calendar** per VM and day, and a page on the **method**.
+3. **Appendix** -- all gaps, the complete **restore test log** (every finished attempt, failed ones included, with the snapshot's date, result, duration and every single check with its result: ICMP, ARP and each TCP port; an attempt that did not fully pass, followed by a passed test of the same VM that month, is greyed out and not counted), the **backup calendar** per VM and day, and a page on the **method**.
 
 Each report also produces one PDF per cluster (its cluster page with acknowledgement and that cluster's appendices) and a JSON file with every computed value.
 

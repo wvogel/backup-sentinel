@@ -67,7 +67,7 @@ class Nis2Fixture:
         # Restore runs in October.
         for i, vid in enumerate((1, 12, 31, 45, 45, 62, 80, 99)):
             at = datetime(2026, 10, 2 + i * 3, 14, 23, tzinfo=UTC)
-            result = "failed" if i == 3 else "passed"
+            result = "failed" if i == 3 else ("limited" if i == 6 else "passed")
             self.protocol.append(
                 {
                     "kind": "run",
@@ -82,15 +82,15 @@ class Nis2Fixture:
                     "source_datastore": "ds-main",
                     "source_namespace": "",
                     "snapshot_id": f"pbs02:backup/vm/{100 + vid}/{(at - timedelta(days=1)).strftime('%Y-%m-%dT21:00:00Z')}",
-                    "checks": {"10.1.1.5": {"icmp": True, "arp": True, "tcp": {"443": True}}}
-                    if result == "passed"
+                    "checks": {"10.1.1.5": {"icmp": i % 2 == 0, "arp": True, "ports": {"443": True, "3389": i != 6}}}
+                    if result != "failed"
                     else {"error": "guest did not answer within the probe window (no ICMP, no ARP)"},
                     "log": "",
                     "recovery_type": None,
                     "evidence_note": None,
                 }
             )
-            if result == "passed":
+            if result != "failed":
                 self.tests.setdefault(vid, []).append(at.date())
         self.protocol.append(
             {

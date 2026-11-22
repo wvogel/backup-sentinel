@@ -146,6 +146,28 @@ def green_check_labels(checks: dict[str, Any]) -> list[str]:
     return labels
 
 
+def check_chips(checks: Any) -> list[dict]:
+    """What a run checked, one entry per check — ICMP, ARP, each TCP port — as
+    ``{"label", "ok"}``; green if ANY probed IP passed it (the same union the
+    classifier uses). Empty for a manual test or a run without probe results."""
+    if not isinstance(checks, dict):
+        return []
+    results = [r for r in checks.values() if isinstance(r, dict) and "icmp" in r]
+    if not results:
+        return []
+    chips: list[dict] = []
+    if any(r.get("icmp") is not None for r in results):
+        chips.append({"label": "ICMP", "ok": any(r.get("icmp") for r in results)})
+    if any("arp" in r for r in results):
+        chips.append({"label": "ARP", "ok": any(r.get("arp") for r in results)})
+    ports: list[str] = []
+    for r in results:
+        ports += [p for p in (r.get("ports") or {}) if p not in ports]
+    for p in ports:
+        chips.append({"label": f"TCP {p}", "ok": any((r.get("ports") or {}).get(p) for r in results)})
+    return chips
+
+
 def probe_once(
     mgmt_ip: str,
     token: str,

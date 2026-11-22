@@ -56,18 +56,49 @@ class BuildTest(unittest.TestCase):
         self.assertNotIn("srv-mar-25", names)  # weekly: 3 days off is within 180 h
         self.assertIn("srv-mar-22", names)
 
-    def test_protocol_keeps_failed_runs(self):
-        results = [p["result"] for p in self.by["pve-dresden"]["protocol"]]
-        self.assertIn("failed", results)
-        failed = next(p for p in self.by["pve-dresden"]["protocol"] if p["result"] == "failed")
-        self.assertIn("probe window", failed["note"])
-        self.assertEqual(self.by["pve-dresden"]["tests_passed"], 3)
-        self.assertEqual(self.by["pve-dresden"]["tests_run"], 4)
+    def test_failed_attempt_superseded_by_later_pass_is_kept_but_not_counted(self):
+        mar = self.by["pve-dresden"]
+        failed = next(p for p in mar["protocol"] if p["result"] == "failed")
+        self.assertNotIn("note", failed)  # no failure details in the report
+        self.assertEqual(failed["superseded_by"], "14.10. 16:23")  # srv-mar-07 passed three days later
+        self.assertNotIn(failed, mar["protocol_counted"])
+        self.assertEqual((mar["tests_passed"], mar["tests_run"]), (3, 3))
+        self.assertEqual(len(mar["protocol"]), 4)  # still on record in the appendix
+
+    def test_supersede_rules(self):
+        rows = [
+            {"vm_id": 1, "result": "passed", "at_label": "a"},
+            {"vm_id": 1, "result": "failed", "at_label": "b"},  # pass was BEFORE: counts
+            {"vm_id": 2, "result": "limited", "at_label": "c"},
+            {"vm_id": 3, "result": "passed", "at_label": "d"},  # other VM: no effect on 2
+            {"vm_id": 2, "result": "passed", "at_label": "e"},
+            {"vm_id": 4, "result": "error", "at_label": "f"},
+            {"vm_id": 4, "result": "limited", "at_label": "g"},  # limited is no full pass
+        ]
+        nis2_report._mark_superseded(rows)
+        self.assertEqual([r["superseded_by"] for r in rows], [None, None, "e", None, None, None, None])
 
     def test_documented_test_without_run_is_in_protocol(self):
         manual = [p for p in self.by["pve-berlin"]["protocol"] if p["kind"] == "manual"]
         self.assertEqual(len(manual), 1)
-        self.assertEqual(manual[0]["checks"], "Datei-Restore")
+        self.assertEqual(manual[0]["checks"], [{"label": "Datei-Restore", "ok": None}])
+        self.assertEqual(manual[0]["snapshot"], "dokumentiert")
+
+    def test_every_check_listed_with_its_result_ports_in_order(self):
+        limited = next(p for p in self.by["pve-dresden"]["protocol"] if p["result"] == "limited")
+        self.assertEqual(
+            limited["checks"],
+            [
+                {"label": "ICMP", "ok": True},
+                {"label": "ARP", "ok": True},
+                {"label": "TCP 443", "ok": True},
+                {"label": "TCP 3389", "ok": False},
+            ],
+        )
+
+    def test_snapshot_shows_only_its_date(self):
+        run = self.by["pve-kiel"]["protocol"][0]
+        self.assertEqual(run["snapshot"], "22.10. 23:00")
 
     def test_trend_has_holes_before_data_never_zero(self):
         trend = self.r["overall"]["trend"]["rpo"]

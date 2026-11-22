@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import Request
@@ -31,6 +30,7 @@ from app.services.human_format import (
     format_size_coarse,
 )
 from app.services.netdiag_format import format_run_log
+from app.services.restore_probe import check_chips as restore_check_chips
 from app.services.restore_probe import green_check_labels
 from app.services.theme_store import active_theme
 
@@ -89,28 +89,6 @@ def restore_status_tooltip(run: dict) -> str:
             parts.append(f":{port} {'✓' if ok else '✗'}")
         lines.append(f"{ip}: " + " · ".join(parts))
     return (head + "\n" + "\n".join(lines)).strip() if lines else head
-
-
-def restore_check_chips(checks: Any) -> list[dict]:
-    """What a run checked, one entry per check — ICMP, ARP, each TCP port — as
-    ``{"label", "ok"}``; green if ANY probed IP passed it (the same union the
-    classifier uses). Empty for a manual test or a run without probe results."""
-    if not isinstance(checks, dict):
-        return []
-    results = [r for r in checks.values() if isinstance(r, dict) and "icmp" in r]
-    if not results:
-        return []
-    chips: list[dict] = []
-    if any(r.get("icmp") is not None for r in results):
-        chips.append({"label": "ICMP", "ok": any(r.get("icmp") for r in results)})
-    if any("arp" in r for r in results):
-        chips.append({"label": "ARP", "ok": any(r.get("arp") for r in results)})
-    ports: list[str] = []
-    for r in results:
-        ports += [p for p in (r.get("ports") or {}) if p not in ports]
-    for p in ports:
-        chips.append({"label": f"TCP {p}", "ok": any((r.get("ports") or {}).get(p) for r in results)})
-    return chips
 
 
 def restore_eta_text(run: dict, now: datetime | None = None) -> str:
