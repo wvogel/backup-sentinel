@@ -381,7 +381,7 @@ def build_nis2_report(
     backups = db.nis2_backup_times(trend_start)
     tests = db.nis2_restore_test_dates()
     counts = db.nis2_backup_counts(period.start, period.end)
-    data_start = db.nis2_earliest_event_by_cluster()
+    data_start = db.nis2_recording_start_by_cluster()
     tz_obj = ZoneInfo(tz)
     end_date = (period.end - timedelta(microseconds=1)).astimezone(tz_obj).date() + timedelta(days=1)
     protocol = _protocol_rows(

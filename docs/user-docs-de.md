@@ -152,7 +152,9 @@ Zu jedem Bericht entsteht außerdem je Cluster ein eigenes PDF (Clusterseite und
 
 ### Berichtsarchiv
 
-Am unteren Rand stehen alle erstellten Berichte mit Monat, Erstellungszeit und Art (automatisch oder Zwischenbericht). **Gesamt** lädt den Gesamtbericht, die Cluster-Namen laden das jeweilige Cluster-PDF, **JSON** die Daten. Berichte liegen im `/reports`-Volume. Ein archivierter Bericht ist der eingefrorene Nachweis seines Monats und ändert sich nicht mehr, auch wenn später VMs gelöscht werden. **Löschen** entfernt einen Bericht samt aller Dateien nach einer Rückfrage. Ältere Berichte aus der Zeit vor dem NIS2-Bericht bleiben als PDF/JSON abrufbar.
+Am unteren Rand stehen alle erstellten Berichte mit Monat, Erstellungszeit und Art (automatisch oder Zwischenbericht). **Gesamt** lädt den Gesamtbericht, die Cluster-Namen laden das jeweilige Cluster-PDF, **JSON** die Daten. Berichte liegen im `/reports`-Volume. Ein archivierter Bericht ist der eingefrorene Nachweis seines Monats und ändert sich nicht mehr, auch wenn später VMs gelöscht werden. **Löschen** entfernt einen Bericht samt aller Dateien nach einer Rückfrage.
+
+Ändert sich das Layout des Berichts so, dass es auch das Archiv betrifft, baut Backup Sentinel das Archiv nach dem Update einmal neu auf: Berichte im alten Layout (auch Zwischenberichte) werden durch den Monatsbericht ersetzt, und für jeden abgeschlossenen Monat seit Beginn der Aufzeichnung entsteht ein Monatsbericht, ohne E-Mail. Die Aufzeichnung eines Clusters beginnt, als er in Backup Sentinel aufgenommen wurde; ältere Snapshots zeigen nur, was die Aufbewahrungsregeln übrig ließen, und werden nicht gemessen. Nachträglich erstellte Berichte rechnen mit den heutigen RPO- und Test-Einstellungen; ihr Erstellungsdatum steht in der Fußzeile.
 
 Der Bericht des Vormonats entsteht beim ersten Sync nach dem Monatswechsel automatisch und geht, wenn E-Mail aktiv ist, als PDF an die Empfänger. Ein Zwischenbericht verhindert den automatischen Monatsbericht nicht.
 

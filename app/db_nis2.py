@@ -10,8 +10,8 @@ from app.db_core import connect
 __all__ = [
     "nis2_backup_counts",
     "nis2_backup_times",
-    "nis2_earliest_event_by_cluster",
     "nis2_guest_rows",
+    "nis2_recording_start_by_cluster",
     "nis2_restore_protocol",
     "nis2_restore_test_dates",
 ]
@@ -126,13 +126,18 @@ def nis2_restore_protocol(start: datetime, end: datetime, start_date: date, end_
         return list(cur.fetchall())
 
 
-def nis2_earliest_event_by_cluster() -> dict[int, datetime]:
-    """When Backup Sentinel's backup history of each cluster begins."""
+def nis2_recording_start_by_cluster() -> dict[int, datetime]:
+    """When Backup Sentinel's complete backup record of each cluster begins: its
+    first backup, but not before the cluster was added. Older snapshots are only
+    what retention left over — their pruned neighbours were never recorded, so
+    measuring there would show gaps that never were."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT v.cluster_id, MIN(be.started_at) AS first
-            FROM backup_events be JOIN vms v ON v.id = be.vm_id
+            SELECT v.cluster_id, GREATEST(MIN(be.started_at), MIN(c.created_at)) AS first
+            FROM backup_events be
+            JOIN vms v ON v.id = be.vm_id
+            JOIN clusters c ON c.id = v.cluster_id
             GROUP BY v.cluster_id
             """
         )

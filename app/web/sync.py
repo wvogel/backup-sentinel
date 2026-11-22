@@ -45,7 +45,7 @@ from app.services.pbs import (
 )
 from app.services.proxmox import fetch_cluster_inventory, fetch_finished_backup_tasks
 from app.services.proxmox_progress import running_backup_progress_cached
-from app.services.report_archive import generate_archived_report
+from app.services.report_archive import generate_archived_report, rebuild_report_archive
 from app.services.theme_store import active_theme
 
 logger = logging.getLogger(__name__)
@@ -615,6 +615,10 @@ async def auto_sync_loop() -> None:
             await asyncio.get_event_loop().run_in_executor(sync_executor, notify_overdue_cluster_syncs)
         except Exception as exc:
             logger.error("Sync-overdue check failed: %s", exc)
+        try:  # before the monthly run: a rebuilt last month needs no second report
+            await asyncio.get_event_loop().run_in_executor(sync_executor, rebuild_report_archive)
+        except Exception as exc:
+            logger.error("Report archive rebuild failed: %s", exc)
         try:
             await asyncio.get_event_loop().run_in_executor(sync_executor, auto_generate_monthly_report)
         except Exception as exc:

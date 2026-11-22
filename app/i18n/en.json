@@ -828,7 +828,7 @@
   "nis2.m_rounding": "Percentages are whole numbers, truncated, never rounded up: 100 % only when nothing was missed. Hours likewise.",
   "nis2.m_sources_title": "Data sources and limits",
   "nis2.m_sources": "Backups from Proxmox VE and Proxmox Backup Server (task history and snapshots); restore tests from Backup Sentinel's automatic test runs and manually documented tests.",
-  "nis2.m_limits": "Earlier months in the trend are computed with today's test intervals and cover only VMs still known. The archived report of a month is authoritative for that month. Months before recording began show as a hole in the trend, not as 0 %.",
+  "nis2.m_limits": "Earlier months in the trend are computed with today's test intervals and cover only VMs still known. The archived report of a month is authoritative for that month. The same holds for monthly reports created afterwards. Recording of a cluster begins when it was added to Backup Sentinel: older snapshots only show what retention left over and are not measured. Months before recording began show as a hole in the trend, not as 0 %.",
   "nis2.m_generated": "Generated {at} with Backup Sentinel {version}.",
   "nis2.month_1": "January",
   "nis2.month_2": "February",

@@ -105,16 +105,18 @@ def archive_monthly_report(
     json_path: Any,
     report: dict[str, Any],
     files: dict[str, str] | None = None,
+    report_format: int = 1,
 ) -> None:
-    """Archive one generation. `files` maps "all" / a cluster slug to its PDF."""
+    """Archive one generation. `files` maps "all" / a cluster slug to its PDF;
+    `report_format` is the layout version it was rendered with."""
     now = datetime.now(UTC)
     snapshot = serialize_report_payload(report)
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO monthly_reports
-                (report_month, generated_at, trigger_mode, pdf_path, json_path, snapshot_json, files)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (report_month, generated_at, trigger_mode, pdf_path, json_path, snapshot_json, files, format)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 report_month,
@@ -124,6 +126,7 @@ def archive_monthly_report(
                 str(json_path),
                 Jsonb(snapshot),
                 Jsonb(files) if files is not None else None,
+                report_format,
             ),
         )
         conn.commit()
@@ -133,7 +136,7 @@ def list_monthly_reports() -> list[MonthlyReportRow]:
     with connect() as conn, conn.cursor() as cur:
         # Without the snapshot: old reports stored every backup event there.
         cur.execute(
-            "SELECT id, report_month, generated_at, trigger_mode, pdf_path, json_path, files"
+            "SELECT id, report_month, generated_at, trigger_mode, pdf_path, json_path, files, format"
             " FROM monthly_reports ORDER BY generated_at DESC"
         )
         return list(cur.fetchall())

@@ -134,7 +134,7 @@ class Nis2Fixture:
     def nis2_restore_protocol(self, start, end, start_date, end_date):
         return [p for p in self.protocol if start <= p["at"] < end]
 
-    def nis2_earliest_event_by_cluster(self):
+    def nis2_recording_start_by_cluster(self):
         return {ci: datetime(2026, 2, 20, 21, tzinfo=UTC) for ci in range(1, len(CLUSTERS) + 1)}
 
     def patch(self):

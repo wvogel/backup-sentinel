@@ -188,6 +188,13 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
             "ALTER TABLE monthly_reports ADD COLUMN IF NOT EXISTS files JSONB",
         ],
     ),
+    (
+        13,
+        "Archived reports: layout version they were rendered with",
+        # Every report archived so far has the old layout (signature lines):
+        # version 1. report_archive rebuilds older versions once.
+        ["ALTER TABLE monthly_reports ADD COLUMN IF NOT EXISTS format INT NOT NULL DEFAULT 1"],
+    ),
 ]
 
 

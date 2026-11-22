@@ -14,7 +14,7 @@ from app import db
 from app.config import DEFAULT_TIMEZONE, REPORT_LANGUAGE
 from app.services.nis2_render import render_html
 from app.services.nis2_report import build_nis2_report, cluster_view
-from app.services.report_archive import generate_archived_report
+from app.services.report_archive import generate_archived_report, remove_archived_files
 from app.services.theme_store import active_theme
 from app.web.common import common_context, templates
 
@@ -75,9 +75,7 @@ async def generate_report() -> RedirectResponse:
 def delete_report(report_id: int) -> RedirectResponse:
     deleted = db.delete_monthly_report(report_id)
     if deleted:
-        paths = {deleted["pdf_path"], deleted["json_path"], *(deleted.get("files") or {}).values()}
-        for path in paths:
-            Path(path).unlink(missing_ok=True)
+        remove_archived_files(deleted)
     return RedirectResponse(url="/reports", status_code=status.HTTP_303_SEE_OTHER)
 
 

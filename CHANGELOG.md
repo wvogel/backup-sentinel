@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.7] — 2026-11-22
+
+### Changed
+
+- **The report archive is rebuilt in the new layout.** Reports archived before still had the old content, signature lines included. After this update, Backup Sentinel replaces every report in the old layout once (interim reports too, the monthly report supersedes them) and reconstructs the monthly report of every finished month since recording began. No emails are sent for these. Archived reports now store their layout version; raising it rebuilds the archive once again.
+
+### Fixed
+
+- **NIS2 report: no gaps before a cluster was added.** Measurement started at the oldest snapshot still on PBS. Before a cluster was added, though, only what retention left over is known, so the months before showed huge gaps that never were (e.g. 60 % for February). Measurement now starts when the cluster was added to Backup Sentinel, in reports and in the 12-month trend.
+
 ## [v3.19.6] — 2026-11-22
 
 ### Changed

@@ -152,7 +152,9 @@ Each report also produces one PDF per cluster (its cluster page and that cluster
 
 ### Report archive
 
-At the bottom: every report created, with month, creation time and kind (automatic or interim). **Overall** downloads the overall report, the cluster names their cluster PDF, **JSON** the data. Reports are stored in the `/reports` volume. An archived report is the frozen evidence of its month and does not change, even if VMs are deleted later. **Delete** removes a report with all its files after a confirmation. Reports from before the NIS2 report stay downloadable as PDF/JSON.
+At the bottom: every report created, with month, creation time and kind (automatic or interim). **Overall** downloads the overall report, the cluster names their cluster PDF, **JSON** the data. Reports are stored in the `/reports` volume. An archived report is the frozen evidence of its month and does not change, even if VMs are deleted later. **Delete** removes a report with all its files after a confirmation.
+
+When the report layout changes in a way that concerns the archive too, Backup Sentinel rebuilds the archive once after the update: reports in the old layout (interim ones too) are replaced by the monthly report, and every finished month since recording began gets a monthly report, without email. Recording of a cluster begins when it was added to Backup Sentinel; older snapshots only show what retention left over and are not measured. Reports created afterwards use today's RPO and test settings; their creation date is in the footer.
 
 The previous month's report is created automatically with the first sync after the month changes and, if email is enabled, sent as PDF. An interim report does not suppress the automatic monthly report.
 

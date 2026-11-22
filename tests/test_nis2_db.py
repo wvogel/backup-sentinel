@@ -40,6 +40,7 @@ class Nis2DbTestCase(unittest.TestCase):
             ids = {r["vmid"]: r["id"] for r in cur.fetchall()}
             self.a, self.nojob = ids[100], ids[101]
             cur.execute("UPDATE vms SET first_seen_at = %s", (datetime(2026, 9, 1, tzinfo=UTC),))
+            cur.execute("UPDATE clusters SET created_at = %s", (datetime(2026, 9, 1, tzinfo=UTC),))
             t0 = datetime(2026, 9, 20, 21, tzinfo=UTC)
             for d in range(45):
                 if d in (25, 26):  # 15.–16.10. missing: one gap
@@ -72,6 +73,15 @@ class Nis2DbTestCase(unittest.TestCase):
         self.assertEqual(times[0], datetime(2026, 9, 30, 21, tzinfo=UTC))
         self.assertTrue(all(t >= since for t in times[1:]))
         self.assertNotIn(datetime(2026, 10, 15, 21, tzinfo=UTC), times)
+
+    def test_recording_starts_when_the_cluster_was_added(self) -> None:
+        self.assertEqual(db.nis2_recording_start_by_cluster()[self.cid], datetime(2026, 9, 20, 21, tzinfo=UTC))
+        added = datetime(2026, 10, 3, 12, tzinfo=UTC)
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("UPDATE clusters SET created_at = %s", (added,))
+            conn.commit()
+        # older snapshots are what retention left over: not measured
+        self.assertEqual(db.nis2_recording_start_by_cluster()[self.cid], added)
 
     def test_guest_rows_mark_unconfigured(self) -> None:
         kinds = {g["id"]: g["backup_kind"] for g in db.nis2_guest_rows()}
@@ -117,6 +127,24 @@ class Nis2DbTestCase(unittest.TestCase):
             self.assertIsNone(db.get_monthly_report_for_month(date(2026, 10, 1)))
             report_archive.generate_archived_report(date(2026, 10, 1), "auto", datetime(2026, 11, 1, 6, tzinfo=UTC))
             self.assertIsNotNone(db.get_monthly_report_for_month(date(2026, 10, 1)))
+
+    def test_rebuild_replaces_old_layout_and_reconstructs_months(self) -> None:
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM app_settings WHERE key = 'report_archive_format'")
+            conn.commit()
+        with tempfile.TemporaryDirectory() as tmp, patch.object(report_archive, "REPORT_DIR", Path(tmp)):
+            old = Path(tmp) / "backup-report-2026-10.pdf"
+            old.write_bytes(b"%PDF old")
+            db.archive_monthly_report(date(2026, 10, 1), "manual", old, Path(tmp) / "old.json", {})
+            now = datetime(2026, 11, 5, tzinfo=UTC)
+            self.assertEqual(report_archive.rebuild_report_archive(now), 2)  # 09 and 10/2026
+            self.assertFalse(old.exists())
+            rows = db.list_monthly_reports()
+            self.assertEqual(sorted(r["report_month"] for r in rows), [date(2026, 9, 1), date(2026, 10, 1)])
+            self.assertTrue(all(r["trigger_mode"] == "auto" and r["format"] == 2 for r in rows))
+            # once per layout: a later run (or a deleted report) changes nothing
+            db.delete_monthly_report(rows[0]["id"])
+            self.assertEqual(report_archive.rebuild_report_archive(now), 0)
 
 
 class Nis2RoutesTestCase(Nis2DbTestCase):

@@ -123,6 +123,7 @@ class MonthlyReportRow(TypedDict):
     json_path: str
     snapshot_json: dict[str, Any]
     files: dict[str, str] | None
+    format: int
 
 
 class AuditLogRow(TypedDict):

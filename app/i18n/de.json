@@ -828,7 +828,7 @@
   "nis2.m_rounding": "Prozentwerte sind ganze Zahlen und werden abgeschnitten, nie aufgerundet: 100 % steht nur, wenn nichts gefehlt hat. Stunden ebenso.",
   "nis2.m_sources_title": "Datenquellen und Grenzen",
   "nis2.m_sources": "Backups aus Proxmox VE und Proxmox Backup Server (Task-Historie und Snapshots), Restore-Tests aus den automatischen Testläufen von Backup Sentinel und manuell dokumentierten Tests.",
-  "nis2.m_limits": "Der Verlauf früherer Monate wird mit den heutigen Test-Intervallen berechnet und umfasst nur VMs, die noch bekannt sind. Maßgeblich für einen Monat ist der archivierte Bericht dieses Monats. Monate vor Beginn der Aufzeichnung erscheinen als Lücke im Verlauf, nicht als 0 %.",
+  "nis2.m_limits": "Der Verlauf früherer Monate wird mit den heutigen Test-Intervallen berechnet und umfasst nur VMs, die noch bekannt sind. Maßgeblich für einen Monat ist der archivierte Bericht dieses Monats. Für nachträglich erstellte Monatsberichte gilt dasselbe. Die Aufzeichnung eines Clusters beginnt, als er in Backup Sentinel aufgenommen wurde: Ältere Snapshots zeigen nur, was die Aufbewahrungsregeln übrig ließen, und werden nicht gemessen. Monate vor Beginn der Aufzeichnung erscheinen als Lücke im Verlauf, nicht als 0 %.",
   "nis2.m_generated": "Erstellt {at} mit Backup Sentinel {version}.",
   "nis2.month_1": "Januar",
   "nis2.month_2": "Februar",
