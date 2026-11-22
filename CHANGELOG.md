@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.11] — 2026-11-22
+
+### Fixed
+
+- **NIS2 cluster page: longer VM names no longer push it onto a second page.** The checks of a restore test shared the row with the VM name; a longer name squeezed them into several lines until the last test spilled over. On the cluster page the checks now sit on their own line under each test, so the height no longer depends on the name, and the sections sit a little closer together.
+
 ## [v3.19.10] — 2026-11-22
 
 ### Changed

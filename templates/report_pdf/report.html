@@ -71,6 +71,10 @@ table { width: 100%; border-collapse: collapse; }
 th { text-align: left; font-size: 6.9pt; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; padding: 0 2mm 1.4mm; white-space: nowrap; }
 td { padding: 1.5mm 2mm; border-top: .3mm solid #ece9e3; vertical-align: middle; white-space: nowrap; }
 td.wrap { white-space: normal; }
+table.tests tr.checks-row td { border-top: 0; padding-top: 0; padding-bottom: 1.2mm; }
+table.tests td { padding-top: 1.2mm; padding-bottom: .6mm; }
+.exec .section { margin-top: 3mm; }
+.exec .sh { margin-bottom: 1.8mm; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
 .bar { height: 2mm; background: var(--sand); border-radius: 1mm; overflow: hidden; width: 15mm; display: inline-block; vertical-align: middle; margin-right: 2mm; }
@@ -243,13 +247,15 @@ body { width: 210mm; margin: 8mm auto; }
     {%- set shown = c.protocol %}
     <div class="section"><div class="sh">{{ tr('tests_title') }}{% if shown|length > 3 %}<em>{{ tr('more_in_appendix', n=shown|length - 3) }}</em>{% endif %}</div>
       {% if shown %}
-      <table style="font-size: 8.2pt">
-        <thead><tr><th>{{ tr('col_date') }}</th><th>{{ tr('col_vm') }}</th><th>{{ tr('col_snapshot') }}</th><th>{{ tr('col_result') }}</th><th class="num">{{ tr('col_duration') }}</th><th>{{ tr('col_checks') }}</th></tr></thead>
+      {#- Checks on their own full-width line: the row height must not depend on the VM name's length. #}
+      <table class="tests" style="font-size: 8.2pt">
+        <thead><tr><th>{{ tr('col_date') }}</th><th class="wrap">{{ tr('col_vm') }}</th><th>{{ tr('col_snapshot') }}</th><th>{{ tr('col_result') }}</th><th class="num">{{ tr('col_duration') }}</th></tr></thead>
         <tbody>
         {% for p in shown[-3:]|reverse %}
-        <tr><td>{{ p.at_label }}</td><td><b>{{ p.vm_name }}</b></td><td class="muted">{{ p.snapshot }}</td>
+        <tr><td>{{ p.at_label }}</td><td class="wrap"><b>{{ p.vm_name }}</b></td><td class="muted">{{ p.snapshot }}</td>
           <td><span class="res" style="color: {{ pal.tone(p.result_tone) }}">● {{ p.result_label }}</span></td>
-          <td class="num">{{ p.duration_label }}</td><td class="wrap">{{ checks(p) }}</td></tr>
+          <td class="num">{{ p.duration_label }}</td></tr>
+        <tr class="checks-row"><td></td><td class="wrap" colspan="4">{{ checks(p) }}</td></tr>
         {% endfor %}
         </tbody>
       </table>

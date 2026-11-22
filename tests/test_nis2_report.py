@@ -214,6 +214,8 @@ class RenderTest(unittest.TestCase):
         c["gap_count"] = 6
         c["protocol"] = (c["protocol"] * 3)[:7]
         c["due"] = c["due_shown"] = (c["due"] * 3)[:3]
+        for row in (*c["protocol"], *c["gaps"]):  # long VM names must not push it onto a second page
+            row["vm_name"] = "srv-a-very-long-vm-name-01"
         doc = HTML(string=nis2_render.render_html(view), base_url=str(nis2_render.TEMPLATE_DIR)).render()
         page2 = []
 
