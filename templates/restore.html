@@ -121,18 +121,29 @@
       <div class="store-ring ring-ok running-ring" style="--pct: {{ rp }}"><div class="ring-center"><strong class="js-run-pct">{{ rp }}%</strong></div></div>
       <div class="running-info">
         <strong>{% if run.vm_name %}<span class="muted">{{ run.cluster_name }}:</span>{{ run.vm_name }}{% else %}{{ 'VM ' ~ (run.vmid_src or run.vm_id) }}{% endif %}</strong>
-        <span class="muted js-run-phase">{{ t('restore.phase_' ~ run.phase) if run.phase else t('restore.phase_restoring') }}</span>
-        <span class="muted js-run-progress">
-          {%- if run.bytes_done %}{{ run.bytes_done|size_coarse }} {{ t('restore.read_label') }}{% endif %}
-          {%- if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
-        {# Live during probing: the detected/DHCP IP and the checks already green. #}
-        <span class="muted js-run-ip" data-ip-label="{{ t('restore.run_ip') }}"{% if not run.detected_ip %} hidden{% endif %}>{{ t('restore.run_ip') }} {{ run.detected_ip }}</span>
-        <span class="run-checks js-run-checks">{% for c in run.checks|green_checks %}<span class="check-chip">✓ {{ c }}</span>{% endfor %}</span>
-        {{ pc.probe_countdown(run) }}
-        {%- set _eta = run|restore_eta %}
-        <span class="run-eta js-run-eta"{% if not _eta %} hidden{% endif %}>{{ _eta }}</span>
-        {%- if run.disk_bytes %}<span class="muted run-size">{{ t('restore.size_label') }} {{ run.disk_bytes|size_coarse }}{% if run.disks and run.disks|length > 1 %} · {{ t('restore.disks_count', n=run.disks|length) }}{% endif %}</span>{% endif %}
-        {%- if run.disks %}{{ vol.bar(run.disks, run.disk_bytes, legend=True, fills=run|disk_fills) }}{% endif %}
+        {#- Side by side, not stacked: progress | size and disks | probing (only while probing). #}
+        <div class="running-cols">
+          <div class="running-col">
+            <span class="muted js-run-phase">{{ t('restore.phase_' ~ run.phase) if run.phase else t('restore.phase_restoring') }}</span>
+            <span class="muted js-run-progress">
+              {%- if run.bytes_done %}{{ run.bytes_done|size_coarse }} {{ t('restore.read_label') }}{% endif %}
+              {%- if run.throughput_bps %} · {{ run.throughput_bps|size_coarse }}/s{% endif %}</span>
+            {%- set _eta = run|restore_eta %}
+            <span class="run-eta js-run-eta"{% if not _eta %} hidden{% endif %}>{{ _eta }}</span>
+          </div>
+          {%- if run.disk_bytes or run.disks %}
+          <div class="running-col">
+            {%- if run.disk_bytes %}<span class="muted run-size">{{ t('restore.size_label') }} {{ run.disk_bytes|size_coarse }}{% if run.disks and run.disks|length > 1 %} · {{ t('restore.disks_count', n=run.disks|length) }}{% endif %}</span>{% endif %}
+            {%- if run.disks %}{{ vol.bar(run.disks, run.disk_bytes, legend=True, fills=run|disk_fills) }}{% endif %}
+          </div>
+          {%- endif %}
+          {#- Live during probing: the detected/DHCP IP and the checks already green. #}
+          <div class="running-col running-col-probe">
+            <span class="muted js-run-ip" data-ip-label="{{ t('restore.run_ip') }}"{% if not run.detected_ip %} hidden{% endif %}>{{ t('restore.run_ip') }} {{ run.detected_ip }}</span>
+            <span class="run-checks js-run-checks">{% for c in run.checks|green_checks %}<span class="check-chip">✓ {{ c }}</span>{% endfor %}</span>
+            {{ pc.probe_countdown(run) }}
+          </div>
+        </div>
       </div>
       <form action="/restore/runs/{{ run.id }}/cancel" method="post" class="inline-form running-cancel js-confirm-form" data-confirm-title="{{ t('restore.cancel_confirm_title') }}" data-confirm-body="{{ t('restore.cancel_confirm') }}" data-confirm-ok="{{ t('restore.cancel_run') }}">
         <button type="submit" class="button-secondary" title="{{ t('restore.cancel_run') }}">⏹ {{ t('restore.cancel_run') }}</button>

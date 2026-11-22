@@ -1799,7 +1799,8 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 .trigger-icon svg { display: block; }
 .icon-button.icon-cancel:hover { color: var(--critical); }
 /* Cancel button on the running card sits at the far right. */
-.running-cancel { margin-left: auto; }
+.running-cancel { margin-left: auto; flex: none; }
+.running-cancel button { white-space: nowrap; }
 
 /* Runs log: server-side filter bar + pager. */
 .runs-filter {
@@ -3855,6 +3856,20 @@ fieldset.rhost-graph { height: 58px; width: 100%; }
 }
 /* The restore-progress ring is as large as the RAM / storage rings (.store-ring). */
 .running-info { display: flex; flex-direction: column; gap: 2px; }
+/* /restore: the details sit in columns under the title instead of one tall
+   stack — progress | size and disks | probing. The probing column only takes
+   room while it shows something. */
+.running-restores .running-info { flex: 1 1 auto; min-width: 0; gap: 6px; }
+.running-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px 32px;
+  align-items: start;
+}
+.running-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.running-col .vol-bar { margin-top: 4px; }
+.running-col-probe:not(:has(> :not([hidden]):not(:empty))) { display: none; }
 /* A finished run's duration hints (dotted underline) that hovering it shows the
    per-phase breakdown — where the time actually went. */
 .phase-timings-cue { text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
@@ -3998,6 +4013,7 @@ fieldset.rhost-graph { height: 58px; width: 100%; }
   animation: queue-spin 1.6s linear infinite;
 }
 @media (max-width: 760px) {
+  .running-cols { grid-auto-flow: row; }
   .restore-server-card { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .restore-server-card > .cluster-row-stats,
   .restore-server-card > .running-card,

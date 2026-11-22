@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.18.2] — 2026-11-22
+
+### Changed
+
+- **A running restore on /restore takes less height.** Its details stood in one tall stack beside the ring while most of the card's width stayed empty. They now sit in columns under the VM name: progress (phase, data read, finish time) next to size and disks, plus a third column with IP, green checks and the time window while the restore is being probed. The card is now no taller than its ring. On phones the columns stack again.
+
 ## [v3.18.1] — 2026-11-22
 
 ### Fixed
