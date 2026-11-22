@@ -95,6 +95,11 @@ class BuildTest(unittest.TestCase):
             ],
         )
 
+    def test_recovery_type_in_words(self):
+        self.assertEqual(nis2_report._recovery_label("full", "de"), "vollständiger Restore")
+        self.assertEqual(nis2_report._recovery_label("file", "en"), "file restore")
+        self.assertEqual(nis2_report._recovery_label("Bare-Metal", "de"), "Bare-Metal")
+
     def test_snapshot_shows_only_its_date(self):
         run = self.by["pve-kiel"]["protocol"][0]
         self.assertEqual(run["snapshot"], "22.10. 23:00")
@@ -182,14 +187,36 @@ class RenderTest(unittest.TestCase):
         self.assertIn("Anhang ·", texts[5])
         self.assertNotIn("Anhang ·", " ".join(texts[:5]))
 
-    def test_trend_scale_is_tight_with_grid_lines(self):
-        self.assertEqual(nis2_render.trend_scale([None, 99, 100, 99], 99, None, 100), (98, [98, 99, 100]))
-        self.assertEqual(nis2_render.trend_scale([97, 100], 99, None, 100), (96, [96, 97, 98, 99, 100]))
-        self.assertEqual(nis2_render.trend_scale([100, 100], 99, None, 100), (98, [98, 99, 100]))
-        self.assertEqual(nis2_render.trend_scale([60], 99, None, 100), (59, [59, 100]))
-        self.assertEqual(nis2_render.trend_scale([None, None], 99, None, 100), (98, [98, 99, 100]))
-        self.assertEqual(nis2_render.trend_scale([40, 80], 90, 0, 100), (0, [0, 50, 100]))
-        self.assertEqual(nis2_render.trend_scale([98.2, 99.8], 99, None, 100), (98, [98, 99, 100]))
+    def test_trend_axis_always_starts_at_zero(self):
+        svg = str(nis2_render.trend_svg([98.2, 99.6], ["a", "b"], 99, "#000", nis2_render.palette_for(None)))
+        self.assertIn(">0</text>", svg)
+        self.assertIn(">50</text>", svg)
+        self.assertIn(">100</text>", svg)
+
+    def test_full_cluster_page_still_fits_on_one_page(self):
+        from weasyprint import HTML
+
+        view = nis2_report.cluster_view(build(), "pve-dresden")
+        c = view["clusters"][0]
+        c["gaps"] = (c["gaps"] * 4)[:6]
+        c["gap_count"] = 6
+        c["protocol"] = (c["protocol"] * 3)[:7]
+        c["due"] = c["due_shown"] = (c["due"] * 3)[:3]
+        doc = HTML(string=nis2_render.render_html(view), base_url=str(nis2_render.TEMPLATE_DIR)).render()
+        page2 = []
+
+        def walk(box):
+            if hasattr(box, "text"):
+                page2.append(box.text)
+            for child in getattr(box, "children", []) or []:
+                walk(child)
+
+        walk(doc.pages[1]._page_box)
+        self.assertIn("Anhang ·", " ".join(page2))
+
+    def test_cluster_page_has_its_own_trend(self):
+        html = nis2_render.render_html(nis2_report.cluster_view(self.r, "pve-kiel"))
+        self.assertEqual(html.count('class="trend"'), 2)
 
     def test_cluster_pdf_is_one_cluster_page_without_signoff(self):
         html = nis2_render.render_html(nis2_report.cluster_view(self.r, "pve-kiel"))

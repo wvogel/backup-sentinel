@@ -127,34 +127,18 @@ def ring_svg(pct: int | None, tone: str | None, pal: Palette, size: int = 100, s
     )
 
 
-def trend_scale(values: list[float | None], target: int, lo: int | None, hi: int) -> tuple[int, list[int]]:
-    """Lower bound and grid lines. `lo=None`: tight — the whole number below the
-    lowest value or the target, so small changes stay visible (98 – 99 – 100)."""
-    if lo is None:
-        floor = min(v for v in [*values, target] if v is not None)
-        lo = math.floor(floor) - (1 if float(floor).is_integer() else 0)
-        lo = max(0, min(lo, hi - 2))
-    span = hi - lo
-    if span <= 5:
-        ticks = list(range(lo, hi + 1))
-    else:
-        ticks = [lo, lo + span // 2, hi] if span % 2 == 0 else [lo, hi]
-    return lo, ticks
-
-
 def trend_svg(
     values: list[float | None],
     labels: list[str],
-    lo: int | None,
-    hi: int,
     target: int,
     color: str,
     pal: Palette,
     w: int = 300,
     h: int = 96,
 ) -> Markup:
-    """Area/line chart of whole percents; None is a hole ("keine Daten")."""
-    lo, ticks = trend_scale(values, target, lo, hi)
+    """Area/line chart of percents; None is a hole ("keine Daten"). The y-axis
+    always runs from 0 to 100 % — a cut axis would distort the picture."""
+    lo, hi, ticks = 0, 100, (0, 50, 100)
     pl, pr, pt, pb = 26, 6, 8, 16
     iw, ih = w - pl - pr, h - pt - pb
     step = iw / max(1, len(values))
@@ -288,15 +272,15 @@ def render_html(report: dict[str, Any], *, theme_colors: BaseColors | None = Non
         "wordmark_png": _wordmark_png(),
         "trend_labels": [_short_month(mo, lang) for mo in report["trend_months"]],
         # The trends take the room the cluster table leaves (≈7 mm per extra cluster).
-        "trend": lambda vals, lo, hi, target, color: trend_svg(
+        # Overview: the trends take the room the cluster table leaves (≈7 mm per
+        # extra cluster); cluster pages: a compact pair.
+        "trend": lambda vals, target, color, h=None: trend_svg(
             vals,
             [_short_month(mo, lang) for mo in report["trend_months"]],
-            lo,
-            hi,
             target,
             color,
             pal,
-            h=max(96, 176 - 26 * max(0, len(report["clusters"]) - 4)),
+            h=h or max(96, 176 - 26 * max(0, len(report["clusters"]) - 4)),
         ),
         "month_label": _month_label(period["month"], lang),
         "range_label": f"{start_label} – {end_label}",

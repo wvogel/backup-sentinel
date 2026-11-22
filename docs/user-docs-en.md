@@ -144,8 +144,8 @@ At the top: the current month up to today -- continuity, restore evidence, gaps,
 
 ### The report (PDF)
 
-1. **Overview** -- the rating in plain words, both key figures as rings with their target, four figures (successful backups, gaps, passed restore tests with average duration, VMs without a valid test), both figures over 12 months (months before recording began stay empty, never 0 %), a cluster table with traffic lights.
-2. **One page per cluster** -- rating, key figures, a strip with continuity per day, the gaps beyond RPO (last backup before, next backup, hours over RPO), the test status of the VMs (valid, overdue, never tested), the tests due and the period's restore tests.
+1. **Overview** -- the rating in plain words, both key figures as rings with their target, four figures (successful backups, gaps, passed restore tests with average duration, VMs without a valid test), both figures over 12 months (axis always from 0 %; months before recording began stay empty, never 0 %), a cluster table with traffic lights.
+2. **One page per cluster** -- rating, key figures, both figures over 12 months, a strip with continuity per day, the gaps beyond RPO (last backup before, next backup, hours over RPO), the test status of the VMs (valid, overdue, never tested), the tests due and the period's restore tests.
 3. **Appendix** -- all gaps, the complete **restore test log** (every finished test with the snapshot's date, result, duration and every single check with its result: ICMP, ARP and each TCP port), the **backup calendar** per VM and day, and a page on the **method**.
 
 Each report also produces one PDF per cluster (its cluster page and that cluster's appendices) and a JSON file with every computed value.

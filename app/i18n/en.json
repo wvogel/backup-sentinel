@@ -862,5 +862,8 @@
   "reports.untested": "untested",
   "reports.all": "Overall",
   "reports.no_clusters": "No clusters registered yet.",
-  "reports.trigger_interim": "interim"
+  "reports.trigger_interim": "interim",
+  "nis2.recovery_full": "full restore",
+  "nis2.recovery_partial": "partial restore",
+  "nis2.recovery_file": "file restore"
 }

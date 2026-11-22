@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.5] — 2026-11-22
+
+### Changed
+
+- **NIS2 report: chart axes always start at 0.** v3.19.4 scaled the continuity trend to 98–100 %. A cut y-axis distorts every chart, so both trends now run from 0 to 100 % (grid at 0, 50, 100), on every page.
+- **NIS2 report: every cluster page has its own 12-month trend.** The per-cluster PDF and the cluster preview lacked it; only the overview had one. Both figures now sit under the rings. To keep the page to one sheet, the cluster page shows at most three gaps, three due tests and three restore tests; the rest is in the appendix as before.
+
+### Fixed
+
+- **A documented test's recovery type showed its raw value.** "full" now reads "vollständiger Restore" (and partial / file accordingly).
+
 ## [v3.19.4] — 2026-11-22
 
 ### Changed

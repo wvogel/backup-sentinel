@@ -22,7 +22,7 @@ from app.services.human_format import format_count
 from app.services.restore_probe import check_chips
 
 TREND_MONTHS = 12
-DUE_LIST_LIMIT = 4
+DUE_LIST_LIMIT = 3
 _PASSED = ("passed", "limited")
 
 
@@ -145,6 +145,16 @@ def _snapshot_label(row: dict, tz: str, lang: str) -> str:
     return _fmt_dt(datetime.fromisoformat(found.group(1)).replace(tzinfo=UTC), tz, lang)
 
 
+_RECOVERY_TYPES = ("full", "partial", "file")
+
+
+def _recovery_label(value: str | None, lang: str) -> str:
+    """A documented test's recovery type in words ("full" → "vollständiger Restore")."""
+    if value in _RECOVERY_TYPES:
+        return tl(lang, f"nis2.recovery_{value}")
+    return value or tl(lang, "nis2.trigger_documented")
+
+
 def _check_order(chip: dict) -> tuple:
     """ICMP, ARP, then TCP ports in numeric order."""
     label = chip["label"]
@@ -165,7 +175,7 @@ def _protocol_rows(raw: list[dict], guests_by_id: dict[int, dict], tz: str, lang
         if r["kind"] == "run":
             checks = sorted(check_chips(r.get("checks")), key=_check_order)
         else:
-            checks = [{"label": r.get("recovery_type") or tl(lang, "nis2.trigger_documented"), "ok": None}]
+            checks = [{"label": _recovery_label(r.get("recovery_type"), lang), "ok": None}]
         rows.append(
             {
                 "at": r["at"],

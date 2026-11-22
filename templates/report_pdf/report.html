@@ -163,8 +163,8 @@ body { width: 210mm; margin: 8mm auto; }
       <div class="kpi"><strong style="color: {{ pal.tone('critical' if missing else 'ok') }}">{{ missing }}</strong><span>{{ tr('fig_untested', overdue=o.restore.overdue, never=o.restore.never)|safe }}</span></div>
     </div>
     <div class="section two">
-      <div><div class="sh">{{ tr('trend_rpo') }}<em>{{ tr('target', pct=targets.rpo[0]) }}</em></div>{{ trend(o.trend.rpo, none, 100, targets.rpo[0], pal.primary) }}</div>
-      <div><div class="sh">{{ tr('trend_restore') }}<em>{{ tr('target', pct=targets.restore[0]) }}</em></div>{{ trend(o.trend.restore, 0, 100, targets.restore[0], pal.rule) }}</div>
+      <div><div class="sh">{{ tr('trend_rpo') }}<em>{{ tr('target', pct=targets.rpo[0]) }}</em></div>{{ trend(o.trend.rpo, targets.rpo[0], pal.primary) }}</div>
+      <div><div class="sh">{{ tr('trend_restore') }}<em>{{ tr('target', pct=targets.restore[0]) }}</em></div>{{ trend(o.trend.restore, targets.restore[0], pal.rule) }}</div>
     </div>
     <div class="section"><div class="sh">{{ tr('clusters') }}<em>{{ tr('clusters_hint') }}</em></div>
       <table>
@@ -199,17 +199,22 @@ body { width: 210mm; margin: 8mm auto; }
         (tr('rpo_sub', n=c.gap_count, hours=c.gap_hours, longest=c.longest_gap_hours) if c.gap_count else tr('no_gaps_period')),
         (tr('restore_sub', passed=c.tests_passed, run=c.tests_run, avg=c.avg_test_label) if c.tests_run else tr('sum_no_tests'))) }}
 
+    <div class="section two">
+      <div><div class="sh">{{ tr('trend_rpo') }}<em>{{ tr('target', pct=targets.rpo[0]) }}</em></div>{{ trend(c.trend.rpo, targets.rpo[0], pal.primary, 66) }}</div>
+      <div><div class="sh">{{ tr('trend_restore') }}<em>{{ tr('target', pct=targets.restore[0]) }}</em></div>{{ trend(c.trend.restore, targets.restore[0], pal.rule, 66) }}</div>
+    </div>
+
     <div class="section"><div class="sh">{{ tr('days_title') }}<em class="legend"><span><i style="background: {{ pal.ok }}"></i>{{ tr('day_ok') }}</span><span><i style="background: {{ pal.warn }}"></i>{{ tr('day_warn', pct=targets.day[1]) }}</span><span><i style="background: {{ pal.critical }}"></i>{{ tr('day_critical', pct=targets.day[1]) }}</span></em></div>
       <div class="days">{% for tone in c.day_tones %}<div class="day" style="background: {{ pal.tone(tone) if tone else pal.paper }}"></div>{% endfor %}</div>
       <div class="daynums">{% for d in r.period.days %}<span>{{ d.day }}</span>{% endfor %}</div>
     </div>
 
-    <div class="section"><div class="sh">{{ tr('gaps_title') }}{% if c.gaps|length > 4 %}<em>{{ tr('more_in_appendix', n=c.gaps|length - 4) }}</em>{% endif %}</div>
+    <div class="section"><div class="sh">{{ tr('gaps_title') }}{% if c.gaps|length > 3 %}<em>{{ tr('more_in_appendix', n=c.gaps|length - 3) }}</em>{% endif %}</div>
       {% if c.gaps %}
       <table>
         <thead><tr><th>{{ tr('col_vm') }}</th><th>{{ tr('col_prev') }}</th><th>{{ tr('col_next') }}</th><th class="num">{{ tr('col_without') }}</th><th class="num">{{ tr('col_rpo') }}</th><th class="num">{{ tr('col_over') }}</th></tr></thead>
         <tbody>
-        {% for g in c.gaps[:4] %}
+        {% for g in c.gaps[:3] %}
         <tr><td><b>{{ g.vm_name }}</b></td><td>{{ g.prev_label }}</td><td{% if g.open %} style="color: {{ pal.critical }}; font-weight: 600"{% endif %}>{{ g.next_label }}</td>
           <td class="num">{{ g.without_hours }} h</td><td class="num">{{ g.rpo_hours }} h</td>
           <td class="num" style="color: {{ pal.critical if g.open or g.over_hours >= 24 else pal.warn }}; font-weight: 600">{{ g.over_hours }} h</td></tr>
@@ -236,12 +241,12 @@ body { width: 210mm; margin: 8mm auto; }
     </div>
 
     {%- set shown = c.protocol %}
-    <div class="section"><div class="sh">{{ tr('tests_title') }}{% if shown|length > 4 %}<em>{{ tr('more_in_appendix', n=shown|length - 4) }}</em>{% endif %}</div>
+    <div class="section"><div class="sh">{{ tr('tests_title') }}{% if shown|length > 3 %}<em>{{ tr('more_in_appendix', n=shown|length - 3) }}</em>{% endif %}</div>
       {% if shown %}
       <table style="font-size: 8.2pt">
         <thead><tr><th>{{ tr('col_date') }}</th><th>{{ tr('col_vm') }}</th><th>{{ tr('col_snapshot') }}</th><th>{{ tr('col_result') }}</th><th class="num">{{ tr('col_duration') }}</th><th>{{ tr('col_checks') }}</th></tr></thead>
         <tbody>
-        {% for p in shown[-4:]|reverse %}
+        {% for p in shown[-3:]|reverse %}
         <tr><td>{{ p.at_label }}</td><td><b>{{ p.vm_name }}</b></td><td class="muted">{{ p.snapshot }}</td>
           <td><span class="res" style="color: {{ pal.tone(p.result_tone) }}">● {{ p.result_label }}</span></td>
           <td class="num">{{ p.duration_label }}</td><td class="wrap">{{ checks(p) }}</td></tr>
