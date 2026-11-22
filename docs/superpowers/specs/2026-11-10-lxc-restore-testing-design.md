@@ -2,7 +2,6 @@
 
 **Date:** 2026-11-10
 **Status:** Approved direction, pending document sign-off
-**Author:** brainstormed with Wolf Vogel
 
 ## Intent and why
 

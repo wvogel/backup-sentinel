@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.10] — 2026-11-22
+
+### Changed
+
+- **Archive: cluster buttons in alphabetical order.** They followed the order in which the PDFs were written.
+- **Neutral names throughout the repository.** Tests, sample data, docs and this changelog used real site, host and VM names, internal addresses and domains of the installation Backup Sentinel was developed for. They now use neutral demo names (`pve-berlin`, `pbs-hamburg`, …) and example addresses. The documentation screenshots were taken from real data; they are now rendered from the demo data, and the restore screenshots, which had no demo equivalent, were removed.
+
 ## [v3.19.9] — 2026-11-22
 
 ### Changed
@@ -15,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **"NIS2 evidence from" per cluster (Settings → Cluster).** The first month the NIS2 report measures for a cluster. VMs that moved in later brought older snapshots, and the report then counted them for months in which the cluster was still empty (pve-kiel had two VMs in March). Before that month the cluster appears in no report and gets no cluster PDF; a month without any measured VM gets no report at all. A change recreates the archive's monthly reports with the next sync, without email; interim reports stay.
+- **"NIS2 evidence from" per cluster (Settings → Cluster).** The first month the NIS2 report measures for a cluster. VMs that moved in later brought older snapshots, and the report then counted them for months in which the cluster was still empty. Before that month the cluster appears in no report and gets no cluster PDF; a month without any measured VM gets no report at all. A change recreates the archive's monthly reports with the next sync, without email; interim reports stay.
 
 ## [v3.19.7] — 2026-11-22
 
@@ -25,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **NIS2 report: no gaps before a cluster was added.** Measurement started at the oldest snapshot still on PBS. Before a cluster was added, though, only what retention left over is known, so the months before showed huge gaps that never were (e.g. 60 % for February). Measurement now starts when the cluster was added to Backup Sentinel, in reports and in the 12-month trend.
+- **NIS2 report: no gaps before a cluster was added.** Measurement started at the oldest snapshot still on PBS. Before a cluster was added, though, only what retention left over is known, so the months before showed huge gaps that never were. Measurement now starts when the cluster was added to Backup Sentinel, in reports and in the 12-month trend.
 
 ## [v3.19.6] — 2026-11-22
 
@@ -596,7 +603,7 @@ Milestone release consolidating **LXC container restore testing** — built, rev
 
 ### Added
 
-- **Per-VM restore-test timeout.** A *Timeout (Min.)* field under *Primäre IP (Override)* in a VM's restore settings sets how long the test waits for the guest to come up before failing — the prober keeps re-probing every ~30 s across the whole window. Empty keeps the 5-minute default; raise it for slow-booting guests (e.g. erp servers). The restore-test button now sits beside this field. A bogus guest IP (such as erp's internal `fake0` at `1.2.3.4`) is best handled as before, by pinning the real address in *Primäre IP (Override)* — the prober then uses only that IP and never waits on the dead one.
+- **Per-VM restore-test timeout.** A *Timeout (Min.)* field under *Primäre IP (Override)* in a VM's restore settings sets how long the test waits for the guest to come up before failing — the prober keeps re-probing every ~30 s across the whole window. Empty keeps the 5-minute default; raise it for slow-booting guests (e.g. ERP servers). The restore-test button now sits beside this field. A bogus guest IP (such as an application's internal `fake0` at `1.2.3.4`) is best handled as before, by pinning the real address in *Primäre IP (Override)* — the prober then uses only that IP and never waits on the dead one.
 
 ## [v3.6.4] — 2026-11-03
 

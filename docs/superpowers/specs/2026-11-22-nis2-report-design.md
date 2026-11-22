@@ -2,7 +2,6 @@
 
 **Date:** 2026-11-22
 **Status:** Direction approved (mockup "passt"); pending document sign-off
-**Author:** brainstormed with Wolf Vogel
 **Mockup:** two A4 pages (overall + one cluster), approved; source kept by the
 author, not in the repo.
 
@@ -240,8 +239,8 @@ The **per-cluster PDF** has the same structure, limited to that cluster:
   today). Surfaces: Sand / Paper / Sage. Status colours: green, amber, red.
 - Type: the brand font when configured (`BSENTINEL_BRAND_FONT_URL`, a URL pattern
   with `{weight}` → Regular/Medium/SemiBold/Bold, for example
-  `https://static.example.com/BrandSans-{weight}.woff2`). Otherwise the system
-  sans-serif. The production `.env` gets the Brand Sans pattern.
+  `https://static.example.com/Brand-{weight}.woff2`). Otherwise the system
+  sans-serif.
 - Charts are inline SVG generated server-side: rings, area/line trends with a
   dashed target, donut, day strip, heat grid. No JS, no external chart library.
 - Numbers use tabular figures. Nothing wraps inside a table cell. Nothing touches

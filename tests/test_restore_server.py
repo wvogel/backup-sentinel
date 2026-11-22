@@ -55,7 +55,7 @@ def test_sandbox_name_builds_hostname_from_cluster_and_vm():
     from app.services.restore_server import sandbox_name
 
     assert sandbox_name("Prod", "pbs-hamburg") == "prod-pbs-hamburg"
-    assert sandbox_name("Prod MUC", "web01.example") == "prod-web01-example"
+    assert sandbox_name("Prod North", "web01.example") == "prod-north-web01-example"
     assert sandbox_name("Prod", "pbs-hamburg", suffix="helper") == "prod-pbs-hamburg-helper"
     assert sandbox_name("", "") == "restore"  # never empty
     long = sandbox_name("c" * 80, "v" * 80, suffix="helper")

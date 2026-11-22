@@ -1,17 +1,4 @@
 -- Applied after scripts/dev_seed.sql (see docs/dev-local.md, "Documentation screenshots").
--- Neutral demo names for documentation screenshots (dev DB only).
-DO $$
-DECLARE r record;
-BEGIN
-  FOR r IN SELECT c.table_name, c.column_name FROM information_schema.columns c
-           JOIN information_schema.tables t USING (table_name, table_schema)
-           WHERE c.table_schema='public' AND t.table_type='BASE TABLE' AND c.data_type IN ('text','character varying')
-  LOOP
-    EXECUTE format('UPDATE %I SET %I = replace(replace(replace(replace(%I, ''berlin'', ''berlin''), ''hamburg'', ''hamburg''), ''berlin'', ''berlin''), '''', '''') WHERE %I ~ ''berlin|hamburg|''',
-                   r.table_name, r.column_name, r.column_name, r.column_name);
-  END LOOP;
-END $$;
-
 -- Three more clusters cloned from the first, with some variety.
 DO $$
 DECLARE src int; cid int; city text; copies int; v record; nv int; k int;

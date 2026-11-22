@@ -44,7 +44,9 @@ def reports_page(request: Request) -> HTMLResponse:
     slug_names = {c["slug"]: c["name"] for c in report["clusters"]}
     for row in archived:
         files = row.get("files") or {}
-        row["cluster_files"] = [(slug, slug_names.get(slug, slug)) for slug in files if slug != "all"]
+        row["cluster_files"] = sorted(
+            ((slug, slug_names.get(slug, slug)) for slug in files if slug != "all"), key=lambda f: f[1].casefold()
+        )
     return templates.TemplateResponse(
         request,
         "report.html",

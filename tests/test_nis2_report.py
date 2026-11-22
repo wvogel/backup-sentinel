@@ -38,10 +38,10 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(self.by["pve-berlin"]["rpo_pct"], 100)
 
     def test_three_days_without_backup_is_one_gap_and_truncated(self):
-        fh = self.by["pve-hamburg"]
-        self.assertEqual(fh["gap_count"], 1)
-        self.assertEqual(fh["rpo_pct"], 98)  # 98.x truncated, never 99
-        self.assertEqual(fh["restore_pct"], 100)
+        hamburg = self.by["pve-hamburg"]
+        self.assertEqual(hamburg["gap_count"], 1)
+        self.assertEqual(hamburg["rpo_pct"], 98)  # 98.x truncated, never 99
+        self.assertEqual(hamburg["restore_pct"], 100)
 
     def test_guest_without_backup_job_counts_as_uncovered(self):
         gaps = self.by["pve-dresden"]["gaps"]
@@ -53,8 +53,8 @@ class BuildTest(unittest.TestCase):
 
     def test_weekly_guest_with_a_backup_in_the_month_has_no_gap(self):
         names = {g["vm_name"] for g in self.by["pve-dresden"]["gaps"]}
-        self.assertNotIn("srv-mar-25", names)  # weekly: missed a run, but backed up in October
-        self.assertIn("srv-mar-22", names)
+        self.assertNotIn("srv-dresden-25", names)  # weekly: missed a run, but backed up in October
+        self.assertIn("srv-dresden-22", names)
 
     def test_weekly_guest_without_any_backup_in_the_month_is_one_month_gap(self):
         fx = Nis2Fixture()
@@ -70,7 +70,7 @@ class BuildTest(unittest.TestCase):
 
     def test_failed_attempt_followed_by_a_pass_is_left_out(self):
         mar = self.by["pve-dresden"]
-        self.assertNotIn("failed", [p["result"] for p in mar["protocol"]])  # srv-mar-07 passed three days later
+        self.assertNotIn("failed", [p["result"] for p in mar["protocol"]])  # srv-dresden-07 passed three days later
         self.assertEqual(len(mar["protocol"]), 3)
         self.assertEqual((mar["tests_passed"], mar["tests_run"]), (3, 3))
         html = nis2_render.render_html(self.r)
@@ -130,9 +130,9 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(o["clusters"], 4)
 
     def test_day_strip_marks_gap_days(self):
-        fh = self.by["pve-hamburg"]
-        self.assertEqual(fh["day_tones"][0], "ok")
-        self.assertIn("critical", fh["day_tones"][27:31])
+        hamburg = self.by["pve-hamburg"]
+        self.assertEqual(hamburg["day_tones"][0], "ok")
+        self.assertIn("critical", hamburg["day_tones"][27:31])
 
     def test_summary_states_only_facts(self):
         text = " ".join(self.by["pve-berlin"]["summary"])

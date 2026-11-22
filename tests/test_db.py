@@ -917,7 +917,7 @@ class ClusterPageTests(DbTestCase):
             "direction": "pull",
             "store": "nas-off",
             "ns": "dresden",
-            "remote_name": "lej",
+            "remote_name": "dresden",
             "remote_host": "",
             "remote_fingerprint": "",
             "remote_store": "nas",

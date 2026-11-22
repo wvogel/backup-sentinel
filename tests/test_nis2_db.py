@@ -192,6 +192,13 @@ class Nis2RoutesTestCase(Nis2DbTestCase):
         self.assertEqual(self.client.get("/reports/preview?cluster=nope").status_code, 404)
         self.assertEqual(self.client.get("/reports/preview?month=10-2026").status_code, 400)
 
+    def test_archive_cluster_buttons_sorted(self) -> None:
+        files = {"all": "/x/all.pdf", "pve-zulu": "/x/z.pdf", "pve-alpha": "/x/a.pdf", "pve-mike": "/x/m.pdf"}
+        db.archive_monthly_report(date(2026, 10, 1), "auto", "/x/all.pdf", "/x/r.json", {}, files, 2)
+        html = self.client.get("/reports").text
+        positions = [html.index(f"scope={slug}") for slug in ("pve-alpha", "pve-mike", "pve-zulu")]
+        self.assertEqual(positions, sorted(positions))
+
     def test_set_report_since(self) -> None:
         with patch("app.web.routes_clusters.sync_executor") as executor:
             res = self.client.post(
