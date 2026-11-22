@@ -41,20 +41,20 @@ class Palette:
     ok: str = "#2f8f6b"
     warn: str = "#c48a1c"
     critical: str = "#c2333f"
-    muted: str = "#6b6b85"
-    sand: str = "#efe7db"
-    paper: str = "#f8f5f2"
-    sage: str = "#d8ddce"
+    muted: str = "#64748b"
+    track: str = "#e6eaf0"  # ring tracks, bars, neutral fills
+    page: str = "#f5f7fa"  # KPI tiles, soft neutral background
+    grid: str = "#d5dbe3"  # chart grid lines, box borders
     ok_soft: str = "#dff1e9"
     warn_soft: str = "#f7ebd2"
     critical_soft: str = "#f7dadd"
     cal_ok: str = "#9fd0b9"
 
     def tone(self, tone: str | None) -> str:
-        return {"ok": self.ok, "warn": self.warn, "critical": self.critical}.get(tone or "", self.sand)
+        return {"ok": self.ok, "warn": self.warn, "critical": self.critical}.get(tone or "", self.track)
 
     def soft(self, tone: str | None) -> str:
-        return {"ok": self.ok_soft, "warn": self.warn_soft, "critical": self.critical_soft}.get(tone or "", self.paper)
+        return {"ok": self.ok_soft, "warn": self.warn_soft, "critical": self.critical_soft}.get(tone or "", self.page)
 
 
 def palette_for(base: BaseColors | None) -> Palette:
@@ -119,7 +119,7 @@ def ring_svg(pct: int | None, tone: str | None, pal: Palette, size: int = 100, s
     label = "–" if pct is None else f"{pct}%"
     return Markup(
         f'<svg class="ring" width="{size}" height="{size}" viewBox="0 0 {size} {size}">'
-        f'<circle cx="{size / 2}" cy="{size / 2}" r="{r}" fill="none" stroke="{pal.sand}" stroke-width="{stroke}"/>'
+        f'<circle cx="{size / 2}" cy="{size / 2}" r="{r}" fill="none" stroke="{pal.track}" stroke-width="{stroke}"/>'
         f'<circle cx="{size / 2}" cy="{size / 2}" r="{r}" fill="none" stroke="{pal.tone(tone)}" stroke-width="{stroke}"'
         f' stroke-linecap="round" stroke-dasharray="{dash:.2f} {c:.2f}" transform="rotate(-90 {size / 2} {size / 2})"/>'
         f'<text x="{size / 2}" y="{size / 2 + size * 0.06:.1f}" text-anchor="middle" font-size="{size * 0.19:.0f}"'
@@ -150,7 +150,7 @@ def trend_svg(
     out = [f'<svg class="trend" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-size="8" fill="{pal.muted}">']
     for g in ticks:
         out.append(
-            f'<line x1="{pl}" x2="{w - pr}" y1="{y(g):.1f}" y2="{y(g):.1f}" stroke="{pal.sage}" stroke-width=".6"/>'
+            f'<line x1="{pl}" x2="{w - pr}" y1="{y(g):.1f}" y2="{y(g):.1f}" stroke="{pal.grid}" stroke-width=".6"/>'
         )
         out.append(f'<text x="{pl - 5}" y="{y(g) + 3:.1f}" text-anchor="end">{_fmt_tick(g)}</text>')
     out.append(
@@ -198,7 +198,7 @@ def donut_svg(parts: list[tuple[int, str]], pal: Palette, size: int = 92, stroke
     c = 2 * math.pi * r
     out = [f'<svg class="donut" width="{size}" height="{size}" viewBox="0 0 {size} {size}">']
     out.append(
-        f'<circle cx="{size / 2}" cy="{size / 2}" r="{r}" fill="none" stroke="{pal.sand}" stroke-width="{stroke}"/>'
+        f'<circle cx="{size / 2}" cy="{size / 2}" r="{r}" fill="none" stroke="{pal.track}" stroke-width="{stroke}"/>'
     )
     offset = 0.0
     for value, color in parts:

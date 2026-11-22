@@ -565,7 +565,7 @@
   <legend>{{ t('settings.appearance_title') }}</legend>
   {% if appearance_saved %}<p class="ok-text">{{ t('settings.theme_saved') }}</p>{% endif %}
   {% for e in appearance_errors %}
-  <p class="critical-text">{{ t('settings.theme_invalid_preset') if e == 'preset' else t('settings.theme_invalid_hex', field=t('settings.theme_' ~ e)) }}</p>
+  <p class="critical-text">{{ t('settings.theme_invalid_preset') if e == 'preset' else (t('settings.theme_invalid_custom_css') if e == 'custom_css' else t('settings.theme_invalid_hex', field=t('settings.theme_' ~ e))) }}</p>
   {% endfor %}
   {% for w in appearance_warnings %}
   <p class="warn-text">{{ t('settings.theme_contrast_warning', field=t('settings.theme_' ~ w.key), ratio=w.ratio, minimum=w.minimum) }}</p>
@@ -591,6 +591,11 @@
       </label>
       {% endfor %}
     </div>
+    <label class="theme-custom-css">
+      <span>{{ t('settings.theme_custom_css') }}</span>
+      <textarea name="custom_css" rows="6" spellcheck="false" placeholder=":root { --line: #dde3ec; }">{{ theme_custom_css }}</textarea>
+      <small class="muted">{{ t('settings.theme_custom_css_hint') }}</small>
+    </label>
     <div class="theme-preview js-theme-preview" aria-label="{{ t('settings.theme_preview') }}">
       <div class="theme-preview-bar">Backup Sentinel</div>
       <div class="theme-preview-body">

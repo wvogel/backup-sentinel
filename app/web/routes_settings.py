@@ -86,10 +86,17 @@ def save_appearance(form: dict[str, str], actor: str) -> tuple[list[str], list[t
             errors.append(key)
             continue
         values[key] = "" if normalized == getattr(preset.base, key) else normalized
+    custom_css = theme.normalize_custom_css(form.get("custom_css"))
+    if custom_css is None:
+        errors.append("custom_css")
     if errors:
         return errors, []
 
-    new_settings = {"theme_preset": preset_name, **{f"theme_{key}": value for key, value in values.items()}}
+    new_settings = {
+        "theme_preset": preset_name,
+        **{f"theme_{key}": value for key, value in values.items()},
+        "theme_custom_css": custom_css,
+    }
     existing = db.get_settings_dict("theme_")
     audit_entries = [
         {"actor": actor, "key": key, "old_value": existing.get(key, ""), "new_value": value}
@@ -110,6 +117,7 @@ def update_appearance(
     accent: str = Form(default=""),
     background: str = Form(default=""),
     running: str = Form(default=""),
+    custom_css: str = Form(default=""),
     reset: str = Form(default=""),
 ) -> RedirectResponse:
     # Plain `def`: FastAPI runs it in the threadpool, so the DB calls don't block the event loop.
@@ -119,6 +127,7 @@ def update_appearance(
         "accent": accent,
         "background": background,
         "running": running,
+        "custom_css": custom_css,
         "reset": reset,
     }
     errors, warnings = save_appearance(form, settings_actor(request))
@@ -153,6 +162,7 @@ def _appearance_context(request: Request) -> dict:
         "theme_presets": list(theme.PRESETS),
         "theme_presets_json": json.dumps({name: asdict(p.base) for name, p in theme.PRESETS.items()}),
         "theme_keys": theme.BASE_KEYS,
+        "theme_custom_css": db.get_settings_dict("theme_custom_css").get("theme_custom_css", ""),
         "appearance_saved": request.query_params.get("appearance") == "saved",
         "appearance_warnings": warnings,
         "appearance_errors": errors,

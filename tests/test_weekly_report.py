@@ -105,7 +105,7 @@ class HtmlTests(unittest.TestCase):
 
     def render(self, rows, datastores=(), stats=None, app_url="https://bs.example"):
         report = weekly_report.collect(rows, list(datastores), stats or {"full_runs": [], "failed": 0}, self.NOW)
-        return weekly_report.render_html(report, primary="#141450", accent="#ffff00", app_url=app_url, version="v9.9.9")
+        return weekly_report.render_html(report, primary="#1a237e", accent="#facc15", app_url=app_url, version="v9.9.9")
 
     def test_problems_link_to_their_cluster_and_are_escaped(self):
         html = self.render(
@@ -158,8 +158,8 @@ class HtmlTests(unittest.TestCase):
         self.assertEqual(failing.clusters[0].tone, "critical")
         html = weekly_report.render_html(
             report,
-            primary="#141450",
-            accent="#ffff00",
+            primary="#1a237e",
+            accent="#facc15",
             app_url="https://bs.example",
             version="v1",
             images={"wordmark": "cid:wordmark", "logo": "cid:logo"},

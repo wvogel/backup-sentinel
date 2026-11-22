@@ -257,10 +257,11 @@ Dieselbe Meldung geht höchstens einmal in 24 Stunden hinaus. Gotify-Meldungen w
 
 Der Tab **Erscheinungsbild** legt die Farben der Oberfläche fest:
 
-- **Vorlage:** *branded* (Standard) oder *Neutral*.
+- **Vorlage:** *Neutral* (Standard).
 - **Vier Grundfarben:** Primärfarbe, Akzent (Hauptaktion), Hintergrund und laufende Backups. Alle übrigen Töne, auch der Dark Mode, werden daraus berechnet. Eine Vorschau zeigt die Wirkung vor dem Speichern.
 - **Kontrastprüfung:** Beim Speichern wird nach WCAG geprüft (Text ≥ 4,5:1, laufende Backups ≥ 3:1). Bei schlechter Lesbarkeit erscheint eine Warnung mit dem gemessenen Wert; gespeichert wird trotzdem.
-- **Auf Vorlage zurücksetzen** entfernt die eigenen Farben.
+- **Eigenes CSS** für alles, was die Grundfarben nicht abdecken (z. B. Dark-Mode-Töne); gilt nicht für den PDF-Bericht.
+- **Auf Vorlage zurücksetzen** entfernt die eigenen Farben; das eigene CSS bleibt.
 
 Änderungen landen im Einstellungs-Audit. Der PDF-Report übernimmt Primär-, Akzent- und Laufend-Farbe.
 

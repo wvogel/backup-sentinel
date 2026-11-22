@@ -452,7 +452,7 @@ A `restore_queue` concept can be just `restore_runs` rows in `queued` status
   restore is the whole point. (A VM that stays un-fittable well past its due
   date may get a soft notice; skipping itself is silent and normal.)
 
-## 16. UI (server-rendered, de/en, branded styling)
+## 16. UI (server-rendered, de/en, the app's existing styling)
 
 - **Settings:** a "Restore-Server / PVE-Restore" section — credentials, SSH key,
   target storage picker, sandbox bridge name + optional VLAN, time-budget

@@ -222,14 +222,15 @@ The script creates the user `backup-reports@pbs` and the API token `<cluster-slu
 
 ## Appearance
 
-The default is the **branded** design: dark blue `#141450` (topbar, text), neon yellow `#FFFF00` (the one main action per page, always with dark blue text), blue `#4A7EB5` (running backups), light beige `#F8F5F2` (background), Beige `#EFE7DB` (borders) and light sage `#D8DDCE` (calm hints). Dark mode is derived from dark blue.
+The default is the neutral preset: slate `#1E293B` (topbar, text), blue `#2563EB` (the one main action per page), teal `#0D9488` (running backups) and a light grey `#F5F7FA` background. Dark mode is derived from the primary colour.
 
 Under **Settings → Appearance** you can change:
 
-- **Preset:** *branded* or *Neutral* (the former cool blue-grey).
+- **Preset:** *Neutral*.
 - **Four base colours:** primary, accent (main action), background and running backups. All other tones (soft surfaces, borders, dark mode) are derived. A preview shows the result before saving.
 - **Contrast check:** saving checks WCAG contrast (text ≥ 4.5:1, running backups ≥ 3:1). Poor readability shows a warning with the measured ratio; the setting is saved anyway.
-- **Reset to preset** removes custom colours.
+- **Custom CSS:** added after the colours — for anything the four base colours don't cover, e.g. your own border or dark-mode tones (`html[data-theme="dark"] { --bg: …; }`). At most 20,000 characters, no `</`. Applies to the web interface, not the PDF report.
+- **Reset to preset** removes custom colours; the custom CSS stays.
 
 Changes are recorded in the settings audit. The PDF report uses the primary, accent and running colours.
 

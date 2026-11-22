@@ -10,19 +10,19 @@
   --font-brand: Impact, "Arial Black", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --topbar-h: 43px;   /* fallback; static/js/common.js sets the real height */
-  --bg: #f8f5f2;
+  --bg: #f5f7fa;
   --panel: #ffffff;
-  --panel-alt: #fcfaf8;
-  --ink: #141450;
-  --muted: #747294;
-  --accent: #141450;
-  --line: #efe7db;
-  --chip: #f1f1f4;
-  --chip-border: #d5d5e0;
-  --header-bg: #141450;
-  --header-border: #37376a;
+  --panel-alt: #fafbfc;
+  --ink: #1e293b;
+  --muted: #78808b;
+  --accent: #1e293b;
+  --line: #dde3ec;
+  --chip: #f2f2f3;
+  --chip-border: #d6d8dc;
+  --header-bg: #1e293b;
+  --header-border: #404958;
   --header-link: #f6f7ff;
-  --header-link-muted: #bebed3;
+  --header-link-muted: #c0c4ce;
   /* Header icons and toggles, derived from --header-link so a custom theme
      (app/services/theme.py) reaches them: at rest tinted 20 % toward the
      running blue, hover fill and active outline in the link colour. */
@@ -40,32 +40,32 @@
   --spark-deleted: var(--warn);
   --spark-failed: var(--critical);
   --shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
-  --running: #4a7eb5;
-  --running-soft: rgba(74, 126, 181, 0.1);
-  --running-fill: rgba(74, 126, 181, 0.2);
-  --btn-bg: #141450;
+  --running: #0d9488;
+  --running-soft: rgba(13, 148, 136, 0.1);
+  --running-fill: rgba(13, 148, 136, 0.2);
+  --btn-bg: #1e293b;
   --btn-text: #f6f7ff;
-  --btn-border: #484876;
-  --accent-fill: #ffff00;
-  --accent-ink: #141450;
-  --sage: #d8ddce;
-  --sage-ink: #141450;
+  --btn-border: #505866;
+  --accent-fill: #2563eb;
+  --accent-ink: #ffffff;
+  --sage: #e8edf3;
+  --sage-ink: #1e293b;
 }
 
 html[data-theme="dark"] {
-  --bg: #0b0f1a;
-  --panel: #131a2b;
-  --panel-alt: #0e1525;
-  --ink: #eeeef1;
-  --muted: #aeaec2;
-  --accent: #eeeef1;
-  --line: #1e2d44;
-  --chip: #162032;
-  --chip-border: #2a3a52;
-  --header-bg: #0e1525;
-  --header-border: rgba(212, 228, 240, 0.18);
-  --header-link: #eeeef1;
-  --header-link-muted: #b9b9ca;
+  --bg: #131a25;
+  --panel: #1b2434;
+  --panel-alt: #171f2c;
+  --ink: #eeeff1;
+  --muted: #aeb5c2;
+  --accent: #eeeff1;
+  --line: #2b3b54;
+  --chip: #161d2a;
+  --chip-border: #364968;
+  --header-bg: #161d2a;
+  --header-border: rgba(255, 255, 255, 0.12);
+  --header-link: #eeeff1;
+  --header-link-muted: #b9c0ca;
   --ok: #8dd3b0;
   --ok-soft: rgba(52, 211, 153, 0.14);
   --warn: #dfb97f;
@@ -77,16 +77,16 @@ html[data-theme="dark"] {
   --spark-deleted: #8a6428;
   --spark-failed: #9b3a46;
   --shadow: none;
-  --running: #89abcf;
-  --running-soft: rgba(137, 171, 207, 0.1);
-  --running-fill: rgba(137, 171, 207, 0.22);
-  --btn-bg: #31315e;
-  --btn-text: #eeeef1;
-  --btn-border: #424280;
-  --accent-fill: #e8e87d;
-  --accent-ink: #141450;
-  --sage: #414253;
-  --sage-ink: #e4e7dd;
+  --running: #62b9b2;
+  --running-soft: rgba(98, 185, 178, 0.1);
+  --running-fill: rgba(98, 185, 178, 0.22);
+  --btn-bg: #31425e;
+  --btn-text: #eeeff1;
+  --btn-border: #425980;
+  --accent-fill: #7d9ee8;
+  --accent-ink: #1e293b;
+  --sage: #444c5a;
+  --sage-ink: #eff2f7;
 }
 
 * {
@@ -2883,7 +2883,7 @@ details[open] > .encryption-alert-summary::before {
   border: 1px solid var(--running);
 }
 
-/* ── Brand: primary action = neon yellow with dark blue text ─────────── */
+/* ── Brand: the primary action uses the accent colour with its readable ink ── */
 button.button-primary {
   background: var(--accent-fill);
   color: var(--accent-ink);

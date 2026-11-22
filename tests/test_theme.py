@@ -8,7 +8,7 @@ from app.services import theme
 class ColorTests(unittest.TestCase):
     def test_normalize_hex(self):
         self.assertEqual(theme.normalize_hex(" #FFF "), "#ffffff")
-        self.assertEqual(theme.normalize_hex("#4A7EB5"), "#4a7eb5")
+        self.assertEqual(theme.normalize_hex("#3b82f6"), "#3b82f6")
         self.assertIsNone(theme.normalize_hex("red"))
         self.assertIsNone(theme.normalize_hex("#12345"))
         self.assertIsNone(theme.normalize_hex(None))
@@ -16,38 +16,38 @@ class ColorTests(unittest.TestCase):
     def test_contrast_ratio(self):
         self.assertAlmostEqual(theme.contrast_ratio("#000000", "#ffffff"), 21.0, places=1)
         self.assertAlmostEqual(theme.contrast_ratio("#ffffff", "#ffffff"), 1.0, places=2)
-        self.assertGreater(theme.contrast_ratio("#141450", "#ffff00"), 4.5)
+        self.assertGreater(theme.contrast_ratio("#1a237e", "#facc15"), 4.5)
 
 
 class ResolveTests(unittest.TestCase):
     def test_unknown_preset_falls_back(self):
         _preset, base = theme.resolve("nonsense", {})
-        self.assertEqual(base, theme.PRESETS["branded"].base)
+        self.assertEqual(base, theme.PRESETS["neutral"].base)
 
     def test_overrides_replace_only_valid_values(self):
-        _, base = theme.resolve("branded", {"primary": "#000000", "accent": "nope", "running": ""})
+        _, base = theme.resolve("neutral", {"primary": "#000000", "accent": "nope", "running": ""})
         self.assertEqual(base.primary, "#000000")
-        self.assertEqual(base.accent, "#ffff00")
-        self.assertEqual(base.running, "#4a7eb5")
+        self.assertEqual(base.accent, "#2563eb")
+        self.assertEqual(base.running, "#0d9488")
 
 
 class TokenTests(unittest.TestCase):
-    def test_branded_light_tokens_use_brand_colors(self):
-        preset = theme.PRESETS["branded"]
+    def test_default_light_tokens_use_the_preset_colors(self):
+        preset = theme.PRESETS["neutral"]
         tokens = theme.derive_tokens(preset, preset.base)
         light = tokens["light"]
-        self.assertEqual(light["--bg"], "#f8f5f2")
-        self.assertEqual(light["--header-bg"], "#141450")
-        self.assertEqual(light["--accent-fill"], "#ffff00")
-        self.assertEqual(light["--accent-ink"], "#141450")
-        self.assertEqual(light["--running"], "#4a7eb5")
-        self.assertEqual(light["--line"], "#efe7db")
-        self.assertEqual(light["--sage"], "#d8ddce")
+        self.assertEqual(light["--bg"], "#f5f7fa")
+        self.assertEqual(light["--header-bg"], "#1e293b")
+        self.assertEqual(light["--accent-fill"], "#2563eb")
+        self.assertEqual(light["--accent-ink"], "#ffffff")
+        self.assertEqual(light["--running"], "#0d9488")
+        self.assertEqual(light["--line"], "#dde3ec")
+        self.assertEqual(light["--sage"], "#e8edf3")
         self.assertEqual(set(tokens["light"]), set(tokens["dark"]))
 
     def test_accent_ink_never_matches_a_light_accent(self):
-        preset = theme.PRESETS["branded"]
-        base = theme.BaseColors(primary="#ffffff", accent="#ffffff", background="#f8f5f2", running="#4a7eb5")
+        preset = theme.PRESETS["neutral"]
+        base = theme.BaseColors(primary="#ffffff", accent="#ffffff", background="#f5f7fa", running="#3b82f6")
         ink = theme.derive_tokens(preset, base)["light"]["--accent-ink"]
         self.assertGreaterEqual(theme.contrast_ratio(ink, "#ffffff"), 4.5)
 
@@ -58,7 +58,7 @@ class ContrastCheckTests(unittest.TestCase):
             self.assertEqual(theme.check_contrast(preset.base), [])
 
     def test_yellow_as_background_is_flagged(self):
-        base = theme.BaseColors(primary="#141450", accent="#ffff00", background="#ffff00", running="#ffff66")
+        base = theme.BaseColors(primary="#1a237e", accent="#facc15", background="#facc15", running="#ffff66")
         keys = {w.key for w in theme.check_contrast(base)}
         self.assertIn("running", keys)
 
@@ -71,15 +71,15 @@ class RenderTests(unittest.TestCase):
 
 
 class StylesheetSyncTests(unittest.TestCase):
-    """style.css defaults must equal the branded theme (no inline style needed)."""
+    """style.css defaults must equal the default theme (no inline style needed)."""
 
     def _block(self, css: str, selector: str) -> dict[str, str]:
         body = css.split(selector + " {", 1)[1].split("\n}", 1)[0]
         return dict(re.findall(r"(--[\w-]+):\s*([^;]+);", body))
 
-    def test_defaults_match_branded(self):
+    def test_defaults_match_the_default_preset(self):
         css = pathlib.Path("static/style.css").read_text()
-        preset = theme.PRESETS["branded"]
+        preset = theme.PRESETS["neutral"]
         tokens = theme.derive_tokens(preset, preset.base)
         for selector, mode in ((":root", "light"), ('html[data-theme="dark"]', "dark")):
             block = self._block(css, selector)
@@ -89,24 +89,24 @@ class StylesheetSyncTests(unittest.TestCase):
 
 class DarkModeReadabilityTests(unittest.TestCase):
     def test_dark_text_stays_readable_for_mid_luminance_primaries(self):
-        preset = theme.PRESETS["branded"]
-        for primary in ("#4a7eb5", "#808080", "#141450", "#8b1e3f"):
-            base = theme.BaseColors(primary=primary, accent="#ffff00", background="#f8f5f2", running="#4a7eb5")
+        preset = theme.PRESETS["neutral"]
+        for primary in ("#3b82f6", "#808080", "#1a237e", "#8b1e3f"):
+            base = theme.BaseColors(primary=primary, accent="#facc15", background="#f5f7fa", running="#3b82f6")
             dark = theme.derive_tokens(preset, base)["dark"]
             for ink, surface in (("--btn-text", "--btn-bg"), ("--ink", "--panel"), ("--header-link", "--header-bg")):
                 ratio = theme.contrast_ratio(dark[ink], dark[surface])
                 self.assertGreaterEqual(ratio, 4.5, f"{primary}: {ink} on {surface} = {ratio:.2f}")
 
     def test_dark_surfaces_are_only_moderately_tinted(self):
-        # A saturated primary (branded dark blue) must not turn the dark
+        # A saturated primary (a dark blue) must not turn the dark
         # mode into a saturated navy page: surfaces keep its hue, capped saturation.
         # Hand-tuned dark_surfaces overrides are exempt (they are tested visually).
         import colorsys
 
-        preset = theme.PRESETS["branded"]
+        preset = theme.PRESETS["neutral"]
         overrides = set((preset.dark_surfaces or {}).keys())
-        for primary in ("#141450", "#4a7eb5", "#8b1e3f"):
-            base = theme.BaseColors(primary=primary, accent="#ffff00", background="#f8f5f2", running="#4a7eb5")
+        for primary in ("#1a237e", "#3b82f6", "#8b1e3f"):
+            base = theme.BaseColors(primary=primary, accent="#facc15", background="#f5f7fa", running="#3b82f6")
             dark = theme.derive_tokens(preset, base)["dark"]
             for key in ("--bg", "--panel", "--panel-alt", "--chip", "--header-bg", "--line", "--btn-bg", "--sage"):
                 if key in overrides:
@@ -128,3 +128,11 @@ class ThemeCssFallbackTests(unittest.TestCase):
             self.assertLogs("app.web.common", level="WARNING"),
         ):
             self.assertEqual(common.theme_css(), "")
+
+
+class CustomCssTests(unittest.TestCase):
+    def test_custom_css_is_kept_but_cannot_close_the_style_element(self):
+        self.assertEqual(theme.normalize_custom_css("  :root { --line: #eee; }\r\n"), ":root { --line: #eee; }")
+        self.assertEqual(theme.normalize_custom_css(None), "")
+        self.assertIsNone(theme.normalize_custom_css("a{}</style><script>alert(1)</script>"))
+        self.assertIsNone(theme.normalize_custom_css("a" * (theme.CUSTOM_CSS_MAX + 1)))

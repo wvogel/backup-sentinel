@@ -222,14 +222,15 @@ Das Skript legt den Benutzer `backup-reports@pbs` und den API-Token `<cluster-sl
 
 ## Erscheinungsbild
 
-Standard ist das **branded**-Design: dark blue `#141450` (Kopfzeile, Text), neon yellow `#FFFF00` (wichtigste Aktion pro Seite, immer mit Dark-Blue-Schrift), blue `#4A7EB5` (laufende Backups), light beige `#F8F5F2` (Hintergrund), Beige `#EFE7DB` (Rahmen) und light sage `#D8DDCE` (ruhige Hinweise). Der Dark Mode wird aus dark blue abgeleitet.
+Standard ist die neutrale Vorlage: Schiefer `#1E293B` (Kopfzeile, Text), Blau `#2563EB` (wichtigste Aktion pro Seite), Petrol `#0D9488` (laufende Backups) und ein heller Grauton `#F5F7FA` als Hintergrund. Der Dark Mode wird aus der Primärfarbe abgeleitet.
 
 Unter **Einstellungen → Erscheinungsbild** lassen sich anpassen:
 
-- **Vorlage:** *branded* oder *Neutral* (das frühere, kühle Blau-Grau).
+- **Vorlage:** *Neutral*.
 - **Vier Grundfarben:** Primärfarbe, Akzent (Hauptaktion), Hintergrund und laufende Backups. Alle übrigen Töne (zarte Flächen, Rahmen, Dark Mode) werden daraus berechnet. Eine Vorschau zeigt die Wirkung vor dem Speichern.
 - **Kontrastprüfung:** Beim Speichern wird nach WCAG geprüft (Text ≥ 4,5:1, laufende Backups ≥ 3:1). Bei schlechter Lesbarkeit erscheint eine Warnung mit dem gemessenen Wert; gespeichert wird trotzdem.
-- **Auf Vorlage zurücksetzen** entfernt die eigenen Farben.
+- **Eigenes CSS:** wird nach den Farben eingebunden – für alles, was die vier Grundfarben nicht abdecken, z. B. eigene Rahmen- oder Dark-Mode-Töne (`html[data-theme="dark"] { --bg: …; }`). Höchstens 20 000 Zeichen, ohne `</`. Gilt für die Oberfläche, nicht für den PDF-Report.
+- **Auf Vorlage zurücksetzen** entfernt die eigenen Farben; das eigene CSS bleibt.
 
 Änderungen landen im Einstellungs-Audit. Der PDF-Report übernimmt Primär-, Akzent- und Laufend-Farbe.
 

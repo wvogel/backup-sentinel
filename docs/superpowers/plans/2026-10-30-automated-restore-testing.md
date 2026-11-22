@@ -14,7 +14,7 @@
 
 - Python target `py312`; ruff line-length 120; `double` quote style; isort via ruff. Copy verbatim from `pyproject.toml`.
 - All new secrets (SSH private key, API token secret) stored via `app/services/crypto.encrypt` / `decrypt`; never logged, never returned to templates.
-- No JavaScript framework (ADR 0003); server-rendered templates + minimal inline JS matching existing patterns. branded styling; all user-facing strings in both `app/i18n/de.json` and `app/i18n/en.json`.
+- No JavaScript framework (ADR 0003); server-rendered templates + minimal inline JS matching existing patterns. the app's existing styling; all user-facing strings in both `app/i18n/de.json` and `app/i18n/en.json`.
 - DB: additive tables/columns via `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` in `app/db_core.py`; non-idempotent/data changes via a new numbered entry in `app/db_migrations.py` (never reuse/edit a version).
 - The feature must never write to or destroy anything on a production cluster; all active/destructive actions target only the configured scratch host, gated by the host-identity + target-storage interlocks (spec §6, §12).
 - DB-touching tests run under `BSENTINEL_DB_TESTS=1` (they TRUNCATE); pure-logic tests run always. Mirror the `tests/test_db.py` unittest style.

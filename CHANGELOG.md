@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.13] — 2026-11-22
+
+### Changed
+
+- **Neutral default theme.** The default was the brand design of the installation Backup Sentinel was developed for. It is now a neutral preset: slate topbar and text, blue main action, teal for running backups, light grey background. The branded preset is gone. An installation that used it falls back to the neutral preset; its own colours go into the four base colours and, for anything else, the new custom CSS. The PDF report's neutral surfaces follow suit.
+
+### Added
+
+- **Custom CSS (Settings → Appearance).** Added after the theme colours, e.g. for your own border or dark-mode tones. At most 20,000 characters and no `</` (it is inlined in the page). "Reset to preset" keeps it; the PDF report does not use it.
+
 ## [v3.19.12] — 2026-11-22
 
 ### Changed
@@ -1711,7 +1721,7 @@ reachable and verified.
 
 ### Removed
 
-- **The Brand Sans / Instrument Sans web font.** The page now uses the device's system font (San Francisco on macOS/iOS, Segoe UI on Windows, Roboto on Android). The two font files under `static/fonts/` are gone; nothing is downloaded, so the page no longer flickers and reflows when the font arrives after a reload. The brand wordmark is unchanged.
+- **The Instrument Sans web font.** The page now uses the device's system font (San Francisco on macOS/iOS, Segoe UI on Windows, Roboto on Android). The two font files under `static/fonts/` are gone; nothing is downloaded, so the page no longer flickers and reflows when the font arrives after a reload. The brand wordmark is unchanged.
 
 ## [v2.40.5] — 2026-10-17
 
@@ -2154,8 +2164,8 @@ reachable and verified.
 
 ### Changed
 
-- **Dark mode between navy and grey.** Since v2.15.1 the dark surfaces were near-black greys (saturation capped at 14 %); before that, a saturated navy. They now sit in between: the primary's hue with up to 32 % saturation and slightly lighter surfaces, for branded dark blue page `#131325` and panel `#1b1b34`.
-- **No neon yellow in dark mode.** Active filters, the sync button and primary buttons used the accent `#ffff00` unchanged on dark surfaces. In dark mode the accent is now lighter and less saturated (`#e8e87d` for branded neon yellow). The warning amber is calmer as well (`#dfb97f`).
+- **Dark mode between navy and grey.** Since v2.15.1 the dark surfaces were near-black greys (saturation capped at 14 %); before that, a saturated navy. They now sit in between: the primary's hue with up to 32 % saturation and slightly lighter surfaces, for a dark-blue primary page `#131325` and panel `#1b1b34`.
+- **No neon yellow in dark mode.** Active filters, the sync button and primary buttons used the accent `#ffff00` unchanged on dark surfaces. In dark mode the accent is now lighter and less saturated (e.g. `#e8e87d` for a neon yellow). The warning amber is calmer as well (`#dfb97f`).
 
 ## [v2.16.0] — 2026-10-12
 
@@ -2189,7 +2199,7 @@ reachable and verified.
 
 ### Changed
 
-- **Calmer dark mode.** Dark surfaces (page, panels, header, chips, lines, buttons) were mixes of the primary colour with black, so branded dark blue produced a saturated navy page. They are now near-neutral greys that only carry the primary's hue: fixed lightness, saturation capped at 14 %, for example page `#101016` and panel `#191921`. Text greys are desaturated as well. This applies to every preset and custom primary. Status colours, accent and the running-backup blue are unchanged.
+- **Calmer dark mode.** Dark surfaces (page, panels, header, chips, lines, buttons) were mixes of the primary colour with black, so a saturated dark-blue primary produced a navy page. They are now near-neutral greys that only carry the primary's hue: fixed lightness, saturation capped at 14 %, for example page `#101016` and panel `#191921`. Text greys are desaturated as well. This applies to every preset and custom primary. Status colours, accent and the running-backup blue are unchanged.
 
 ## [v2.15.0] — 2026-10-11
 
@@ -2258,7 +2268,7 @@ reachable and verified.
 
 ### Fixed
 
-- **Dark mode stays readable with any primary colour.** Dark surfaces are darkened until light text reaches 7:1, and button/topbar text is chosen by contrast — a mid-luminance custom primary (e.g. `#4A7EB5`) no longer yields ~3:1 button text. The default branded theme is unchanged.
+- **Dark mode stays readable with any primary colour.** Dark surfaces are darkened until light text reaches 7:1, and button/topbar text is chosen by contrast — a mid-luminance custom primary (e.g. `#4A7EB5`) no longer yields ~3:1 button text. The default theme is unchanged.
 - Contrast warnings on the settings page accept only numeric values from the URL; a crafted link can no longer show arbitrary text.
 - The hex colour fields no longer truncate pasted values with surrounding spaces.
 - `POST /settings/appearance` is a regular (threadpool) route again, so its database calls don't block the event loop.
@@ -2272,9 +2282,9 @@ reachable and verified.
 
 ### Added
 
-- **branded brand design as the default theme**, using the brand palette: dark blue `#141450` (topbar, text), neon yellow `#FFFF00` (the main action per page — sync, save, PDF snapshot — always with dark blue text), blue `#4A7EB5` (running backups), light beige `#F8F5F2` (background), Beige `#EFE7DB` (borders), light sage `#D8DDCE` (calm badges such as "offen"). Dark mode is derived from dark blue.
-- **Font Instrument Sans** (SIL OFL 1.1) — the font example.com ships as "BrandSans" — self-hosted from `static/fonts/` with its license; no request to Google.
-- **Settings → Erscheinungsbild:** presets *branded* / *Neutral* (previous colours) plus four overridable base colours (primary, accent, background, running) with live preview, WCAG contrast warnings and reset. All other tones are derived; changes are audited.
+- **A branded default theme**: a dark-blue primary (topbar, text), a yellow accent for the main action per page (sync, save, PDF snapshot), a blue for running backups, warm light surfaces and borders. Dark mode is derived from the primary.
+- **Font Instrument Sans** (SIL OFL 1.1), self-hosted from `static/fonts/` with its license; no request to Google.
+- **Settings → Erscheinungsbild:** a branded and a *Neutral* preset (previous colours) plus four overridable base colours (primary, accent, background, running) with live preview, WCAG contrast warnings and reset. All other tones are derived; changes are audited.
 - The **PDF report** follows the theme (banner, table heads, cluster headings); text on header surfaces is chosen by contrast so every theme stays readable.
 
 ## [v2.8.1] — 2026-10-11

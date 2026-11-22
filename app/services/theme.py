@@ -79,28 +79,15 @@ class Preset:
 
 
 PRESETS: dict[str, Preset] = {
-    "branded": Preset(
-        base=BaseColors(primary="#141450", accent="#ffff00", background="#f8f5f2", running="#4a7eb5"),
-        line="#efe7db",
-        sage="#d8ddce",
-        dark_surfaces={
-            "--bg": "#0b0f1a",
-            "--panel": "#131a2b",
-            "--panel-alt": "#0e1525",
-            "--line": "#1e2d44",
-            "--chip": "#162032",
-            "--chip-border": "#2a3a52",
-            "--header-bg": "#0e1525",
-            "--header-border": rgba("#d4e4f0", 0.18),
-        },
-    ),
+    # Slate ink, blue main action, teal for running work. An installation's own
+    # brand: base colours below, anything else as custom CSS (Settings → Appearance).
     "neutral": Preset(
-        base=BaseColors(primary="#141450", accent="#141450", background="#f2f5fa", running="#1f5fbf"),
-        line="#d9e1ec",
-        sage="#edf1f7",
+        base=BaseColors(primary="#1e293b", accent="#2563eb", background="#f5f7fa", running="#0d9488"),
+        line="#dde3ec",
+        sage="#e8edf3",
     ),
 }
-DEFAULT_PRESET = "branded"
+DEFAULT_PRESET = "neutral"
 BASE_KEYS = ("primary", "accent", "background", "running")
 
 
@@ -112,7 +99,7 @@ def resolve(preset_name: str | None, overrides: dict[str, str]) -> tuple[Preset,
 
 def tone(color: str, lightness: float, max_saturation: float = 0.32) -> str:
     """`color`'s hue at a fixed HSL lightness with capped saturation — dark-mode
-    surfaces are clearly tinted by the brand colour (branded: a muted navy),
+    surfaces are clearly tinted by the brand colour (a navy primary: a muted navy),
     but neither a saturated navy page nor near-black grey."""
     r, g, b = (c / 255 for c in _rgb(color))
     hue, _l, sat = colorsys.rgb_to_hls(r, g, b)
@@ -203,6 +190,19 @@ def check_contrast(base: BaseColors) -> list[ContrastWarning]:
         ("running", contrast_ratio(base.running, base.background), 3.0),
     ]
     return [ContrastWarning(key, round(ratio, 2), minimum) for key, ratio, minimum in checks if ratio < minimum]
+
+
+CUSTOM_CSS_MAX = 20000
+
+
+def normalize_custom_css(value: str | None) -> str | None:
+    """The installation's own CSS (Settings → Appearance), appended after the
+    theme tokens. None when it is unusable: too long, or "</" — it is inlined in
+    a <style> element and must not be able to close it."""
+    css = (value or "").replace("\r\n", "\n").strip()
+    if len(css) > CUSTOM_CSS_MAX or "</" in css:
+        return None
+    return css
 
 
 def render_css(tokens: dict[str, dict[str, str]]) -> str:

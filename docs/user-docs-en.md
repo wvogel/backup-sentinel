@@ -257,10 +257,11 @@ The same alert is sent at most once per 24 hours. Gotify messages are collected 
 
 The **Appearance** tab sets the colours of the interface:
 
-- **Preset:** *branded* (default) or *Neutral*.
+- **Preset:** *Neutral* (default).
 - **Four base colours:** primary, accent (main action), background and running backups. All other tones, including dark mode, are derived. A preview shows the result before saving.
 - **Contrast check:** saving checks WCAG contrast (text ≥ 4.5:1, running backups ≥ 3:1). Poor readability shows a warning with the measured ratio; the setting is saved anyway.
-- **Reset to preset** removes custom colours.
+- **Custom CSS** for anything the base colours don't cover (e.g. dark-mode tones); not used by the PDF report.
+- **Reset to preset** removes custom colours; the custom CSS stays.
 
 Changes are recorded in the settings audit. The PDF report uses the primary, accent and running colours.
 

@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
+from app import db
 from app.config import (
     APP_VERSION,
     BRAND_LOGO_DARK_URL,
@@ -280,9 +281,11 @@ def theme_css() -> str:
     """Inline CSS for a non-default theme; '' when the stylesheet defaults apply."""
     try:
         preset, base = active_theme()
-        if preset is theme.PRESETS[theme.DEFAULT_PRESET] and base == preset.base:
-            return ""  # style.css already is the default theme
-        return theme.render_css(theme.derive_tokens(preset, base))
+        css = ""
+        if not (preset is theme.PRESETS[theme.DEFAULT_PRESET] and base == preset.base):
+            css = theme.render_css(theme.derive_tokens(preset, base))  # else style.css already is it
+        custom = theme.normalize_custom_css(db.get_settings_dict("theme_custom_css").get("theme_custom_css"))
+        return css + ("\n" + custom if custom else "")
     except Exception as exc:
         logger.warning("Theme rendering failed, using stylesheet defaults: %s", exc)
         return ""

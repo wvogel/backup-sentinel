@@ -211,23 +211,23 @@ class ThemeSettingsTests(DbTestCase):
     def test_overrides_render_css(self) -> None:
         from app.web.common import theme_css
 
-        db.save_settings({"theme_preset": "branded", "theme_primary": "#000000"})
+        db.save_settings({"theme_preset": "neutral", "theme_primary": "#000000"})
         self.assertIn("--header-bg:#000000", theme_css())
 
     def test_default_preset_without_overrides_needs_no_inline_css(self) -> None:
         from app.web.common import theme_css
 
-        db.save_settings({"theme_preset": "branded", "theme_primary": ""})
+        db.save_settings({"theme_preset": "neutral", "theme_primary": ""})
         self.assertEqual(theme_css(), "")
 
     def test_garbage_preset_falls_back(self) -> None:
         from app.services.theme_store import active_theme
 
         db.save_settings({"theme_preset": "x"})
-        self.assertEqual(active_theme()[1].accent, "#ffff00")
+        self.assertEqual(active_theme()[1].accent, "#2563eb")
 
 
-APPEARANCE_FORM = {"preset": "branded", "primary": "", "accent": "", "background": "", "running": ""}
+APPEARANCE_FORM = {"preset": "neutral", "primary": "", "accent": "", "background": "", "running": ""}
 
 
 class AppearanceSettingsTests(DbTestCase):
@@ -249,9 +249,18 @@ class AppearanceSettingsTests(DbTestCase):
         self.assertEqual(db.get_settings_dict().get("theme_primary", ""), "")
 
     def test_preset_values_are_not_stored_as_overrides(self) -> None:
-        self.save(primary="#141450", accent="#FFFF00")
+        self.save(primary="#1E293B", accent="#2563EB")
         self.assertEqual(db.get_settings_dict().get("theme_primary", ""), "")
         self.assertEqual(db.get_settings_dict().get("theme_accent", ""), "")
+
+    def test_custom_css_is_saved_and_rendered(self) -> None:
+        from app.web.common import theme_css
+
+        self.assertEqual(self.save(custom_css="html[data-theme=dark] { --line: #123456; }"), ([], []))
+        self.assertIn("--line: #123456", theme_css())
+        errors, _ = self.save(custom_css="</style>")
+        self.assertEqual(errors, ["custom_css"])
+        self.assertIn("--line: #123456", theme_css())  # nothing saved
 
     def test_reset_clears_overrides(self) -> None:
         self.save(primary="#000000")
@@ -259,10 +268,10 @@ class AppearanceSettingsTests(DbTestCase):
         self.assertEqual(db.get_settings_dict().get("theme_primary", ""), "")
 
     def test_poor_contrast_warns_but_saves(self) -> None:
-        errors, warnings = self.save(background="#ffff00", running="#ffff66")
+        errors, warnings = self.save(background="#facc15", running="#ffff66")
         self.assertEqual(errors, [])
         self.assertIn("running", {w.key for w in warnings})
-        self.assertEqual(db.get_settings_dict().get("theme_background", ""), "#ffff00")
+        self.assertEqual(db.get_settings_dict().get("theme_background", ""), "#facc15")
 
     def test_unknown_preset_is_an_error(self) -> None:
         errors, _ = self.save(preset="hacker")
@@ -292,7 +301,7 @@ class AppearanceHttpTests(DbTestCase):
         self.assertIn("kein gültiger Farbwert", page)
 
     def test_contrast_warning_round_trip(self) -> None:
-        response = self.post(background="#ffff00", running="#ffff66")
+        response = self.post(background="#facc15", running="#ffff66")
         self.assertIn("warn=running:", response.headers["location"])
         page = self.client.get(response.headers["location"]).text
         self.assertIn('class="warn-text"', page)

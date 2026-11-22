@@ -11,7 +11,7 @@
 {% endfor %}
 :root {
   --ink: {{ pal.primary }}; --rule: {{ pal.rule }}; --muted: {{ pal.muted }};
-  --sand: {{ pal.sand }}; --paper: {{ pal.paper }}; --sage: {{ pal.sage }};
+  --track: {{ pal.track }}; --page: {{ pal.page }}; --grid: {{ pal.grid }};
   --ok: {{ pal.ok }}; --warn: {{ pal.warn }}; --critical: {{ pal.critical }};
 }
 @page {
@@ -19,8 +19,8 @@
   margin: 16mm 16mm 17mm;
   @top-left { content: "BACKUP SENTINEL · {{ tr('band_label')|e }}"; font: 700 6.8pt "Brand Sans", Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif; letter-spacing: .12em; color: {{ pal.muted }}; vertical-align: bottom; padding-bottom: 4mm; }
   @top-right { content: "{{ month_label|e }}{% if r.period.interim %} · {{ tr('interim')|e }}{% endif %}"; font: 6.8pt "Brand Sans", Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif; color: {{ pal.muted }}; vertical-align: bottom; padding-bottom: 4mm; }
-  @bottom-left { content: "{{ footer_left|e }}"; width: 58%; font: 6.8pt "Brand Sans", Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif; color: {{ pal.muted }}; border-top: .3mm solid {{ pal.sage }}; vertical-align: middle; }
-  @bottom-right { content: "{{ tr('legal_basis')|e }}   ·   {{ tr('page')|e }} " counter(page) " {{ tr('of')|e }} " counter(pages); width: 42%; text-align: right; font: 6.8pt "Brand Sans", Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif; color: {{ pal.muted }}; border-top: .3mm solid {{ pal.sage }}; vertical-align: middle; white-space: pre; }
+  @bottom-left { content: "{{ footer_left|e }}"; width: 58%; font: 6.8pt "Brand Sans", Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif; color: {{ pal.muted }}; border-top: .3mm solid {{ pal.grid }}; vertical-align: middle; }
+  @bottom-right { content: "{{ tr('legal_basis')|e }}   ·   {{ tr('page')|e }} " counter(page) " {{ tr('of')|e }} " counter(pages); width: 42%; text-align: right; font: 6.8pt "Brand Sans", Inter, "Segoe UI", "DejaVu Sans", Arial, sans-serif; color: {{ pal.muted }}; border-top: .3mm solid {{ pal.grid }}; vertical-align: middle; white-space: pre; }
 }
 @page exec {
   margin: 0 0 17mm;
@@ -47,29 +47,29 @@ body { font-family: "Brand Sans", Inter, "Segoe UI", -apple-system, Roboto, "Dej
 h1 { font-size: 22pt; margin: 1.2mm 0 .8mm; letter-spacing: -.02em; line-height: 1.1; }
 h2.app { font-size: 15pt; margin: 0 0 1mm; letter-spacing: -.01em; }
 .sub { color: var(--muted); font-size: 9.2pt; }
-.verdict { margin: 4mm 0 3.5mm; padding: 3.2mm 5mm; border-radius: 3mm; display: flex; gap: 4mm; align-items: center; background: var(--sand); }
+.verdict { margin: 4mm 0 3.5mm; padding: 3.2mm 5mm; border-radius: 3mm; display: flex; gap: 4mm; align-items: center; background: var(--track); }
 .verdict .dot { width: 10mm; height: 10mm; border-radius: 50%; flex: none; text-align: center; line-height: 10mm; color: #fff; font-weight: 700; font-size: 13pt; }
 .verdict h3 { margin: 0; font-size: 12.5pt; }
-.verdict p { margin: .8mm 0 0; color: #3d3d66; }
+.verdict p { margin: .8mm 0 0; color: #3b4556; }
 .heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
-.hero { border: .3mm solid var(--sage); border-radius: 3mm; padding: 3.5mm 4.5mm; display: flex; gap: 5mm; align-items: center; }
+.hero { border: .3mm solid var(--grid); border-radius: 3mm; padding: 3.5mm 4.5mm; display: flex; gap: 5mm; align-items: center; }
 .hero svg { flex: none; }
 .hero h4 { margin: 0 0 1mm; font-size: 11pt; }
 .goal { font-size: 7.2pt; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
-.hero p { margin: 1.3mm 0 0; color: #3d3d66; font-size: 8.4pt; }
+.hero p { margin: 1.3mm 0 0; color: #3b4556; font-size: 8.4pt; }
 .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-top: 5mm; }
-.kpi { background: var(--paper); border-radius: 2.5mm; padding: 3mm 3.5mm; }
+.kpi { background: var(--page); border-radius: 2.5mm; padding: 3mm 3.5mm; }
 .kpi strong { display: block; font-size: 15pt; letter-spacing: -.01em; }
 .kpi span { color: var(--muted); font-size: 7.6pt; display: block; line-height: 1.3; }
 .section { margin-top: 4.2mm; }
-.sh { margin: 0 0 2.2mm; font-size: 7.6pt; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; border-bottom: .3mm solid var(--sage); padding-bottom: 1.4mm; }
+.sh { margin: 0 0 2.2mm; font-size: 7.6pt; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; border-bottom: .3mm solid var(--grid); padding-bottom: 1.4mm; }
 .sh em { font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 500; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
 .legend span { margin-left: 3mm; white-space: nowrap; }
 .legend i { display: inline-block; width: 2.4mm; height: 2.4mm; border-radius: .6mm; margin-right: 1mm; vertical-align: -.2mm; }
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; font-size: 6.9pt; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; padding: 0 2mm 1.4mm; white-space: nowrap; }
-td { padding: 1.5mm 2mm; border-top: .3mm solid #ece9e3; vertical-align: middle; white-space: nowrap; }
+td { padding: 1.5mm 2mm; border-top: .3mm solid #e6eaf0; vertical-align: middle; white-space: nowrap; }
 td.wrap { white-space: normal; }
 table.tests tr.checks-row td { border-top: 0; padding-top: 0; padding-bottom: 1.2mm; }
 table.tests td { padding-top: 1.2mm; padding-bottom: .6mm; }
@@ -77,7 +77,7 @@ table.tests td { padding-top: 1.2mm; padding-bottom: .6mm; }
 .exec .sh { margin-bottom: 1.8mm; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
-.bar { height: 2mm; background: var(--sand); border-radius: 1mm; overflow: hidden; width: 15mm; display: inline-block; vertical-align: middle; margin-right: 2mm; }
+.bar { height: 2mm; background: var(--track); border-radius: 1mm; overflow: hidden; width: 15mm; display: inline-block; vertical-align: middle; margin-right: 2mm; }
 .bar span { display: block; height: 100%; border-radius: 1mm; }
 .pill { display: inline-block; padding: .6mm 2.4mm; border-radius: 3mm; font-size: 7.4pt; font-weight: 600; }
 .res { font-weight: 600; }
@@ -209,7 +209,7 @@ body { width: 210mm; margin: 8mm auto; }
     </div>
 
     <div class="section"><div class="sh">{{ tr('days_title') }}<em class="legend"><span><i style="background: {{ pal.ok }}"></i>{{ tr('day_ok') }}</span><span><i style="background: {{ pal.warn }}"></i>{{ tr('day_warn', pct=targets.day[1]) }}</span><span><i style="background: {{ pal.critical }}"></i>{{ tr('day_critical', pct=targets.day[1]) }}</span></em></div>
-      <div class="days">{% for tone in c.day_tones %}<div class="day" style="background: {{ pal.tone(tone) if tone else pal.paper }}"></div>{% endfor %}</div>
+      <div class="days">{% for tone in c.day_tones %}<div class="day" style="background: {{ pal.tone(tone) if tone else pal.page }}"></div>{% endfor %}</div>
       <div class="daynums">{% for d in r.period.days %}<span>{{ d.day }}</span>{% endfor %}</div>
     </div>
 
