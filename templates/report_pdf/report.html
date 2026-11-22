@@ -216,7 +216,7 @@ body { width: 210mm; margin: 8mm auto; }
         <tbody>
         {% for g in c.gaps[:3] %}
         <tr><td><b>{{ g.vm_name }}</b></td><td>{{ g.prev_label }}</td><td{% if g.open %} style="color: {{ pal.critical }}; font-weight: 600"{% endif %}>{{ g.next_label }}</td>
-          <td class="num">{{ g.without_hours }} h</td><td class="num">{{ g.rpo_hours }} h</td>
+          <td class="num">{{ g.without_hours }} h</td><td class="num">{{ tr('rpo_month') if g.monthly else g.rpo_hours ~ ' h' }}</td>
           <td class="num" style="color: {{ pal.critical if g.open or g.over_hours >= 24 else pal.warn }}; font-weight: 600">{{ g.over_hours }} h</td></tr>
         {% endfor %}
         </tbody>
@@ -269,7 +269,7 @@ body { width: 210mm; margin: 8mm auto; }
   <table class="fixed">
     <colgroup><col style="width: 46mm"><col><col><col style="width: 24mm"><col style="width: 16mm"><col style="width: 20mm"></colgroup>
     <thead><tr><th>{{ tr('col_vm') }}</th><th>{{ tr('col_prev') }}</th><th>{{ tr('col_next') }}</th><th class="num">{{ tr('col_without') }}</th><th class="num">{{ tr('col_rpo') }}</th><th class="num">{{ tr('col_over') }}</th></tr></thead>
-    <tbody>{% for g in c.gaps %}<tr><td><b>{{ g.vm_name }}</b> <span class="muted">{{ g.vmid }}</span></td><td>{{ g.prev_label }}</td><td>{{ g.next_label }}</td><td class="num">{{ g.without_hours }} h</td><td class="num">{{ g.rpo_hours }} h</td><td class="num"><b>{{ g.over_hours }} h</b></td></tr>{% endfor %}</tbody>
+    <tbody>{% for g in c.gaps %}<tr><td><b>{{ g.vm_name }}</b> <span class="muted">{{ g.vmid }}</span></td><td>{{ g.prev_label }}</td><td>{{ g.next_label }}</td><td class="num">{{ g.without_hours }} h</td><td class="num">{{ tr('rpo_month') if g.monthly else g.rpo_hours ~ ' h' }}</td><td class="num"><b>{{ g.over_hours }} h</b></td></tr>{% endfor %}</tbody>
   </table>
   {% endfor %}
 </section>

@@ -38,9 +38,34 @@ class EffectiveRpoTest(unittest.TestCase):
         self.assertEqual(m.effective_rpo_hours(24, "daily"), 24)
         self.assertEqual(m.effective_rpo_hours(None, "unconfigured"), 24)
 
-    def test_weekly_at_least_180h(self):
-        self.assertEqual(m.effective_rpo_hours(24, "weekly"), 180)
-        self.assertEqual(m.effective_rpo_hours(240, "weekly"), 240)
+
+class MonthlyCoverageTest(unittest.TestCase):
+    """Weekly-backed-up guests: one successful backup in the month is enough."""
+
+    def test_one_backup_in_the_month_covers_it_all(self):
+        cov = m.monthly_coverage([S - 20 * 24 * H, S + 25 * 24 * H], S, E, interim=False)
+        self.assertEqual((cov.uncovered_seconds, cov.gaps), (0, []))
+        self.assertEqual(cov.window_seconds, int((E - S).total_seconds()))
+
+    def test_no_backup_in_the_month_is_one_gap_over_the_whole_month(self):
+        prev, nxt = S - 3 * 24 * H, E + 2 * 24 * H
+        cov = m.monthly_coverage([prev, nxt], S, E, interim=False)
+        self.assertEqual(cov.uncovered_seconds, int((E - S).total_seconds()))
+        self.assertEqual(len(cov.gaps), 1)
+        g = cov.gaps[0]
+        self.assertEqual((g.start, g.end, g.prev_backup, g.next_backup), (S, E, prev, nxt))
+        self.assertTrue(g.monthly)
+        self.assertFalse(g.open)
+
+    def test_never_backed_up_weekly_guest_is_an_open_gap(self):
+        cov = m.monthly_coverage([], S, E, interim=False)
+        self.assertTrue(cov.gaps[0].open)
+
+    def test_interim_without_backup_yet_is_fine_while_the_last_is_within_31_days(self):
+        now = S + 10 * 24 * H
+        self.assertEqual(m.monthly_coverage([S - 15 * 24 * H], S, now, interim=True).gaps, [])
+        late = m.monthly_coverage([S - 25 * 24 * H], S, now, interim=True)
+        self.assertEqual(len(late.gaps), 1)
 
 
 class GuestCoverageTest(unittest.TestCase):

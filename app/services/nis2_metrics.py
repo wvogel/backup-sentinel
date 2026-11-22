@@ -22,7 +22,9 @@ from app.services.backup_status import cadence_days
 
 TOLERANCE_HOURS = 12
 DEFAULT_RPO_HOURS = 24
-WEEKLY_MIN_RPO_HOURS = 180  # 7.5 days, like the weekly backup-age thresholds
+# Weekly-backed-up guests are near stateless: one successful backup in the
+# month is enough. While the month runs, the last one may be this old.
+MONTHLY_GRACE_DAYS = 31
 WEEKLY_MIN_RESTORE_DAYS = 365
 
 # (green from, amber from) — below amber is red. Whole percent.
@@ -75,8 +77,8 @@ def verdict(rpo_pct: int | None, restore_pct: int | None, *, open_gap: bool) -> 
 
 
 def effective_rpo_hours(rpo_hours: int | None, backup_kind: str) -> int:
-    rpo = rpo_hours or DEFAULT_RPO_HOURS
-    return max(rpo, WEEKLY_MIN_RPO_HOURS) if backup_kind == "weekly" else rpo
+    """RPO of a guest measured by the hour (weekly guests use monthly_coverage)."""
+    return rpo_hours or DEFAULT_RPO_HOURS
 
 
 def restore_interval_days(cadence: str, backup_kind: str) -> int:
@@ -100,7 +102,8 @@ class Gap:
     prev_backup: datetime | None  # None: never backed up before
     next_backup: datetime | None  # None: still no backup ("offen")
     over_seconds: int  # whole overrun beyond the RPO, also outside the window
-    rpo_hours: int
+    rpo_hours: int  # 0 for a monthly gap
+    monthly: bool = False  # weekly guest: no backup in the whole month
 
     @property
     def open(self) -> bool:
@@ -157,6 +160,35 @@ def guest_coverage(
         if nxt is None or nxt >= win_end:
             break
         prev = anchor = nxt
+    return cov
+
+
+def monthly_coverage(
+    backups: list[datetime],
+    win_start: datetime,
+    win_end: datetime,
+    *,
+    interim: bool,
+    grace_days: int = MONTHLY_GRACE_DAYS,
+) -> Coverage:
+    """Coverage of a weekly-backed-up guest: the whole window counts as covered
+    when it has a successful backup — otherwise it is one gap over the window.
+    While the month still runs (`interim`), a last backup no older than
+    `grace_days` also counts: the month can still bring one."""
+    cov = Coverage()
+    if win_end <= win_start:
+        return cov
+    cov.window_seconds = int((win_end - win_start).total_seconds())
+    pts = sorted(set(backups))
+    if any(win_start <= b < win_end for b in pts):
+        return cov
+    before = [b for b in pts if b < win_start]
+    prev = before[-1] if before else None
+    if interim and prev is not None and win_end - prev <= timedelta(days=grace_days):
+        return cov
+    nxt = next((b for b in pts if b >= win_end), None)
+    cov.uncovered_seconds = cov.window_seconds
+    cov.gaps.append(Gap(win_start, win_end, prev, nxt, cov.window_seconds, 0, monthly=True))
     return cov
 
 

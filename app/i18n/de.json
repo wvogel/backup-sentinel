@@ -819,7 +819,7 @@
   "nis2.cal_gap": "Lücke",
   "nis2.app_method": "Anhang · Methode",
   "nis2.m_rpo_1": "Jede VM mit Backup-Pflicht wird gemessen – auch VMs ohne eingerichteten Backup-Job (dann wie täglich). Gemessen wird ab dem Zeitpunkt, an dem Backup Sentinel die VM zuerst gesehen hat, bis zum Ende des Zeitraums oder bis die VM entfernt wurde.",
-  "nis2.m_rpo_2": "Als Backup zählt jede erfolgreiche Sicherung, auch wenn sie später durch Aufbewahrungsregeln gelöscht wurde. Eine Lücke liegt vor, wenn zwischen zwei erfolgreichen Backups mehr als RPO + {tolerance} h liegen (die Toleranz fängt verschobene Startzeiten ab). Liegt eine Lücke vor, zählt die gesamte Zeit über dem RPO als nicht gesichert. Wöchentlich gesicherte VMs haben mindestens 180 h RPO.",
+  "nis2.m_rpo_2": "Als Backup zählt jede erfolgreiche Sicherung, auch wenn sie später durch Aufbewahrungsregeln gelöscht wurde. Eine Lücke liegt vor, wenn zwischen zwei erfolgreichen Backups mehr als RPO + {tolerance} h liegen (die Toleranz fängt verschobene Startzeiten ab). Liegt eine Lücke vor, zählt die gesamte Zeit über dem RPO als nicht gesichert. Wöchentlich gesicherte VMs sind nahezu zustandslos: Für sie genügt ein erfolgreiches Backup im Monat; fehlt es, ist der ganze Monat eine Lücke. Im laufenden Monat (Zwischenbericht) gilt auch ein höchstens 31 Tage altes Backup.",
   "nis2.m_rpo_3": "Lückenlosigkeit = gesicherte VM-Stunden ÷ gemessene VM-Stunden.",
   "nis2.m_restore_1": "Testpflichtig sind VMs mit Backup-Pflicht, bei denen der Restore-Test nicht abgeschaltet ist. Ein Test ist gültig, wenn ein bestandener (oder eingeschränkt bestandener) Restore-Test innerhalb des Prüfintervalls der VM liegt (Turnus: Monat, Quartal, Halbjahr, Jahr; bei wöchentlichen Backups mindestens ein Jahr).",
   "nis2.m_restore_2": "Restore-Nachweis = VMs mit gültigem Test am letzten Tag des Zeitraums ÷ testpflichtige VMs. Automatische Tests stellen die VM isoliert wieder her, starten sie und prüfen die Erreichbarkeit (ICMP/ARP und konfigurierte TCP-Ports). Ein nicht voll bestandener Versuch (fehlgeschlagen, Fehler, abgebrochen oder eingeschränkt) entfällt, wenn dieselbe VM danach im Zeitraum einen Test bestanden hat.",
@@ -865,5 +865,6 @@
   "reports.trigger_interim": "Zwischenbericht",
   "nis2.recovery_full": "vollständiger Restore",
   "nis2.recovery_partial": "teilweiser Restore",
-  "nis2.recovery_file": "Datei-Restore"
+  "nis2.recovery_file": "Datei-Restore",
+  "nis2.rpo_month": "1 Monat"
 }

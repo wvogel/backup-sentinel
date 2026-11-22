@@ -819,7 +819,7 @@
   "nis2.cal_gap": "gap",
   "nis2.app_method": "Appendix · Method",
   "nis2.m_rpo_1": "Every VM that requires backups is measured — VMs without a backup job too (as daily). Measurement starts when Backup Sentinel first saw the VM and ends with the period or when the VM was removed.",
-  "nis2.m_rpo_2": "Every successful backup counts, even if retention deleted it later. A gap exists when more than RPO + {tolerance} h lie between two successful backups (the tolerance absorbs shifted start times). Then the whole time beyond the RPO counts as unprotected. Weekly backed-up VMs have an RPO of at least 180 h.",
+  "nis2.m_rpo_2": "Every successful backup counts, even if retention deleted it later. A gap exists when more than RPO + {tolerance} h lie between two successful backups (the tolerance absorbs shifted start times). Then the whole time beyond the RPO counts as unprotected. Weekly backed-up VMs are nearly stateless: one successful backup in the month is enough for them; without one, the whole month is a gap. While the month is running (interim report), a backup no older than 31 days also counts.",
   "nis2.m_rpo_3": "Backup continuity = protected VM hours ÷ measured VM hours.",
   "nis2.m_restore_1": "VMs that require backups and have restore testing enabled require tests. A test is valid when a passed (or limited) restore test lies within the VM's test interval (cadence: month, quarter, half-year, year; at least one year for weekly backups).",
   "nis2.m_restore_2": "Restore evidence = VMs with a valid test on the last day of the period ÷ VMs requiring tests. Automatic tests restore the VM in isolation, boot it and check reachability (ICMP/ARP and configured TCP ports). An attempt that did not fully pass (failed, error, cancelled or limited) is left out when the same VM passed a test later in the period.",
@@ -865,5 +865,6 @@
   "reports.trigger_interim": "interim",
   "nis2.recovery_full": "full restore",
   "nis2.recovery_partial": "partial restore",
-  "nis2.recovery_file": "file restore"
+  "nis2.recovery_file": "file restore",
+  "nis2.rpo_month": "1 month"
 }

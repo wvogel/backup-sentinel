@@ -82,6 +82,7 @@ def _scope_kpis(
     end: datetime,
     ref_date: date,
     data_start: dict[int, datetime],
+    interim: bool = False,
 ) -> dict[str, Any]:
     """The two KPIs (and their raw parts) for guests in [start, end)."""
     window = uncovered = 0
@@ -94,9 +95,10 @@ def _scope_kpis(
         ws, we = _guest_window(g, start, end, data_start.get(g["cluster_id"]))
         if we <= ws:
             continue
-        cov = m.guest_coverage(
-            backups.get(g["id"], []), m.effective_rpo_hours(g["rpo_hours"], g["backup_kind"]), ws, we
-        )
+        if g["backup_kind"] == "weekly":
+            cov = m.monthly_coverage(backups.get(g["id"], []), ws, we, interim=interim)
+        else:
+            cov = m.guest_coverage(backups.get(g["id"], []), m.effective_rpo_hours(g["rpo_hours"], "daily"), ws, we)
         window += cov.window_seconds
         uncovered += cov.uncovered_seconds
         covs.append((g, cov, ws, we))
@@ -256,9 +258,14 @@ def _scope_detail(
                     "next_backup": gap.next_backup,
                     "prev_label": _fmt_dt(gap.prev_backup, tz, lang) or tl(lang, "nis2.never"),
                     "next_label": _fmt_dt(gap.next_backup, tz, lang) or tl(lang, "nis2.gap_open"),
-                    "without_hours": _hours(gap.over_seconds) + gap.rpo_hours,
+                    "without_hours": _hours(
+                        int(((gap.next_backup or period.end) - gap.prev_backup).total_seconds())
+                        if gap.monthly and gap.prev_backup
+                        else gap.over_seconds + gap.rpo_hours * 3600
+                    ),
                     "rpo_hours": gap.rpo_hours,
                     "over_hours": _hours(gap.over_seconds),
+                    "monthly": gap.monthly,
                     "open": gap.open,
                     "in_period_seconds": int((gap.end - gap.start).total_seconds()),
                 }
@@ -388,8 +395,8 @@ def build_nis2_report(
     for g in guests:
         clusters.setdefault(g["cluster_id"], (g["cluster_name"], g["cluster_slug"]))
 
-    def kpis_for(scope: list[dict], start: datetime, end: datetime, ref: date) -> dict:
-        return _scope_kpis(scope, backups, tests, start, end, ref, data_start)
+    def kpis_for(scope: list[dict], start: datetime, end: datetime, ref: date, interim: bool = False) -> dict:
+        return _scope_kpis(scope, backups, tests, start, end, ref, data_start, interim)
 
     scopes: list[tuple[str, str | None, list[dict], list[int] | None]] = [("", None, guests, None)]
     for cid, (cname, slug) in clusters.items():
@@ -397,7 +404,7 @@ def build_nis2_report(
 
     results = []
     for name, slug, scope_guests, cids in scopes:
-        kpis = kpis_for(scope_guests, period.start, period.end, period.reference_date)
+        kpis = kpis_for(scope_guests, period.start, period.end, period.reference_date, period.interim)
         scope_protocol = [p for p in protocol if cids is None or p["cluster_id"] in cids]
         detail = _scope_detail(name, slug, scope_guests, kpis, period, counts, scope_protocol, tests, lang)
         trend = {"rpo": [], "restore": []}

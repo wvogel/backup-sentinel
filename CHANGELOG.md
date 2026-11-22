@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.19.6] — 2026-11-22
+
+### Changed
+
+- **NIS2 report: weekly backed-up VMs count by the month.** They are backed up weekly because they are nearly stateless, so measuring them against an hourly RPO only spoiled the statistics. One successful backup in the month now covers the whole month. Without one, the whole month is a single gap, shown with "1 month" as its RPO. While the month is still running (interim report), a last backup no older than 31 days also counts, so a weekly VM isn't flagged on the 3rd of the month. Daily VMs keep the RPO + 12 h rule.
+
 ## [v3.19.5] — 2026-11-22
 
 ### Changed

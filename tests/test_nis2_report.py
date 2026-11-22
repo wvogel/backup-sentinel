@@ -51,10 +51,22 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(self.by["pve-dresden"]["open_gaps"], 1)
         self.assertEqual(self.by["pve-dresden"]["verdict"], "critical")
 
-    def test_weekly_guest_gap_within_180h_is_no_gap(self):
+    def test_weekly_guest_with_a_backup_in_the_month_has_no_gap(self):
         names = {g["vm_name"] for g in self.by["pve-dresden"]["gaps"]}
-        self.assertNotIn("srv-mar-25", names)  # weekly: 3 days off is within 180 h
+        self.assertNotIn("srv-mar-25", names)  # weekly: missed a run, but backed up in October
         self.assertIn("srv-mar-22", names)
+
+    def test_weekly_guest_without_any_backup_in_the_month_is_one_month_gap(self):
+        fx = Nis2Fixture()
+        weekly = next(g for g in fx.guests if g["backup_kind"] == "weekly")
+        fx.backups[weekly["id"]] = [t for t in fx.backups[weekly["id"]] if t.month != 10]
+        with fx.patch():
+            r = nis2_report.build_nis2_report(OCT, trigger="auto", lang="de", now=AFTER_OCT)
+        c = next(c for c in r["clusters"] if c["slug"] == weekly["cluster_slug"])
+        gap = next(g for g in c["gaps"] if g["vm_name"] == weekly["vm_name"])
+        self.assertTrue(gap["monthly"])
+        self.assertEqual(gap["over_hours"], 745)  # all of October (incl. the DST hour)
+        self.assertIn("1 Monat", nis2_render.render_html(nis2_report.cluster_view(r, c["slug"])))
 
     def test_failed_attempt_followed_by_a_pass_is_left_out(self):
         mar = self.by["pve-dresden"]
