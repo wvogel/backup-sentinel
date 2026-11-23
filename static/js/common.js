@@ -1,5 +1,97 @@
 // ── Shared utilities ──────────────────────────────────────────────────────────
 
+// ── Values from the data as styles ───────────────────────────────────────────
+// The Content-Security-Policy forbids style attributes, so the server writes a
+// bar's width or a ring's percentage as data-css-* and this sets it — on load
+// and for everything inserted later (fragments, rebuilt rows).
+const DATA_CSS = {
+  cssWidth: (el, v) => { el.style.width = v + "%"; },
+  cssP: (el, v) => el.style.setProperty("--p", v),
+  cssPct: (el, v) => el.style.setProperty("--pct", v),
+  cssFill: (el, v) => el.style.setProperty("--fill", v + "%"),
+  cssFlex: (el, v) => { el.style.flex = v; },
+};
+const DATA_CSS_SELECTOR = "[data-css-width],[data-css-p],[data-css-pct],[data-css-fill],[data-css-flex]";
+function applyDataCss(root) {
+  const els = [...root.querySelectorAll(DATA_CSS_SELECTOR)];
+  if (root.matches && root.matches(DATA_CSS_SELECTOR)) els.push(root);
+  for (const el of els) {
+    for (const [key, set] of Object.entries(DATA_CSS)) {
+      const value = el.dataset[key];
+      if (value !== undefined && /^[0-9.]+$/.test(value)) set(el, value);
+    }
+  }
+}
+applyDataCss(document);
+new MutationObserver((mutations) => {
+  for (const mutation of mutations) {
+    for (const node of mutation.addedNodes) {
+      if (node.nodeType === 1) applyDataCss(node);
+    }
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
+
+// ── Small behaviours that used to be inline handlers ─────────────────────────
+// A filter that applies as soon as it is chosen.
+document.addEventListener("change", (event) => {
+  const el = event.target;
+  if (!el.form || !el.classList) return;
+  if (el.classList.contains("js-submit-keep-scroll")) {
+    // Come back to the same place (and the same open VM) after the reload.
+    sessionStorage.setItem("scrollY_" + location.pathname, window.scrollY);
+    if (el.form.vm_id) sessionStorage.setItem("openVm_" + location.pathname, el.form.vm_id.value);
+    el.form.submit();
+  } else if (el.classList.contains("js-autosubmit")) {
+    el.form.submit();
+  }
+});
+document.addEventListener("DOMContentLoaded", () => {
+  const key = "scrollY_" + location.pathname;
+  const saved = sessionStorage.getItem(key);
+  if (saved !== null) {
+    sessionStorage.removeItem(key);
+    window.scrollTo(0, parseInt(saved, 10));
+  }
+});
+// Confirm dialogs: data-open-dialog="<id>" opens, data-close-dialog closes.
+document.addEventListener("click", (event) => {
+  const opener = event.target.closest("[data-open-dialog]");
+  if (opener) {
+    const dialog = document.getElementById(opener.dataset.openDialog);
+    if (dialog) dialog.showModal();
+    return;
+  }
+  const closer = event.target.closest("[data-close-dialog]");
+  if (closer) closer.closest("dialog").close();
+});
+// Notifications: a click on a row shows its details.
+document.querySelectorAll(".notification-row").forEach((row) => {
+  row.addEventListener("click", () => {
+    const detail = document.querySelector(
+      '.notification-detail-row[data-detail-for="' + row.dataset.notificationId + '"]',
+    );
+    if (!detail) return;
+    detail.classList.toggle("hidden");
+    row.classList.toggle("notification-row-expanded");
+  });
+});
+// Dashboard: one tile width for every row (restore box and clusters), the widest tile's.
+(function () {
+  if (!document.querySelector(".js-equal-stats")) return;
+  const root = document.documentElement;
+  function equalize() {
+    root.style.removeProperty("--stat-w");
+    let w = 0;
+    document.querySelectorAll(".cluster-row-stats > *").forEach((el) => {
+      w = Math.max(w, el.getBoundingClientRect().width);
+    });
+    if (w) root.style.setProperty("--stat-w", Math.ceil(w) + "px");
+  }
+  equalize();
+  if (document.fonts) document.fonts.ready.then(equalize);
+  window.addEventListener("resize", equalize);
+})();
+
 // ── Animations follow the clock ───────────────────────────────────────────────
 // Every endless animation stands where the wall clock says (time since the
 // epoch modulo its period), not where its element happened to be created:

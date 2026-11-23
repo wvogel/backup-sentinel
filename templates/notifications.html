@@ -4,19 +4,19 @@
 <fieldset class="dash-section">
   <legend>{{ t('notifications.eyebrow') }}</legend>
   <form method="get" class="notification-filters">
-    <select name="notification_type" onchange="this.form.submit()">
+    <select name="notification_type" class="js-autosubmit">
       <option value="">{{ t('notifications.filter_all_types') }}</option>
       {% for type in filter_types %}
       <option value="{{ type }}" {% if active_filters.notification_type == type %}selected{% endif %}>{{ t('notifications.type_' + type) }}</option>
       {% endfor %}
     </select>
-    <select name="cluster_name" onchange="this.form.submit()">
+    <select name="cluster_name" class="js-autosubmit">
       <option value="">{{ t('notifications.filter_all_clusters') }}</option>
       {% for cluster in filter_clusters %}
       <option value="{{ cluster }}" {% if active_filters.cluster_name == cluster %}selected{% endif %}>{{ cluster }}</option>
       {% endfor %}
     </select>
-    <select name="channel" onchange="this.form.submit()">
+    <select name="channel" class="js-autosubmit">
       <option value="">{{ t('notifications.filter_all_channels') }}</option>
       {% for ch in filter_channels %}
       <option value="{{ ch }}" {% if active_filters.channel == ch %}selected{% endif %}>{{ ch|capitalize }}</option>
@@ -79,15 +79,4 @@
   </nav>
   {% endif %}
 </fieldset>
-<script>
-  document.querySelectorAll('.notification-row').forEach(function(row) {
-    row.addEventListener('click', function() {
-      var id = row.dataset.notificationId;
-      var detail = document.querySelector('.notification-detail-row[data-detail-for="' + id + '"]');
-      if (!detail) return;
-      detail.classList.toggle('hidden');
-      row.classList.toggle('notification-row-expanded');
-    });
-  });
-</script>
 {% endblock %}

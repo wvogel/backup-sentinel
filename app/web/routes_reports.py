@@ -21,7 +21,7 @@ from app.services.report_archive import (
     report_intact,
 )
 from app.services.theme_store import active_theme
-from app.web.common import common_context, settings_actor, templates
+from app.web.common import PREVIEW_CSP, common_context, settings_actor, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -68,7 +68,10 @@ def report_preview(cluster: str | None = None, month: str | None = None) -> HTML
         report = cluster_view(report, cluster)
         if report is None:
             raise HTTPException(status_code=404, detail="Cluster not found")
-    return HTMLResponse(render_html(report, theme_colors=active_theme()[1], preview=True))
+    return HTMLResponse(
+        render_html(report, theme_colors=active_theme()[1], preview=True),
+        headers={"Content-Security-Policy": PREVIEW_CSP},
+    )
 
 
 @router.post("/reports/generate")

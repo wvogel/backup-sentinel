@@ -22,7 +22,7 @@
 <div class="vol-bar" role="img" aria-label="{{ _disk_title(disks) }}">
   {%- for d in disks %}
   {%- set f = fills[d.dev] if fills is not none and d.dev in fills else none %}
-  <span class="vol-seg {{ d.storage|vol_seg_class }}{% if f is not none %} vol-seg-fill{% if 0 < f < 100 %} is-active{% endif %}{% endif %}" data-dev="{{ d.dev }}" style="flex: {{ (d.size_bytes // 1000000) or 1 }}{% if f is not none %}; --fill: {{ f }}%{% endif %}" data-tooltip="{{ d.dev }} {{ d.size_bytes|size_coarse }} · {{ d.storage }}"><span class="vol-seg-label">{{ d.dev }} · {{ d.size_bytes|size_coarse }}</span></span>
+  <span class="vol-seg {{ d.storage|vol_seg_class }}{% if f is not none %} vol-seg-fill{% if 0 < f < 100 %} is-active{% endif %}{% endif %}" data-dev="{{ d.dev }}" data-css-flex="{{ (d.size_bytes // 1000000) or 1 }}"{% if f is not none %} data-css-fill="{{ f }}"{% endif %} data-tooltip="{{ d.dev }} {{ d.size_bytes|size_coarse }} · {{ d.storage }}"><span class="vol-seg-label">{{ d.dev }} · {{ d.size_bytes|size_coarse }}</span></span>
   {%- endfor %}
 </div>
 {%- if legend %}

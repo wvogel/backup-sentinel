@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import hashlib
 import logging
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -270,15 +270,35 @@ templates.env.globals["pve_sync_state"] = lambda cluster: pve_sync_state(
 )
 templates.env.globals["pbs_sync_state"] = lambda conn: pbs_sync_state(conn, datetime.now(UTC), SYNC_INTERVAL_MINUTES)
 templates.env.globals["get_language"] = get_language
-templates.env.globals["get_translations_json"] = lambda: json.dumps(get_translations(), ensure_ascii=False)
+# Language and translations for the scripts, rendered as a JSON data block (base.html).
+templates.env.globals["i18n_payload"] = lambda: {
+    "lang": get_language(),
+    "languages": SUPPORTED_LANGUAGES,
+    "translations": get_translations(),
+}
 templates.env.globals["supported_languages"] = SUPPORTED_LANGUAGES
 
 
 logger = logging.getLogger(__name__)
 
 
+# The report preview and the weekly-mail preview are standalone documents made
+# for PDF and mail clients, which need their styles inline. They carry no
+# script; this policy allows them nothing but styles, images and fonts.
+PREVIEW_CSP = (
+    "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; "
+    "frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+)
+
+
+def theme_css_version() -> str:
+    """Changes with the theme CSS (cache key of /theme.css); '' when there is none."""
+    css = theme_css()
+    return hashlib.sha256(css.encode()).hexdigest()[:12] if css else ""
+
+
 def theme_css() -> str:
-    """Inline CSS for a non-default theme; '' when the stylesheet defaults apply."""
+    """CSS for a non-default theme (served as /theme.css); '' when the stylesheet defaults apply."""
     try:
         preset, base = active_theme()
         css = ""
@@ -344,7 +364,7 @@ def common_context(request: Request) -> dict:
         "footer_links": _footer_links,
         "copyright_text": COPYRIGHT_TEXT,
         "v": CACHE_BUSTER,
-        "theme_css": theme_css(),
+        "theme_css_version": theme_css_version(),
     }
 
 

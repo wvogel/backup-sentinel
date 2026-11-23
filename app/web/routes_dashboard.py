@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from app import db
 from app.config import SYNC_INTERVAL_MINUTES
@@ -11,7 +11,7 @@ from app.services import sync_progress
 from app.services.backup_status import pbs_sync_state, sync_freshness
 from app.services.proxmox_progress import cached_running_backups
 from app.services.reporting import build_compliance_summary
-from app.web.common import common_context, templates
+from app.web.common import common_context, templates, theme_css
 from app.web.sync import refresh_sync_job_states_soon
 
 router = APIRouter()
@@ -61,6 +61,16 @@ def _encryption_total(summaries: list[dict]) -> dict[str, int]:
         "encrypted_backups": encrypted,
         "pct_encrypted": round(encrypted / total * 100) if total else 100,
     }
+
+
+@router.get("/theme.css")
+def theme_stylesheet() -> Response:
+    """Colours and own CSS from Settings → Appearance. A stylesheet of its own
+    instead of a <style> block, so the CSP needs no exception for inline styles.
+    The pages link it with a hash of its content, hence the long cache time."""
+    return Response(
+        theme_css(), media_type="text/css", headers={"Cache-Control": "private, max-age=31536000, immutable"}
+    )
 
 
 @router.get("/", response_class=HTMLResponse)

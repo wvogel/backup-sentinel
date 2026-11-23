@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.21.4] — 2026-11-23
+
+### Security
+
+- **The Content-Security-Policy no longer allows inline scripts or styles.** It is now `script-src 'self'; style-src 'self'`, without `unsafe-inline`: markup that found its way into a page could not run code or restyle it. For that the pages carry no inline script, event handler, style block or style attribute any more — scripts moved into the script files, translations reach them as a JSON data block, the colours and own CSS from Settings → Appearance are served as `/theme.css`, and values from the data (a bar's width, a ring's percentage) are written as `data-css-*` and set by a script. A test keeps the templates that way.
+- The report preview and the weekly-mail preview are standalone documents whose styles must be inline (PDF renderer, mail clients). They get a policy of their own that allows inline styles but no script at all.
+
 ## [v3.21.3] — 2026-11-23
 
 ### Changed

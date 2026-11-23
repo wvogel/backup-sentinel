@@ -171,3 +171,106 @@ document.addEventListener("click", (event) => {
     window.addEventListener("load", () => requestAnimationFrame(() => window.scrollTo(0, 0)), { once: true });
   }
 })();
+
+// ── Result of saving the restore server (rendered by the server as data) ─────
+document.querySelectorAll(".js-save-status").forEach((el) => {
+  showStatusLightbox(el.dataset.ok === "1", el.dataset.title, el.dataset.msg);
+});
+
+// ── Storage performance tests of the restore server ─────────────────────────
+(function () {
+  function post(url, body) {
+    return fetch(url, { method: "POST", headers: body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}, body: body || undefined });
+  }
+  // Byte-rate in the app's style: decimal GB/s · MB/s, de-DE, no trailing ,0.
+  function fmtRate(bps) {
+    if (!bps || bps <= 0) return "–";
+    var u = ["B/s", "kB/s", "MB/s", "GB/s", "TB/s"], i = 0, v = bps;
+    while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
+    var dec = v >= 100 || i === 0 ? 0 : 1;
+    return v.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: dec }) + " " + u[i];
+  }
+  // Normalise a rate series into an SVG polyline over the 100×24 viewBox.
+  function sparkPoints(series) {
+    if (!series || series.length < 2) return "";
+    var max = Math.max.apply(null, series), min = Math.min.apply(null, series);
+    var span = max - min || 1, n = series.length;
+    return series.map(function (v, i) {
+      var x = (i / (n - 1)) * 100;
+      var y = 23 - ((v - min) / span) * 22; // 1px padding top/bottom
+      return x.toFixed(1) + "," + y.toFixed(1);
+    }).join(" ");
+  }
+  function renderProgress(box, p) {
+    var fill = box.querySelector(".perf-bar-fill");
+    var text = box.querySelector(".js-perf-text");
+    var spark = box.querySelector(".js-perf-spark polyline");
+    var pct = Math.max(0, Math.min(100, p.pct || 0));
+    if (fill) fill.style.width = pct.toFixed(1) + "%";
+    if (text) {
+      var bits = [Math.round(pct) + " %"];
+      if (p.rate_bps) bits.push(fmtRate(p.rate_bps));
+      if (p.eta) bits.push("eta " + p.eta);
+      text.textContent = bits.join(" · ");
+    }
+    if (spark) spark.setAttribute("points", sparkPoints(p.series));
+  }
+  // One poller per running test: updates the live box, reloads when it ends.
+  function trackRun(box, storage) {
+    var tick = function () {
+      fetch("/settings/restore-server/benchmark-status").then(function (x) { return x.json(); }).then(function (s) {
+        if (s.running !== storage) { clearInterval(timer); location.reload(); return; }
+        if (s.progress && s.progress.storage === storage) renderProgress(box, s.progress);
+      }).catch(function () {});
+    };
+    var timer = setInterval(tick, 5000);
+    tick();
+  }
+  document.querySelectorAll(".js-perf-run").forEach(function (box) {
+    trackRun(box, box.dataset.storage);
+  });
+  document.querySelectorAll(".js-perf-cancel").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      btn.textContent = T("restore.perf_cancelling");
+      post("/settings/restore-server/benchmark-cancel", "storage=" + encodeURIComponent(btn.dataset.storage))
+        .catch(function () {}); // the poller picks up the end and reloads
+    });
+  });
+  document.querySelectorAll(".js-perf-test").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var storage = btn.dataset.storage;
+      btn.disabled = true;
+      post("/settings/restore-server/benchmark", "storage=" + encodeURIComponent(storage)).then(function (r) {
+        if (!r.ok) { r.json().then(function (j) { alert(j.error || "Fehler"); }); btn.disabled = false; return; }
+        location.reload(); // server renders the live progress UI; its poller takes over
+      });
+    });
+  });
+  var inst = document.querySelector(".js-install-fio");
+  if (inst) inst.addEventListener("click", function (e) {
+    e.preventDefault();
+    inst.textContent = "…";
+    post("/settings/restore-server/install-fio").then(function (r) {
+      if (r.ok) { location.reload(); } else { r.json().then(function (j) { alert(j.error || "Fehler"); }); }
+    });
+  });
+})();
+
+// ── Notification channels: switch on/off, saved at once ──────────────────────
+document.querySelectorAll('.js-fieldset-toggle').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    var fieldset = this.closest('.toggleable-fieldset');
+    if (this.checked) {
+      fieldset.classList.remove('is-disabled');
+    } else {
+      fieldset.classList.add('is-disabled');
+    }
+    // persist via AJAX
+    fetch('/settings/notifications/toggle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: this.name, value: this.checked})
+    });
+  });
+});

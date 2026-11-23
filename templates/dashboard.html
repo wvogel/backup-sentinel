@@ -16,7 +16,7 @@
 <fieldset class="dash-section restore-server-card">
   <legend>{{ t('dashboard.restore_group') }}</legend>
   {#- Six tiles, as many and as wide as a cluster row's, right-aligned on top. #}
-  <div class="cluster-row-stats">
+  <div class="cluster-row-stats js-equal-stats">
     <div class="cluster-stat">
       <strong>{{ rp.queued if rp else 0 }}</strong>
       <span>{{ t('restore.queue') }}</span>
@@ -47,7 +47,7 @@
   {%- set run = rp.run %}
   {%- set pct = run.percent or 0 %}
   <div class="running-card" data-run-id="{{ run.id }}">
-    <div class="store-ring ring-ok running-ring" style="--pct: {{ pct }}"><div class="ring-center"><strong class="js-run-pct">{{ pct }}%</strong></div></div>
+    <div class="store-ring ring-ok running-ring" data-css-pct="{{ pct }}"><div class="ring-center"><strong class="js-run-pct">{{ pct }}%</strong></div></div>
     <div class="running-info">
       <strong>{% if run.vm_name %}<span class="muted">{{ run.cluster_name }}:</span>{{ run.vm_name }}{% else %}{{ 'VM ' ~ (run.vmid_src or run.vm_id) }}{% endif %}</strong>
       <span class="muted js-run-phase">{{ t('restore.phase_' ~ run.phase) if run.phase else t('restore.phase_restoring') }}</span>
@@ -108,7 +108,7 @@
         </div>
       </div>
     </div>
-    <div class="cluster-row-stats">
+    <div class="cluster-row-stats js-equal-stats">
       {{ tiles.nodes_tile(cluster.node_count, cluster.qdevice) }}
       <div class="cluster-stat">
         <strong>{{ cluster.vm_count }}</strong>
@@ -173,21 +173,4 @@
   <p class="muted">{{ t('dashboard.no_restore_tests') }}</p>
   {% endif %}
 </fieldset>
-<script>
-  // One tile width for every row (restore box and clusters): the widest tile's.
-  (function () {
-    const root = document.documentElement;
-    function equalize() {
-      root.style.removeProperty("--stat-w");
-      let w = 0;
-      document.querySelectorAll(".cluster-row-stats > *").forEach((el) => {
-        w = Math.max(w, el.getBoundingClientRect().width);
-      });
-      if (w) root.style.setProperty("--stat-w", Math.ceil(w) + "px");
-    }
-    equalize();
-    if (document.fonts) document.fonts.ready.then(equalize);
-    window.addEventListener("resize", equalize);
-  })();
-</script>
 {% endblock %}

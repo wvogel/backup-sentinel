@@ -13,7 +13,7 @@ from app.services import theme, tls_trust
 from app.services.crypto import encrypt
 from app.services.notifications import test_email_delivery, test_gotify_notification
 from app.services.theme_store import active_theme
-from app.web.common import common_context, mask_setting_value, settings_actor, templates
+from app.web.common import PREVIEW_CSP, common_context, mask_setting_value, settings_actor, templates
 
 router = APIRouter()
 
@@ -299,4 +299,4 @@ def weekly_report_preview() -> HTMLResponse:
     from app.web.sync import weekly_report_email
 
     _subject, _text, html, _pngs = weekly_report_email(inline_images=False)
-    return HTMLResponse(html)
+    return HTMLResponse(html, headers={"Content-Security-Policy": PREVIEW_CSP})

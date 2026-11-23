@@ -798,7 +798,7 @@ class ClusterPageTests(DbTestCase):
         tile = html.split('class="running-item"', 1)[1].split("</button>", 1)[0]
         self.assertIn("running-item-bar", tile)
         self.assertIn("scsi0 · 100 GB", tile)
-        self.assertIn("--fill: 20%", tile)
+        self.assertIn('data-css-fill="20"', tile)
         self.assertEqual(tile.count("is-active"), 1)  # only the disk in progress
 
     def test_overview_shows_running_replication(self) -> None:

@@ -92,9 +92,12 @@ class LanguageMiddleware(BaseHTTPMiddleware):
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Adds standard security headers to every response.
 
-    CSP allows inline scripts/styles because the app inlines bootstrap JS
-    (theme toggle, i18n) and style attributes. Brand logos are loaded from
-    an externally configured URL, so img-src allows https:.
+    The CSP allows scripts and styles from the app's own files only — no
+    inline script, handler, style block or style attribute (values from the
+    data reach the page as data-css-*, see static/js/common.js). Brand logos
+    are loaded from an externally configured URL, so img-src allows https:.
+    The two standalone previews (report, weekly mail) set their own policy
+    (app.web.common.PREVIEW_CSP).
     """
 
     async def dispatch(self, request: Request, call_next):
@@ -102,8 +105,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self'; "
+            "style-src 'self'; "
             "img-src 'self' data: https:; "
             "font-src 'self' data:; "
             "connect-src 'self'; "

@@ -61,6 +61,7 @@ Backup Sentinel follows these practices:
 - **Restore helper agent** accepts only requests with the bearer token the app derives for it, and builds its DHCP config itself from validated addresses
 - **TLS to PVE/PBS** is verified against the system CAs or, for self-signed certificates, pinned to the certificate's SHA-256 fingerprint; a changed certificate is refused before any token is sent
 - **Security headers** (CSP, X-Frame-Options, Referrer-Policy, etc.) are applied by middleware on every response
+- **The Content-Security-Policy allows no inline code**: scripts and styles come from the app's own files only (`script-src 'self'; style-src 'self'`, no `unsafe-inline`), so markup injected into a page cannot run. The only exception are the two standalone previews (report, weekly mail), whose styles must be inline for PDF and mail clients; their policy forbids scripts altogether
 - **Dependencies** are pinned to exact versions in `requirements.txt`, the base images by digest; `pip-audit` runs in the pipeline and CodeQL on GitHub
 - **Deployment** only of release tags; with an allowed-signers file on the server only of tags signed by one of them, verified by the previously deployed `deploy.sh` before the new release is checked out
 - **No user-supplied HTML** is rendered without Jinja2 auto-escaping

@@ -31,7 +31,7 @@
   </div>
   <div class="cluster-row-stats report-hero-stats">
     {{ kpi_tiles(o, 'cluster-stat') }}
-    <form action="/reports/generate" method="post" style="display:contents;">
+    <form action="/reports/generate" method="post" class="form-contents">
       <button type="submit" class="pdf-snapshot-btn button-primary">{{ t('reports.pdf_snapshot') }}</button>
     </form>
   </div>
@@ -61,7 +61,7 @@
 {# ── Archive ──────────────────────────────────────────────────────────────── #}
 <fieldset class="dash-section">
   <legend>{{ t('reports.archive') }}</legend>
-  <p class="muted" style="margin: 0 0 10px;">{{ t('reports.archive_desc') }}</p>
+  <p class="muted box-intro">{{ t('reports.archive_desc') }}</p>
   <table class="archive-table">
     <colgroup>
       <col><!-- spacer -->
@@ -99,16 +99,15 @@
         </div></td>
         <td><a href="/reports/archive/{{ archived.id }}/json" class="archive-dl-btn" download>↓ JSON</a></td>
         <td>{% if role == 'admin' %}
-          <button type="button" class="button-danger" style="padding: 3px 10px; font-size: 0.8rem;"
-                  onclick="document.getElementById('del-dialog-{{ archived.id }}').showModal()">
+          <button type="button" class="button-danger button-small"
+                  data-open-dialog="del-dialog-{{ archived.id }}">
             {{ t('common.delete') }}
           </button>
           <dialog id="del-dialog-{{ archived.id }}" class="confirm-dialog">
             <p>{{ t('reports.delete_confirm', month=archived.report_month.strftime("%m/%Y")) }}</p>
             <div class="confirm-dialog-actions">
-              <button type="button" class="button-secondary"
-                      onclick="this.closest('dialog').close()">{{ t('common.cancel') }}</button>
-              <form action="/reports/archive/{{ archived.id }}/delete" method="post" style="display:inline">
+              <button type="button" class="button-secondary" data-close-dialog>{{ t('common.cancel') }}</button>
+              <form action="/reports/archive/{{ archived.id }}/delete" method="post" class="form-inline">
                 <button type="submit" class="button-danger">{{ t('common.delete') }}</button>
               </form>
             </div>

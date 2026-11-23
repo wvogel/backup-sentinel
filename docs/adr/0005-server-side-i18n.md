@@ -25,7 +25,7 @@ Implement i18n server-side using Python's `contextvars.ContextVar` for request-s
 - `app/i18n/__init__.py` exposes `t()`, `set_language()`, `get_language()`, `get_translations()`
 - A `LanguageMiddleware` reads the `bsentinel-lang` cookie and calls `set_language()`
 - Translations live as flat JSON files (`en.json`, `de.json`) with dot-notation keys
-- Jinja2 globals expose `t` and `get_translations_json`
+- Jinja2 globals expose `t` and `i18n_payload` (language and translations for the scripts, rendered as a JSON data block)
 - The template injects `BSENTINEL_TRANSLATIONS` as a global JS object; `T(key)` looks up values client-side
 - The language toggle button writes to both `localStorage` and the cookie, then reloads
 

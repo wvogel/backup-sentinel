@@ -2963,7 +2963,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   background: var(--p-accent); color: var(--p-accent-ink); padding: 5px 12px; border-radius: var(--radius-pill); font-weight: 700; font-size: 0.85rem;
 }
 .theme-preview-running { flex: 1 1 120px; height: 8px; border-radius: var(--radius-tag); background: color-mix(in srgb, var(--p-running) 20%, transparent); overflow: hidden; }
-.theme-preview-running > span { display: block; height: 100%; background: var(--p-running); }
+.theme-preview-running > span { display: block; width: 47%; height: 100%; background: var(--p-running); }
 .warn-text { color: var(--warn); font-weight: 600; margin: 4px 0; }
 .critical-text { color: var(--critical); font-weight: 600; margin: 4px 0; }
 
@@ -4165,3 +4165,20 @@ html[data-theme="dark"] .vol-s5 { background: #8fcbd6; }
 /* NIS2 evidence start of a cluster, above its PBS list. */
 .report-since-form { margin: 0 0 8px; }
 .report-since-form input { width: auto; }
+
+/* Spacing and sizes that used to be style attributes (the CSP forbids those). */
+.gap-below { margin-bottom: 0.5rem; }
+.note-below { margin: 0 0 0.5rem; }
+.note-above { margin: 0.5rem 0 0; }
+.box-intro { margin: 0 0 10px; }
+.flush { margin: 0; }
+.dialog-note { margin-bottom: 12px; }
+.lightbox-actions-spaced { margin-top: 16px; }
+.fieldset-desc { margin: -4px 0 8px; }
+.field-narrow { max-width: 100px; }
+.hint-small { font-size: 0.8em; }
+.details-hint { font-size: 0.82rem; }
+.caption-top { caption-side: top; text-align: left; padding: 0 0 8px; }
+.form-contents { display: contents; }
+.form-inline { display: inline; }
+.button-small { padding: 3px 10px; font-size: 0.8rem; }

@@ -4,18 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Backup Sentinel{% endblock %}</title>
-    <script>
-      (function(){
-        var t = localStorage.getItem("bsentinel-theme") || "auto";
-        var dark = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
-        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-        var s = (Date.now() / 1000) % 60;
-        document.documentElement.style.setProperty("--brand-glow-delay", "-" + s.toFixed(1) + "s");
-      })();
-    </script>
+    <script src="/static/js/theme-init.js?v={{ v }}"></script>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/style.css?v={{ v }}">
-    {% if theme_css %}<style id="theme">{{ theme_css|safe }}</style>{% endif %}
+    {% if theme_css_version %}<link rel="stylesheet" href="/theme.css?v={{ theme_css_version }}">{% endif %}
   </head>
   <body>
     <div class="layout-shell">
@@ -53,10 +45,10 @@
               <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001.08 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1.08z"/></svg>
             </a>{% endif %}
           </nav>
-          <button type="button" class="header-lang-toggle" onclick="toggleLanguage()" title="{{ t('header.toggle_language') }}">
+          <button type="button" class="header-lang-toggle js-lang-toggle" title="{{ t('header.toggle_language') }}">
             <span class="lang-label">{{ get_language()|upper }}</span>
           </button>
-          <button type="button" class="header-theme-toggle" id="theme-toggle" onclick="cycleTheme()" title="{{ t('header.toggle_theme') }}">
+          <button type="button" class="header-theme-toggle" id="theme-toggle" title="{{ t('header.toggle_theme') }}">
             <span class="theme-icon theme-icon-light" aria-hidden="true">&#9788;</span>
             <span class="theme-icon theme-icon-dark" aria-hidden="true">&#9790;</span>
             <span class="theme-icon theme-icon-auto" aria-hidden="true">&#9680;</span>
@@ -94,51 +86,8 @@
         <p id="success-lightbox-msg"></p>
       </div>
     </div>
-    <script>
-      var BSENTINEL_LANG = "{{ get_language() }}";
-      var BSENTINEL_TRANSLATIONS = {{ get_translations_json()|safe }};
-      function T(key) { return BSENTINEL_TRANSLATIONS[key] || key; }
-
-      function toggleLanguage() {
-        var langs = {{ supported_languages|tojson }};
-        var idx = langs.indexOf(BSENTINEL_LANG);
-        var next = langs[(idx + 1) % langs.length];
-        localStorage.setItem("bsentinel-lang", next);
-        document.cookie = "bsentinel-lang=" + next + ";path=/;max-age=31536000;SameSite=Lax";
-        location.reload();
-      }
-      (function syncLangCookie() {
-        var saved = localStorage.getItem("bsentinel-lang");
-        if (saved && saved !== BSENTINEL_LANG) {
-          document.cookie = "bsentinel-lang=" + saved + ";path=/;max-age=31536000;SameSite=Lax";
-          location.reload();
-        }
-        if (!saved) localStorage.setItem("bsentinel-lang", BSENTINEL_LANG);
-      })();
-
-      (function initThemeToggle() {
-        var states = ["light", "dark", "auto"];
-        var current = localStorage.getItem("bsentinel-theme") || "auto";
-        applyTheme(current);
-        window.cycleTheme = function() {
-          var idx = (states.indexOf(current) + 1) % states.length;
-          current = states[idx];
-          localStorage.setItem("bsentinel-theme", current);
-          applyTheme(current);
-        };
-        function applyTheme(t) {
-          var html = document.documentElement;
-          var btn = document.getElementById("theme-toggle");
-          if (t === "light") html.setAttribute("data-theme", "light");
-          else if (t === "dark") html.setAttribute("data-theme", "dark");
-          else html.setAttribute("data-theme", matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-          if (btn) btn.setAttribute("data-state", t);
-        }
-        matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function() {
-          if (current === "auto") applyTheme("auto");
-        });
-      })();
-    </script>
+    <script type="application/json" id="bsentinel-i18n">{{ i18n_payload()|tojson }}</script>
+    <script src="/static/js/i18n.js?v={{ v }}"></script>
     <script src="/static/js/common.js?v={{ v }}"></script>
     <script src="/static/js/bootstrap.js?v={{ v }}"></script>
     <script src="/static/js/lightboxes.js?v={{ v }}"></script>

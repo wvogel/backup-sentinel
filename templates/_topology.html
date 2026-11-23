@@ -29,7 +29,7 @@
         {%- for ds in group.stores %}
         <div class="topo-store" data-node="{{ ds.id }}"
              data-tooltip="{% if ds.pct is not none %}{{ t('cluster.datastore_tooltip', store=ds.store, used=ds.used_bytes|format_bytes, total=ds.total_bytes|format_bytes, pct=ds.pct) }}{% else %}{{ t('topology.no_usage', store=ds.store) }}{% endif %}{% if ds.estimated_full_at %}&#10;{{ t('cluster.datastore_full_at', date=ds.estimated_full_at|datetime_local('%d.%m.%Y')) }}{% endif %}">
-          <div class="topo-ring ring-{{ ds.status }}" style="--p:{{ ds.pct or 0 }}" role="img"
+          <div class="topo-ring ring-{{ ds.status }}" data-css-p="{{ ds.pct or 0 }}" role="img"
                aria-label="{{ ds.store }}: {{ ds.pct ~ ' %' if ds.pct is not none else '?' }}">
             <span>{{ ds.pct ~ '%' if ds.pct is not none else '?' }}</span>
           </div>
@@ -64,7 +64,7 @@
             {#- Its progress in its own line (live via static/js/topology.js);
                 icon and time show again once it has finished. #}
             <span class="topo-ring running-ring{% if e.running_percent is none %} is-indeterminate{% endif %}"
-                  data-sync-ring="{{ e.pbs_id }}:{{ e.job_id }}" style="--p:{{ e.running_percent or 0 }}"
+                  data-sync-ring="{{ e.pbs_id }}:{{ e.job_id }}" data-css-p="{{ e.running_percent or 0 }}"
                   role="img" aria-label="{{ t('topology.running_since', when=e.running_since|datetime_local) }}"
                   data-tooltip="{{ t('topology.running_since', when=e.running_since|datetime_local) }}">
               <span class="running-ring-label">{{ (e.running_percent|round|int ~ '%') if e.running_percent is not none else '' }}</span>

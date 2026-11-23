@@ -118,7 +118,7 @@
     {% for run in running %}
     {%- set rp = run.percent or 0 %}
     <div class="running-card" data-run-id="{{ run.id }}">
-      <div class="store-ring ring-ok running-ring" style="--pct: {{ rp }}"><div class="ring-center"><strong class="js-run-pct">{{ rp }}%</strong></div></div>
+      <div class="store-ring ring-ok running-ring" data-css-pct="{{ rp }}"><div class="ring-center"><strong class="js-run-pct">{{ rp }}%</strong></div></div>
       <div class="running-info">
         <strong>{% if run.vm_name %}<span class="muted">{{ run.cluster_name }}:</span>{{ run.vm_name }}{% else %}{{ 'VM ' ~ (run.vmid_src or run.vm_id) }}{% endif %}</strong>
         {#- Side by side, not stacked: progress | size and disks | probing (only while probing). #}

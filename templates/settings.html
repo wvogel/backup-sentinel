@@ -92,7 +92,7 @@
 
       <div class="pbs-bootstrap-row{% if enroll_open != cluster.id %} hidden{% endif %}" id="pbs-bootstrap-{{ cluster.id }}">
         <div class="pbs-bootstrap-panel">
-          <div class="section-head" style="margin-bottom:0.5rem;">
+          <div class="section-head gap-below">
             <div>
               <p class="eyebrow">{{ t('settings.pbs_bootstrap') }} – {{ cluster.name }}</p>
             </div>
@@ -100,16 +100,16 @@
               <span aria-hidden="true">&#x2398;</span><span>{{ t('common.copy') }}</span>
             </button>
           </div>
-          <p class="muted" style="margin:0 0 0.5rem;">{{ t('settings.pbs_note')|safe }}</p>
+          <p class="muted note-below">{{ t('settings.pbs_note')|safe }}</p>
           {% if cluster.enrollment_active %}
           <pre id="pbs-cmd-{{ cluster.id }}" class="bootstrap-pre">bash &lt;(curl -fsSL {{ app_base_url }}/bootstrap/pbs-agent.sh) \
   --server-url {{ app_base_url }} \
   --cluster-slug {{ cluster.slug }} \
   --enrollment-secret {{ cluster.enrollment_secret }}</pre>
-          <p class="muted" style="margin:0.5rem 0 0;">{{ t('settings.enrollment_valid_until', time=cluster.enrollment_expires_at|datetime_local) }}</p>
+          <p class="muted note-above">{{ t('settings.enrollment_valid_until', time=cluster.enrollment_expires_at|datetime_local) }}</p>
           {% else %}
           <pre id="pbs-cmd-{{ cluster.id }}" class="bootstrap-pre">{{ t('settings.enrollment_expired') }}</pre>
-          <form method="post" action="/clusters/{{ cluster.slug }}/enrollment/renew" style="margin:0.5rem 0 0;">
+          <form method="post" action="/clusters/{{ cluster.slug }}/enrollment/renew" class="note-above">
             <button type="submit" class="button-secondary">{{ t('settings.enrollment_renew') }}</button>
           </form>
           {% endif %}
@@ -158,12 +158,12 @@
 
   <fieldset class="dash-section" id="certificates">
     <legend>{{ t('settings.tls_title') }}</legend>
-    <p class="muted" style="margin: 0 0 10px;">
+    <p class="muted box-intro">
       {{ t('settings.tls_desc') }}
       {% if tls_enforced %}{{ t('settings.tls_enforced') }}{% else %}<strong>{{ t('settings.tls_report_only') }}</strong>{% endif %}
     </p>
     {% if not tls_pins %}
-    <p style="margin: 0;">✓ {{ t('settings.tls_none') }}</p>
+    <p class="flush">✓ {{ t('settings.tls_none') }}</p>
     {% else %}
     <ul class="plain-list tls-list">
       {% for pin in tls_pins %}
@@ -209,13 +209,13 @@
 <div class="lightbox-overlay hidden" id="rename-cluster-lightbox">
   <div class="lightbox-box">
     <h3>{{ t('settings.rename_title') }}</h3>
-    <p class="muted" style="margin-bottom:12px;">{{ t('settings.rename_note') }}</p>
+    <p class="muted dialog-note">{{ t('settings.rename_note') }}</p>
     <form method="post" id="rename-cluster-form">
       <label>
         <span>{{ t('settings.new_name') }}</span>
         <input name="name" id="rename-cluster-input" required>
       </label>
-      <div class="lightbox-actions" style="margin-top:16px;">
+      <div class="lightbox-actions lightbox-actions-spaced">
         <button type="button" class="button-secondary" id="rename-cluster-cancel">{{ t('common.cancel') }}</button>
         <button type="submit">{{ t('settings.rename') }}</button>
       </div>
@@ -336,7 +336,7 @@
           <tr class="perf-progress-row js-perf-run" data-storage="{{ s.storage }}">
             <td colspan="7">
               <div class="perf-run">
-                <div class="perf-bar"><span class="perf-bar-fill" style="width:{{ (restore_perf_progress.pct or 0) }}%"></span></div>
+                <div class="perf-bar"><span class="perf-bar-fill" data-css-width="{{ (restore_perf_progress.pct or 0) }}"></span></div>
                 <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
                 <span class="perf-run-text js-perf-text">{{ t('restore.perf_running') }}…</span>
                 <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
@@ -375,97 +375,12 @@
   </form>
   {% if restore_saved or restore_error %}
   {%- set _issues %}{% if restore_test %}{% if restore_test.get('error') %}{{ restore_test.error }}{% endif %}{% for k in ['api', 'ssh', 'host'] %}{% set c = restore_test.get(k) %}{% if c and not c.ok %}{{ t('restore.test_' ~ k) }}: {{ c.msg }} · {% endif %}{% endfor %}{% endif %}{% endset %}
-  <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      {% if restore_error %}
-      showStatusLightbox(false, {{ t('restore.save_failed')|tojson }}, {{ restore_error|tojson }});
-      {% else %}
-      showStatusLightbox({{ 'true' if _ok else 'false' }}, {{ t('restore.saved')|tojson }},
-        {{ (t('restore.test_ok') if _ok else _issues|trim)|tojson }});
-      {% endif %}
-    });
-  </script>
+  {% if restore_error %}
+  <div class="js-save-status" hidden data-ok="0" data-title="{{ t('restore.save_failed') }}" data-msg="{{ restore_error }}"></div>
+  {% else %}
+  <div class="js-save-status" hidden data-ok="{{ '1' if _ok else '0' }}" data-title="{{ t('restore.saved') }}" data-msg="{{ t('restore.test_ok') if _ok else _issues|trim }}"></div>
   {% endif %}
-  <script>
-  (function () {
-    function post(url, body) {
-      return fetch(url, { method: "POST", headers: body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}, body: body || undefined });
-    }
-    // Byte-rate in the app's style: decimal GB/s · MB/s, de-DE, no trailing ,0.
-    function fmtRate(bps) {
-      if (!bps || bps <= 0) return "–";
-      var u = ["B/s", "kB/s", "MB/s", "GB/s", "TB/s"], i = 0, v = bps;
-      while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
-      var dec = v >= 100 || i === 0 ? 0 : 1;
-      return v.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: dec }) + " " + u[i];
-    }
-    // Normalise a rate series into an SVG polyline over the 100×24 viewBox.
-    function sparkPoints(series) {
-      if (!series || series.length < 2) return "";
-      var max = Math.max.apply(null, series), min = Math.min.apply(null, series);
-      var span = max - min || 1, n = series.length;
-      return series.map(function (v, i) {
-        var x = (i / (n - 1)) * 100;
-        var y = 23 - ((v - min) / span) * 22; // 1px padding top/bottom
-        return x.toFixed(1) + "," + y.toFixed(1);
-      }).join(" ");
-    }
-    function renderProgress(box, p) {
-      var fill = box.querySelector(".perf-bar-fill");
-      var text = box.querySelector(".js-perf-text");
-      var spark = box.querySelector(".js-perf-spark polyline");
-      var pct = Math.max(0, Math.min(100, p.pct || 0));
-      if (fill) fill.style.width = pct.toFixed(1) + "%";
-      if (text) {
-        var bits = [Math.round(pct) + " %"];
-        if (p.rate_bps) bits.push(fmtRate(p.rate_bps));
-        if (p.eta) bits.push("eta " + p.eta);
-        text.textContent = bits.join(" · ");
-      }
-      if (spark) spark.setAttribute("points", sparkPoints(p.series));
-    }
-    // One poller per running test: updates the live box, reloads when it ends.
-    function trackRun(box, storage) {
-      var tick = function () {
-        fetch("/settings/restore-server/benchmark-status").then(function (x) { return x.json(); }).then(function (s) {
-          if (s.running !== storage) { clearInterval(timer); location.reload(); return; }
-          if (s.progress && s.progress.storage === storage) renderProgress(box, s.progress);
-        }).catch(function () {});
-      };
-      var timer = setInterval(tick, 5000);
-      tick();
-    }
-    document.querySelectorAll(".js-perf-run").forEach(function (box) {
-      trackRun(box, box.dataset.storage);
-    });
-    document.querySelectorAll(".js-perf-cancel").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        btn.disabled = true;
-        btn.textContent = {{ t('restore.perf_cancelling')|tojson }};
-        post("/settings/restore-server/benchmark-cancel", "storage=" + encodeURIComponent(btn.dataset.storage))
-          .catch(function () {}); // the poller picks up the end and reloads
-      });
-    });
-    document.querySelectorAll(".js-perf-test").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var storage = btn.dataset.storage;
-        btn.disabled = true;
-        post("/settings/restore-server/benchmark", "storage=" + encodeURIComponent(storage)).then(function (r) {
-          if (!r.ok) { r.json().then(function (j) { alert(j.error || "Fehler"); }); btn.disabled = false; return; }
-          location.reload(); // server renders the live progress UI; its poller takes over
-        });
-      });
-    });
-    var inst = document.querySelector(".js-install-fio");
-    if (inst) inst.addEventListener("click", function (e) {
-      e.preventDefault();
-      inst.textContent = "…";
-      post("/settings/restore-server/install-fio").then(function (r) {
-        if (r.ok) { location.reload(); } else { r.json().then(function (j) { alert(j.error || "Fehler"); }); }
-      });
-    });
-  })();
-  </script>
+  {% endif %}
 </section>
 </div>
 
@@ -484,7 +399,7 @@
         <span>{{ t('settings.gotify_push') }}</span>
       </legend>
       <div class="fieldset-body">
-        <p class="muted" style="margin:-4px 0 8px;">{{ t('settings.gotify_desc') }}</p>
+        <p class="muted fieldset-desc">{{ t('settings.gotify_desc') }}</p>
         <div class="form-row">
           <label>
             <span>{{ t('settings.server_url') }}</span>
@@ -517,13 +432,13 @@
         <span>{{ t('settings.email_title') }}</span>
       </legend>
       <div class="fieldset-body">
-        <p class="muted" style="margin:-4px 0 8px;">{{ t('settings.email_desc') }}</p>
+        <p class="muted fieldset-desc">{{ t('settings.email_desc') }}</p>
         <div class="form-row">
           <label>
             <span>{{ t('settings.smtp_server') }}</span>
             <input name="email_host" placeholder="mail.example.de" value="{{ app_settings.get('email_host', '') }}">
           </label>
-          <label style="max-width:100px;">
+          <label class="field-narrow">
             <span>{{ t('settings.port') }}</span>
             <input name="email_port" placeholder="465" value="{{ app_settings.get('email_port', '465') }}">
           </label>
@@ -556,7 +471,7 @@
           <label>
             <span>{{ t('settings.recipients') }}</span>
             <input name="email_recipients" placeholder="admin@example.de, team@example.de" value="{{ app_settings.get('email_recipients', '') }}">
-            <span class="muted" style="font-size:0.8em;">{{ t('settings.recipients_hint') }}</span>
+            <span class="muted hint-small">{{ t('settings.recipients_hint') }}</span>
           </label>
         </div>
         <label class="checkbox-row">
@@ -582,7 +497,7 @@
         <span>{{ t('settings.quiet_hours') }}</span>
       </legend>
       <div class="fieldset-body">
-        <p class="muted" style="margin:-4px 0 8px;">{{ t('settings.quiet_desc') }}</p>
+        <p class="muted fieldset-desc">{{ t('settings.quiet_desc') }}</p>
         <div class="form-row">
           <label>
             <span>{{ t('settings.quiet_from') }}</span>
@@ -645,7 +560,7 @@
         <span class="theme-preview-action">{{ t('cluster.sync_now') }}</span>
         <span class="badge ok">{{ t('common.ok') }}</span>
         <span class="badge critical">{{ t('common.critical') }}</span>
-        <span class="theme-preview-running"><span style="width:47%"></span></span>
+        <span class="theme-preview-running"><span></span></span>
       </div>
     </div>
     <div class="form-actions">
@@ -660,7 +575,7 @@
 <fieldset class="dash-section" id="audit">
   <legend>{{ t('settings.audit_title') }}</legend>
   <table>
-    <caption class="muted" style="caption-side: top; text-align: left; padding: 0 0 8px;">
+    <caption class="muted caption-top">
       {% if audit_chain.ok %}✓ {{ t('settings.audit_chain_ok', count=audit_chain.entries) }}
       {% else %}⚠ {{ t('settings.audit_chain_broken', id=audit_chain.broken_at) }}{% endif %}
     </caption>
@@ -692,22 +607,4 @@
 </fieldset>
 </div>
 
-<script>
-document.querySelectorAll('.js-fieldset-toggle').forEach(function(cb) {
-  cb.addEventListener('change', function() {
-    var fieldset = this.closest('.toggleable-fieldset');
-    if (this.checked) {
-      fieldset.classList.remove('is-disabled');
-    } else {
-      fieldset.classList.add('is-disabled');
-    }
-    // persist via AJAX
-    fetch('/settings/notifications/toggle', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({key: this.name, value: this.checked})
-    });
-  });
-});
-</script>
 {% endblock %}
