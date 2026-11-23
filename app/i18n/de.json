@@ -239,7 +239,7 @@
   "settings.tls_changed": "Anderes Zertifikat seit {time}",
   "settings.tls_accept": "Neues Zertifikat bestätigen",
   "settings.tls_dismiss": "Meldung verwerfen",
-  "settings.tls_none": "Noch kein Zertifikat gemerkt.",
+  "settings.tls_none": "Kein Zertifikat gemerkt: Alle bisher erreichten Hosts weisen sich mit einem von einer Zertifizierungsstelle bestätigten Zertifikat aus.",
   "settings.no_audit": "Noch keine Einstellungsänderungen protokolliert.",
   "reports.eyebrow": "Berichte",
   "reports.title": "Berichte | Backup Sentinel",

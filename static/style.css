@@ -520,7 +520,31 @@ td .icon-button {
 }
 
 .panel-grid {
-  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* A box that needs the whole row (e.g. a table), not one of the two columns. */
+.panel-grid > .panel-grid-wide {
+  grid-column: 1 / -1;
+}
+
+/* Pinned certificates: a fingerprint stays on one line (it is compared by eye);
+   on a narrow screen the table scrolls instead of breaking it. */
+.tls-table-wrap {
+  overflow-x: auto;
+}
+
+.tls-fingerprint {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.tls-nowrap {
+  white-space: nowrap;
+}
+
+.tls-nowrap form + form {
+  margin-left: 6px;
 }
 
 .section-head {
@@ -629,7 +653,7 @@ tbody tr:last-child td {
   min-height: 28px;
   padding: 4px 10px;
   border-radius: var(--radius-pill);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
@@ -884,7 +908,7 @@ pre {
 }
 
 .restore-log-link {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--accent);
   padding: 1px 6px;
@@ -994,7 +1018,7 @@ pre {
 .site-footer {
   margin-top: 16px;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
 .site-footer-inner {
@@ -1432,7 +1456,7 @@ button.sync-icon-btn svg { width: 16px; height: 16px; }
 
 .pbs-sync-arrow {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   margin-right: 2px;
   user-select: none;
 }
@@ -1442,7 +1466,7 @@ button.sync-icon-btn svg { width: 16px; height: 16px; }
   border: 1px solid var(--line);
   border-radius: var(--radius-box);
   padding: 12px 16px;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   line-height: 1.5;
   font-family: var(--font-mono);
   white-space: pre-wrap;
@@ -2110,7 +2134,7 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
 }
 
 .pbs-name-pill {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
 .pbs-remove-btn,
@@ -2401,7 +2425,7 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   justify-content: center;
   width: 100%;
   box-sizing: border-box;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
@@ -2571,7 +2595,7 @@ details[open] > .encryption-alert-summary::before {
   z-index: 1000;
   max-width: min(480px, calc(100vw - 16px));
   white-space: pre-line;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 400;
   line-height: 1.45;
   color: #f1f5f9;
@@ -3318,7 +3342,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
   align-items: center;
   padding: 2px 9px;
   border-radius: var(--radius-pill);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -3504,7 +3528,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 .vm-section > legend {
   padding: 0 8px;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
@@ -3944,7 +3968,7 @@ fieldset.rhost-graph { height: 58px; width: 100%; }
 }
 .dash-section > legend {
   padding: 0 8px;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;

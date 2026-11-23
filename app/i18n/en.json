@@ -239,7 +239,7 @@
   "settings.tls_changed": "Different certificate since {time}",
   "settings.tls_accept": "Accept the new certificate",
   "settings.tls_dismiss": "Dismiss the report",
-  "settings.tls_none": "No certificate pinned yet.",
+  "settings.tls_none": "No certificate pinned: every host reached so far presents a certificate a certificate authority vouches for.",
   "settings.no_audit": "No settings changes recorded yet.",
   "reports.eyebrow": "Reports",
   "reports.title": "Reports | Backup Sentinel",

@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.21.1] — 2026-11-23
+
+### Changed
+
+- **Settings → Clusters: layout.** "New cluster" took two thirds of the row and squeezed the box beside it; both are now equally wide. "Certificates" has its own full-width row, with the fingerprint on one line under the host name, so it can be compared by eye.
+- **Certificates, empty list.** "No certificate pinned yet" read like something was missing. With CA-signed certificates everywhere nothing is pinned, and the box now says so, without an empty table.
+
 ## [v3.21.0] — 2026-11-23
 
 ### Added
