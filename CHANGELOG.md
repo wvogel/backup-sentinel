@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.21.0] — 2026-11-23
+
+### Added
+
+- **Certificate pinning for PVE and PBS.** Self-signed Proxmox certificates used to need `BSENTINEL_INSECURE_SSL=true`, which switched verification off for every host — anyone in the path could read the API tokens. Now a certificate no CA vouches for is remembered by its SHA-256 fingerprint on first contact, per host and port, and only that certificate is accepted afterwards. A different one is refused before an API token is sent, and the sync says why. A fingerprint equal to the one the bootstrap script read on the host is marked as confirmed by it. CA-signed certificates are verified as before and need no pin.
+- **Settings → Clusters → Certificates** lists the pinned fingerprints with origin and date; a changed certificate appears there with "Accept the new certificate" and "Dismiss the report" (admin). All of it is in the audit log.
+
+### Changed
+
+- **`BSENTINEL_INSECURE_SSL=true` no longer disables verification.** It now means report-only: certificates are pinned, a change is recorded and shown, but the connection still goes ahead. Installations that have it set keep working unchanged after the update; once the list shows every host without a report, remove the variable to enforce the pins.
+
 ## [v3.20.3] — 2026-11-23
 
 ### Security

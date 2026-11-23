@@ -156,6 +156,54 @@
     </div>
   </fieldset>
 
+  <fieldset class="dash-section" id="certificates">
+    <legend>{{ t('settings.tls_title') }}</legend>
+    <p class="muted" style="margin: 0 0 10px;">
+      {{ t('settings.tls_desc') }}
+      {% if tls_enforced %}{{ t('settings.tls_enforced') }}{% else %}<strong>{{ t('settings.tls_report_only') }}</strong>{% endif %}
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('settings.tls_th_host') }}</th>
+          <th>{{ t('settings.tls_th_fingerprint') }}</th>
+          <th>{{ t('settings.tls_th_source') }}</th>
+          <th>{{ t('settings.tls_th_since') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pin in tls_pins %}
+        <tr>
+          <td>{{ pin.host }}:{{ pin.port }}</td>
+          <td><code style="word-break: break-all;">{{ pin.fingerprint }}</code></td>
+          <td>{{ t('settings.tls_source_' ~ pin.source|replace('-', '_')) }}</td>
+          <td>{{ pin.pinned_at|datetime_local }}</td>
+          <td>{% if not pin.seen_fingerprint %}✓{% endif %}</td>
+        </tr>
+        {% if pin.seen_fingerprint %}
+        <tr>
+          <td>⚠ {{ t('settings.tls_changed', time=pin.seen_at|datetime_local) }}</td>
+          <td><code style="word-break: break-all;">{{ pin.seen_fingerprint }}</code></td>
+          <td colspan="3">
+            <form method="post" action="/settings/tls/accept" style="display:inline">
+              <input type="hidden" name="host" value="{{ pin.host }}"><input type="hidden" name="port" value="{{ pin.port }}">
+              <button type="submit" class="button-secondary">{{ t('settings.tls_accept') }}</button>
+            </form>
+            <form method="post" action="/settings/tls/dismiss" style="display:inline">
+              <input type="hidden" name="host" value="{{ pin.host }}"><input type="hidden" name="port" value="{{ pin.port }}">
+              <button type="submit" class="button-secondary">{{ t('settings.tls_dismiss') }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endif %}
+        {% else %}
+        <tr><td colspan="5" class="muted">{{ t('settings.tls_none') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </fieldset>
+
   <fieldset class="dash-section">
     <legend>{{ t('settings.nist_title') }}</legend>
     <ul class="plain-list">

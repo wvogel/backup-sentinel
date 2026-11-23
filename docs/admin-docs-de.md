@@ -103,7 +103,7 @@ Ihr Reverse Proxy sollte den Traffic an den OAuth2-Proxy-Container auf Port **41
 | `BSENTINEL_SYNC_INTERVAL_MINUTES` | `60` | Intervall in Minuten für die automatische Hintergrund-Synchronisation. |
 | `BSENTINEL_API_TIMEOUT` | `60` | Timeout in Sekunden für Proxmox/PBS-API-Anfragen. |
 | `BSENTINEL_DEBUG` | `false` | Debug-Logging aktivieren (`true` / `false`). |
-| `BSENTINEL_INSECURE_SSL` | `false` | SSL-Zertifikatsprüfung für Proxmox/PBS-APIs deaktivieren. Auf `true` setzen bei selbstsignierten Zertifikaten. |
+| `BSENTINEL_INSECURE_SSL` | `false` | **Nicht mehr nötig, auch nicht bei selbstsignierten Zertifikaten** (siehe [TLS-Zertifikate von PVE und PBS](#tls-zertifikate-von-pve-und-pbs)). Auf `true` gesetzt, wird ein geändertes Zertifikat nur gemeldet statt abgelehnt – gedacht für die Umstellung, danach entfernen. |
 | `BSENTINEL_BRAND_LOGO_LIGHT_URL` | *(leer = kein Logo)* | Logo-URL für helles Design. Erscheint auch im Kopf des Wochenberichts (SVG wird dafür in PNG umgewandelt und eingebettet; relative URLs außerhalb von `/static/` brauchen `APP_URL`). |
 | `BSENTINEL_BRAND_LOGO_DARK_URL` | *(leer = kein Logo)* | Logo-URL für dunkles Design. |
 | `BSENTINEL_BRAND_FONT_URL` | *(leer = Systemschrift)* | Schrift des PDF-Berichts: URL mit `{weight}`, das durch `Regular`, `Medium`, `SemiBold` und `Bold` ersetzt wird, z. B. `https://example.com/fonts/Marke-{weight}.woff2`. Die Dateien werden beim Erzeugen geladen und eingebettet; fehlen sie, nimmt der Bericht eine Systemschrift. |
@@ -351,6 +351,18 @@ OAuth2-Proxy setzt `OAUTH2_PROXY_REVERSE_PROXY=true`, sodass es `X-Forwarded-*`-
 - `X-Forwarded-For`
 - `X-Forwarded-Proto` (muss `https` sein)
 - `X-Forwarded-Host`
+
+### TLS-Zertifikate von PVE und PBS
+
+Proxmox-Hosts liefern meist ein selbstsigniertes Zertifikat. Backup Sentinel schaltet die Prüfung dafür nicht ab, sondern merkt sich das Zertifikat – wie SSH einen Hostkey:
+
+- Bürgt eine Zertifizierungsstelle des Systems für das Zertifikat (richtiger Name, nicht abgelaufen), gilt es ohne Weiteres.
+- Sonst wird sein SHA-256-Fingerabdruck beim ersten Kontakt je Host und Port gemerkt. Stimmt er mit dem überein, den das Bootstrap-Skript auf dem Host selbst gelesen hat, steht als Herkunft „vom Bootstrap-Skript bestätigt", sonst „beim ersten Kontakt".
+- Danach wird nur noch dieses Zertifikat akzeptiert. Liefert der Host ein anderes, bricht die Verbindung ab, **bevor** ein API-Token gesendet wird; der Sync schlägt mit einer entsprechenden Meldung fehl.
+
+Unter **Einstellungen → Cluster → Zertifikate** stehen alle gemerkten Fingerabdrücke. Nach einer gewollten Erneuerung des Zertifikats den dort angezeigten neuen Fingerabdruck mit dem auf dem Host vergleichen (`pvenode cert info` bzw. `proxmox-backup-manager cert info`) und **Neues Zertifikat bestätigen**. Merken, Ändern, Bestätigen und Verwerfen stehen im Audit-Log.
+
+**Umstellung von `BSENTINEL_INSECURE_SSL=true`:** Mit gesetzter Variable läuft alles weiter wie bisher, die Zertifikate werden aber schon gemerkt und Änderungen gemeldet. Zeigt die Liste alle Hosts ohne Meldung, die Variable entfernen und neu starten – ab dann wird abgelehnt. Zeigt ein Host ständig wechselnde Zertifikate, antworten unter seiner Adresse mehrere Nodes; dann die API-URL auf einen festen Node legen oder ein gemeinsames, von einer CA signiertes Zertifikat verwenden.
 
 ---
 

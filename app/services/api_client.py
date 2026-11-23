@@ -12,21 +12,17 @@ import time
 from typing import Any
 from urllib import error, parse
 
-from app.config import API_TIMEOUT, INSECURE_SSL
+from app.config import API_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
-_ssl_context: ssl.SSLContext | None = None
 
+def _https(host: str, port: int | None, timeout: float) -> http.client.HTTPSConnection:
+    """HTTPS to a PVE/PBS: CA-verified, or pinned to the host's certificate
+    (app.services.tls_trust) — never unchecked."""
+    from app.services.tls_trust import PinnedHTTPSConnection
 
-def _get_ssl_context() -> ssl.SSLContext:
-    global _ssl_context
-    if _ssl_context is None:
-        if INSECURE_SSL:
-            _ssl_context = ssl._create_unverified_context()
-        else:
-            _ssl_context = ssl.create_default_context()
-    return _ssl_context
+    return PinnedHTTPSConnection(host, port or 443, timeout=timeout)
 
 
 # One open connection per server and thread (keep-alive): a sync asks the
@@ -41,7 +37,7 @@ def _pooled(scheme: str, host: str, port: int | None, timeout: float) -> http.cl
     conn = pool.get(key)
     if conn is None:
         if scheme == "https":
-            conn = http.client.HTTPSConnection(host, port, timeout=timeout, context=_get_ssl_context())
+            conn = _https(host, port, timeout)
         else:
             conn = http.client.HTTPConnection(host, port, timeout=timeout)
         pool[key] = conn
@@ -85,9 +81,7 @@ def _send_body(method: str, url: str, headers: dict[str, str], body: bytes, time
     parts = parse.urlsplit(url)
     target = parts.path + (f"?{parts.query}" if parts.query else "")
     if parts.scheme == "https":
-        conn = http.client.HTTPSConnection(
-            parts.hostname or "", parts.port, timeout=timeout, context=_get_ssl_context()
-        )
+        conn = _https(parts.hostname or "", parts.port, timeout)
     else:
         conn = http.client.HTTPConnection(parts.hostname or "", parts.port, timeout=timeout)
     try:

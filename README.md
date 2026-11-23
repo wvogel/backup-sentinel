@@ -33,7 +33,7 @@ Compliance-focused monitoring for Proxmox backup infrastructure. Track backup st
 - **Notifications** — Gotify push for failed syncs, critical backups, slow backups, failed verifies, datastores filling up and anomalies (bundled, deduplicated, held back during quiet hours); SMTP email for sync outages over 24 h, the monthly PDF report and the weekly report; history with CSV export at `/notifications`
 - **Multi-cluster** — Monitor multiple PVE clusters and PBS instances from one place
 - **Monitoring** — `/healthz` and Prometheus metrics at `/metrics`
-- **Governance** — NIST CSF 2.0 / NIS2 mapping (Identify, Protect, Detect, Recover), roles (viewer / operator / admin), append-only audit log with a hash chain, SHA-256 checksums on archived reports
+- **Governance** — NIST CSF 2.0 / NIS2 mapping (Identify, Protect, Detect, Recover), roles (viewer / operator / admin), pinned TLS certificates for PVE/PBS, append-only audit log with a hash chain, SHA-256 checksums on archived reports
 - **Internationalization** — German and English UI with one-click switching
 - **Theme** — Light, dark, and auto (system) modes
 

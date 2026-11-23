@@ -9,7 +9,7 @@ from starlette import status
 
 from app import db
 from app.config import APP_BASE_URL
-from app.services import theme
+from app.services import theme, tls_trust
 from app.services.crypto import encrypt
 from app.services.notifications import test_email_delivery, test_gotify_notification
 from app.services.theme_store import active_theme
@@ -37,6 +37,8 @@ def settings(request: Request) -> HTMLResponse:
         "app_settings": all_settings,
         "settings_audit": db.list_settings_audit_entries(50),
         "audit_chain": db.verify_audit_log(),
+        "tls_pins": db.list_tls_pins(),
+        "tls_enforced": tls_trust.ENFORCE,
         "enroll_open": int(request.query_params.get("enroll") or 0)
         if (request.query_params.get("enroll") or "").isdigit()
         else 0,
@@ -58,6 +60,25 @@ def settings(request: Request) -> HTMLResponse:
         **_appearance_context(request),
     }
     return templates.TemplateResponse(request, "settings.html", common_context(request) | context)
+
+
+@router.post("/settings/tls/accept")
+def tls_accept(request: Request, host: str = Form(...), port: int = Form(...)) -> RedirectResponse:
+    """Pin the certificate the host presented last (admin only, app.web.auth)."""
+    accepted = db.accept_tls_change(host, port)
+    if accepted:
+        tls_trust.forget(host, port)
+        db.append_audit_event(settings_actor(request), "tls.accepted", f"{host}:{port}", accepted)
+    return RedirectResponse(url="/settings#certificates", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/settings/tls/dismiss")
+def tls_dismiss(request: Request, host: str = Form(...), port: int = Form(...)) -> RedirectResponse:
+    """Drop the report of a changed certificate; the pinned one stays."""
+    if db.dismiss_tls_change(host, port):
+        tls_trust.forget(host, port)
+        db.append_audit_event(settings_actor(request), "tls.dismissed", f"{host}:{port}")
+    return RedirectResponse(url="/settings#certificates", status_code=status.HTTP_303_SEE_OTHER)
 
 
 def _load_restore_test(all_settings: dict[str, str]) -> dict | None:

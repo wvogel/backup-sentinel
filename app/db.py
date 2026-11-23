@@ -7,3 +7,4 @@ from app.db_notifications import *  # noqa: F403
 from app.db_reports import *  # noqa: F403
 from app.db_restore import *  # noqa: F403
 from app.db_settings import *  # noqa: F403
+from app.db_tls import *  # noqa: F403

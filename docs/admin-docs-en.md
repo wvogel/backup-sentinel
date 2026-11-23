@@ -103,7 +103,7 @@ Your reverse proxy should forward traffic to the OAuth2-Proxy container on port 
 | `BSENTINEL_SYNC_INTERVAL_MINUTES` | `60` | Interval in minutes for the automatic background sync loop. |
 | `BSENTINEL_API_TIMEOUT` | `60` | Timeout in seconds for Proxmox/PBS API requests. |
 | `BSENTINEL_DEBUG` | `false` | Enable debug logging (`true` / `false`). |
-| `BSENTINEL_INSECURE_SSL` | `false` | Disable SSL certificate verification for Proxmox/PBS APIs. Set to `true` if using self-signed certificates. |
+| `BSENTINEL_INSECURE_SSL` | `false` | **No longer needed, not even with self-signed certificates** (see [TLS certificates of PVE and PBS](#tls-certificates-of-pve-and-pbs)). Set to `true`, a changed certificate is only reported instead of refused — meant for the switch-over; remove it afterwards. |
 | `BSENTINEL_BRAND_LOGO_LIGHT_URL` | *(empty = no logo)* | Logo URL for light theme. Also shown in the weekly report header (SVG is converted to PNG and embedded; relative URLs outside `/static/` need `APP_URL`). |
 | `BSENTINEL_BRAND_LOGO_DARK_URL` | *(empty = no logo)* | Logo URL for dark theme. |
 | `BSENTINEL_BRAND_FONT_URL` | *(empty = system font)* | Font of the PDF report: a URL with `{weight}`, replaced by `Regular`, `Medium`, `SemiBold` and `Bold`, e.g. `https://example.com/fonts/Brand-{weight}.woff2`. The files are fetched and embedded when a report is generated; without them the report uses a system font. |
@@ -351,6 +351,18 @@ OAuth2-Proxy sets `OAUTH2_PROXY_REVERSE_PROXY=true`, so it trusts `X-Forwarded-*
 - `X-Forwarded-For`
 - `X-Forwarded-Proto` (must be `https`)
 - `X-Forwarded-Host`
+
+### TLS certificates of PVE and PBS
+
+Proxmox hosts usually serve a self-signed certificate. Backup Sentinel does not switch verification off for that; it remembers the certificate, as SSH does with a host key:
+
+- If a system certificate authority vouches for the certificate (right name, not expired), it is trusted as it is.
+- Otherwise its SHA-256 fingerprint is remembered on first contact, per host and port. If it equals the one the bootstrap script read on the host itself, the origin says "confirmed by the bootstrap script", else "on first contact".
+- From then on only that certificate is accepted. If the host presents another one, the connection is dropped **before** an API token is sent; the sync fails with a message saying so.
+
+**Settings → Clusters → Certificates** lists all pinned fingerprints. After renewing a certificate on purpose, compare the new fingerprint shown there with the one on the host (`pvenode cert info` or `proxmox-backup-manager cert info`) and choose **Accept the new certificate**. Pinning, changes, accepting and dismissing are in the audit log.
+
+**Switching over from `BSENTINEL_INSECURE_SSL=true`:** with the variable set everything keeps working as before, but certificates are already pinned and changes reported. Once the list shows every host without a report, remove the variable and restart — from then on a change is refused. If a host keeps showing different certificates, several nodes answer under its address; point the API URL at one node, or use one CA-signed certificate for all.
 
 ---
 

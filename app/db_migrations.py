@@ -240,6 +240,27 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        16,
+        "Pinned TLS certificates of PVE/PBS hosts",
+        [
+            # One pin per host and port (app.services.tls_trust). `source` says where
+            # the pin comes from: bootstrap / first-use / accepted. seen_*: another
+            # certificate the host presented since, waiting for an admin's decision.
+            """
+            CREATE TABLE IF NOT EXISTS tls_pins (
+                host TEXT NOT NULL,
+                port INTEGER NOT NULL,
+                fingerprint TEXT NOT NULL,
+                source TEXT NOT NULL,
+                pinned_at TIMESTAMPTZ NOT NULL,
+                seen_fingerprint TEXT,
+                seen_at TIMESTAMPTZ,
+                PRIMARY KEY (host, port)
+            )
+            """,
+        ],
+    ),
 ]
 
 

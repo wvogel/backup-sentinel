@@ -59,6 +59,7 @@ Backup Sentinel follows these practices:
 - **Secrets** (PVE/PBS API tokens, enrollment secrets, restore-server credentials, Gotify token, SMTP password) are encrypted at rest using Fernet (AES-128-CBC + HMAC-SHA256); a secret that cannot be encrypted is not stored, and one that cannot be decrypted is never sent out in its place
 - **Audit log** is append-only (a database trigger refuses UPDATE / DELETE / TRUNCATE) and carries a hash chain keyed with `BSENTINEL_SECRET_KEY`; archived reports carry SHA-256 checksums that are checked on every download
 - **Restore helper agent** accepts only requests with the bearer token the app derives for it, and builds its DHCP config itself from validated addresses
+- **TLS to PVE/PBS** is verified against the system CAs or, for self-signed certificates, pinned to the certificate's SHA-256 fingerprint; a changed certificate is refused before any token is sent
 - **Security headers** (CSP, X-Frame-Options, Referrer-Policy, etc.) are applied by middleware on every response
 - **Dependencies** are pinned to exact versions in `requirements.txt`, the base images by digest; `pip-audit` runs in the pipeline and CodeQL on GitHub
 - **Deployment** only of release tags; with an allowed-signers file on the server only of tags signed by one of them, verified by the previously deployed `deploy.sh` before the new release is checked out

@@ -339,3 +339,58 @@ class ReportIntegrityTests(SecurityDbTestCase):
             row = db.list_monthly_reports()[0]
             self.assertEqual(row["sha256"]["all"], report_archive.file_sha256(pdf))
             self.assertTrue(report_archive.report_intact(row))
+
+
+class TlsPinStoreTests(SecurityDbTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("TRUNCATE tls_pins")
+            conn.commit()
+
+    def test_pin_change_accept(self) -> None:
+        self.assertIsNone(db.get_tls_pin("pve.example", 8006))
+        db.save_tls_pin("pve.example", 8006, "AA:BB", "first-use")
+        self.assertEqual(db.get_tls_pin("pve.example", 8006), "AA:BB")
+        self.assertIsNone(db.accept_tls_change("pve.example", 8006))  # nothing to accept yet
+
+        db.save_tls_change("pve.example", 8006, "CC:DD")
+        row = db.list_tls_pins()[0]
+        self.assertEqual((row["fingerprint"], row["seen_fingerprint"]), ("AA:BB", "CC:DD"))
+
+        self.assertEqual(db.accept_tls_change("pve.example", 8006), "CC:DD")
+        row = db.list_tls_pins()[0]
+        self.assertEqual((row["fingerprint"], row["source"], row["seen_fingerprint"]), ("CC:DD", "accepted", None))
+
+    def test_dismiss_keeps_the_pin(self) -> None:
+        db.save_tls_pin("pbs.example", 8007, "AA:BB", "first-use")
+        db.save_tls_change("pbs.example", 8007, "CC:DD")
+        self.assertTrue(db.dismiss_tls_change("pbs.example", 8007))
+        self.assertFalse(db.dismiss_tls_change("pbs.example", 8007))
+        row = db.list_tls_pins()[0]
+        self.assertEqual((row["fingerprint"], row["seen_fingerprint"]), ("AA:BB", None))
+
+    def test_bootstrap_fingerprints_come_from_the_registered_hosts(self) -> None:
+        db.finalize_cluster_registration(
+            {"cluster_slug": "test", "api_user": "u@pve", "token_id": "t", "token_secret": "s", "fingerprint": "aa:bb"}
+        )
+        db.upsert_pbs_connection(self.cluster["id"], {**PBS, "fingerprint": "CC:DD"})
+        self.assertEqual(db.bootstrap_fingerprints(), {"AA:BB", "CC:DD"})
+
+    def test_real_check_writes_pin_change_and_audit(self) -> None:
+        from app.services import tls_trust
+
+        for attr, value in (("_pins", {}), ("_reported", set())):
+            original = getattr(tls_trust, attr)
+            setattr(tls_trust, attr, value)
+            self.addCleanup(setattr, tls_trust, attr, original)
+        tls_trust.check("pve.example", 8006, b"cert-one", enforce=True)
+        self.assertEqual(db.list_tls_pins()[0]["source"], "first-use")
+        tls_trust.check("pve.example", 8006, b"cert-one", enforce=True)  # same certificate: fine
+        with self.assertRaises(tls_trust.CertificateChanged):
+            tls_trust.check("pve.example", 8006, b"cert-two", enforce=True)
+        row = db.list_tls_pins()[0]
+        self.assertEqual(row["seen_fingerprint"], tls_trust.fingerprint(b"cert-two"))
+        newest = db.list_settings_audit_entries(1)[0]
+        self.assertEqual((newest["actor"], newest["key"]), ("system", "tls.changed"))
+        tls_trust.check("pve.example", 8006, b"cert-two", enforce=False)  # report-only: no exception
