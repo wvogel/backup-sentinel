@@ -528,23 +528,37 @@ td .icon-button {
   grid-column: 1 / -1;
 }
 
-/* Pinned certificates: a fingerprint stays on one line (it is compared by eye);
-   on a narrow screen the table scrolls instead of breaking it. */
-.tls-table-wrap {
-  overflow-x: auto;
+/* Pinned certificates, in a half-width box: one entry per host, the
+   fingerprint on its own lines (it breaks where the box ends). */
+.tls-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.tls-list li {
+  display: block;
+}
+
+.tls-list li + li {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
 .tls-fingerprint {
+  display: block;
+  margin: 2px 0;
   font-size: 0.72rem;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
-.tls-nowrap {
-  white-space: nowrap;
+.tls-changed {
+  margin-top: 8px;
 }
 
-.tls-nowrap form + form {
-  margin-left: 6px;
+.tls-changed form {
+  display: inline-block;
+  margin: 4px 6px 0 0;
 }
 
 .section-head {
