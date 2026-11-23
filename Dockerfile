@@ -1,7 +1,7 @@
 # --- Restore helper CT template (direction A): Alpine + python3 + dnsmasq + the
 #     probe/DHCP agent, baked in and started on boot. Built here so the app can
 #     upload it to PVE via the API — nothing for the operator to prepare.
-FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS helper
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS helper
 RUN apk add --no-cache python3 dnsmasq iproute2 iputils openrc
 COPY app/services/restore_helper_agent.py /opt/restore-helper-agent.py
 RUN printf '#!/sbin/openrc-run\ncommand="/usr/bin/python3"\ncommand_args="/opt/restore-helper-agent.py"\ncommand_background=true\npidfile="/run/restore-helper.pid"\n' \
