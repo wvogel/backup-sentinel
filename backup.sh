@@ -18,14 +18,14 @@ umask 077
 
 # With BACKUP_AGE_RECIPIENT (an age public key, "age1...") in .env the dump is
 # encrypted to that key: the matching private key is kept somewhere else, so
-# this host cannot read its own dumps. Without it the dump is plain — the API
-# tokens in it are encrypted with BSENTINEL_SECRET_KEY, everything else is not.
+# this host cannot read its own dumps. Without it the dump is plain (the API
+# tokens in it are encrypted with BSENTINEL_SECRET_KEY) — fine when the backup
+# directory is copied off the host by a tool that encrypts itself, e.g. restic.
 if [ -n "${BACKUP_AGE_RECIPIENT:-}" ]; then
   command -v age >/dev/null 2>&1 || { echo "BACKUP_AGE_RECIPIENT is set but 'age' is not installed" >&2; exit 1; }
   docker compose exec -T postgres pg_dumpall -U "${DB_USER:-backup_reports}" | gzip \
     | age -r "${BACKUP_AGE_RECIPIENT}" > "${backup_dir}/${backup_name}.gz.age"
 else
-  echo "WARNING: BACKUP_AGE_RECIPIENT is not set, the database dump is not encrypted" >&2
   docker compose exec -T postgres pg_dumpall -U "${DB_USER:-backup_reports}" | gzip > "${backup_dir}/${backup_name}.gz"
 fi
 
