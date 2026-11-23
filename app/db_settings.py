@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 
 from app.db_core import connect
-from app.services.crypto import keyed_digest
+from app.services.crypto import keyed_digests
 from app.types import AuditLogRow
 
 
@@ -38,9 +38,16 @@ _AUDIT_LOCK = 0x42534155  # advisory lock: one writer extends the chain at a tim
 
 
 def _audit_hash(previous: str, actor: str, key: str, old_value: str, new_value: str, created_at: datetime) -> str:
+    return _audit_hashes(previous, actor, key, old_value, new_value, created_at)[0]
+
+
+def _audit_hashes(
+    previous: str, actor: str, key: str, old_value: str, new_value: str, created_at: datetime
+) -> list[str]:
+    """The entry's hash under the current key and under each previous one."""
     stamp = created_at.astimezone(UTC).isoformat(timespec="microseconds")
     message = json.dumps([previous, actor, key, old_value, new_value, stamp], ensure_ascii=False)
-    return keyed_digest("audit-log", message)
+    return keyed_digests("audit-log", message)
 
 
 def _append_audit_rows(rows: list[tuple[str, str, str, str]]) -> None:
@@ -116,12 +123,10 @@ def verify_audit_log() -> dict[str, object]:
         rows = cur.fetchall()
     previous = ""
     for row in rows:
-        expected = _audit_hash(
-            previous, row["actor"], row["key"], row["old_value"], row["new_value"], row["created_at"]
-        )
-        if row["entry_hash"] != expected:
+        valid = _audit_hashes(previous, row["actor"], row["key"], row["old_value"], row["new_value"], row["created_at"])
+        if row["entry_hash"] not in valid:  # entries from before a key change match a previous key
             return {"ok": False, "entries": len(rows), "broken_at": row["id"], "head": previous}
-        previous = expected
+        previous = row["entry_hash"]
     return {"ok": True, "entries": len(rows), "broken_at": None, "head": previous}
 
 

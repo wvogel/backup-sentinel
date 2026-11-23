@@ -487,15 +487,22 @@ def init_db() -> None:
     applied = run_migrations()
 
     # After the migrations (they add the columns these two fill).
+    import logging
+
     from app.db_clusters import encrypt_stored_secrets
     from app.db_migrations import AUDIT_CHAIN_MIGRATION
     from app.db_settings import seal_audit_log
 
-    encrypted = encrypt_stored_secrets()
+    encrypted, unreadable = encrypt_stored_secrets()
     if encrypted:
-        import logging
-
-        logging.getLogger(__name__).info("Encrypted %d stored API secrets", encrypted)
+        logging.getLogger(__name__).info("Stored secrets brought to the current key: %d", encrypted)
+    if unreadable:
+        logging.getLogger(__name__).error(
+            "BSENTINEL_SECRET_KEY does not fit %d stored secrets (%s). They are left untouched. "
+            "Set the key they were encrypted with, or add it as BSENTINEL_SECRET_KEY_OLD.",
+            len(unreadable),
+            ", ".join(unreadable),
+        )
     # Entries from before the hash chain get their hash exactly once, with the
     # migration that introduced it — never later, or rows slipped into the table
     # with an empty hash would be legitimised at the next start.

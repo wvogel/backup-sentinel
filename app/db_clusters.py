@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.db_core import connect
-from app.services.crypto import decrypt, encrypt, encrypt_once
+from app.services.crypto import UndecryptableError, decrypt, encrypt, unwrap
 from app.types import ClusterRow, NodeRow, PBSConnectionRow, VMRow
 
 # How long an enrollment secret (the one in the onboarding commands) is accepted.
@@ -74,23 +74,51 @@ def enrollment_secret_matches(cluster: Any, presented: str, now: datetime | None
     return bool(stored) and same and enrollment_active(cluster, now)
 
 
-def encrypt_stored_secrets() -> int:
-    """Encrypt API tokens and enrollment secrets still stored in plaintext
-    (installations from before they were encrypted). Idempotent; returns how
-    many values it encrypted."""
-    changed = 0
+# Secrets kept in app_settings (restore server, notifications).
+_SETTING_SECRETS = ("restore_server.token_secret", "restore_server.ssh_private_key", "gotify_token", "email_password")
+
+
+def encrypt_stored_secrets() -> tuple[int, list[str]]:
+    """Bring every stored secret into its proper form: one layer, current key.
+
+    Plaintext from older versions is encrypted; a value encrypted with a
+    previous key (BSENTINEL_SECRET_KEY_OLD) — or wrapped several times by a
+    start with a changed key — is opened and encrypted anew. A value that fits
+    no known key is LEFT UNTOUCHED and reported: wrapping it again would only
+    bury it deeper. Idempotent. Returns (values rewritten, unreadable values
+    as "table.column#id")."""
+    changed, unreadable = 0, []
+
+    def proper(value: str, where: str) -> str:
+        try:
+            plain, as_it_should_be = unwrap(value)
+        except UndecryptableError:
+            unreadable.append(where)
+            return value
+        return value if as_it_should_be else encrypt(plain)
+
     with connect() as conn, conn.cursor() as cur:
         for table, columns in (("clusters", _CLUSTER_SECRETS), ("pbs_connections", _PBS_SECRETS)):
             cur.execute(f"SELECT id, {', '.join(columns)} FROM {table}")
             for row in cur.fetchall():
                 for column in columns:
                     value = row[column]
-                    sealed = encrypt_once(value) if value else value
+                    if not value:
+                        continue
+                    sealed = proper(value, f"{table}.{column}#{row['id']}")
                     if sealed != value:
                         cur.execute(f"UPDATE {table} SET {column} = %s WHERE id = %s", (sealed, row["id"]))
                         changed += 1
+        cur.execute("SELECT key, value FROM app_settings WHERE key = ANY(%s)", (list(_SETTING_SECRETS),))
+        for row in cur.fetchall():
+            if not row["value"]:
+                continue
+            sealed = proper(row["value"], f"app_settings.{row['key']}")
+            if sealed != row["value"]:
+                cur.execute("UPDATE app_settings SET value = %s WHERE key = %s", (sealed, row["key"]))
+                changed += 1
         conn.commit()
-    return changed
+    return changed, unreadable
 
 
 def list_clusters() -> list[ClusterRow]:

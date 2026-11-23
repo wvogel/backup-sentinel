@@ -13,7 +13,7 @@ DATABASE_URL = os.getenv(
 _raw_app_url = os.getenv("APP_URL", "")
 APP_BASE_URL = _raw_app_url.replace("http://", "https://", 1) if _raw_app_url.startswith("http://") else _raw_app_url
 DEFAULT_TIMEZONE = os.getenv("BSENTINEL_DEFAULT_TIMEZONE", "Europe/Berlin")
-APP_VERSION = "v3.20.0"
+APP_VERSION = "v3.20.1"
 LOGOUT_URL = os.getenv("BSENTINEL_LOGOUT_URL", "/oauth2/sign_out")
 BRAND_LOGO_LIGHT_URL = os.getenv("BSENTINEL_BRAND_LOGO_LIGHT_URL") or ""
 BRAND_LOGO_DARK_URL = os.getenv("BSENTINEL_BRAND_LOGO_DARK_URL") or ""
@@ -30,6 +30,10 @@ DEBUG = os.getenv("BSENTINEL_DEBUG", "").lower() in ("1", "true", "yes", "on")
 # BSENTINEL_SECRET_KEY: Fernet key for the secrets stored encrypted in the DB.
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 SECRET_KEY = os.getenv("BSENTINEL_SECRET_KEY", "")
+# BSENTINEL_SECRET_KEY_OLD: previous keys (comma-separated), only while changing
+# the key: the next start re-encrypts everything with BSENTINEL_SECRET_KEY, then
+# this can go.
+SECRET_KEYS_OLD = tuple(k.strip() for k in os.getenv("BSENTINEL_SECRET_KEY_OLD", "").split(",") if k.strip())
 
 # PDF report language (de / en). Falls back to "de" for any other value.
 REPORT_LANGUAGE = os.getenv("BSENTINEL_REPORT_LANGUAGE", "de").lower()

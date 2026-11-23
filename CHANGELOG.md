@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.20.1] — 2026-11-23
+
+### Fixed
+
+- **A start with a different `BSENTINEL_SECRET_KEY` damaged the stored API tokens.** v3.20.0 took a token it could not decrypt for plaintext and encrypted it once more with the new key; every further key change added a layer, and all PVE/PBS calls answered 401 because the ciphertext was sent as the token. Now a value encrypted with an unknown key is recognised as such without a key, left untouched and named in the log (`BSENTINEL_SECRET_KEY does not fit …`); it is never wrapped again and never sent out — the connection simply has no token until the right key is back.
+- **Repair and key change: `BSENTINEL_SECRET_KEY_OLD`.** With the previous key(s) listed there, the next start opens every layer with whichever key fits and stores each secret once, under the current key — this also undoes the layers v3.20.0 added. It covers the PVE/PBS tokens, enrollment secrets, restore-server credentials, SMTP password and Gotify token. The audit-log chain verifies entries written under a previous key while that key is listed.
+
 ## [v3.20.0] — 2026-11-23
 
 Security hardening after a review of the application. **Before updating:** the PBS onboarding command changes (see below), and `BSENTINEL_SECRET_KEY` now also protects the PVE/PBS API tokens — keep a copy of it outside the server.

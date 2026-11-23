@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 import psycopg
+from cryptography.fernet import Fernet
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -18,7 +19,7 @@ if os.environ.get("BSENTINEL_DB_TESTS") != "1":
     raise unittest.SkipTest("database tests need BSENTINEL_DB_TESTS=1")
 
 from app import db
-from app.services import report_archive
+from app.services import crypto, report_archive
 from app.services.crypto import is_encrypted
 from app.web.routes_bootstrap import router
 
@@ -87,11 +88,107 @@ class SecretsAtRestTests(SecurityDbTestCase):
         with db.connect() as conn, conn.cursor() as cur:
             cur.execute("UPDATE clusters SET token_secret = 'old-plain', enrollment_secret = 'old-enroll'")
             conn.commit()
-        self.assertEqual(db.encrypt_stored_secrets(), 2)
-        self.assertEqual(db.encrypt_stored_secrets(), 0)  # idempotent
+        self.assertEqual(db.encrypt_stored_secrets(), (2, []))
+        self.assertEqual(db.encrypt_stored_secrets(), (0, []))  # idempotent
         stored = _raw("SELECT token_secret FROM clusters")[0]["token_secret"]
         self.assertTrue(is_encrypted(stored))
         self.assertEqual(db.get_cluster_by_slug("test")["token_secret"], "old-plain")
+
+
+class KeyChangeTests(SecurityDbTestCase):
+    """What a start with a changed BSENTINEL_SECRET_KEY does to the stored tokens."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.key_a = crypto.SECRET_KEY
+        self.key_b = Fernet.generate_key().decode()
+        db.finalize_cluster_registration(
+            {
+                "cluster_slug": "test",
+                "api_user": "u@pve",
+                "token_id": "t",
+                "token_secret": "pve-token",
+                "fingerprint": "",
+            }
+        )
+        db.save_settings({"restore_server.token_secret": crypto.encrypt("restore-token")})
+        self.addCleanup(setattr, crypto, "SECRET_KEY", self.key_a)
+        self.addCleanup(setattr, crypto, "SECRET_KEYS_OLD", ())
+
+    def _keys(self, current: str, *old: str) -> None:
+        crypto.SECRET_KEY, crypto.SECRET_KEYS_OLD = current, tuple(old)
+
+    def _stored(self) -> str:
+        return _raw("SELECT token_secret FROM clusters")[0]["token_secret"]
+
+    def test_wrong_key_leaves_the_tokens_untouched_and_hands_out_nothing(self) -> None:
+        before = self._stored()
+        self._keys(self.key_b)
+        changed, unreadable = db.encrypt_stored_secrets()
+        self.assertEqual(changed, 0)
+        self.assertIn(f"clusters.token_secret#{self.cluster['id']}", unreadable)
+        self.assertIn("app_settings.restore_server.token_secret", unreadable)
+        self.assertEqual(self._stored(), before)  # not wrapped a second time
+        self.assertEqual(db.get_cluster_by_slug("test")["token_secret"], "")  # never the ciphertext
+        self._keys(self.key_a)  # the right key again: everything is back
+        self.assertEqual(db.encrypt_stored_secrets(), (0, []))
+        self.assertEqual(db.get_cluster_by_slug("test")["token_secret"], "pve-token")
+
+    def test_tokens_wrapped_by_v3_20_0_come_back_with_both_keys(self) -> None:
+        # v3.20.0 took a token of another key for plaintext and encrypted it again:
+        # started with key B, then with key A again -> A(B(A(token))).
+        wrapped = Fernet(self.key_a.encode()).encrypt(Fernet(self.key_b.encode()).encrypt(self._stored().encode()))
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("UPDATE clusters SET token_secret = %s", (wrapped.decode(),))
+            conn.commit()
+        changed, unreadable = db.encrypt_stored_secrets()  # key A alone: the middle layer does not open
+        self.assertEqual((changed, len(unreadable)), (0, 1))
+        self.assertEqual(self._stored(), wrapped.decode())
+
+        self._keys(self.key_a, self.key_b)
+        self.assertEqual(db.encrypt_stored_secrets(), (1, []))
+        self.assertEqual(db.get_cluster_by_slug("test")["token_secret"], "pve-token")
+        self._keys(self.key_a)  # the old key is no longer needed
+        self.assertTrue(is_encrypted(self._stored()))
+        self.assertEqual(db.get_cluster_by_slug("test")["token_secret"], "pve-token")
+
+    def test_changing_the_key_on_purpose(self) -> None:
+        self._keys(self.key_b, self.key_a)
+        changed, unreadable = db.encrypt_stored_secrets()
+        self.assertEqual(unreadable, [])
+        self.assertGreaterEqual(changed, 3)  # token, enrollment secret, restore token
+        self._keys(self.key_b)
+        self.assertEqual(db.get_cluster_by_slug("test")["token_secret"], "pve-token")
+        self.assertEqual(crypto.decrypt(db.get_settings_dict()["restore_server.token_secret"]), "restore-token")
+        self._keys(self.key_a, self.key_b)  # and back, for the tests that follow
+        db.encrypt_stored_secrets()
+
+    def test_audit_entries_from_before_a_key_change_still_verify(self) -> None:
+        db.append_audit_event("alice", "cluster.created", "test", "x")
+        self._keys(self.key_b, self.key_a)
+        db.append_audit_event("alice", "cluster.created", "test", "y")
+        self.assertTrue(db.verify_audit_log()["ok"])
+        self._keys(self.key_a, self.key_b)
+        self.assertTrue(db.verify_audit_log()["ok"])
+        # Left as it is, the entry written under key B would break the chain for
+        # the tests that follow (they run with key A only): rewrite its hash.
+        with db.connect() as conn, conn.cursor() as cur:
+            cur.execute("ALTER TABLE settings_audit_log DISABLE TRIGGER settings_audit_log_no_change")
+            cur.execute("SELECT * FROM settings_audit_log ORDER BY id DESC LIMIT 2")
+            last, before = cur.fetchall()
+            from app.db_settings import _audit_hash
+
+            digest = _audit_hash(
+                before["entry_hash"],
+                last["actor"],
+                last["key"],
+                last["old_value"],
+                last["new_value"],
+                last["created_at"],
+            )
+            cur.execute("UPDATE settings_audit_log SET entry_hash = %s WHERE id = %s", (digest, last["id"]))
+            cur.execute("ALTER TABLE settings_audit_log ENABLE TRIGGER settings_audit_log_no_change")
+            conn.commit()
 
 
 class EnrollmentTests(SecurityDbTestCase):
