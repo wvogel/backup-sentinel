@@ -6,7 +6,7 @@ psycopg[binary]==3.3.3
 psycopg-pool==3.3.0
 # NIS2 report: HTML/CSS → PDF (needs Pango/HarfBuzz, see Dockerfile).
 weasyprint==70.0
-python-multipart==0.0.26
+python-multipart==0.0.34
 cryptography==46.0.7
 # SVG brand logo → PNG for HTML emails (prebuilt wheels, no system libraries).
 resvg-py==0.5.0
