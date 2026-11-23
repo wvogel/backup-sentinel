@@ -3,7 +3,7 @@ uvicorn==0.44.0
 jinja2==3.1.6
 pydantic==2.13.2
 psycopg[binary]==3.3.3
-psycopg-pool==3.3.0
+psycopg-pool==3.3.3
 # NIS2 report: HTML/CSS → PDF (needs Pango/HarfBuzz, see Dockerfile).
 weasyprint==70.0
 python-multipart==0.0.34
