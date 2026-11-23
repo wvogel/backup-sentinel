@@ -364,7 +364,20 @@ The repository includes a `.gitlab-ci.yml` with three stages.
 |-------|-----|
 | `lint` | `ruff check` and `ruff format --check` on `app`, `tests` and `scripts`. |
 | `test` | `pytest tests/` against a `postgres:18` service. `BSENTINEL_DB_TESTS=1` is set, so the database tests (which truncate tables) run as well. |
-| `deploy` | Only on `main`: sends a `POST` to the URL of every CI/CD variable whose name starts with `DEPLOY_WEBHOOK`. |
+| `test` (job `audit`) | `pip-audit` checks the dependencies in `requirements.txt` for known vulnerabilities. The job reports but does not block. |
+| `deploy` | Release tags `vX.Y.Z` only: sends a `POST` to the URL of every CI/CD variable whose name starts with `DEPLOY_WEBHOOK`. A push to `main` without a tag deploys nothing. |
+
+### Hardened deploy chain
+
+What reaches the server is decided by `deploy.sh` on the server — the copy from the release deployed before:
+
+1. It fetches `main` and the tags and takes the **newest release tag** (`vX.Y.Z`) on `main`.
+2. If the file `/etc/backup-sentinel/allowed_signers` exists on the server (or the path in `DEPLOY_ALLOWED_SIGNERS`), the release is deployed only if its tag carries a **valid signature** of a key listed there. The check runs before anything of the new release is checked out or run. Without the file nothing is checked (note in the log).
+3. It builds the image and swaps the containers only afterwards; if the build fails, the old version keeps running.
+
+On the GitLab side this needs: `main` protected without force-push, tags `v*` protected (only maintainers may create them), `DEPLOY_WEBHOOK` as a protected variable.
+
+**Setting up signed releases** (once): on the developer machine `git config gpg.format ssh`, `git config user.signingkey ~/.ssh/id_ed25519.pub`, `git config tag.gpgSign true`; on the server one line per authorised person in `/etc/backup-sentinel/allowed_signers`: `<e-mail> ssh-ed25519 AAAA…` (the public key). The file lives outside the repository on purpose: write access to the repository alone does not let anyone add themselves.
 
 ### CI/CD Variables
 
@@ -498,3 +511,30 @@ Backup Sentinel can *prove* a restore, not just document it, by driving a **dedi
 A global single-slot queue drains due, enabled VMs one at a time (never two active tests at once). The **cadence** is also the due interval (month/quarter/half-year/year → 30/91/182/365 days); the former criticality-based class is gone. Before each run the scheduler checks the VM fits the free space — **disk** on the target storage and host **RAM**. The host always keeps 10% of its RAM reserved, at least 10 GB; a VM that doesn't fit right now is skipped and the next one tried (no busy-spin — a pass ends once nothing fits and is retried on the next sync). The restore phase has no fixed timeout: it aborts only on a task error or a genuine stall (adaptive backstop). A `passed`/`limited` result resets the due clock, `failed`/`error` does not (retry cadence, default 1 week) and raises a notification. Optionally a failed environment is **held** for manual testing; multiple holds coexist (bounded by host RAM/disk). Live progress (percent, ETA, throughput) and host capacity (RAM bar, one ring per image storage) are shown at `/restore`; the menu bar tints the restore icon by queue state (green/amber/red, animated while a restore runs).
 
 **VMs and LXC containers.** Both guest types are tested. A container is restored with `pct restore` onto a container-capable target storage (`content=rootdir`), booted with `pct start`, and probed exactly like a VM — liveness (ICMP/ARP) plus its configured TCP ports (for example a Corosync **Qdevice** on 5403). Containers have no QEMU agent, so their live IP comes from the `netN` config (a static `ip=`, otherwise the sandbox DHCP). In **Settings → Restore server** each target storage is marked **VM** (holds VM disks, `content=images`) and/or **CT** (holds a container rootfs, `content=rootdir`) so you can tick the right one per guest type. Spreading disks across several storages stays VM-only.
+
+### Protecting the restore host
+
+The restore host is the most sensitive system of the installation: it holds a full copy of the backups including their keys, and it boots restored production systems. It needs the same protection as the PBS.
+
+**What is on it:**
+
+- the local PBS datastores (all mirrored backups) and, for encrypted backups, their keys under `/etc/pve/priv/storage/`;
+- during a test, the restored VM with its real data; a **held** environment stays until it is released;
+- an API token `root@pam!b-sentinel` without privilege separation.
+
+**What Backup Sentinel takes care of:**
+
+- Restored guests are attached only to the portless sandbox bridge; their traffic never leaves the host. The helper probes a guest only if the route goes out the sandbox leg (otherwise it aborts instead of reaching the production system).
+- After every test and at every start the reaper deletes everything that does not belong to a running operation, disks included.
+- The SSH host key is remembered on first connect; a changed key is refused. Token and SSH key are stored encrypted in the database.
+- The helper agent accepts only requests carrying the app's token.
+
+**What operations must ensure:**
+
+- Management access (SSH 22, API 8006) only from the management network and from Backup Sentinel; none from client networks.
+- No other service and no other user on the host; updates as on the production nodes.
+- The sandbox bridge has no physical port and no IP address on the host.
+- Release held environments promptly — they contain real data.
+- The SSH key is used for this host only; if in doubt, replace key and token (Settings → Restore server).
+- The disks are encrypted or the host stands in an access-controlled room; they are wiped when it is decommissioned.
+- The host belongs in the inventory of systems holding sensitive data (same protection level as the PBS).

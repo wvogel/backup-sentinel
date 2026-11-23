@@ -5,6 +5,20 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.20.2] — 2026-11-23
+
+### Changed
+
+- **Only release tags are deployed.** The GitLab deploy job runs for tags `vX.Y.Z` instead of every push to `main`, and `deploy.sh` checks out the newest release tag on `main`. A commit on `main` without a tag no longer reaches the server.
+- **Signed releases (opt-in).** If `/etc/backup-sentinel/allowed_signers` exists on the server, `deploy.sh` deploys a release only when its tag carries a valid signature of a key listed there — checked by the previously deployed script, before anything of the new release is checked out. The file is outside the repository, so write access to the repository alone is not enough.
+- **Build before swap.** `deploy.sh` stopped the stack, then built; a failed build left the installation down. It now builds first and replaces the containers afterwards.
+- **Base images are pinned by digest** (`python:3.14-slim`, `alpine:3.20`); Dependabot raises them.
+
+### Added
+
+- **`pip-audit` in the GitLab pipeline** reports known vulnerabilities in the pinned dependencies (reported, not blocking). CodeQL keeps running on GitHub.
+- **Admin docs: "Protecting the restore host"** — what the host holds, what Backup Sentinel secures itself, and what operations must ensure; and "Hardened deploy chain".
+
 ## [v3.20.1] — 2026-11-23
 
 ### Fixed

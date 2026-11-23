@@ -60,7 +60,8 @@ Backup Sentinel follows these practices:
 - **Audit log** is append-only (a database trigger refuses UPDATE / DELETE / TRUNCATE) and carries a hash chain keyed with `BSENTINEL_SECRET_KEY`; archived reports carry SHA-256 checksums that are checked on every download
 - **Restore helper agent** accepts only requests with the bearer token the app derives for it, and builds its DHCP config itself from validated addresses
 - **Security headers** (CSP, X-Frame-Options, Referrer-Policy, etc.) are applied by middleware on every response
-- **Dependencies** are pinned to exact versions in `requirements.txt`
+- **Dependencies** are pinned to exact versions in `requirements.txt`, the base images by digest; `pip-audit` runs in the pipeline and CodeQL on GitHub
+- **Deployment** only of release tags; with an allowed-signers file on the server only of tags signed by one of them, verified by the previously deployed `deploy.sh` before the new release is checked out
 - **No user-supplied HTML** is rendered without Jinja2 auto-escaping
 - **Parameterized queries** are used everywhere — no string-concatenated SQL
 - **The app runs as a non-root user** (uid 1000) inside its container

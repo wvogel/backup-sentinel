@@ -1,7 +1,7 @@
 # --- Restore helper CT template (direction A): Alpine + python3 + dnsmasq + the
 #     probe/DHCP agent, baked in and started on boot. Built here so the app can
 #     upload it to PVE via the API — nothing for the operator to prepare.
-FROM alpine:3.20 AS helper
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS helper
 RUN apk add --no-cache python3 dnsmasq iproute2 iputils openrc
 COPY app/services/restore_helper_agent.py /opt/restore-helper-agent.py
 RUN printf '#!/sbin/openrc-run\ncommand="/usr/bin/python3"\ncommand_args="/opt/restore-helper-agent.py"\ncommand_background=true\npidfile="/run/restore-helper.pid"\n' \
@@ -15,7 +15,8 @@ RUN printf '#!/sbin/openrc-run\ncommand="/usr/bin/python3"\ncommand_args="/opt/r
  && tar --exclude=./restore-helper.tar.gz --exclude=./proc --exclude=./sys --exclude=./dev \
         -C / -czf /restore-helper.tar.gz .
 
-FROM python:3.14-slim
+# Pinned by digest: the image built is the image reviewed. Dependabot raises it.
+FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f
 
 WORKDIR /app
 

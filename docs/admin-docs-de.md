@@ -364,7 +364,20 @@ Das Repository enthält eine `.gitlab-ci.yml` mit drei Stages.
 |-------|-----|
 | `lint` | `ruff check` und `ruff format --check` auf `app`, `tests` und `scripts`. |
 | `test` | `pytest tests/` gegen einen `postgres:18`-Service. `BSENTINEL_DB_TESTS=1` ist gesetzt, daher laufen auch die Datenbank-Tests (die Tabellen leeren). |
-| `deploy` | Nur auf `main`: sendet einen `POST` an die URL jeder CI/CD-Variable, deren Name mit `DEPLOY_WEBHOOK` beginnt. |
+| `test` (Job `audit`) | `pip-audit` prüft die Abhängigkeiten aus `requirements.txt` auf bekannte Schwachstellen. Der Job meldet, blockiert aber nicht. |
+| `deploy` | Nur für Release-Tags `vX.Y.Z`: sendet einen `POST` an die URL jeder CI/CD-Variable, deren Name mit `DEPLOY_WEBHOOK` beginnt. Ein Push auf `main` ohne Tag deployt nichts. |
+
+### Abgesicherte Deploy-Kette
+
+Was auf den Server kommt, entscheidet `deploy.sh` auf dem Server – die Fassung des zuvor ausgerollten Release:
+
+1. Es holt `main` und die Tags und nimmt den **neuesten Release-Tag** (`vX.Y.Z`) auf `main`.
+2. Liegt auf dem Server die Datei `/etc/backup-sentinel/allowed_signers` (oder der Pfad in `DEPLOY_ALLOWED_SIGNERS`), wird das Release nur ausgerollt, wenn der Tag eine **gültige Signatur** eines dort eingetragenen Schlüssels trägt. Die Prüfung läuft, bevor irgendetwas vom neuen Stand ausgecheckt oder ausgeführt wird. Ohne die Datei wird nicht geprüft (Hinweis im Log).
+3. Es baut das Image und tauscht erst danach die Container; schlägt der Build fehl, läuft die alte Version weiter.
+
+In GitLab gehören dazu: `main` geschützt ohne Force-Push, Tags `v*` geschützt (nur Maintainer dürfen sie anlegen), `DEPLOY_WEBHOOK` als geschützte Variable.
+
+**Signierte Releases einrichten** (einmalig): auf dem Entwicklerrechner `git config gpg.format ssh`, `git config user.signingkey ~/.ssh/id_ed25519.pub`, `git config tag.gpgSign true`; auf dem Server eine Zeile je berechtigter Person in `/etc/backup-sentinel/allowed_signers`: `<e-mail> ssh-ed25519 AAAA…` (der öffentliche Schlüssel). Die Datei liegt bewusst außerhalb des Repositorys: Wer nur Schreibrechte im Repository hat, kann sich nicht selbst eintragen.
 
 ### CI/CD-Variablen
 
@@ -498,3 +511,30 @@ Backup Sentinel kann einen Restore **nachweisen**, nicht nur dokumentieren. Dazu
 Eine globale Single-Slot-Queue arbeitet fällige, aktivierte VMs nacheinander ab (nie zwei aktive Tests gleichzeitig). Der **Turnus** ist zugleich das Fälligkeits-Intervall (Monat/Quartal/Halbjahr/Jahr → 30/91/182/365 Tage); die frühere kriterialitätsbasierte Einstufung entfällt. Vor jedem Lauf prüft der Scheduler, ob die VM in den freien Platz passt — **Disk** auf dem Ziel-Storage und **RAM** des Hosts. Vom RAM bleiben dem Host immer 10 % reserviert, mindestens 10 GB; passt eine VM gerade nicht, wird sie übersprungen und die nächste probiert (kein Dauer-Rappeln — ein Durchlauf endet, sobald nichts mehr passt, und wird beim nächsten Sync erneut versucht). Restore-Phase ohne festes Timeout: Abbruch nur bei Task-Fehler oder echtem Hänger (adaptiver Backstop). Ergebnis `passed`/`limited` setzt die Fälligkeits-Uhr zurück, `failed`/`error` nicht (Retry-Kadenz, Default 1 Woche) und löst eine Benachrichtigung aus. Optional bleibt eine fehlgeschlagene Umgebung **gehalten** zum manuellen Testen; mehrere Holds koexistieren (durch RAM/Disk begrenzt). Live-Fortschritt (Prozent, ETA, Durchsatz) und die Host-Kapazität (RAM-Balken, Ring je Image-Storage) stehen unter `/restore`; die Menüleiste färbt das Restore-Icon nach Queue-Zustand (grün/gelb/rot, animiert bei laufendem Restore).
 
 **VMs und LXC-Container.** Beide Gasttypen werden getestet. Ein Container wird per `pct restore` auf einen container-fähigen Ziel-Storage (`content=rootdir`) wiederhergestellt, mit `pct start` gebootet und genau wie eine VM geprüft — Liveness (ICMP/ARP) plus die konfigurierten TCP-Ports (z. B. ein Corosync-**Qdevice** auf 5403). Container haben keinen QEMU-Agent, daher kommt ihre Live-IP aus der `netN`-Config (statische `ip=`, sonst das Sandbox-DHCP). In **Einstellungen → Restore-Server** ist jeder Ziel-Storage mit **VM** (hält VM-Disks, `content=images`) und/oder **CT** (hält Container-Rootfs, `content=rootdir`) markiert, damit der richtige pro Gasttyp angehakt werden kann. Die Verteilung der Disks über mehrere Storages bleibt VM-only.
+
+### Schutz des Restore-Hosts
+
+Der Restore-Host ist das empfindlichste System der Installation: Er hält eine vollständige Kopie der Backups samt Schlüssel und startet wiederhergestellte Produktionssysteme. Er braucht deshalb denselben Schutz wie der PBS.
+
+**Was auf ihm liegt:**
+
+- die lokalen PBS-Datastores (alle gespiegelten Backups) und, bei verschlüsselten Backups, deren Schlüssel unter `/etc/pve/priv/storage/`;
+- während eines Tests die wiederhergestellte VM mit ihren echten Daten; eine **gehaltene** Umgebung bleibt, bis sie freigegeben wird;
+- ein API-Token `root@pam!b-sentinel` ohne Privilege-Separation.
+
+**Was Backup Sentinel selbst absichert:**
+
+- Restaurierte Gäste hängen nur an der portlosen Sandbox-Bridge; ihr Traffic verlässt den Host nicht. Der Helper prüft einen Gast nur, wenn die Route über das Sandbox-Bein führt (sonst Abbruch statt Zugriff auf das Produktionssystem).
+- Nach jedem Test und bei jedem Start löscht der Reaper alles, was nicht zu einem laufenden Vorgang gehört, samt Disks.
+- Der SSH-Hostkey wird beim ersten Verbinden gemerkt; ein geänderter Key wird abgelehnt. Token und SSH-Schlüssel liegen verschlüsselt in der Datenbank.
+- Der Helper-Agent nimmt nur Anfragen mit dem Token der Anwendung an.
+
+**Was der Betrieb sicherstellen muss:**
+
+- Management-Zugang (SSH 22, API 8006) nur aus dem Management-Netz und von Backup Sentinel; kein Zugang aus Client- oder Praxisnetzen.
+- Kein weiterer Dienst und kein weiterer Benutzer auf dem Host; Updates wie bei den Produktions-Nodes.
+- Die Sandbox-Bridge hat keinen physischen Port und keine IP auf dem Host.
+- Gehaltene Umgebungen zeitnah freigeben – sie enthalten Echtdaten.
+- Der SSH-Schlüssel wird nur für diesen Host verwendet; bei Verdacht Schlüssel und Token tauschen (Einstellungen → Restore-Server).
+- Die Datenträger sind verschlüsselt oder der Host steht in einem zutrittsgeschützten Raum; bei Außerbetriebnahme werden sie gelöscht.
+- Der Host gehört ins Verzeichnis der Systeme mit Patientendaten (Schutzbedarf wie der PBS).
