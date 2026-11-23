@@ -109,3 +109,12 @@ def test_ensure_host_key_pinned_scan_failure_returns_unchanged():
     cfg = {"ssh_host": "127.0.0.1", "ssh_port": 1, "ssh_host_key": ""}
     out = orch.ensure_host_key_pinned(cfg)
     assert out.get("ssh_host_key", "") == ""
+
+
+def test_add_host_key_on_another_port_uses_the_bracketed_name():
+    import paramiko
+
+    client = paramiko.SSHClient()
+    add_host_key(client, "10.0.0.9", _ed25519_pub_line("10.0.0.9"), port=2222)
+    assert client.get_host_keys().lookup("[10.0.0.9]:2222") is not None
+    assert client.get_host_keys().lookup("10.0.0.9") is None

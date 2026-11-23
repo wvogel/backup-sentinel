@@ -2569,7 +2569,7 @@ def load_private_key(key_str: str) -> Any:
     raise ValueError("unsupported or invalid SSH private key (" + "; ".join(errors) + ")")
 
 
-def add_host_key(client: Any, host: str, host_key_line: str) -> None:
+def add_host_key(client: Any, host: str, host_key_line: str, port: int = 22) -> None:
     """Pin the scratch host's SSH host key from a configured known_hosts-style
     line (e.g. from `ssh-keyscan`: '<host> ssh-ed25519 AAAA...'), so RejectPolicy
     can verify it without a system known_hosts file."""
@@ -2586,7 +2586,9 @@ def add_host_key(client: Any, host: str, host_key_line: str) -> None:
     else:
         raise ValueError("SSH host key must be a 'ssh-... AAAA...' line")
     key = paramiko.PKey.from_type_string(key_type, base64.b64decode(b64))
-    client.get_host_keys().add(host, key_type, key)
+    # known_hosts names a host on another port "[host]:port" — and that is the
+    # name the client looks up.
+    client.get_host_keys().add(host if port == 22 else f"[{host}]:{port}", key_type, key)
 
 
 class ParamikoSsh:
@@ -2603,7 +2605,7 @@ class ParamikoSsh:
         client.set_missing_host_key_policy(paramiko.RejectPolicy())
         client.load_system_host_keys()
         if self._host_key.strip():
-            add_host_key(client, host, self._host_key.strip())
+            add_host_key(client, host, self._host_key.strip(), port)
         pkey = load_private_key(key_str)
         client.connect(host, port=port, username=user, pkey=pkey, timeout=15)
         return client

@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.20.3] — 2026-11-23
+
+### Security
+
+- **Dependencies with known vulnerabilities updated**, as reported by the new `pip-audit` job: `python-multipart` 0.0.26 → 0.0.34 (denial of service in form parsing), `cryptography` 46.0.7 → 50.0.2 (bundled OpenSSL, certificate verification), `paramiko` 3.5.1 → 5.1.0 (SHA-1 with RSA keys). Stored secrets stay readable — the Fernet format is unchanged. SSH to the restore host was tested against a real SSH server with Ed25519 and RSA keys, SFTP and a changed host key.
+
+### Fixed
+
+- **SSH host-key check failed on a port other than 22.** The pinned key was stored under the host name, but for another port the client looks it up as `[host]:port`, so every connection was refused as "not found in known_hosts".
+
 ## [v3.20.2] — 2026-11-23
 
 ### Changed
