@@ -1003,7 +1003,7 @@ def test_apply_dnsmasq_reports_failure_without_crashing(monkeypatch, tmp_path):
         return R()
 
     monkeypatch.setattr(agent.subprocess, "run", fake_run)
-    out = agent.apply_dnsmasq("interface=sbx\n", [{"ip": "10.0.0.254", "prefix": 24}])
+    out = agent.apply_dnsmasq("10.0.0.200", "255.255.255.0", [{"ip": "10.0.0.254", "prefix": 24}])
     assert out["ok"] is False
     assert "dnsmasq" in out["dnsmasq_error"]
 
@@ -1053,7 +1053,7 @@ def test_agent_post_surfaces_error_body(monkeypatch):
 
     monkeypatch.setattr("urllib.request.urlopen", boom)
     with pytest.raises(RestoreTaskError) as exc:
-        srv._agent_post("10.9.0.10", "/dnsmasq", {"conf": "x"})
+        srv._agent_post("10.9.0.10", "/dnsmasq", {"guest_ip": "10.0.0.200"})
     assert "boom in apply_dnsmasq" in str(exc.value)
     assert "/dnsmasq" in str(exc.value)
 

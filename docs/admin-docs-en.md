@@ -94,7 +94,10 @@ Your reverse proxy should forward traffic to the OAuth2-Proxy container on port 
 | `DB_USER` | `backup_reports` | PostgreSQL user. |
 | `DB_PASSWORD` | `backup_reports` | PostgreSQL password. **Change this in production** -- and change `BSENTINEL_DATABASE_URL` along with it. |
 | `BSENTINEL_DATABASE_URL` | `postgresql://backup_reports:backup_reports@postgres:5432/backup_reports` | Full PostgreSQL connection string. **Not** derived from `DB_*`: if you change `DB_NAME`, `DB_USER` or `DB_PASSWORD`, set this to match. Also used for an external database. |
-| `BSENTINEL_SECRET_KEY` | *(empty)* | **Strongly recommended** — without it, secrets are stored unencrypted. Fernet key for encrypting secrets (SMTP password, Gotify token) in the database. Generate with: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `BSENTINEL_SECRET_KEY` | *(empty)* | **Required** — the app does not start without a valid key. Fernet key that encrypts the secrets in the database (PVE/PBS API tokens, enrollment secrets, restore-server credentials, SMTP password, Gotify token); it also keys the hash chain of the audit log. Keep a copy outside the server: without it the tokens cannot be read. Generate with: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `BSENTINEL_ADMINS` | *(empty)* | Who may do everything: e-mail addresses, user names or IdP groups, comma-separated. See [Roles](#roles). |
+| `BSENTINEL_OPERATORS` | *(empty)* | Who runs day-to-day operation (start syncs and restore tests, record tests, create interim reports). See [Roles](#roles). |
+| `BACKUP_AGE_RECIPIENT` | *(empty)* | age public key (`age1…`) that `backup.sh` encrypts the database dump to. |
 | `BSENTINEL_DEFAULT_TIMEZONE` | `Europe/Berlin` | Timezone for display formatting and quiet-hour calculations. |
 | `BSENTINEL_SYNC_INTERVAL_MINUTES` | `60` | Interval in minutes for the automatic background sync loop. |
 | `BSENTINEL_API_TIMEOUT` | `60` | Timeout in seconds for Proxmox/PBS API requests. |
@@ -174,7 +177,19 @@ These routes are excluded from authentication (`OAUTH2_PROXY_SKIP_AUTH_ROUTES` i
 
 - `GET /healthz` and `GET /metrics` -- for monitoring (see [Monitoring](#monitoring)); restrict them at the reverse proxy if needed.
 - `GET /bootstrap/proxmox-agent.sh` and `GET /bootstrap/pbs-agent.sh` -- the bootstrap scripts.
-- `POST /api/bootstrap/finalize` and `GET /api/bootstrap/pbs-finalize` -- so that Proxmox nodes can call back without a session. These calls are checked against the cluster's enrollment secret instead.
+- `POST /api/bootstrap/finalize` and `POST /api/bootstrap/pbs-finalize` -- so that Proxmox nodes can call back without a session. These calls are checked against the cluster's enrollment secret instead; it is valid for 24 hours. The secrets travel in the request body, not in the URL.
+
+### Roles
+
+OAuth2-Proxy decides who may sign in; Backup Sentinel decides what a signed-in user may do:
+
+| Role | May |
+|------|-----|
+| Viewer | See everything, download reports. Every signed-in user who is in neither list. |
+| Operator (`BSENTINEL_OPERATORS`) | Also: start a sync, start, cancel and reorder restore tests, record manual restore tests, create interim reports. |
+| Admin (`BSENTINEL_ADMINS`) | Everything: settings (the page itself too), add and delete clusters and PBS, change targets and intervals, delete archived reports. |
+
+The lists hold e-mail addresses, user names or groups, comma-separated and case-insensitive, e.g. `BSENTINEL_ADMINS=it-admins,alice@example.com`. Groups come from the `X-Forwarded-Groups` header, so OAuth2-Proxy must receive them from the IdP (scope or `OAUTH2_PROXY_OIDC_GROUPS_CLAIM`; Entra ID sends group IDs). With **both lists empty** there are no roles and every signed-in user is admin. Every state-changing route not explicitly open to operators needs admin.
 
 ---
 
@@ -213,6 +228,8 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/pbs-agent.sh) \
   --enrollment-secret <one-time-secret>
 ```
 
+The command is valid for 24 hours. After that the settings page shows the button **Create a new command** instead; the old command stops working at once.
+
 The script creates the user `backup-reports@pbs` and the API token `<cluster-slug>-collector`, grants both the read-only role `Audit` on `/` (see [Requirements](#requirements)) and registers the connection. The PBS name is the short host name, the API URL `https://<fqdn>:8007`. Optional flags:
 
 - `--api-url URL` -- use this API URL instead of `https://<fqdn>:8007`, e.g. when Backup Sentinel reaches the PBS under another name.
@@ -248,7 +265,7 @@ The PostgreSQL data is stored in the `./postgres` volume. To create a logical ba
 docker compose exec postgres pg_dump -U backup_reports backup_reports > backup_$(date +%Y%m%d).sql
 ```
 
-Alternatively run `./backup.sh` from the repository root (e.g. as a daily cron job). It reads `DB_USER` from `.env`, writes a `pg_dumpall` of the whole PostgreSQL instance to `./backup/<YYYY-MM-DD>.gz` and keeps the three most recent dumps. As a `pg_dumpall` it contains all databases and roles; restore it into a fresh instance (see [Reset](#reset), with the app stopped) via `gunzip -c backup/<date>.gz | docker compose exec -T postgres psql -U backup_reports postgres`.
+Alternatively run `./backup.sh` from the repository root (e.g. as a daily cron job). It reads `DB_USER` from `.env`, writes a `pg_dumpall` of the whole PostgreSQL instance to `./backup/<YYYY-MM-DD>.gz` and keeps the three most recent dumps. With `BACKUP_AGE_RECIPIENT` in `.env` (an [age](https://age-encryption.org) public key; `age` must be installed) the dump is encrypted to that key (`<YYYY-MM-DD>.gz.age`); the private key does not belong on this server. Without the variable the script warns and writes the dump unencrypted. Copy the dump to another host as well. As a `pg_dumpall` it contains all databases and roles; restore it into a fresh instance (see [Reset](#reset), with the app stopped) via `gunzip -c backup/<date>.gz | docker compose exec -T postgres psql -U backup_reports postgres`.
 
 ### Restore
 

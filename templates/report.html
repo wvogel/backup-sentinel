@@ -88,8 +88,8 @@
       {% for archived in archived_reports %}
       <tr>
         <td></td>
-        <td>{{ archived.report_month.strftime("%m/%Y") }}</td>
-        <td>{{ archived.generated_at|datetime_local }}</td>
+        <td>{{ archived.report_month.strftime("%m/%Y") }}{% if not archived.intact %} <span title="{{ t('reports.integrity_failed') }}">⚠</span>{% endif %}</td>
+        <td{% if archived.sha256 %} title="SHA-256 (PDF): {{ archived.sha256.get('all', '') }}"{% endif %}>{{ archived.generated_at|datetime_local }}</td>
         <td><span class="pill">{{ trigger_mode_labels.get(archived.trigger_mode, archived.trigger_mode) }}</span></td>
         <td><div class="archive-dl-cell">
           <a href="/reports/archive/{{ archived.id }}/pdf" class="archive-dl-btn" download>↓ {{ t('reports.all') if archived.files else 'PDF' }}</a>
@@ -98,7 +98,7 @@
           {%- endfor %}
         </div></td>
         <td><a href="/reports/archive/{{ archived.id }}/json" class="archive-dl-btn" download>↓ JSON</a></td>
-        <td>
+        <td>{% if role == 'admin' %}
           <button type="button" class="button-danger" style="padding: 3px 10px; font-size: 0.8rem;"
                   onclick="document.getElementById('del-dialog-{{ archived.id }}').showModal()">
             {{ t('common.delete') }}
@@ -113,7 +113,7 @@
               </form>
             </div>
           </dialog>
-        </td>
+        {% endif %}</td>
         <td></td>
       </tr>
       {% else %}

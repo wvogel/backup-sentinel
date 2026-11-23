@@ -21,6 +21,17 @@ class BootstrapPayload(BaseModel):
     commands: list[str]
 
 
+class PBSFinalize(BaseModel):
+    cluster_slug: str = Field(max_length=80)
+    enrollment_secret: str = Field(max_length=200)
+    name: str = Field(default="pbs", max_length=120)
+    api_url: str = Field(min_length=8, max_length=255)
+    api_token_id: str = Field(min_length=1, max_length=200)
+    api_token_secret: str = Field(min_length=1, max_length=400)
+    fingerprint: str = Field(default="", max_length=200)
+    namespace: str | None = Field(default=None, max_length=255)
+
+
 class BootstrapFinalize(BaseModel):
     cluster_slug: str
     enrollment_secret: str

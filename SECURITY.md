@@ -6,8 +6,8 @@ Security fixes are applied to the latest release only. If you are running an old
 
 | Version | Supported |
 |---------|-----------|
-| 2.x     | ✅        |
-| < 2.0   | ❌        |
+| 3.x     | ✅        |
+| < 3.0   | ❌        |
 
 ## Reporting a Vulnerability
 
@@ -55,7 +55,10 @@ Backup Sentinel follows these practices:
 
 - **Authentication** is delegated entirely to OAuth2-Proxy — the app trusts the `X-Forwarded-Email`, `X-Auth-Request-Email` and `X-Forwarded-User` headers it sets
 - **CSRF protection** by origin check (`app/web/csrf.py`): a state-changing request whose `Origin` / `Referer` names another site is rejected; requests without either header (non-browser clients such as the bootstrap scripts) pass
-- **Secrets** (Gotify token, SMTP password) are encrypted at rest using Fernet (AES-128-CBC + HMAC-SHA256)
+- **Authorization** by role (`app/web/auth.py`): viewer, operator, admin, from the e-mail, user name or groups the proxy forwards. Every state-changing route needs admin unless it is listed for operators; with no role lists configured every signed-in user is admin
+- **Secrets** (PVE/PBS API tokens, enrollment secrets, restore-server credentials, Gotify token, SMTP password) are encrypted at rest using Fernet (AES-128-CBC + HMAC-SHA256); a secret that cannot be encrypted is not stored
+- **Audit log** is append-only (a database trigger refuses UPDATE / DELETE / TRUNCATE) and carries a hash chain keyed with `BSENTINEL_SECRET_KEY`; archived reports carry SHA-256 checksums that are checked on every download
+- **Restore helper agent** accepts only requests with the bearer token the app derives for it, and builds its DHCP config itself from validated addresses
 - **Security headers** (CSP, X-Frame-Options, Referrer-Policy, etc.) are applied by middleware on every response
 - **Dependencies** are pinned to exact versions in `requirements.txt`
 - **No user-supplied HTML** is rendered without Jinja2 auto-escaping
@@ -66,4 +69,6 @@ Backup Sentinel follows these practices:
 
 - The app is designed to be deployed **behind OAuth2-Proxy**. Running it directly exposed to the internet is not supported and will allow unauthenticated access.
 - `/healthz` and `/metrics` are intentionally unauthenticated. Restrict them at the reverse proxy level if needed.
-- The bootstrap endpoints (`/bootstrap/proxmox-agent.sh`, `/bootstrap/pbs-agent.sh`, `/api/bootstrap/finalize`, `/api/bootstrap/pbs-finalize`) are unauthenticated by design — the scripts are public, and the finalize calls are checked against the per-cluster enrollment secret.
+- The bootstrap endpoints (`/bootstrap/proxmox-agent.sh`, `/bootstrap/pbs-agent.sh`, `/api/bootstrap/finalize`, `/api/bootstrap/pbs-finalize`) are unauthenticated by design — the scripts are public, and the finalize calls are checked against the per-cluster enrollment secret, which is valid for 24 hours and sent in the request body.
+- The audit-log chain shows changed or removed entries, but not entries cut off at the very end by someone with full database access; the `report.generated` entries and the checksums in exported reports are the cross-check.
+- The helper agent's token is claimed by the first caller; the app calls a new helper within seconds of its boot.

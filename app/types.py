@@ -125,6 +125,7 @@ class MonthlyReportRow(TypedDict):
     snapshot_json: dict[str, Any]
     files: dict[str, str] | None
     format: int
+    sha256: dict[str, str] | None
 
 
 class AuditLogRow(TypedDict):

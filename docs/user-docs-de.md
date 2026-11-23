@@ -276,7 +276,11 @@ Ein Seitenbereich fasst die NIST-CSF-2.0-Ausrichtung zusammen:
 
 ### Einstellungs-Auditlog
 
-Änderungen an Einstellungen werden mit Zeitstempel und dem ändernden Benutzer protokolliert (abgeleitet aus den OAuth2-Proxy-Headern).
+Änderungen an Einstellungen werden mit Zeitstempel und dem ändernden Benutzer protokolliert (abgeleitet aus den OAuth2-Proxy-Headern), ebenso das Anlegen und Löschen von Clustern und PBS, manuell eingetragene Restore-Tests sowie jedes Erzeugen und Löschen eines Berichts samt dessen SHA-256-Prüfsumme.
+
+Das Protokoll lässt sich nur fortschreiben: Die Datenbank lehnt Ändern und Löschen ab, und jeder Eintrag trägt eine Prüfsumme über sich und seinen Vorgänger. Über der Tabelle steht, ob die Kette stimmt – oder ab welchem Eintrag nicht mehr.
+
+Archivierte Berichte tragen ebenfalls eine SHA-256-Prüfsumme (Tooltip auf dem Erstellungsdatum). Weicht eine Datei später davon ab, zeigt das Archiv ein ⚠ und der Download wird verweigert. Löschen dürfen nur Admins.
 
 ---
 

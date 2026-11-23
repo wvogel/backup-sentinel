@@ -94,7 +94,10 @@ Ihr Reverse Proxy sollte den Traffic an den OAuth2-Proxy-Container auf Port **41
 | `DB_USER` | `backup_reports` | PostgreSQL-Benutzer. |
 | `DB_PASSWORD` | `backup_reports` | PostgreSQL-Passwort. **In Produktion ändern** -- und `BSENTINEL_DATABASE_URL` mit anpassen. |
 | `BSENTINEL_DATABASE_URL` | `postgresql://backup_reports:backup_reports@postgres:5432/backup_reports` | Vollständiger PostgreSQL-Connection-String. Wird **nicht** aus `DB_*` abgeleitet: Wer `DB_NAME`, `DB_USER` oder `DB_PASSWORD` ändert, muss ihn passend setzen. Auch für eine externe Datenbank. |
-| `BSENTINEL_SECRET_KEY` | *(leer)* | **Dringend empfohlen** – ohne ihn werden Secrets unverschlüsselt gespeichert. Fernet-Schlüssel für die Verschlüsselung von Secrets (SMTP-Passwort, Gotify-Token) in der Datenbank. Generieren mit: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `BSENTINEL_SECRET_KEY` | *(leer)* | **Pflicht** – ohne gültigen Schlüssel startet die Anwendung nicht. Fernet-Schlüssel, mit dem die Secrets in der Datenbank verschlüsselt werden (PVE-/PBS-API-Tokens, Enrollment-Secrets, Restore-Server-Zugang, SMTP-Passwort, Gotify-Token); er sichert außerdem die Prüfkette des Audit-Logs. Eine Kopie außerhalb des Servers aufbewahren: ohne ihn sind die Tokens nicht lesbar. Generieren mit: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `BSENTINEL_ADMINS` | *(leer)* | Wer alles darf: E-Mail-Adressen, Benutzernamen oder IdP-Gruppen, kommagetrennt. Siehe [Rollen](#rollen). |
+| `BSENTINEL_OPERATORS` | *(leer)* | Wer den Betrieb führt (Syncs und Restore-Tests starten, Tests eintragen, Zwischenberichte erzeugen). Siehe [Rollen](#rollen). |
+| `BACKUP_AGE_RECIPIENT` | *(leer)* | Öffentlicher age-Schlüssel (`age1…`), an den `backup.sh` den Datenbank-Dump verschlüsselt. |
 | `BSENTINEL_DEFAULT_TIMEZONE` | `Europe/Berlin` | Zeitzone für Anzeigeformatierung und Ruhezeiten-Berechnung. |
 | `BSENTINEL_SYNC_INTERVAL_MINUTES` | `60` | Intervall in Minuten für die automatische Hintergrund-Synchronisation. |
 | `BSENTINEL_API_TIMEOUT` | `60` | Timeout in Sekunden für Proxmox/PBS-API-Anfragen. |
@@ -174,7 +177,19 @@ Diese Routen sind von der Authentifizierung ausgenommen (`OAUTH2_PROXY_SKIP_AUTH
 
 - `GET /healthz` und `GET /metrics` -- für das Monitoring (siehe [Monitoring](#monitoring)); bei Bedarf am Reverse Proxy einschränken.
 - `GET /bootstrap/proxmox-agent.sh` und `GET /bootstrap/pbs-agent.sh` -- die Bootstrap-Skripte.
-- `POST /api/bootstrap/finalize` und `GET /api/bootstrap/pbs-finalize` -- damit Proxmox-Nodes ohne Session zurückrufen können. Diese Aufrufe werden stattdessen gegen das Enrollment-Secret des Clusters geprüft.
+- `POST /api/bootstrap/finalize` und `POST /api/bootstrap/pbs-finalize` -- damit Proxmox-Nodes ohne Session zurückrufen können. Diese Aufrufe werden stattdessen gegen das Enrollment-Secret des Clusters geprüft; es gilt 24 Stunden. Die Secrets stehen im Anfragekörper, nicht in der URL.
+
+### Rollen
+
+Der OAuth2-Proxy entscheidet, wer sich anmelden darf; Backup Sentinel entscheidet, was ein angemeldeter Benutzer tun darf:
+
+| Rolle | Darf |
+|-------|------|
+| Lesen | Alles ansehen, Berichte herunterladen. Jeder angemeldete Benutzer, der in keiner Liste steht. |
+| Betrieb (`BSENTINEL_OPERATORS`) | Zusätzlich: Sync starten, Restore-Tests starten, abbrechen und umsortieren, manuelle Restore-Tests eintragen, Zwischenberichte erzeugen. |
+| Admin (`BSENTINEL_ADMINS`) | Alles: Einstellungen (auch die Seite selbst), Cluster und PBS anlegen und löschen, Sollwerte und Intervalle ändern, archivierte Berichte löschen. |
+
+Die Listen enthalten E-Mail-Adressen, Benutzernamen oder Gruppen, kommagetrennt, Groß-/Kleinschreibung egal, z. B. `BSENTINEL_ADMINS=it-admins,alice@example.com`. Gruppen kommen aus dem Header `X-Forwarded-Groups`; dafür muss der OAuth2-Proxy sie vom IdP erhalten (Scope bzw. `OAUTH2_PROXY_OIDC_GROUPS_CLAIM`; Entra ID liefert Gruppen-IDs). Sind **beide Listen leer**, gibt es keine Rollen und jeder angemeldete Benutzer ist Admin. Jede ändernde Route, die nicht ausdrücklich dem Betrieb erlaubt ist, verlangt Admin.
 
 ---
 
@@ -213,6 +228,8 @@ bash <(curl -fsSL https://backup-sentinel.example.com/bootstrap/pbs-agent.sh) \
   --enrollment-secret <einmal-secret>
 ```
 
+Der Befehl gilt 24 Stunden. Danach zeigt die Einstellungsseite statt des Befehls die Schaltfläche **Neuen Befehl erzeugen**; der alte Befehl wird damit sofort ungültig.
+
 Das Skript legt den Benutzer `backup-reports@pbs` und den API-Token `<cluster-slug>-collector` an, gibt beiden die rein lesende Rolle `Audit` auf `/` (siehe [Voraussetzungen](#voraussetzungen)) und registriert die Verbindung. Als PBS-Name dient der kurze Hostname, als API-URL `https://<fqdn>:8007`. Optionale Parameter:
 
 - `--api-url URL` -- diese API-URL statt `https://<fqdn>:8007` verwenden, z. B. wenn Backup Sentinel den PBS unter einem anderen Namen erreicht.
@@ -248,7 +265,7 @@ Die PostgreSQL-Daten liegen im Volume `./postgres`. Für ein logisches Backup:
 docker compose exec postgres pg_dump -U backup_reports backup_reports > backup_$(date +%Y%m%d).sql
 ```
 
-Alternativ `./backup.sh` im Repository-Hauptverzeichnis ausführen (z. B. täglich per Cron). Es liest `DB_USER` aus der `.env`, schreibt einen `pg_dumpall` der gesamten PostgreSQL-Instanz nach `./backup/<JJJJ-MM-TT>.gz` und behält die drei jüngsten Dumps. Als `pg_dumpall` enthält er alle Datenbanken und Rollen; zurückspielen in eine frische Instanz (siehe [Zurücksetzen](#zurücksetzen), Anwendung gestoppt) mit `gunzip -c backup/<datum>.gz | docker compose exec -T postgres psql -U backup_reports postgres`.
+Alternativ `./backup.sh` im Repository-Hauptverzeichnis ausführen (z. B. täglich per Cron). Es liest `DB_USER` aus der `.env`, schreibt einen `pg_dumpall` der gesamten PostgreSQL-Instanz nach `./backup/<JJJJ-MM-TT>.gz` und behält die drei jüngsten Dumps. Mit `BACKUP_AGE_RECIPIENT` in der `.env` (öffentlicher [age](https://age-encryption.org)-Schlüssel, `age` muss installiert sein) wird der Dump an diesen Schlüssel verschlüsselt (`<JJJJ-MM-TT>.gz.age`); der private Schlüssel gehört nicht auf diesen Server. Ohne die Variable warnt das Skript und schreibt unverschlüsselt. Den Dump zusätzlich auf einen anderen Host kopieren. Als `pg_dumpall` enthält er alle Datenbanken und Rollen; zurückspielen in eine frische Instanz (siehe [Zurücksetzen](#zurücksetzen), Anwendung gestoppt) mit `gunzip -c backup/<datum>.gz | docker compose exec -T postgres psql -U backup_reports postgres`.
 
 ### Wiederherstellung
 

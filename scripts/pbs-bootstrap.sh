@@ -115,19 +115,35 @@ PBS_NAME="$(hostname -s)"
 
 # ── Register with backup-sentinel ─────────────────────────────────────────────
 # Re-runs without --namespace keep the namespace configured in the UI.
-NAMESPACE_ARGS=()
+# Sent as a JSON body on stdin: the secrets appear neither in the URL (proxies
+# log it) nor in the process list.
+json_str() {
+  local s="${1//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  printf '"%s"' "$s"
+}
+NAMESPACE_JSON=""
 if [[ "$NAMESPACE_SET" == 1 ]]; then
-  NAMESPACE_ARGS=(--data-urlencode "namespace=${NAMESPACE}")
+  NAMESPACE_JSON=", \"namespace\": $(json_str "$NAMESPACE")"
 fi
-curl -fsSL -G "${SERVER_URL}/api/bootstrap/pbs-finalize" \
-  --data-urlencode "cluster_slug=${CLUSTER_SLUG}" \
-  --data-urlencode "enrollment_secret=${ENROLLMENT_SECRET}" \
-  --data-urlencode "name=${PBS_NAME}" \
-  --data-urlencode "api_url=${PBS_API_URL}" \
-  --data-urlencode "api_token_id=${TOKEN_ID}" \
-  --data-urlencode "api_token_secret=${TOKEN_SECRET}" \
-  --data-urlencode "fingerprint=${FINGERPRINT}" \
-  "${NAMESPACE_ARGS[@]}"
+if ! curl -fsSL -X POST "${SERVER_URL}/api/bootstrap/pbs-finalize" \
+  -H "Content-Type: application/json" \
+  --data-binary @- <<JSON
+{
+  "cluster_slug": $(json_str "$CLUSTER_SLUG"),
+  "enrollment_secret": $(json_str "$ENROLLMENT_SECRET"),
+  "name": $(json_str "$PBS_NAME"),
+  "api_url": $(json_str "$PBS_API_URL"),
+  "api_token_id": $(json_str "$TOKEN_ID"),
+  "api_token_secret": $(json_str "$TOKEN_SECRET"),
+  "fingerprint": $(json_str "$FINGERPRINT")${NAMESPACE_JSON}
+}
+JSON
+then
+  echo "Registration refused. The onboarding command is valid for 24 hours:" >&2
+  echo "create a new one in Backup Sentinel under Settings and run it again." >&2
+  exit 1
+fi
 
 echo ""
 echo "PBS ${PBS_NAME} registered for cluster '${CLUSTER_SLUG}'."

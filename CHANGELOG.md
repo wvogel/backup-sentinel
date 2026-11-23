@@ -5,6 +5,25 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.20.0] — 2026-11-23
+
+Security hardening after a review of the application. **Before updating:** the PBS onboarding command changes (see below), and `BSENTINEL_SECRET_KEY` now also protects the PVE/PBS API tokens — keep a copy of it outside the server.
+
+### Added
+
+- **Roles: viewer, operator, admin.** Until now every signed-in user could do everything. `BSENTINEL_ADMINS` and `BSENTINEL_OPERATORS` list e-mail addresses, user names or IdP groups (from `X-Forwarded-Groups`). Operators start syncs and restore tests, record manual tests and create interim reports; settings, clusters, targets and deleting reports need admin; everyone else reads. Any state-changing route not listed for operators needs admin. With both lists empty nothing changes: every signed-in user is admin.
+- **Archived reports carry SHA-256 checksums.** Recorded when a report is written (existing reports once at start), shown as a tooltip in the archive and checked on every download: a file that was changed is marked ⚠ and no longer handed out.
+- **The audit log is append-only and chained.** The database refuses UPDATE, DELETE and TRUNCATE on it, and every entry carries a hash over itself and the entry before, keyed with `BSENTINEL_SECRET_KEY`. Settings → Audit shows whether the chain holds, or at which entry it breaks. Creating and deleting reports (with checksum and user) and renewing an enrollment command are now logged.
+- **`backup.sh` can encrypt the dump** to an age public key (`BACKUP_AGE_RECIPIENT`); without it the script warns. The backup directory is now readable by its owner only.
+
+### Changed
+
+- **PVE and PBS API tokens and enrollment secrets are stored encrypted.** They were plaintext in the database; only the SMTP password, Gotify token and restore-server credentials were encrypted. Existing values are encrypted at the first start. A value that cannot be encrypted is no longer stored in plaintext as a fallback.
+- **Enrollment secrets expire after 24 hours**, and the PBS registration is a POST with a JSON body — the token and the secret no longer appear in the URL, where proxies log them. Settings shows the PBS command only while it is valid, otherwise a button that creates a new one (the old one stops working). **Secrets issued before this update count as expired; an old copy of the PBS command or script no longer works.** The comparison is constant-time, and only `https://` PBS URLs are accepted.
+- **The restore helper agent requires a token and no longer accepts a config text.** It took any dnsmasq config from anyone who could reach its port on the management network. The app now sends a bearer token derived from `BSENTINEL_SECRET_KEY`, and the agent builds the config itself from a validated IPv4 address and netmask. A new helper template is uploaded automatically.
+- **Deleting an archived report needs admin** and leaves an audit entry.
+- `SECURITY.md` named 2.x as the supported version; it is 3.x.
+
 ## [v3.19.14] — 2026-11-22
 
 ### Fixed

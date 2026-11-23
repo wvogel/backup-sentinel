@@ -1,4 +1,6 @@
-"""Symmetric encryption for sensitive settings (SMTP password, Gotify token).
+"""Symmetric encryption for the secrets stored in the database (PVE/PBS API
+tokens, enrollment secrets, restore-server credentials, SMTP password, Gotify
+token).
 
 Requires BSENTINEL_SECRET_KEY to be set to a valid Fernet key.
 Generate one with:
@@ -28,11 +30,34 @@ def encrypt(plaintext: str) -> str:
     """Encrypt a string. Returns plaintext unchanged if no key is configured."""
     if not plaintext or not SECRET_KEY:
         return plaintext
+    # No fallback to plaintext: a secret that cannot be encrypted is not stored.
+    return _fernet().encrypt(plaintext.encode()).decode()
+
+
+def is_encrypted(value: str) -> bool:
+    """Whether `value` is a token of the configured key (False without a key)."""
+    if not value or not SECRET_KEY:
+        return False
     try:
-        return _fernet().encrypt(plaintext.encode()).decode()
-    except Exception as exc:
-        logger.warning("Encryption failed: %s", exc)
-        return plaintext
+        _fernet().decrypt(value.encode())
+    except Exception:
+        return False
+    return True
+
+
+def encrypt_once(value: str) -> str:
+    """Encrypt unless `value` already is — for values read back and stored again."""
+    return value if is_encrypted(value) else encrypt(value)
+
+
+def keyed_digest(purpose: str, message: str) -> str:
+    """HMAC-SHA256 under a key derived from BSENTINEL_SECRET_KEY: a digest that
+    cannot be recomputed with database access alone."""
+    import hashlib
+    import hmac
+
+    key = hashlib.sha256(f"bsentinel:{purpose}:{SECRET_KEY}".encode()).digest()
+    return hmac.new(key, message.encode(), hashlib.sha256).hexdigest()
 
 
 def decrypt(ciphertext: str) -> str:

@@ -90,7 +90,7 @@
         </div>
       </div>
 
-      <div class="pbs-bootstrap-row hidden" id="pbs-bootstrap-{{ cluster.id }}">
+      <div class="pbs-bootstrap-row{% if enroll_open != cluster.id %} hidden{% endif %}" id="pbs-bootstrap-{{ cluster.id }}">
         <div class="pbs-bootstrap-panel">
           <div class="section-head" style="margin-bottom:0.5rem;">
             <div>
@@ -101,10 +101,18 @@
             </button>
           </div>
           <p class="muted" style="margin:0 0 0.5rem;">{{ t('settings.pbs_note')|safe }}</p>
+          {% if cluster.enrollment_active %}
           <pre id="pbs-cmd-{{ cluster.id }}" class="bootstrap-pre">bash &lt;(curl -fsSL {{ app_base_url }}/bootstrap/pbs-agent.sh) \
   --server-url {{ app_base_url }} \
   --cluster-slug {{ cluster.slug }} \
   --enrollment-secret {{ cluster.enrollment_secret }}</pre>
+          <p class="muted" style="margin:0.5rem 0 0;">{{ t('settings.enrollment_valid_until', time=cluster.enrollment_expires_at|datetime_local) }}</p>
+          {% else %}
+          <pre id="pbs-cmd-{{ cluster.id }}" class="bootstrap-pre">{{ t('settings.enrollment_expired') }}</pre>
+          <form method="post" action="/clusters/{{ cluster.slug }}/enrollment/renew" style="margin:0.5rem 0 0;">
+            <button type="submit" class="button-secondary">{{ t('settings.enrollment_renew') }}</button>
+          </form>
+          {% endif %}
           <p class="bootstrap-poll-status muted js-pbs-poll-status" data-cluster-slug="{{ cluster.slug }}" data-initial-count="{{ cluster.pbs_connections|length }}">
             {{ t('settings.waiting_bootstrap') }}
           </p>
@@ -617,6 +625,10 @@
 <fieldset class="dash-section" id="audit">
   <legend>{{ t('settings.audit_title') }}</legend>
   <table>
+    <caption class="muted" style="caption-side: top; text-align: left; padding: 0 0 8px;">
+      {% if audit_chain.ok %}✓ {{ t('settings.audit_chain_ok', count=audit_chain.entries) }}
+      {% else %}⚠ {{ t('settings.audit_chain_broken', id=audit_chain.broken_at) }}{% endif %}
+    </caption>
     <thead>
       <tr>
         <th>{{ t('settings.th_time') }}</th>

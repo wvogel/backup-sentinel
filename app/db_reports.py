@@ -106,17 +106,19 @@ def archive_monthly_report(
     report: dict[str, Any],
     files: dict[str, str] | None = None,
     report_format: int = 1,
+    sha256: dict[str, str] | None = None,
 ) -> None:
     """Archive one generation. `files` maps "all" / a cluster slug to its PDF;
-    `report_format` is the layout version it was rendered with."""
+    `report_format` is the layout version it was rendered with; `sha256` holds
+    the hash of every file written ("all" / cluster slug / "json")."""
     now = datetime.now(UTC)
     snapshot = serialize_report_payload(report)
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO monthly_reports
-                (report_month, generated_at, trigger_mode, pdf_path, json_path, snapshot_json, files, format)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                (report_month, generated_at, trigger_mode, pdf_path, json_path, snapshot_json, files, format, sha256)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 report_month,
@@ -127,8 +129,15 @@ def archive_monthly_report(
                 Jsonb(snapshot),
                 Jsonb(files) if files is not None else None,
                 report_format,
+                Jsonb(sha256) if sha256 is not None else None,
             ),
         )
+        conn.commit()
+
+
+def set_monthly_report_hashes(report_id: int, sha256: dict[str, str]) -> None:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE monthly_reports SET sha256 = %s WHERE id = %s", (Jsonb(sha256), report_id))
         conn.commit()
 
 
@@ -136,7 +145,7 @@ def list_monthly_reports() -> list[MonthlyReportRow]:
     with connect() as conn, conn.cursor() as cur:
         # Without the snapshot: old reports stored every backup event there.
         cur.execute(
-            "SELECT id, report_month, generated_at, trigger_mode, pdf_path, json_path, files, format"
+            "SELECT id, report_month, generated_at, trigger_mode, pdf_path, json_path, files, format, sha256"
             " FROM monthly_reports ORDER BY generated_at DESC"
         )
         return list(cur.fetchall())

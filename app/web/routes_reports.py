@@ -14,9 +14,14 @@ from app import db
 from app.config import DEFAULT_TIMEZONE, REPORT_LANGUAGE
 from app.services.nis2_render import render_html
 from app.services.nis2_report import build_nis2_report, cluster_view
-from app.services.report_archive import generate_archived_report, remove_archived_files
+from app.services.report_archive import (
+    delete_archived_report,
+    file_intact,
+    generate_archived_report,
+    report_intact,
+)
 from app.services.theme_store import active_theme
-from app.web.common import common_context, templates
+from app.web.common import common_context, settings_actor, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -47,6 +52,7 @@ def reports_page(request: Request) -> HTMLResponse:
         row["cluster_files"] = sorted(
             ((slug, slug_names.get(slug, slug)) for slug in files if slug != "all"), key=lambda f: f[1].casefold()
         )
+        row["intact"] = report_intact(row)
     return templates.TemplateResponse(
         request,
         "report.html",
@@ -66,19 +72,27 @@ def report_preview(cluster: str | None = None, month: str | None = None) -> HTML
 
 
 @router.post("/reports/generate")
-async def generate_report() -> RedirectResponse:
+async def generate_report(request: Request) -> RedirectResponse:
     """Interim report: the current month up to now."""
     now = datetime.now(UTC)
-    await asyncio.get_running_loop().run_in_executor(None, generate_archived_report, _current_month(now), "manual", now)
+    await asyncio.get_running_loop().run_in_executor(
+        None, generate_archived_report, _current_month(now), "manual", now, settings_actor(request)
+    )
     return RedirectResponse(url="/reports", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/reports/archive/{report_id}/delete")
-def delete_report(report_id: int) -> RedirectResponse:
-    deleted = db.delete_monthly_report(report_id)
-    if deleted:
-        remove_archived_files(deleted)
+def delete_report(request: Request, report_id: int) -> RedirectResponse:
+    """Admin only (app.web.auth); the audit log keeps who deleted which report."""
+    delete_archived_report(report_id, settings_actor(request))
     return RedirectResponse(url="/reports", status_code=status.HTTP_303_SEE_OTHER)
+
+
+def _require_intact(archived: dict, key: str) -> None:
+    """Refuse to hand out an archived file that no longer matches its recorded hash."""
+    if file_intact(archived, key) is False:
+        logger.error("Archived report %s (%s) failed its integrity check", archived["id"], key)
+        raise HTTPException(status_code=409, detail="Report file was changed after it was archived")
 
 
 def _download_name(archived: dict, suffix: str, ext: str) -> str:
@@ -99,6 +113,7 @@ def download_report_pdf(report_id: int, scope: str = "all") -> FileResponse:
     path = files.get(scope) or (archived["pdf_path"] if scope == "all" else None)
     if not path or not Path(path).exists():
         raise HTTPException(status_code=404, detail="Report file not found")
+    _require_intact(archived, scope)
     return FileResponse(
         path=path,
         media_type="application/pdf",
@@ -112,6 +127,7 @@ def download_report_json(report_id: int) -> FileResponse:
     archived = db.get_monthly_report(report_id)
     if not archived:
         raise HTTPException(status_code=404, detail="Report not found")
+    _require_intact(archived, "json")
     return FileResponse(
         path=archived["json_path"],
         media_type="application/json",

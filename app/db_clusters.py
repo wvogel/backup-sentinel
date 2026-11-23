@@ -2,11 +2,28 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.db_core import connect
+from app.services.crypto import decrypt, encrypt, encrypt_once
 from app.types import ClusterRow, NodeRow, PBSConnectionRow, VMRow
+
+# How long an enrollment secret (the one in the onboarding commands) is accepted.
+ENROLLMENT_VALID_HOURS = 24
+
+# Stored encrypted (app.services.crypto); the rows handed out carry plaintext.
+_CLUSTER_SECRETS = ("enrollment_secret", "token_secret")
+_PBS_SECRETS = ("api_token_secret",)
+
+
+def _open(row: Any, columns: tuple[str, ...]) -> Any:
+    """Decrypt the secret columns of a row read from the database."""
+    if row:
+        for column in columns:
+            if row.get(column):
+                row[column] = decrypt(row[column])
+    return row
 
 
 def create_cluster(name: str, slug: str, api_url: str, enrollment_secret: str) -> None:
@@ -14,24 +31,78 @@ def create_cluster(name: str, slug: str, api_url: str, enrollment_secret: str) -
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO clusters (name, slug, api_url, enrollment_secret, created_at)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO clusters (name, slug, api_url, enrollment_secret, enrollment_expires_at, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
-            (name, slug, api_url.rstrip("/"), enrollment_secret, now),
+            (
+                name,
+                slug,
+                api_url.rstrip("/"),
+                encrypt(enrollment_secret),
+                now + timedelta(hours=ENROLLMENT_VALID_HOURS),
+                now,
+            ),
         )
         conn.commit()
+
+
+def renew_enrollment(cluster_id: int, enrollment_secret: str) -> None:
+    """Replace the enrollment secret; the old one stops working at once."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE clusters SET enrollment_secret = %s, enrollment_expires_at = %s WHERE id = %s",
+            (
+                encrypt(enrollment_secret),
+                datetime.now(UTC) + timedelta(hours=ENROLLMENT_VALID_HOURS),
+                cluster_id,
+            ),
+        )
+        conn.commit()
+
+
+def enrollment_active(cluster: Any, now: datetime | None = None) -> bool:
+    expires = cluster.get("enrollment_expires_at") if cluster else None
+    return bool(expires and expires > (now or datetime.now(UTC)))
+
+
+def enrollment_secret_matches(cluster: Any, presented: str, now: datetime | None = None) -> bool:
+    """Whether `presented` is the cluster's enrollment secret and still valid."""
+    import hmac
+
+    stored = (cluster or {}).get("enrollment_secret") or ""
+    same = hmac.compare_digest(stored.encode(), (presented or "").encode())
+    return bool(stored) and same and enrollment_active(cluster, now)
+
+
+def encrypt_stored_secrets() -> int:
+    """Encrypt API tokens and enrollment secrets still stored in plaintext
+    (installations from before they were encrypted). Idempotent; returns how
+    many values it encrypted."""
+    changed = 0
+    with connect() as conn, conn.cursor() as cur:
+        for table, columns in (("clusters", _CLUSTER_SECRETS), ("pbs_connections", _PBS_SECRETS)):
+            cur.execute(f"SELECT id, {', '.join(columns)} FROM {table}")
+            for row in cur.fetchall():
+                for column in columns:
+                    value = row[column]
+                    sealed = encrypt_once(value) if value else value
+                    if sealed != value:
+                        cur.execute(f"UPDATE {table} SET {column} = %s WHERE id = %s", (sealed, row["id"]))
+                        changed += 1
+        conn.commit()
+    return changed
 
 
 def list_clusters() -> list[ClusterRow]:
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT * FROM clusters ORDER BY name")
-        return list(cur.fetchall())
+        return [_open(row, _CLUSTER_SECRETS) for row in cur.fetchall()]
 
 
 def get_cluster_by_slug(cluster_slug: str) -> ClusterRow | None:
     with connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT * FROM clusters WHERE slug = %s", (cluster_slug,))
-        return cur.fetchone()
+        return _open(cur.fetchone(), _CLUSTER_SECRETS)
 
 
 def set_cluster_report_since(cluster_id: int, month: date | None) -> None:
@@ -56,16 +127,15 @@ def finalize_cluster_registration(payload: dict[str, str]) -> None:
             """
             UPDATE clusters
             SET api_user = %s, token_id = %s, token_secret = %s, fingerprint = %s, registered_at = %s
-            WHERE slug = %s AND enrollment_secret = %s
+            WHERE slug = %s
             """,
             (
                 payload["api_user"],
                 payload["token_id"],
-                payload["token_secret"],
+                encrypt(payload["token_secret"]),
                 payload["fingerprint"],
                 now,
                 payload["cluster_slug"],
-                payload["enrollment_secret"],
             ),
         )
         conn.commit()
@@ -214,7 +284,7 @@ def rename_cluster(cluster_id: int, new_name: str, new_slug: str) -> ClusterRow 
         )
         row = cur.fetchone()
         conn.commit()
-        return dict(row) if row else None
+        return _open(dict(row), _CLUSTER_SECRETS) if row else None
 
 
 def update_cluster_sync_status(cluster_id: int, ok: bool, log: str) -> None:
@@ -268,7 +338,7 @@ def list_clusters_with_sync_overdue(threshold_hours: int = 24) -> list[ClusterRo
             """,
             (threshold_hours,),
         )
-        return list(cur.fetchall())
+        return [_open(row, _CLUSTER_SECRETS) for row in cur.fetchall()]
 
 
 def mark_cluster_sync_overdue_notified(cluster_id: int) -> None:
@@ -345,7 +415,7 @@ def upsert_pbs_connection(cluster_id: int, payload: dict[str, Any]) -> None:
                 payload["name"],
                 payload["api_url"].rstrip("/"),
                 payload["api_token_id"],
-                payload["api_token_secret"],
+                encrypt(payload["api_token_secret"]),
                 payload.get("fingerprint", ""),
                 payload.get("namespace"),
                 now,
@@ -364,7 +434,7 @@ def list_pbs_connections(cluster_id: int | None = None) -> list[PBSConnectionRow
     query += " ORDER BY created_at ASC"
     with connect() as conn, conn.cursor() as cur:
         cur.execute(query, params)
-        return list(cur.fetchall())
+        return [_open(row, _PBS_SECRETS) for row in cur.fetchall()]
 
 
 def normalize_namespace(namespace: str) -> str:

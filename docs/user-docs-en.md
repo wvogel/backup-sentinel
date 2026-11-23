@@ -276,7 +276,11 @@ A sidebar panel summarizes the NIST CSF 2.0 alignment:
 
 ### Settings Audit Log
 
-Changes to settings are logged with a timestamp and the user who made the change (derived from the OAuth2 proxy headers).
+Changes to settings are logged with a timestamp and the user who made them (taken from the OAuth2-Proxy headers), and so are adding and deleting clusters and PBS, manually recorded restore tests, and every report created or deleted, with its SHA-256 checksum.
+
+The log can only grow: the database refuses changes and deletions, and every entry carries a checksum over itself and the entry before it. The line above the table says whether the chain holds — or from which entry it does not.
+
+Archived reports carry a SHA-256 checksum too (tooltip on the creation date). If a file later differs from it, the archive shows a ⚠ and the download is refused. Only admins may delete reports.
 
 ---
 

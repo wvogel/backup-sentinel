@@ -23,6 +23,7 @@ def settings(request: Request) -> HTMLResponse:
     clusters = sorted(db.list_clusters(), key=lambda c: c["name"].lower())
     for cluster in clusters:
         cluster["pbs_connections"] = db.list_pbs_connections(cluster["id"])
+        cluster["enrollment_active"] = db.enrollment_active(cluster)
     all_settings = db.get_settings_dict()
     all_settings["gotify_token"] = ""
     all_settings["email_password"] = ""
@@ -35,6 +36,10 @@ def settings(request: Request) -> HTMLResponse:
         "app_base_url": APP_BASE_URL.rstrip("/"),
         "app_settings": all_settings,
         "settings_audit": db.list_settings_audit_entries(50),
+        "audit_chain": db.verify_audit_log(),
+        "enroll_open": int(request.query_params.get("enroll") or 0)
+        if (request.query_params.get("enroll") or "").isdigit()
+        else 0,
         "rc": restore_config.public_config(),
         "restore_storages": _rs.get("rows", []),
         "restore_storage_error": _rs.get("error"),

@@ -339,6 +339,7 @@ def common_context(request: Request) -> dict:
         "brand_logo_light_url": BRAND_LOGO_LIGHT_URL,
         "brand_logo_dark_url": BRAND_LOGO_DARK_URL,
         "current_user": _forwarded_user(request) or t("common.logged_in"),
+        "role": getattr(request.state, "role", "admin"),
         "app_version": APP_VERSION,
         "footer_links": _footer_links,
         "copyright_text": COPYRIGHT_TEXT,

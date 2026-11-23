@@ -13,6 +13,7 @@ from starlette.requests import Request
 from app import db
 from app.config import APP_VERSION, DEBUG, SECRET_KEY
 from app.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, set_language
+from app.web.auth import RoleMiddleware
 from app.web.csrf import OriginCheckMiddleware
 from app.web.routes_bootstrap import router as bootstrap_router
 from app.web.routes_clusters import router as clusters_router
@@ -59,6 +60,12 @@ async def lifespan(app: FastAPI):
         await asyncio.get_event_loop().run_in_executor(None, reconcile_and_resume_restores)
     except Exception as exc:
         logging.getLogger(__name__).error("restore reconcile/resume on startup failed: %s", exc)
+    try:
+        from app.services.report_archive import seal_archived_reports
+
+        await asyncio.get_event_loop().run_in_executor(None, seal_archived_reports)
+    except Exception as exc:
+        logging.getLogger(__name__).error("recording report hashes on startup failed: %s", exc)
     sync_task = asyncio.create_task(auto_sync_loop())
     restore_queue_task = asyncio.create_task(restore_queue_loop())
     yield
@@ -134,6 +141,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="Backup Sentinel", lifespan=lifespan)
 app.add_middleware(LanguageMiddleware)
+app.add_middleware(RoleMiddleware)
 app.add_middleware(OriginCheckMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIDMiddleware)

@@ -25,7 +25,83 @@ REPORT_FORMAT = 3
 _FORMAT_SETTING = "report_archive_format"
 
 
-def generate_archived_report(month: date, trigger_mode: str, now: datetime | None = None) -> Path:
+def file_sha256(path: str | Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _paths(row: dict[str, Any]) -> dict[str, str]:
+    """The archived files of a report by key: "all" / a cluster slug / "json"."""
+    files = dict(row.get("files") or {"all": row["pdf_path"]})
+    files["json"] = row["json_path"]
+    return files
+
+
+def file_intact(row: dict[str, Any], key: str) -> bool | None:
+    """Whether the archived file `key` still has the hash recorded when it was
+    written. None: no hash recorded (should not happen after the start-up seal)."""
+    recorded = (row.get("sha256") or {}).get(key)
+    path = _paths(row).get(key)
+    if not recorded or not path:
+        return None
+    try:
+        return file_sha256(path) == recorded
+    except OSError:
+        return False
+
+
+def report_intact(row: dict[str, Any]) -> bool:
+    """False as soon as one archived file is missing or was changed."""
+    return all(file_intact(row, key) is not False for key in _paths(row))
+
+
+def seal_archived_reports() -> int:
+    """Record the hashes of reports archived before hashes existed. Returns how many."""
+    sealed = 0
+    for row in db.list_monthly_reports():
+        if row.get("sha256"):
+            continue
+        hashes = {}
+        for key, path in _paths(row).items():
+            try:
+                hashes[key] = file_sha256(path)
+            except OSError:
+                continue  # file already gone: nothing to vouch for
+        if hashes:
+            db.set_monthly_report_hashes(row["id"], hashes)
+            _audit("system", "report.sealed", row, f"sha256={hashes.get('all', '')}")
+            sealed += 1
+    return sealed
+
+
+def _audit(actor: str, event: str, row: dict[str, Any], details: str) -> None:
+    month = row["report_month"]
+    target = f"{month:%Y-%m}/{row.get('trigger_mode', '')}"
+    try:
+        db.append_audit_event(actor, event, target, details)
+    except Exception as exc:  # the audit entry must not break the report itself
+        logger.error("Audit entry %s for %s failed: %s", event, target, exc)
+
+
+def delete_archived_report(report_id: int, actor: str, reason: str = "") -> bool:
+    """Delete a report and its files, leaving an audit entry with its hash."""
+    row = db.delete_monthly_report(report_id)
+    if not row:
+        return False
+    remove_archived_files(row)
+    details = f"generated_at={row['generated_at'].isoformat()}, sha256={(row.get('sha256') or {}).get('all', '')}"
+    _audit(actor, "report.deleted", row, details + (f", reason={reason}" if reason else ""))
+    return True
+
+
+def generate_archived_report(
+    month: date, trigger_mode: str, now: datetime | None = None, actor: str = "system"
+) -> Path:
     """Report for `month` (interim while it runs); returns the overall PDF's path."""
     now = now or datetime.now(UTC)
     report = build_nis2_report(month, trigger=trigger_mode, lang=REPORT_LANGUAGE, now=now)
@@ -48,7 +124,14 @@ def generate_archived_report(month: date, trigger_mode: str, now: datetime | Non
     json_path = REPORT_DIR / f"{stem}.json"
     payload = serialize_report_payload(report)
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    db.archive_monthly_report(month, trigger_mode, pdf_path, json_path, payload, files, REPORT_FORMAT)
+    hashes = {key: file_sha256(path) for key, path in {**files, "json": str(json_path)}.items()}
+    db.archive_monthly_report(month, trigger_mode, pdf_path, json_path, payload, files, REPORT_FORMAT, hashes)
+    _audit(
+        actor,
+        "report.generated",
+        {"report_month": month, "trigger_mode": trigger_mode},
+        f"sha256={hashes['all']}",
+    )
     return pdf_path
 
 
@@ -76,8 +159,7 @@ def rebuild_report_archive(now: datetime | None = None) -> int:
     now = now or datetime.now(UTC)
     for row in db.list_monthly_reports():
         if row["trigger_mode"] == "auto" or (row.get("format") or 1) < REPORT_FORMAT:
-            db.delete_monthly_report(row["id"])
-            remove_archived_files(row)
+            delete_archived_report(row["id"], "system", reason="archive rebuild")
     written = 0
     starts = db.nis2_recording_start_by_cluster().values()
     if starts:

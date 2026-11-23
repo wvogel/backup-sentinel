@@ -34,6 +34,8 @@ services:
       BSENTINEL_DEFAULT_TIMEZONE: ${BSENTINEL_DEFAULT_TIMEZONE:-Europe/Berlin}
       BSENTINEL_DATABASE_URL: ${BSENTINEL_DATABASE_URL:-postgresql://backup_reports:backup_reports@postgres:5432/backup_reports}
       BSENTINEL_DEBUG: ${BSENTINEL_DEBUG:-false}
+      BSENTINEL_ADMINS: ${BSENTINEL_ADMINS:-}
+      BSENTINEL_OPERATORS: ${BSENTINEL_OPERATORS:-}
       BSENTINEL_INSECURE_SSL: ${BSENTINEL_INSECURE_SSL:-false}
       BSENTINEL_BRAND_LOGO_LIGHT_URL: ${BSENTINEL_BRAND_LOGO_LIGHT_URL:-}
       BSENTINEL_BRAND_LOGO_DARK_URL: ${BSENTINEL_BRAND_LOGO_DARK_URL:-}
@@ -67,7 +69,7 @@ services:
       - ./oauth2-proxy.env
     environment:
       TZ: ${BSENTINEL_DEFAULT_TIMEZONE:-Europe/Berlin}
-      OAUTH2_PROXY_SKIP_AUTH_ROUTES: ${OAUTH2_PROXY_SKIP_AUTH_ROUTES:-^/metrics$,^/healthz$,^/bootstrap/proxmox-agent\.sh$,^/bootstrap/pbs-agent\.sh$,POST=^/api/bootstrap/finalize$,^/api/bootstrap/pbs-finalize$}
+      OAUTH2_PROXY_SKIP_AUTH_ROUTES: ${OAUTH2_PROXY_SKIP_AUTH_ROUTES:-^/metrics$,^/healthz$,^/bootstrap/proxmox-agent\.sh$,^/bootstrap/pbs-agent\.sh$,POST=^/api/bootstrap/finalize$,POST=^/api/bootstrap/pbs-finalize$}
       OAUTH2_PROXY_SKIP_AUTH_REGEX: ${OAUTH2_PROXY_SKIP_AUTH_REGEX:-^/metrics$|^/healthz$|^/bootstrap/proxmox-agent\.sh$|^/bootstrap/pbs-agent\.sh$|^/api/bootstrap/finalize$|^/api/bootstrap/pbs-finalize$}
       OAUTH2_PROXY_UPSTREAM_TIMEOUT: 30s
     logging:

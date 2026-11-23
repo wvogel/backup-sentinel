@@ -484,7 +484,23 @@ def init_db() -> None:
     # Apply any non-additive migrations registered in app.db_migrations
     from app.db_migrations import run_migrations
 
-    run_migrations()
+    applied = run_migrations()
+
+    # After the migrations (they add the columns these two fill).
+    from app.db_clusters import encrypt_stored_secrets
+    from app.db_migrations import AUDIT_CHAIN_MIGRATION
+    from app.db_settings import seal_audit_log
+
+    encrypted = encrypt_stored_secrets()
+    if encrypted:
+        import logging
+
+        logging.getLogger(__name__).info("Encrypted %d stored API secrets", encrypted)
+    # Entries from before the hash chain get their hash exactly once, with the
+    # migration that introduced it — never later, or rows slipped into the table
+    # with an empty hash would be legitimised at the next start.
+    if AUDIT_CHAIN_MIGRATION in applied:
+        seal_audit_log()
 
 
 def bootstrap_script() -> str:

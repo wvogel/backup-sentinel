@@ -1,18 +1,23 @@
 from __future__ import annotations
 
+import secrets
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
 from app import db
 from app.i18n import ts
-from app.models import BootstrapFinalize, BootstrapPayload, ClusterCreate
+from app.models import BootstrapFinalize, BootstrapPayload, ClusterCreate, PBSFinalize
 from app.services.bootstrap import build_enrollment_bundle, slugify_cluster
 from app.web.common import settings_actor
 from app.web.sync import background_sync, sync_executor, syncing_clusters
 
 router = APIRouter()
+
+_ENROLLMENT_REFUSED = (
+    "Enrollment secret wrong or expired. Create a new onboarding command in the settings (it is valid for 24 hours)."
+)
 
 
 @router.post("/api/clusters", response_model=BootstrapPayload)
@@ -46,8 +51,8 @@ def finalize_bootstrap(payload: BootstrapFinalize) -> JSONResponse:
     cluster = db.get_cluster_by_slug(payload.cluster_slug)
     if not cluster:
         raise HTTPException(status_code=404, detail="Unknown cluster")
-    if cluster["enrollment_secret"] != payload.enrollment_secret:
-        raise HTTPException(status_code=403, detail="Enrollment secret mismatch")
+    if not db.enrollment_secret_matches(cluster, payload.enrollment_secret):
+        raise HTTPException(status_code=403, detail=_ENROLLMENT_REFUSED)
     if cluster["registered_at"] is not None:
         raise HTTPException(
             status_code=409,
@@ -92,25 +97,27 @@ def finalize_bootstrap(payload: BootstrapFinalize) -> JSONResponse:
     )
 
 
-@router.get("/api/bootstrap/pbs-finalize")
-def pbs_bootstrap_finalize(request: Request) -> JSONResponse:
-    params = request.query_params
-    cluster_slug = params.get("cluster_slug", "")
-    enrollment_secret = params.get("enrollment_secret", "")
+@router.post("/api/bootstrap/pbs-finalize")
+def pbs_bootstrap_finalize(body: PBSFinalize) -> JSONResponse:
+    """Register a PBS. POST with a JSON body: the secrets must not travel in the
+    URL, where proxies log them."""
+    cluster_slug = body.cluster_slug
     cluster = db.get_cluster_by_slug(cluster_slug)
     if not cluster:
         raise HTTPException(status_code=404, detail="Unknown cluster slug")
-    if cluster["enrollment_secret"] != enrollment_secret:
-        raise HTTPException(status_code=403, detail="Enrollment secret mismatch")
+    if not db.enrollment_secret_matches(cluster, body.enrollment_secret):
+        raise HTTPException(status_code=403, detail=_ENROLLMENT_REFUSED)
+    if not body.api_url.lower().startswith("https://"):
+        raise HTTPException(status_code=400, detail="api_url must be an https:// URL")
     payload = {
-        "name": params.get("name", "pbs"),
-        "api_url": params.get("api_url", ""),
-        "api_token_id": params.get("api_token_id", ""),
-        "api_token_secret": params.get("api_token_secret", ""),
-        "fingerprint": params.get("fingerprint", ""),
+        "name": body.name,
+        "api_url": body.api_url,
+        "api_token_id": body.api_token_id,
+        "api_token_secret": body.api_token_secret,
+        "fingerprint": body.fingerprint,
     }
-    if "namespace" in params:
-        payload["namespace"] = db.normalize_namespace(params["namespace"])
+    if body.namespace is not None:
+        payload["namespace"] = db.normalize_namespace(body.namespace)
     db.upsert_pbs_connection(cluster["id"], payload)
     try:
         db.append_audit_event(
@@ -135,6 +142,20 @@ def pbs_bootstrap_finalize(request: Request) -> JSONResponse:
             syncing_clusters.add(cluster["id"])
             sync_executor.submit(background_sync, cluster)
     return JSONResponse({"status": "ok", "cluster": cluster["name"]})
+
+
+@router.post("/clusters/{cluster_slug}/enrollment/renew")
+def renew_enrollment(request: Request, cluster_slug: str) -> RedirectResponse:
+    """A fresh enrollment secret for adding a PBS (admin only, app.web.auth)."""
+    cluster = db.get_cluster_by_slug(cluster_slug)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Unknown cluster")
+    db.renew_enrollment(cluster["id"], secrets.token_urlsafe(24))
+    try:
+        db.append_audit_event(settings_actor(request), "cluster.enrollment_renewed", cluster_slug)
+    except Exception:
+        pass
+    return RedirectResponse(url=f"/settings?enroll={cluster['id']}", status_code=303)
 
 
 @router.get("/bootstrap/proxmox-agent.sh", response_class=PlainTextResponse)

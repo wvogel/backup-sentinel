@@ -33,7 +33,7 @@ Compliance-focused monitoring for Proxmox backup infrastructure. Track backup st
 - **Notifications** — Gotify push for failed syncs, critical backups, slow backups, failed verifies, datastores filling up and anomalies (bundled, deduplicated, held back during quiet hours); SMTP email for sync outages over 24 h, the monthly PDF report and the weekly report; history with CSV export at `/notifications`
 - **Multi-cluster** — Monitor multiple PVE clusters and PBS instances from one place
 - **Monitoring** — `/healthz` and Prometheus metrics at `/metrics`
-- **Governance** — NIST CSF 2.0 / NIS2 mapping (Identify, Protect, Detect, Recover), settings audit log
+- **Governance** — NIST CSF 2.0 / NIS2 mapping (Identify, Protect, Detect, Recover), roles (viewer / operator / admin), append-only audit log with a hash chain, SHA-256 checksums on archived reports
 - **Internationalization** — German and English UI with one-click switching
 - **Theme** — Light, dark, and auto (system) modes
 
@@ -75,7 +75,8 @@ The most important variables are listed below. See [`.env.example`](.env.example
 | `DB_NAME` | PostgreSQL database name | `backup_reports` |
 | `DB_USER` | PostgreSQL user | `backup_reports` |
 | `DB_PASSWORD` | PostgreSQL password (also change `BSENTINEL_DATABASE_URL`) | `backup_reports` |
-| `BSENTINEL_SECRET_KEY` | Fernet key for encrypting secrets; without it they are stored unencrypted | *(empty)* |
+| `BSENTINEL_SECRET_KEY` | Fernet key that encrypts the secrets in the database (API tokens, credentials); required | *(empty)* |
+| `BSENTINEL_ADMINS` / `BSENTINEL_OPERATORS` | Roles by e-mail, user name or IdP group; both empty: every signed-in user is admin | *(empty)* |
 | `BSENTINEL_DEFAULT_TIMEZONE` | Timezone for display | `Europe/Berlin` |
 | `BSENTINEL_SYNC_INTERVAL_MINUTES` | Auto-sync interval | `60` |
 

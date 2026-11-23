@@ -202,7 +202,48 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         # its VMs moved in later, with older snapshots). NULL: since it was added.
         ["ALTER TABLE clusters ADD COLUMN IF NOT EXISTS report_since DATE"],
     ),
+    (
+        15,
+        "Evidence hardening: report hashes, append-only audit log, expiring enrollment",
+        [
+            # SHA-256 of every archived file ("all" / cluster slug / "json").
+            "ALTER TABLE monthly_reports ADD COLUMN IF NOT EXISTS sha256 JSONB",
+            # NULL = expired: secrets issued before this need renewing in the settings.
+            "ALTER TABLE clusters ADD COLUMN IF NOT EXISTS enrollment_expires_at TIMESTAMPTZ",
+            # Keyed hash chain over the audit log (app.db_settings); NULL only on
+            # entries from before the chain, filled once at start.
+            "ALTER TABLE settings_audit_log ADD COLUMN IF NOT EXISTS entry_hash TEXT",
+            """
+            CREATE OR REPLACE FUNCTION settings_audit_log_append_only() RETURNS trigger AS $$
+            BEGIN
+                IF TG_OP = 'UPDATE' AND OLD.entry_hash IS NULL AND NEW.entry_hash IS NOT NULL
+                   AND ROW(NEW.id, NEW.actor, NEW.key, NEW.old_value, NEW.new_value, NEW.created_at)
+                       IS NOT DISTINCT FROM
+                       ROW(OLD.id, OLD.actor, OLD.key, OLD.old_value, OLD.new_value, OLD.created_at) THEN
+                    RETURN NEW;
+                END IF;
+                RAISE EXCEPTION 'settings_audit_log is append-only';
+            END
+            $$ LANGUAGE plpgsql
+            """,
+            "DROP TRIGGER IF EXISTS settings_audit_log_no_change ON settings_audit_log",
+            """
+            CREATE TRIGGER settings_audit_log_no_change
+            BEFORE UPDATE OR DELETE ON settings_audit_log
+            FOR EACH ROW EXECUTE FUNCTION settings_audit_log_append_only()
+            """,
+            "DROP TRIGGER IF EXISTS settings_audit_log_no_truncate ON settings_audit_log",
+            """
+            CREATE TRIGGER settings_audit_log_no_truncate
+            BEFORE TRUNCATE ON settings_audit_log
+            FOR EACH STATEMENT EXECUTE FUNCTION settings_audit_log_append_only()
+            """,
+        ],
+    ),
 ]
+
+
+AUDIT_CHAIN_MIGRATION = 15  # the migration that added settings_audit_log.entry_hash
 
 
 def _ensure_migrations_table(cur: Any) -> None:
@@ -222,11 +263,12 @@ def _applied_versions(cur: Any) -> set[int]:
     return {row["version"] for row in cur.fetchall()}
 
 
-def run_migrations() -> None:
+def run_migrations() -> list[int]:
     """Apply all pending migrations in ascending version order.
 
     Called at startup from `init_db()`. Idempotent — already-applied
-    migrations are skipped via the `schema_migrations` ledger.
+    migrations are skipped via the `schema_migrations` ledger. Returns the
+    versions applied by this call.
     """
     with connect() as conn, conn.cursor() as cur:
         _ensure_migrations_table(cur)
@@ -235,7 +277,7 @@ def run_migrations() -> None:
 
     pending = sorted((v, d, s) for v, d, s in MIGRATIONS if v not in applied)
     if not pending:
-        return
+        return []
 
     for version, description, statements in pending:
         logger.info("Applying migration %d: %s", version, description)
@@ -253,3 +295,4 @@ def run_migrations() -> None:
                 conn.rollback()
                 logger.error("Migration %d failed: %s", version, exc)
                 raise
+    return [version for version, _description, _statements in pending]
