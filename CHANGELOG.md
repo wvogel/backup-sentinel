@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.21.5] — 2026-11-24
+
+### Fixed
+
+- **The app no longer runs out of file descriptors after about a day with a restore server configured** ("Internal Server Error" on every page, `OSError: [Errno 24] Too many open files` in the log). Every check of the restore host opened an SSH connection and left closing it to the SSH library; since the dependency update in v3.20.3 (paramiko 3 → 5) the library no longer does that, so each connection and its thread stayed until the process hit its limit of open files. The connection is now closed together with the object that opened it. If you run v3.20.3 – v3.21.4 with a restore server, update; a restart of the container helps until then.
+
 ## [v3.21.4] — 2026-11-23
 
 ### Security

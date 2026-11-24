@@ -19,6 +19,7 @@ import re
 import shlex
 import threading
 import time
+import weakref
 from collections.abc import Callable
 from typing import Any, Protocol
 from urllib.parse import parse_qsl, urlsplit
@@ -2592,10 +2593,31 @@ def add_host_key(client: Any, host: str, host_key_line: str, port: int = 22) -> 
 
 
 class ParamikoSsh:
+    """One SSH connection to the restore host, opened on first use.
+
+    It is closed with the object: callers build a RestoreServer per check and
+    drop it, and paramiko (4 and later) does not close a forgotten client — its
+    transport thread would keep the socket open until the process runs out of
+    file descriptors."""
+
     def __init__(self, host: str, port: int, user: str, private_key: str, host_key: str = "") -> None:
         self._args = (host, port, user, private_key)
         self._host_key = host_key
         self._client: Any = None
+        self._finalizer: Any = None
+
+    def _open(self) -> Any:
+        if self._client is None:
+            self._client = self._connect()
+            # Bound to the client, not to self, so it does not keep self alive.
+            self._finalizer = weakref.finalize(self, self._client.close)
+        return self._client
+
+    def close(self) -> None:
+        """Close the connection now; the next call opens a new one."""
+        finalizer, self._finalizer, self._client = self._finalizer, None, None
+        if finalizer is not None:
+            finalizer()
 
     def _connect(self) -> Any:
         import paramiko
@@ -2611,9 +2633,7 @@ class ParamikoSsh:
         return client
 
     def run(self, command: str) -> str:
-        if self._client is None:
-            self._client = self._connect()
-        _stdin, stdout, stderr = self._client.exec_command(command, timeout=120)
+        _stdin, stdout, stderr = self._open().exec_command(command, timeout=120)
         out = stdout.read().decode()
         err = stderr.read().decode()
         if stdout.channel.recv_exit_status() != 0:
@@ -2623,9 +2643,7 @@ class ParamikoSsh:
     def put_bytes(self, remote_path: str, data: bytes) -> None:
         """Write ``data`` to ``remote_path`` over SFTP (used to place the helper
         CT template into a storage's template/cache directory)."""
-        if self._client is None:
-            self._client = self._connect()
-        sftp = self._client.open_sftp()
+        sftp = self._open().open_sftp()
         try:
             with sftp.open(remote_path, "wb") as fh:
                 fh.write(data)

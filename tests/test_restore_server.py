@@ -1586,3 +1586,61 @@ def test_list_snapshots_marks_a_snapshot_being_synced_incomplete():
     from app.services.restore_match import pick_latest_complete
 
     assert pick_latest_complete(snaps)["snapshot_id"].endswith("2026-11-08T22:10:00Z")
+
+
+class _FakeParamikoClient:
+    def __init__(self):
+        self.closed = False
+
+    def exec_command(self, command, timeout=None):
+        class _Chan:
+            def recv_exit_status(self):
+                return 0
+
+        class _Out:
+            channel = _Chan()
+
+            def read(self):
+                return b"ok"
+
+        return None, _Out(), _Out()
+
+    def close(self):
+        self.closed = True
+
+
+def test_paramiko_ssh_closes_its_connection_when_dropped(monkeypatch):
+    """A restore-server object is built per check and then dropped. Its SSH
+    connection must go with it: paramiko does not close a forgotten client by
+    itself (its transport thread keeps the socket open for good)."""
+    import gc
+
+    from app.services.restore_server import ParamikoSsh
+
+    client = _FakeParamikoClient()
+    monkeypatch.setattr(ParamikoSsh, "_connect", lambda self: client)
+    ssh = ParamikoSsh("192.0.2.1", 22, "root", "key")
+    assert ssh.run("true") == "ok"
+    assert not client.closed
+    del ssh
+    gc.collect()
+    assert client.closed
+
+
+def test_paramiko_ssh_close_is_explicit_and_reconnects(monkeypatch):
+    from app.services.restore_server import ParamikoSsh
+
+    clients = []
+
+    def connect(self):
+        clients.append(_FakeParamikoClient())
+        return clients[-1]
+
+    monkeypatch.setattr(ParamikoSsh, "_connect", connect)
+    ssh = ParamikoSsh("192.0.2.1", 22, "root", "key")
+    ssh.run("true")
+    ssh.close()
+    assert clients[0].closed
+    ssh.close()  # nothing open: no error
+    ssh.run("true")  # opens a new connection
+    assert len(clients) == 2 and not clients[1].closed
