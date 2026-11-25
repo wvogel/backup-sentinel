@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.21.6] — 2026-11-25
+
+### Fixed
+
+- **Settings no longer times out when a storage on the restore host hangs** (a "502 Bad Gateway" from the reverse proxy after 30 s, nothing unusual in the app log). The page lists the restore host's storages while it renders, and PVE answers the node's storage status only after 30 s (HTTP 596) when one storage — say a PBS whose datastore does not respond — hangs. Each of these calls now waits 5 s at most; the list then comes from the datacenter configuration, which PVE reads without asking any storage (same rows, no usage figures). If the host does not answer at all, the page skips the SSH check for fio as well instead of waiting for that too.
+
 ## [v3.21.5] — 2026-11-24
 
 ### Fixed

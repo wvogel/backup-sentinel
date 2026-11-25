@@ -689,6 +689,11 @@ def test_connection() -> dict[str, Any]:
     return checks
 
 
+# Seconds per call to the restore host while a page renders: the page must come
+# well before a reverse proxy gives up on it (commonly 30 s).
+UI_HOST_TIMEOUT = 5.0
+
+
 def ui_target_storages() -> dict[str, Any]:
     """Storages for the Settings UI: the scratch host's own storages enumerated
     live (name + PVE type), each merged with the operator's saved disk-class and
@@ -707,16 +712,12 @@ def ui_target_storages() -> dict[str, Any]:
     note: str | None = None
     server = build_server(config)
     fio_available = False
-    try:
-        fio_available = server.fio_available()
-    except Exception as exc:
-        logger.debug("fio_available check failed: %s", exc)
     perf = restore_perf.get_perf()
     busy = restore_perf.involved_storages()
     perf_running = restore_perf.running_storage()
     perf_progress = restore_perf.get_progress()
     try:
-        result = server.list_target_storages()
+        result = server.list_target_storages(timeout=UI_HOST_TIMEOUT)
         discovered = result["targets"]
         if not discovered and result["pbs"] > 0 and result["total"] == result["pbs"]:
             # Every storage returned is a PBS source datastore — no regular
@@ -726,6 +727,11 @@ def ui_target_storages() -> dict[str, Any]:
     except Exception as exc:
         logger.warning("target storage enumeration failed: %s", exc)
         error = str(exc)[:200]
+    if error is None:  # host did not answer: don't wait for its SSH as well
+        try:
+            fio_available = server.fio_available()
+        except Exception as exc:
+            logger.debug("fio_available check failed: %s", exc)
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()

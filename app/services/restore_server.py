@@ -576,9 +576,9 @@ class RestoreServer:
         if clash:
             raise HostIdentityError(f"restore host overlaps production endpoint(s): {sorted(clash)}")
 
-    def node(self) -> str:
+    def node(self, timeout: float | None = None) -> str:
         if self._node is None:
-            nodes = self.pve.get("/nodes") or []
+            nodes = (self.pve.get("/nodes", timeout=timeout) if timeout else self.pve.get("/nodes")) or []
             online = [n for n in nodes if n.get("status") == "online"] or nodes
             self._node = online[0]["node"]
         return self._node
@@ -898,25 +898,30 @@ class RestoreServer:
             )
         return out
 
-    def list_target_storages(self) -> dict[str, Any]:
+    def list_target_storages(self, timeout: float | None = None) -> dict[str, Any]:
         """Enumerate storages and split out the non-PBS restore targets. Queries
         both the node storage status and the datacenter storage config and merges
         them. Returns ``{"targets": [...], "total": int, "pbs": int}`` so the
         caller can tell apart "no storages at all / unreachable" from "only PBS
         source datastores are visible" (the token lacks Datastore.Audit on the
-        regular target storages — the usual cause of an empty target list)."""
+        regular target storages — the usual cause of an empty target list).
+
+        ``timeout`` (seconds per call) is for callers that render a page: the
+        node's status list asks every storage and takes PVE 30 s (HTTP 596) when
+        one of them hangs, while the datacenter config answers at once — so with
+        a short timeout the list still comes, just without usage figures."""
         seen: dict[str, dict[str, Any]] = {}
         all_names: set[str] = set()
         pbs = 0
         errors: list[str] = []
         paths = ["/storage"]
         try:
-            paths.insert(0, f"/nodes/{self.node()}/storage")
+            paths.insert(0, f"/nodes/{self.node(timeout)}/storage")
         except Exception as exc:
             errors.append(f"/nodes: {exc}")
         for path in paths:
             try:
-                rows = self.pve.get(path) or []
+                rows = (self.pve.get(path, timeout=timeout) if timeout else self.pve.get(path)) or []
             except Exception as exc:
                 errors.append(f"{path}: {str(exc)[:120]}")
                 continue

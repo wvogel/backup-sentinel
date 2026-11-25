@@ -1644,3 +1644,35 @@ def test_paramiko_ssh_close_is_explicit_and_reconnects(monkeypatch):
     ssh.close()  # nothing open: no error
     ssh.run("true")  # opens a new connection
     assert len(clients) == 2 and not clients[1].closed
+
+
+def test_list_target_storages_passes_the_timeout_and_falls_back_to_the_config():
+    """The settings page lists the storages while rendering. A storage that
+    hangs on the host makes PVE answer the node's status list only after 30 s
+    (HTTP 596): with a short timeout the list comes from the datacenter config
+    instead, which PVE reads without asking any storage."""
+
+    class _Pve(FakePve):
+        def __init__(self):
+            super().__init__({})
+            self.calls = []
+
+        def get(self, path, timeout=None):
+            self.calls.append((path, timeout))
+            if path == "/nodes":
+                return [{"node": "r1"}]
+            if path == "/nodes/r1/storage":
+                raise TimeoutError("timed out")
+            if path == "/storage":
+                return [
+                    {"storage": "fast", "type": "lvmthin", "content": "images,rootdir"},
+                    {"storage": "src", "type": "pbs", "content": "backup"},
+                ]
+            return None
+
+    pve = _Pve()
+    srv = RestoreServer({"ssh_host": "192.0.2.9", "api_url": "https://192.0.2.9:8006"}, pve, FakeSsh())
+    result = srv.list_target_storages(timeout=5)
+    assert [t["storage"] for t in result["targets"]] == ["fast"]
+    assert result["pbs"] == 1
+    assert [c for c in pve.calls if "storage" in c[0]] == [("/nodes/r1/storage", 5), ("/storage", 5)]
