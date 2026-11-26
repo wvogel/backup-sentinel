@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.24.5] — 2026-11-26
+
+### Changed
+
+- Settings → Restore server: while a storage is tested, the dot on the turtle-and-hare track stands at the average of the rates measured so far and moves with every new sample, instead of jumping to the current rate.
+
 ## [v3.24.4] — 2026-11-26
 
 ### Fixed

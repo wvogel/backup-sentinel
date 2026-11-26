@@ -44,3 +44,8 @@ def test_rate_curve_starts_at_zero():
     spark = js[js.index("function sparkY") : js.index("function renderProgress")]
     assert "Math.min.apply" not in spark and "- min" not in spark
     assert "SPARK_ZERO" in spark
+
+
+def test_track_dot_shows_the_average_of_a_running_test():
+    js = Path("static/js/settings.js").read_text()
+    assert "meanRate(p.series)" in js

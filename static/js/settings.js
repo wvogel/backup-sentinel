@@ -205,6 +205,10 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
       return ((i / (n - 1)) * 100).toFixed(1) + "," + sparkY(v, max).toFixed(1);
     }).join(" ");
   }
+  function meanRate(series) {
+    if (!series || !series.length) return 0;
+    return series.reduce(function (sum, v) { return sum + v; }, 0) / series.length;
+  }
   // The value under the pointer: a line and a dot on the curve, the rate above.
   function initSparkHover(box) {
     var wrap = box.querySelector(".js-perf-spark-wrap");
@@ -241,13 +245,16 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
       text.textContent = bits.join(" · ");
     }
     if (rate) rate.textContent = p.rate_bps ? fmtRate(p.rate_bps) : "";
-    // The dot on the turtle-to-hare track of this storage follows the rate.
+    // The dot on the turtle-to-hare track of this storage stands at the average
+    // of the rates measured so far — where the result is heading — and moves
+    // with every new sample.
     var row = box.closest("tr");
     var race = row && row.querySelector(".race");
     var dot = race && race.querySelector(".race-dot");
     var scale = race ? parseFloat(race.dataset.scale) : 0;
-    if (dot && scale > 0 && p.rate_bps) {
-      dot.style.setProperty("--pct", Math.max(0, Math.min(100, (p.rate_bps / scale) * 100)).toFixed(1));
+    var avg = meanRate(p.series) || p.rate_bps || 0;
+    if (dot && scale > 0 && avg) {
+      dot.style.setProperty("--pct", Math.max(0, Math.min(100, (avg / scale) * 100)).toFixed(1));
     }
     box._series = p.series || [];
     if (spark) {
