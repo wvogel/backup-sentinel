@@ -271,15 +271,19 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     var meter = row && row.querySelector(".perf-meter");
     var bar = meter && meter.querySelector(".store-perf-bar > span");
     var scale = meter ? parseFloat(meter.dataset.scale) : 0;
-    var avg = meanRate(box._series.slice(warmN));  // nothing measured yet: the bar stays where it is
+    // During the warm-up nothing is measured yet: bar and figure then show the
+    // average of what is written so far, greyed — it does not count.
+    var avg = meanRate(box._series.slice(warmN));
+    var warmingUp = !avg;
+    if (warmingUp) avg = meanRate(box._series);
     if (bar && scale > 0 && avg) {
       bar.style.width = Math.max(0, Math.min(100, (avg / scale) * 100)).toFixed(1) + "%";
+      bar.classList.toggle("is-warming", warmingUp);
     }
-    // Under the bar: that average, once the warm-up is over ("running…" until then).
     var avgText = row && row.querySelector(".js-perf-avg");
     if (avgText && avg) {
       avgText.textContent = "\u2300 " + fmtRate(avg);
-      avgText.classList.remove("muted");
+      avgText.classList.toggle("muted", warmingUp);
     }
     var parts = sparkParts(box._series, warmN);
     var set = function (sel, points) { var el = box.querySelector(sel); if (el) el.setAttribute("points", points); };

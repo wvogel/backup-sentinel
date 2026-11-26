@@ -131,8 +131,16 @@ def test_fio_warms_up_before_it_measures():
 
     server = RestoreServer({}, pve=None, ssh=Ssh())
     assert server.benchmark_storage_write("tank", ramp=60, sleep=lambda s: None) == 123456789
-    fio = next(c for c in commands if "fio --name=" in c)
-    assert "--ramp_time=60" in fio and "--runtime=300" in fio
+    launch = next(c for c in commands if c.startswith("nohup sh -c"))
+    warm, measured = launch.split(" && ")
+    # A run of its own for the warm-up — fio then reports rates through it —
+    # and the measured run only after it ended well.
+    assert "-warm " in warm and "--runtime=60" in warm and "--output=" not in warm
+    assert "--runtime=300" in measured and "--output-format=json" in measured
+    assert "--ramp_time" not in launch
+    # Stopping it must not kill the shell that goes on to free the volume.
+    cleanup = next(c for c in commands if c.startswith("pkill"))
+    assert "[f]io --name=bstest-" in cleanup and "pvesm free" in cleanup
 
 
 def test_progress_comes_from_the_clock_not_from_fio():

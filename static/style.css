@@ -3766,6 +3766,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
   background: var(--accent-fill, var(--accent)); transition: width 0.8s ease;
 }
 @media (prefers-reduced-motion: reduce) { .store-perf-bar > span { transition: none; } }
+/* Warm-up of a running test: written, not measured. */
+.store-perf-bar > span.is-warming { background: var(--muted); opacity: 0.55; }
 .perf-per-tb { white-space: nowrap; }
 .perf-value { color: var(--ink); font-weight: 600; white-space: nowrap; }
 .perf-value.muted { color: var(--muted); font-weight: 400; }

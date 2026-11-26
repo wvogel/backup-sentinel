@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.27.1] — 2026-11-26
+
+### Fixed
+
+- **Nothing was drawn during the warm-up of a performance test.** With fio's own `--ramp_time` the status line carries no rate while it warms up, so the curve stayed empty for the first minute. Warm-up and measurement are now two fio runs, one right after the other (the measured one starts only if the warm-up ended well): the rate comes through both, the warm-up stretch of the curve is there, dashed, and the result still leaves the first minute out.
+- Stopping a test could kill the very shell that was to free the test volume afterwards (its command line matched the pattern it searched for); the volume was then only freed at the next test.
+
+### Changed
+
+- During the warm-up the average under the performance bar and the bar itself show what is written so far, greyed — it does not count yet.
+
 ## [v3.27.0] — 2026-11-26
 
 ### Changed

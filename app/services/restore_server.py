@@ -781,7 +781,8 @@ class RestoreServer:
         benchmark volumes on ``storage`` — for a test whose app process died
         before its own cleanup ran. Best-effort; one test runs at a time."""
         try:
-            self.ssh.run("pkill -f 'fio --name=bstest-' 2>/dev/null; sleep 2; rm -f /tmp/bsentinel-fio-*; true")
+            # "[f]io": not the shell running this line (see benchmark_storage_write).
+            self.ssh.run("pkill -f '[f]io --name=bstest-' 2>/dev/null; sleep 2; rm -f /tmp/bsentinel-fio-*; true")
         except Exception as exc:
             logger.debug("stopping leftover benchmark fio failed: %s", exc)
         self._free_bench_volumes(storage)
@@ -845,18 +846,27 @@ class RestoreServer:
             path = self.ssh.run(f"pvesm path {shlex.quote(volid)}").strip()
             if not path:
                 raise RestoreTaskError(f"could not resolve a device path for '{volid}'")
-            fio = (
-                f"fio --name={name} --filename={shlex.quote(path)} --rw=randwrite --bs={bs} "
-                f"--direct=1 --ioengine=psync --size={int(size_gb)}G --runtime={int(runtime)} "
-                # Warm-up: fio writes for `ramp` seconds before it measures, so the
-                # result is the rate the storage sustains — not the burst while
-                # its caches and write buffers are still empty.
-                f"--ramp_time={int(ramp)} "
-                f"--time_based=1 --group_reporting --eta=always --eta-newline=1 "
-                f"--output-format=json --output={resfile}"
+            # Two runs, one after the other in one detached shell: `ramp` seconds
+            # of warm-up, then the measured run. The result is then the rate the
+            # storage sustains — not the burst while its caches and write buffers
+            # are still empty — and fio reports the current rate through both
+            # (with its own --ramp_time the status line carries none while it
+            # warms up). The measured run starts only if the warm-up ended well,
+            # so a cancelled warm-up does not start it.
+            common = (
+                f"--filename={shlex.quote(path)} --rw=randwrite --bs={bs} "
+                f"--direct=1 --ioengine=psync --size={int(size_gb)}G "
+                f"--time_based=1 --group_reporting --eta=always --eta-newline=1"
             )
-            # fio's ETA stream goes to the .eta file; the JSON result to --output.
-            self.ssh.run(f"nohup sh -c {shlex.quote(fio + f' > {etafile} 2>&1')} >/dev/null 2>&1 & echo started")
+            measure = (
+                f"fio --name={name} {common} --runtime={int(runtime)} "
+                f"--output-format=json --output={resfile} >> {etafile} 2>&1"
+            )
+            script = measure
+            if ramp > 0:
+                script = f"fio --name={name}-warm {common} --runtime={int(ramp)} > {etafile} 2>&1 && {measure}"
+            # fio's status lines go to the .eta file; the JSON result to --output.
+            self.ssh.run(f"nohup sh -c {shlex.quote(script)} >/dev/null 2>&1 & echo started")
             started = now()
             deadline = started + ramp + runtime + 120
             done = False
@@ -900,7 +910,10 @@ class RestoreServer:
             # free the volume and remove the scratch files.
             try:
                 self.ssh.run(
-                    f"pkill -f {shlex.quote(name)} 2>/dev/null; "
+                    # "[f]io": matches the fio runs and their shell, but not the
+                    # shell running THIS line (whose command line holds the
+                    # pattern itself) — that one must live to free the volume.
+                    f"pkill -f {shlex.quote('[f]io --name=' + name)} 2>/dev/null; "
                     f"pvesm free {shlex.quote(volid)} 2>&1 || true; "
                     f"rm -f {shlex.quote(resfile)} {shlex.quote(etafile)}"
                 )
