@@ -321,7 +321,7 @@
                 </div>
                 <div class="store-meter store-perf-cell">
                   {%- set _testing = restore_fio_available and restore_perf_running == s.storage %}
-                  <div class="store-meter-graph race{% if _testing %} race-running{% elif not bps %} race-empty{% endif %}" data-scale="{{ restore_perf_scale }}" data-tooltip="{{ t('restore.perf_scale', max=(restore_perf_scale | size_coarse)) }}">
+                  <div class="store-meter-graph race{% if _testing %} race-running{% elif not bps %} race-empty{% endif %}" data-scale="{{ restore_perf_scale }}">
                     {{ sicons.turtle_icon() }}
                     <span class="race-track">{% if bps or _testing %}<span class="race-dot" data-css-pct="{{ (100 * bps / restore_perf_scale)|round(1) }}"></span>{% endif %}</span>
                     {{ sicons.hare_icon() }}

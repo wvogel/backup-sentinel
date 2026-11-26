@@ -710,7 +710,6 @@
   "restore.st_use": "Target",
   "restore.st_drag": "Drag to reorder",
   "restore.st_used_free": "{used} used · {free} free",
-  "restore.perf_scale": "Write performance from 0 (turtle) to {max}/s (hare) — the same scale for every storage.",
   "restore.perf_not_measurable": "cannot be measured",
   "restore.st_class": "Disk type",
   "restore.perf_test": "Test",

@@ -710,7 +710,6 @@
   "restore.st_use": "Ziel",
   "restore.st_drag": "Ziehen zum Sortieren",
   "restore.st_used_free": "{used} belegt · {free} frei",
-  "restore.perf_scale": "Schreib-Performance von 0 (Schildkröte) bis {max}/s (Hase) – dieselbe Skala für jeden Storage.",
   "restore.perf_not_measurable": "nicht messbar",
   "restore.st_class": "Disk-Typ",
   "restore.perf_test": "Test",
