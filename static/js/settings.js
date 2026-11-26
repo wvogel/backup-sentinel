@@ -282,7 +282,7 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     }
     var avgText = row && row.querySelector(".js-perf-avg");
     if (avgText && avg) {
-      avgText.textContent = "\u2300 " + fmtRate(avg);
+      avgText.textContent = fmtRate(avg);
       avgText.classList.toggle("muted", warmingUp);
     }
     var parts = sparkParts(box._series, warmN);
