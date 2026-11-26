@@ -3781,12 +3781,15 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* As wide as the card, and no wider: the two meters of each storage share
    what the two narrow columns leave. */
 .restore-storage-table { width: 100%; table-layout: fixed; }
-/* A running test gets its OWN full-width row below the storage row (there is
-   room below, not beside): laid out horizontally across all columns — the bar
-   grows to fill, then the throughput sparkline, live rate/ETA and cancel. */
-.restore-storage-table tr:has(+ .perf-progress-row) > td { border-bottom: 0; }
-.perf-progress-row > td { border-top: 0; padding: 2px 12px 11px; }
-.perf-run { display: flex; align-items: center; gap: 14px; width: 100%; }
+/* A running test: a second pair of meters under the storage's own, set off
+   by a line at the left so it reads as belonging to that storage. The bar is
+   as long as the capacity bar above it, the rate curve as wide as the track. */
+.perf-run {
+  /* The line stands in the gutter: bar and curve start and end exactly
+     where the meters above them do. */
+  margin: 10px 0 0 -14px; padding: 2px 0 0 12px;
+  border-left: 2px solid var(--running);
+}
 .perf-bar {
   flex: 1 1 auto; height: 8px; border-radius: 999px; overflow: hidden;
   background: var(--chip); border: 1px solid var(--chip-border);
@@ -3797,16 +3800,12 @@ html[data-theme="dark"] .node-filter-button.is-active {
   transition: width 0.6s ease;
 }
 .perf-spark {
-  flex: 0 0 150px; width: 150px; height: 22px;
+  flex: 1 1 auto; min-width: 0; width: 100%; height: 22px;
   color: var(--running); opacity: 0.9;
 }
 .perf-spark polyline { fill: none; stroke: currentColor; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.perf-run-text {
-  flex: 0 0 auto; white-space: nowrap;
-  color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums;
-}
 .perf-cancel {
-  flex: 0 0 auto; padding: 2px 11px; font-size: 0.76rem;
+  flex: 0 0 auto; width: auto; margin-left: auto; padding: 2px 11px; font-size: 0.76rem;
   color: var(--critical); background: transparent;
   border: 1px solid color-mix(in srgb, var(--critical) 50%, transparent); border-radius: var(--radius-box);
 }

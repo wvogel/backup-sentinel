@@ -207,12 +207,13 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     var spark = box.querySelector(".js-perf-spark polyline");
     var pct = Math.max(0, Math.min(100, p.pct || 0));
     if (fill) fill.style.width = pct.toFixed(1) + "%";
+    var rate = box.querySelector(".js-perf-rate");
     if (text) {
       var bits = [Math.round(pct) + " %"];
-      if (p.rate_bps) bits.push(fmtRate(p.rate_bps));
       if (p.eta) bits.push("eta " + p.eta);
       text.textContent = bits.join(" · ");
     }
+    if (rate) rate.textContent = p.rate_bps ? fmtRate(p.rate_bps) : "";
     if (spark) spark.setAttribute("points", sparkPoints(p.series));
   }
   // One poller per running test: updates the live box, reloads when it ends.

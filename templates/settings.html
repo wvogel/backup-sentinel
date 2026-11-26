@@ -342,22 +342,26 @@
                   </div>
                 </div>
               </div>
-            </td>
-          </tr>
-          {%- if restore_fio_available and restore_perf_running == s.storage %}
-          {# Running test gets its own full-width row below — bar, throughput
-             sparkline, live rate/ETA and cancel spread across all columns. #}
-          <tr class="perf-progress-row js-perf-run" data-storage="{{ s.storage }}">
-            <td colspan="3">
-              <div class="perf-run">
-                <div class="perf-bar"><span class="perf-bar-fill" data-css-width="{{ (restore_perf_progress.pct or 0) }}"></span></div>
-                <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
-                <span class="perf-run-text js-perf-text">{{ t('restore.perf_running') }}…</span>
-                <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
+              {%- if restore_fio_available and restore_perf_running == s.storage %}
+              {#- The running test: a second pair of meters under the storage's
+                  own, as wide as those — progress with what is left, and the
+                  rate so far with the way out. -#}
+              <div class="store-meters perf-run js-perf-run" data-storage="{{ s.storage }}">
+                <div class="store-meter">
+                  <div class="store-meter-graph"><div class="perf-bar"><span class="perf-bar-fill" data-css-width="{{ (restore_perf_progress.pct or 0) }}"></span></div></div>
+                  <div class="store-meter-text"><span class="js-perf-text">{{ t('restore.perf_running') }}</span></div>
+                </div>
+                <div class="store-meter">
+                  <div class="store-meter-graph"><svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg></div>
+                  <div class="store-meter-text">
+                    <span class="perf-value js-perf-rate"></span>
+                    <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
+                  </div>
+                </div>
               </div>
+              {%- endif %}
             </td>
           </tr>
-          {%- endif %}
         {% endfor %}
         </tbody>
       </table>

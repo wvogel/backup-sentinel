@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.24.1] — 2026-11-26
+
+### Fixed
+
+- **Settings → Restore server: a running performance test sits with its storage.** Its line ran below the storage over the whole width, with the progress bar squeezed to a stub and nothing saying which storage it belonged to. Now it is a second pair of meters inside the storage's own block, set off by a line at the left: the progress bar exactly as long as the capacity bar above it, with percentage and remaining time underneath; beside it the rate curve as wide as the turtle-and-hare track, with the current rate and "Cancel" underneath.
+
 ## [v3.24.0] — 2026-11-26
 
 ### Changed

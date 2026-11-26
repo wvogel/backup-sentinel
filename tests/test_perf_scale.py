@@ -23,5 +23,5 @@ def test_storage_rows_render_with_both_meters_and_a_test_button():
     assert "PREVIEW-ONLY" not in macro_source
     icons = templates.env.get_template("_storage_icons.html").module
     assert "race-animal" in str(icons.turtle_icon()) and "race-animal" in str(icons.hare_icon())
-    for needle in ("store-cap-bar", "race-track", "js-perf-test", "restore.st_used_free", 'colspan="3"'):
+    for needle in ("store-cap-bar", "race-track", "js-perf-test", "restore.st_used_free", "js-perf-rate"):
         assert needle in macro_source
