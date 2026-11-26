@@ -182,11 +182,13 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
   function post(url, body) {
     return fetch(url, { method: "POST", headers: body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}, body: body || undefined });
   }
-  // Byte-rate in the app's style: decimal GB/s · MB/s, de-DE, no trailing ,0.
+  // Byte-rate as the server writes sizes (human_format.format_size_coarse):
+  // scaled by 1024 with short labels, so a rate shown while the test runs
+  // reads the same as its result afterwards. de-DE, no trailing ,0.
   function fmtRate(bps) {
     if (!bps || bps <= 0) return "–";
     var u = ["B/s", "kB/s", "MB/s", "GB/s", "TB/s"], i = 0, v = bps;
-    while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
+    while (v >= 1000 && i < u.length - 1) { v /= 1024; i++; }
     var dec = v >= 100 || i === 0 ? 0 : 1;
     return v.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: dec }) + " " + u[i];
   }
@@ -273,6 +275,12 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     var avg = meanRate(box._series.slice(warmN));  // nothing measured yet: the bar stays where it is
     if (bar && scale > 0 && avg) {
       bar.style.width = Math.max(0, Math.min(100, (avg / scale) * 100)).toFixed(1) + "%";
+    }
+    // Under the bar: that average, once the warm-up is over ("running…" until then).
+    var avgText = row && row.querySelector(".js-perf-avg");
+    if (avgText && avg) {
+      avgText.textContent = "\u2300 " + fmtRate(avg);
+      avgText.classList.remove("muted");
     }
     var parts = sparkParts(box._series, warmN);
     var set = function (sel, points) { var el = box.querySelector(sel); if (el) el.setAttribute("points", points); };

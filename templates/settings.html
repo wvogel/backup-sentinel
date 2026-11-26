@@ -327,7 +327,7 @@
                   <div class="store-meter-text">
                     {%- if not s.benchmarkable %}<span class="muted">{{ t('restore.perf_not_measurable') }}</span>
                     {%- elif not restore_fio_available %}<span class="perf-nofio" data-tooltip="{{ t('restore.perf_nofio_hint') }}">{{ t('restore.perf_nofio') }} · <a href="#" class="js-install-fio">{{ t('restore.perf_install_fio') }}</a></span>
-                    {%- elif restore_perf_running == s.storage %}<span class="perf-value muted">{{ t('restore.perf_running') }}</span>
+                    {%- elif restore_perf_running == s.storage %}<span class="perf-value muted js-perf-avg">{{ t('restore.perf_running') }}</span>
                     {%- else %}
                     {%- set _disabled = s.busy or (restore_perf_running and restore_perf_running != s.storage) %}
                     {% if bps %}<span class="perf-value">{{ bps | size_coarse }}/s</span><span class="perf-per-tb">{{ t('restore.perf_per_tb', time=(bps | time_per_tb)) }}</span>{% else %}<span class="perf-value muted">{{ t('restore.perf_unknown') }}</span>{% endif %}

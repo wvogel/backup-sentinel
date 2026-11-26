@@ -63,3 +63,11 @@ def test_warmup_stretch_of_the_curve_is_drawn_dashed():
     html = Path("templates/settings.html").read_text()
     assert 'class="perf-spark-warm js-perf-warm"' in html and 'class="perf-spark-line js-perf-line"' in html
     assert "function sparkParts" in Path("static/js/settings.js").read_text()
+
+
+def test_average_so_far_replaces_running_under_the_bar():
+    assert "js-perf-avg" in Path("templates/settings.html").read_text()
+    js = Path("static/js/settings.js").read_text()
+    assert ".js-perf-avg" in js
+    rate = js[js.index("function fmtRate") : js.index("function sparkY")]
+    assert "v /= 1024" in rate  # as the server scales the result

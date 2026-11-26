@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.26.3] — 2026-11-26
+
+### Changed
+
+- Settings → Restore server: under the performance bar of a storage being tested stands the average measured so far ("⌀ 712 MB/s") once the warm-up minute is over, instead of just "running…".
+
+### Fixed
+
+- Rates shown while a test runs (current rate, the value under the pointer, the average) were scaled by 1000, the result afterwards by 1024 — the same test read about 5 % higher while it ran. Both use 1024 now.
+
 ## [v3.26.2] — 2026-11-26
 
 ### Changed
