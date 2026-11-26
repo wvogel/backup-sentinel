@@ -48,4 +48,4 @@ def test_rate_curve_starts_at_zero():
 
 def test_track_dot_shows_the_average_of_a_running_test():
     js = Path("static/js/settings.js").read_text()
-    assert "meanRate(p.series)" in js
+    assert "meanRate(box._series.slice(warmN))" in js  # the warm-up is left out

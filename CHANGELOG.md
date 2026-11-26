@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.25.0] — 2026-11-26
+
+### Changed
+
+- **The performance test of a restore storage warms up for a minute before it measures.** A storage writes faster while its caches and write buffers are still empty; that burst went into the result and made it look better than what a restore gets over its whole length. fio now writes for 60 seconds first (`--ramp_time`) and measures the 5 minutes after that, so a test takes about 6 minutes. While it runs, the warm-up is marked: "warm-up" stands before the percentage, its stretch of the throughput curve is shaded and named under the pointer, and the dot on the track — the average so far — counts only what came after it. Results measured before this update include the first minute; test again to compare.
+
 ## [v3.24.5] — 2026-11-26
 
 ### Changed

@@ -83,3 +83,53 @@ def test_an_orphaned_test_does_not_block_the_next_one(state, monkeypatch):
     assert ran.wait(timeout=5)
     assert restore_perf.running_storage() == "fast"
     assert _wait_for(cleaned) == ["tank"]
+
+
+def test_warmup_samples_are_counted_apart(state):
+    """The first minute is written but not measured: its samples are marked."""
+    from datetime import UTC, datetime, timedelta
+
+    settings, _cleaned = state
+    now = datetime.now(UTC)
+
+    def progress(started_seconds_ago):
+        settings[restore_perf._RUNNING_KEY] = "tank"
+        prog = restore_perf.get_progress() or {"storage": "tank", "series": [], "warmup_n": 0}
+        prog.update(started_at=(now - timedelta(seconds=started_seconds_ago)).isoformat(), warmup=60)
+        settings[restore_perf._PROGRESS_KEY] = json.dumps(prog)
+
+    progress(10)
+    restore_perf._store_progress("tank", {"pct": 3, "rate_bps": 900})
+    progress(40)
+    restore_perf._store_progress("tank", {"pct": 11, "rate_bps": 880})
+    assert restore_perf.get_progress()["warming"] is True
+    assert restore_perf.get_progress()["warmup_n"] == 2
+    progress(70)
+    restore_perf._store_progress("tank", {"pct": 20, "rate_bps": 700})
+    after = restore_perf.get_progress()
+    assert after["warming"] is False
+    assert after["warmup_n"] == 2 and after["series"] == [900, 880, 700]
+
+
+def test_fio_warms_up_before_it_measures():
+    from app.services.restore_server import RestoreServer
+
+    commands = []
+
+    class Ssh:
+        def run(self, command):
+            commands.append(command)
+            if command.startswith("pvesm alloc"):
+                return "successfully created 'tank:vm-999999-disk-0'"
+            if command.startswith("pvesm path"):
+                return "/dev/tank/vm-999999-disk-0"
+            if "grep -q bw_bytes" in command:
+                return "DONE"
+            if command.startswith("cat "):
+                return '{"jobs":[{"write":{"bw_bytes":123456789}}]}'
+            return ""
+
+    server = RestoreServer({}, pve=None, ssh=Ssh())
+    assert server.benchmark_storage_write("tank", ramp=60, sleep=lambda s: None) == 123456789
+    fio = next(c for c in commands if "fio --name=" in c)
+    assert "--ramp_time=60" in fio and "--runtime=300" in fio

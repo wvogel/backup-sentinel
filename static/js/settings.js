@@ -225,7 +225,7 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
       var y = (sparkY(series[i], Math.max.apply(null, series)) / 24) * 100;
       cursor.style.left = dot.style.left = x + "%";
       dot.style.top = y + "%";
-      tip.textContent = fmtRate(series[i]);
+      tip.textContent = fmtRate(series[i]) + (i < (box._warmupN || 0) ? " \u00b7 " + T("restore.perf_warmup") : "");
       // Keep the label inside the graph at both ends.
       tip.style.left = Math.max(12, Math.min(88, x)) + "%";
       cursor.hidden = dot.hidden = tip.hidden = false;
@@ -237,26 +237,33 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     var text = box.querySelector(".js-perf-text");
     var spark = box.querySelector(".js-perf-spark polyline");
     var pct = Math.max(0, Math.min(100, p.pct || 0));
+    box._series = p.series || [];
+    // The samples of the warm-up stand at the start of the series: shaded in
+    // the curve, named under the pointer, and not part of the average.
+    var n = box._series.length;
+    var warmN = (box._warmupN = Math.max(0, Math.min(n, p.warmup_n || 0)));
+    var warm = box.querySelector(".js-perf-warm");
+    if (warm) warm.setAttribute("width", n > 1 && warmN > 0 ? ((Math.min(warmN, n - 1) / (n - 1)) * 100).toFixed(1) : "0");
     if (fill) fill.style.width = pct.toFixed(1) + "%";
     var rate = box.querySelector(".js-perf-rate");
     if (text) {
       var bits = [Math.round(pct) + " %"];
+      if (p.warming) bits.unshift(T("restore.perf_warmup"));
       if (p.eta) bits.push("eta " + p.eta);
       text.textContent = bits.join(" · ");
     }
     if (rate) rate.textContent = p.rate_bps ? fmtRate(p.rate_bps) : "";
-    // The dot on the turtle-to-hare track of this storage stands at the average
-    // of the rates measured so far — where the result is heading — and moves
-    // with every new sample.
+    // The dot on the track of this storage stands at the average of the rates
+    // measured so far (the warm-up left out) — where the result is heading —
+    // and moves with every new sample.
     var row = box.closest("tr");
     var race = row && row.querySelector(".race");
     var dot = race && race.querySelector(".race-dot");
     var scale = race ? parseFloat(race.dataset.scale) : 0;
-    var avg = meanRate(p.series) || p.rate_bps || 0;
+    var avg = meanRate(box._series.slice(warmN));  // nothing measured yet: the dot stays where it is
     if (dot && scale > 0 && avg) {
       dot.style.setProperty("--pct", Math.max(0, Math.min(100, (avg / scale) * 100)).toFixed(1));
     }
-    box._series = p.series || [];
     if (spark) {
       var pts = sparkPoints(p.series);
       spark.setAttribute("points", pts);

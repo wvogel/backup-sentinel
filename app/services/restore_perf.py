@@ -32,6 +32,7 @@ _PROGRESS_KEY = "restore_server.perf_progress"  # live {storage, pct, rate_bps, 
 _CANCEL_KEY = "restore_server.perf_cancel"  # value = storage whose test should abort, else ""
 
 _RUNTIME = 300  # fio time-based duration (s); also drives the UI's time estimate
+_WARMUP = 60  # seconds fio writes before it measures (--ramp_time); shown as warm-up
 _SERIES_CAP = 150  # most rate samples kept for the sparkline
 
 
@@ -81,6 +82,15 @@ def _store_result(storage: str, *, bps: int | None = None, error: str | None = N
     save_settings({_PREFIX + storage: json.dumps(rec)})
 
 
+def _in_warmup(prog: dict[str, Any], now: datetime | None = None) -> bool:
+    """Whether the running test is still in its warm-up (not measured yet)."""
+    try:
+        started = datetime.fromisoformat(prog["started_at"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return ((now or datetime.now(UTC)) - started).total_seconds() < float(prog.get("warmup") or 0)
+
+
 def _store_progress(storage: str, sample: dict[str, Any]) -> None:
     """Fold one fio ETA sample into the live progress record, appending its rate
     to the series that feeds the sparkline."""
@@ -91,12 +101,16 @@ def _store_progress(storage: str, sample: dict[str, Any]) -> None:
     prog["at"] = datetime.now(UTC).isoformat()
     if "eta" in sample:
         prog["eta"] = sample["eta"]
+    warming = _in_warmup(prog)
+    prog["warming"] = warming
     rate = sample.get("rate_bps")
     if rate is not None:
         prog["rate_bps"] = int(rate)
         series = list(prog.get("series") or [])
         series.append(int(rate))
         prog["series"] = series[-_SERIES_CAP:]
+        if warming:  # how many samples at the start of the series are warm-up
+            prog["warmup_n"] = len(prog["series"])
     save_settings({_PROGRESS_KEY: json.dumps(prog)})
 
 
@@ -169,6 +183,8 @@ def start(storage: str) -> tuple[bool, str]:
                     "pct": 0,
                     "started_at": datetime.now(UTC).isoformat(),
                     "runtime": _RUNTIME,
+                    "warmup": _WARMUP,
+                    "warmup_n": 0,
                     "series": [],
                 }
             ),
@@ -203,6 +219,7 @@ def _run(storage: str) -> None:
         bps = server.benchmark_storage_write(
             storage,
             runtime=_RUNTIME,
+            ramp=_WARMUP,
             progress_cb=lambda sample: _store_progress(storage, sample),
             cancel_cb=lambda: _cancel_requested() == storage,
         )

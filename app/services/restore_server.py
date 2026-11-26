@@ -788,6 +788,7 @@ class RestoreServer:
         *,
         size_gb: int = 24,
         runtime: int = 300,
+        ramp: int = 60,
         bs: str = "4M",
         poll_interval: float = 5.0,
         progress_cb: Callable[[dict[str, Any]], None] | None = None,
@@ -824,12 +825,16 @@ class RestoreServer:
             fio = (
                 f"fio --name={name} --filename={shlex.quote(path)} --rw=randwrite --bs={bs} "
                 f"--direct=1 --ioengine=psync --size={int(size_gb)}G --runtime={int(runtime)} "
+                # Warm-up: fio writes for `ramp` seconds before it measures, so the
+                # result is the rate the storage sustains — not the burst while
+                # its caches and write buffers are still empty.
+                f"--ramp_time={int(ramp)} "
                 f"--time_based=1 --group_reporting --eta=always --eta-newline=2 "
                 f"--output-format=json --output={resfile}"
             )
             # fio's ETA stream goes to the .eta file; the JSON result to --output.
             self.ssh.run(f"nohup sh -c {shlex.quote(fio + f' > {etafile} 2>&1')} >/dev/null 2>&1 & echo started")
-            deadline = now() + runtime + 120
+            deadline = now() + ramp + runtime + 120
             done = False
             while now() < deadline:
                 sleep(poll_interval)
