@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.26.1] — 2026-11-26
+
+### Fixed
+
+- **A performance test stood at 0 % during its warm-up.** Since v3.25.0 fio warms up for a minute, and while it does its status line carries no percentage — the app took its progress from that line and showed nothing. Percentage and remaining time now come from the clock (the test lasts a fixed time), so the bar moves from the first poll on; from fio's line only the current rate is read.
+
 ## [v3.26.0] — 2026-11-26
 
 ### Changed

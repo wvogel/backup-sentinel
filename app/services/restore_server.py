@@ -420,6 +420,27 @@ _ETA_RATE_RE = re.compile(r"\[[rw]=([\d.]+)([KMGTP]i?)?B/s\]")
 _ETA_ETA_RE = re.compile(r"\[eta[\s=]+([0-9hmsd:]+)\]")
 
 
+def parse_fio_rate(line: str) -> int | None:
+    """The current write rate (bytes/s) of a fio status line, or None when it
+    carries none. Read on its own: while fio warms up (``--ramp_time``) the line
+    may carry no percentage, and the rate is all there is."""
+    mr = _ETA_RATE_RE.search(line or "")
+    if not mr:
+        return None
+    unit = (mr.group(2) or "").rstrip("B")  # "Mi", "Ki", … or ""
+    return int(float(mr.group(1)) * _ETA_BIN.get(unit, 1))
+
+
+def clock_progress(elapsed: float, total: float) -> dict[str, Any]:
+    """Progress of a time-based test from the clock: percent done (below 100
+    until the result is in) and the time left as fio writes it ("04m:26s").
+    The test lasts a fixed time, so this needs nothing from fio's output."""
+    total = max(1.0, float(total))
+    done = max(0.0, min(float(elapsed), total))
+    left = round(total - done)
+    return {"pct": min(99.0, round(100 * done / total, 1)), "eta": f"{left // 60:02d}m:{left % 60:02d}s"}
+
+
 def parse_fio_eta(line: str) -> dict[str, Any] | None:
     """Pull live progress from a fio status line such as
     ``Jobs: 1 (f=1): [w(1)][42.0%][w=1234MiB/s][eta 02m48s]`` — percent done,
@@ -834,7 +855,8 @@ class RestoreServer:
             )
             # fio's ETA stream goes to the .eta file; the JSON result to --output.
             self.ssh.run(f"nohup sh -c {shlex.quote(fio + f' > {etafile} 2>&1')} >/dev/null 2>&1 & echo started")
-            deadline = now() + ramp + runtime + 120
+            started = now()
+            deadline = started + ramp + runtime + 120
             done = False
             while now() < deadline:
                 sleep(poll_interval)
@@ -845,7 +867,7 @@ class RestoreServer:
                     # last fio ETA line (CRs split into lines first).
                     out = self.ssh.run(
                         f"if grep -q bw_bytes {shlex.quote(resfile)} 2>/dev/null; then echo DONE; "
-                        f"else tr '\\r' '\\n' < {shlex.quote(etafile)} 2>/dev/null | grep '%]' | tail -n1; fi"
+                        f"else tr '\\r' '\\n' < {shlex.quote(etafile)} 2>/dev/null | grep -E 'Jobs:|%\\]' | tail -n1; fi"
                     ).strip()
                 except Exception as exc:
                     logger.debug("fio poll blip: %s", exc)
@@ -854,9 +876,14 @@ class RestoreServer:
                     done = True
                     break
                 if progress_cb:
-                    sample = parse_fio_eta(out)
-                    if sample:
-                        progress_cb(sample)
+                    # Percent and time left from the clock — the test lasts a fixed
+                    # time, and fio's status line carries no percentage while it
+                    # warms up; from the line only the rate.
+                    sample = clock_progress(now() - started, ramp + runtime)
+                    rate = parse_fio_rate(out)
+                    if rate is not None:
+                        sample["rate_bps"] = rate
+                    progress_cb(sample)
             raw = self.ssh.run(f"cat {shlex.quote(resfile)} 2>/dev/null || true")
             bps = parse_fio_bw(raw)
             if not bps:
