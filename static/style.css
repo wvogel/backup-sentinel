@@ -3745,7 +3745,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .store-meter { min-width: 0; }
 .store-meter-graph { display: flex; align-items: center; gap: 10px; height: 30px; }
 .store-meter-text {
-  display: flex; align-items: center; gap: 10px; min-height: 26px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 2px 10px; min-height: 26px;
   font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums;
 }
 .store-cap-bar {
@@ -3753,23 +3753,20 @@ html[data-theme="dark"] .node-filter-button.is-active {
   background: var(--chip); border: 1px solid var(--chip-border);
 }
 .store-cap-bar > span { display: block; height: 100%; width: 0; background: var(--running); border-radius: 999px; }
-/* Write performance as a race track: turtle at 0, hare at the end of the scale
-   (the same for every storage), the dot where this storage stands. */
-.race-animal { flex: none; width: 30px; height: 30px; color: var(--muted); }
-.race-track {
-  position: relative; flex: 1 1 auto; height: 4px; border-radius: 999px;
-  background: var(--chip-border, var(--line));
+/* Write performance: the same kind of bar as the capacity beside it, from 0
+   to the end of a scale all storages share; in the accent colour so the two
+   are not mistaken for each other. While the storage is tested the bar shows
+   the average measured so far. */
+.store-perf-bar {
+  flex: 1 1 auto; height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--chip); border: 1px solid var(--chip-border);
 }
-.race-dot {
-  position: absolute; top: 50%; left: calc(var(--pct, 0) * 1%);
-  width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
-  background: var(--accent-fill, var(--accent)); border: 2px solid var(--panel);
-  box-shadow: 0 0 0 1px var(--accent-fill, var(--accent));
+.store-perf-bar > span {
+  display: block; height: 100%; width: 0; border-radius: 999px;
+  background: var(--accent-fill, var(--accent)); transition: width 0.8s ease;
 }
-.race-empty .race-animal, .race-empty .race-track { opacity: 0.45; }
-/* While the storage is being tested the dot follows the rate measured so far. */
-.race-dot { transition: left 0.8s ease; }
-@media (prefers-reduced-motion: reduce) { .race-dot { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .store-perf-bar > span { transition: none; } }
+.perf-per-tb { white-space: nowrap; }
 .perf-value { color: var(--ink); font-weight: 600; white-space: nowrap; }
 .perf-value.muted { color: var(--muted); font-weight: 400; }
 .perf-test-btn { width: auto; margin-left: auto; padding: 2px 12px; font-size: 0.78rem; }
@@ -3814,8 +3811,11 @@ html[data-theme="dark"] .node-filter-button.is-active {
 }
 @media (prefers-reduced-motion: reduce) { .perf-run .perf-bar::after { animation: none; background: none; } }
 /* Rate over the test so far, standing on its zero line. */
-.perf-spark-wrap { position: relative; flex: 1 1 auto; min-width: 0; height: 30px; cursor: crosshair; }
-.perf-spark { display: block; width: 100%; height: 100%; color: var(--running); }
+/* As tall as the bar and its text beside it (30 + 26 px), and taller with
+   them where that text wraps. */
+.perf-run .store-meter { display: flex; flex-direction: column; }
+.perf-spark-wrap { position: relative; flex: 1 1 auto; min-width: 0; min-height: 56px; cursor: crosshair; }
+.perf-spark { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--running); }
 .perf-spark polyline { fill: none; stroke: currentColor; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .perf-spark-area { fill: currentColor; fill-opacity: 0.14; stroke: none; }
 /* The warm-up at the start of the test: written, but not measured. */

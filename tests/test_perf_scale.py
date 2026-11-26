@@ -1,4 +1,4 @@
-"""The turtle-to-hare track of the target storages (Settings → Restore server)."""
+"""The performance bar of the target storages (Settings → Restore server)."""
 
 from pathlib import Path
 
@@ -13,23 +13,22 @@ def test_scale_is_one_gigabyte_per_second_at_least():
 
 def test_scale_grows_with_the_fastest_storage():
     rows = [{"perf": {"bps": 300_000_000}}, {"perf": {"bps": 2_500_000_000}}]
-    assert perf_scale(rows) == 2_500_000_000  # the fastest stands at the hare, nobody beyond it
+    assert perf_scale(rows) == 2_500_000_000  # the fastest fills the bar, nobody beyond it
 
 
 def test_storage_rows_render_with_both_meters_and_a_test_button():
     from app.web.common import templates
 
+    templates.env.get_template("settings.html")  # compiles
     macro_source = Path("templates/settings.html").read_text()
     assert "PREVIEW-ONLY" not in macro_source
-    icons = templates.env.get_template("_storage_icons.html").module
-    assert "race-animal" in str(icons.turtle_icon()) and "race-animal" in str(icons.hare_icon())
     for needle in (
         "store-cap-bar",
-        "race-track",
+        "store-perf-bar",
+        "restore.perf_per_tb",
         "js-perf-test",
         "restore.st_used_free",
-        "js-perf-rate",
-        "race-running",
+        "js-perf-cancel",
         "perf-spark-zero",
         "js-perf-tip",
         "data-scale",
@@ -49,3 +48,11 @@ def test_rate_curve_starts_at_zero():
 def test_track_dot_shows_the_average_of_a_running_test():
     js = Path("static/js/settings.js").read_text()
     assert "meanRate(box._series.slice(warmN))" in js  # the warm-up is left out
+
+
+def test_time_per_terabyte():
+    from app.web.common import time_per_tb
+
+    assert time_per_tb(1024**4 / 600) == "10 min"
+    assert time_per_tb(1024**4 / 3900) == "1 h 05 min"
+    assert time_per_tb(0) == "" and time_per_tb(None) == ""

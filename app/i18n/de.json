@@ -721,6 +721,7 @@
   "restore.perf_cancel_hint": "Test abbrechen — fio wird gestoppt und das Test-Volume wieder freigegeben.",
   "restore.perf_test_hint": "Schreib-Performance messen (~6 min, im Hintergrund) — ergibt den 100%-Wert der Disk-I/O-Grafik. Die erste Minute ist Aufwärmen und zählt nicht mit.",
   "restore.perf_warmup": "Aufwärmen",
+  "restore.perf_per_tb": "1 TB in ca. {time}",
   "restore.perf_running_hint": "Performance-Test läuft gerade für diesen Storage.",
   "restore.perf_running_other": "Ein Performance-Test läuft bereits für einen anderen Storage.",
   "restore.perf_busy": "Storage ist gerade an einem laufenden Restore beteiligt.",

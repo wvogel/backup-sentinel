@@ -245,24 +245,23 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     var warm = box.querySelector(".js-perf-warm");
     if (warm) warm.setAttribute("width", n > 1 && warmN > 0 ? ((Math.min(warmN, n - 1) / (n - 1)) * 100).toFixed(1) : "0");
     if (fill) fill.style.width = pct.toFixed(1) + "%";
-    var rate = box.querySelector(".js-perf-rate");
     if (text) {
       var bits = [Math.round(pct) + " %"];
       if (p.warming) bits.unshift(T("restore.perf_warmup"));
+      if (p.rate_bps) bits.push(fmtRate(p.rate_bps));
       if (p.eta) bits.push("eta " + p.eta);
       text.textContent = bits.join(" · ");
     }
-    if (rate) rate.textContent = p.rate_bps ? fmtRate(p.rate_bps) : "";
-    // The dot on the track of this storage stands at the average of the rates
+    // The performance bar of this storage shows the average of the rates
     // measured so far (the warm-up left out) — where the result is heading —
     // and moves with every new sample.
     var row = box.closest("tr");
-    var race = row && row.querySelector(".race");
-    var dot = race && race.querySelector(".race-dot");
-    var scale = race ? parseFloat(race.dataset.scale) : 0;
-    var avg = meanRate(box._series.slice(warmN));  // nothing measured yet: the dot stays where it is
-    if (dot && scale > 0 && avg) {
-      dot.style.setProperty("--pct", Math.max(0, Math.min(100, (avg / scale) * 100)).toFixed(1));
+    var meter = row && row.querySelector(".perf-meter");
+    var bar = meter && meter.querySelector(".store-perf-bar > span");
+    var scale = meter ? parseFloat(meter.dataset.scale) : 0;
+    var avg = meanRate(box._series.slice(warmN));  // nothing measured yet: the bar stays where it is
+    if (bar && scale > 0 && avg) {
+      bar.style.width = Math.max(0, Math.min(100, (avg / scale) * 100)).toFixed(1) + "%";
     }
     if (spark) {
       var pts = sparkPoints(p.series);

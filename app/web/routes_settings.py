@@ -22,7 +22,7 @@ PERF_SCALE_MIN = 1024**3  # shown as "1 GB/s" (sizes scale binary, like the Prox
 
 
 def perf_scale(rows: list[dict]) -> int:
-    """Right end of the turtle-to-hare track, in bytes/s: the same for every
+    """Right end of the performance bar, in bytes/s: the same for every
     storage so the positions compare, starting at 0 and reaching 1 GB/s at
     least — further only when a storage is faster than that."""
     rates = [int((row.get("perf") or {}).get("bps") or 0) for row in rows]

@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.26.0] — 2026-11-26
+
+### Changed
+
+- **Settings → Restore server: the write performance is a bar, with what it means for a restore.** Turtle, hare and the track between them are gone. The performance is now the same kind of bar as the capacity beside it, in the accent colour, from 0 to the end of a scale all storages share (1 GB/s, further only when one is faster). Underneath: the measured rate and how long one terabyte takes at it ("1 TB in about 23 min"), then the "Test" button. While a storage is tested the bar shows the average measured so far, the warm-up left out.
+- **A running test: "Cancel" stands under the progress bar, the throughput curve takes the whole height.** Percentage, current rate and remaining time are one line under the bar again, with "Cancel" at its end; the curve beside it is as tall as bar and text together.
+
 ## [v3.25.0] — 2026-11-26
 
 ### Changed

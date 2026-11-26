@@ -233,6 +233,19 @@ def vol_seg_class(storage: object) -> str:
 templates.env.filters["vol_seg_class"] = vol_seg_class
 
 
+def time_per_tb(bps: object) -> str:
+    """How long writing one terabyte takes at ``bps`` bytes/s ("23 min",
+    "1 h 05 min") — what a measured rate means for a restore; "" when unknown."""
+    try:
+        rate = float(bps)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return ""
+    return format_duration(int(1024**4 / rate)) if rate > 0 else ""
+
+
+templates.env.filters["time_per_tb"] = time_per_tb
+
+
 def _parse_footer_links(s: str) -> list[dict[str, str]]:
     if not s:
         return []

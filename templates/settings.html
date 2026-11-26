@@ -321,18 +321,16 @@
                 </div>
                 <div class="store-meter store-perf-cell">
                   {%- set _testing = restore_fio_available and restore_perf_running == s.storage %}
-                  <div class="store-meter-graph race{% if _testing %} race-running{% elif not bps %} race-empty{% endif %}" data-scale="{{ restore_perf_scale }}">
-                    {{ sicons.turtle_icon() }}
-                    <span class="race-track">{% if bps or _testing %}<span class="race-dot" data-css-pct="{{ (100 * bps / restore_perf_scale)|round(1) }}"></span>{% endif %}</span>
-                    {{ sicons.hare_icon() }}
-                  </div>
+                  {#- The same kind of bar as the capacity beside it: from 0 to the
+                      end of the scale, which all storages share. -#}
+                  <div class="store-meter-graph perf-meter" data-scale="{{ restore_perf_scale }}"><div class="store-perf-bar"><span data-css-width="{{ (100 * bps / restore_perf_scale)|round(1) }}"></span></div></div>
                   <div class="store-meter-text">
                     {%- if not s.benchmarkable %}<span class="muted">{{ t('restore.perf_not_measurable') }}</span>
                     {%- elif not restore_fio_available %}<span class="perf-nofio" data-tooltip="{{ t('restore.perf_nofio_hint') }}">{{ t('restore.perf_nofio') }} · <a href="#" class="js-install-fio">{{ t('restore.perf_install_fio') }}</a></span>
                     {%- elif restore_perf_running == s.storage %}<span class="perf-value muted">{{ t('restore.perf_running') }}</span>
                     {%- else %}
                     {%- set _disabled = s.busy or (restore_perf_running and restore_perf_running != s.storage) %}
-                    {% if bps %}<span class="perf-value">{{ bps | size_coarse }}/s</span>{% else %}<span class="perf-value muted">{{ t('restore.perf_unknown') }}</span>{% endif %}
+                    {% if bps %}<span class="perf-value">{{ bps | size_coarse }}/s</span><span class="perf-per-tb">{{ t('restore.perf_per_tb', time=(bps | time_per_tb)) }}</span>{% else %}<span class="perf-value muted">{{ t('restore.perf_unknown') }}</span>{% endif %}
                     <button type="button" class="button-secondary perf-test-btn js-perf-test" data-storage="{{ s.storage }}"{% if _disabled %} disabled{% endif %} data-tooltip="
                       {%- if s.busy %}{{ t('restore.perf_busy') }}
                       {%- elif restore_perf_running %}{{ t('restore.perf_running_other') }}
@@ -350,22 +348,20 @@
               <div class="store-meters perf-run js-perf-run" data-storage="{{ s.storage }}">
                 <div class="store-meter">
                   <div class="store-meter-graph"><div class="perf-bar"><span class="perf-bar-fill" data-css-width="{{ (restore_perf_progress.pct or 0) }}"></span></div></div>
-                  <div class="store-meter-text"><span class="js-perf-text">{{ t('restore.perf_running') }}</span></div>
+                  <div class="store-meter-text">
+                    <span class="js-perf-text">{{ t('restore.perf_running') }}</span>
+                    <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
+                  </div>
                 </div>
                 <div class="store-meter">
-                  <div class="store-meter-graph">
-                    {#- Rate over the test so far. The curve stands on its zero
-                        line (drawn); the pointer reads the value under it. -#}
-                    <div class="perf-spark-wrap js-perf-spark-wrap">
-                      <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><rect class="perf-spark-warm js-perf-warm" x="0" y="0" width="0" height="24" /><polygon class="perf-spark-area" points="" /><line class="perf-spark-zero" x1="0" y1="23.5" x2="100" y2="23.5" /><polyline points="" /></svg>
-                      <span class="perf-spark-cursor js-perf-cursor" hidden></span>
-                      <span class="perf-spark-dot js-perf-dot" hidden></span>
-                      <span class="perf-spark-tip js-perf-tip" hidden></span>
-                    </div>
-                  </div>
-                  <div class="store-meter-text">
-                    <span class="perf-value js-perf-rate"></span>
-                    <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
+                  {#- Rate over the test so far, as tall as bar and text beside
+                      it. The curve stands on its zero line (drawn); the pointer
+                      reads the value under it. -#}
+                  <div class="perf-spark-wrap js-perf-spark-wrap">
+                    <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><rect class="perf-spark-warm js-perf-warm" x="0" y="0" width="0" height="24" /><polygon class="perf-spark-area" points="" /><line class="perf-spark-zero" x1="0" y1="23.5" x2="100" y2="23.5" /><polyline points="" /></svg>
+                    <span class="perf-spark-cursor js-perf-cursor" hidden></span>
+                    <span class="perf-spark-dot js-perf-dot" hidden></span>
+                    <span class="perf-spark-tip js-perf-tip" hidden></span>
                   </div>
                 </div>
               </div>
