@@ -33,7 +33,7 @@ _CANCEL_KEY = "restore_server.perf_cancel"  # value = storage whose test should 
 
 _RUNTIME = 300  # fio time-based duration (s); also drives the UI's time estimate
 _WARMUP = 60  # seconds fio writes before it measures (--ramp_time); shown as warm-up
-_SERIES_CAP = 150  # most rate samples kept for the sparkline
+_SERIES_CAP = 480  # most rate samples kept for the curve: one a second for warm-up + runtime, with room
 
 
 def get_perf() -> dict[str, dict[str, Any]]:
@@ -197,7 +197,7 @@ def start(storage: str) -> tuple[bool, str]:
 
 def cancel(storage: str) -> tuple[bool, str]:
     """Ask the running test for ``storage`` to abort. The worker thread stops at
-    its next poll (~5 s), then frees the scratch volume."""
+    its next poll (~1 s), then frees the scratch volume."""
     if running_storage() != storage:
         return False, "no performance test is running for this storage"
     if recover_orphaned():  # nobody is left to hear the request: end it here

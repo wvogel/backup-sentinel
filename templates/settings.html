@@ -328,6 +328,8 @@
                     {%- if not s.benchmarkable %}<span class="muted">{{ t('restore.perf_not_measurable') }}</span>
                     {%- elif not restore_fio_available %}<span class="perf-nofio" data-tooltip="{{ t('restore.perf_nofio_hint') }}">{{ t('restore.perf_nofio') }} · <a href="#" class="js-install-fio">{{ t('restore.perf_install_fio') }}</a></span>
                     {%- elif restore_perf_running == s.storage %}<span class="perf-value muted js-perf-avg">{{ t('restore.perf_running') }}</span>
+                    {#- Where "Test" stands otherwise: the way out of the running one. -#}
+                    <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
                     {%- else %}
                     {%- set _disabled = s.busy or (restore_perf_running and restore_perf_running != s.storage) %}
                     {% if bps %}<span class="perf-value">{{ bps | size_coarse }}/s</span><span class="perf-per-tb">{{ t('restore.perf_per_tb', time=(bps | time_per_tb)) }}</span>{% else %}<span class="perf-value muted">{{ t('restore.perf_unknown') }}</span>{% endif %}
@@ -350,7 +352,6 @@
                   <div class="store-meter-graph"><div class="perf-bar"><span class="perf-bar-fill" data-css-width="{{ (restore_perf_progress.pct or 0) }}"></span></div></div>
                   <div class="store-meter-text">
                     <span class="js-perf-text">{{ t('restore.perf_running') }}</span>
-                    <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>
                   </div>
                 </div>
                 <div class="store-meter">

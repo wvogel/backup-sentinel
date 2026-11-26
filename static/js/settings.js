@@ -295,7 +295,7 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
         if (s.progress && s.progress.storage === storage) renderProgress(box, s.progress);
       }).catch(function () {});
     };
-    var timer = setInterval(tick, 5000);
+    var timer = setInterval(tick, 1000);  // the server samples once a second
     tick();
   }
   document.querySelectorAll(".js-perf-run").forEach(function (box) {

@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.27.0] — 2026-11-26
+
+### Changed
+
+- **A running performance test updates every second** instead of every five: progress, remaining time, the throughput curve and the average. The app reads fio's state once a second over the SSH connection it holds open anyway, and the page asks once a second while a test runs.
+- "Cancel" stands where "Test" stands otherwise — beside the average under the performance bar of the storage being tested.
+
 ## [v3.26.4] — 2026-11-26
 
 ### Changed

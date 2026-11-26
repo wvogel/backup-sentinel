@@ -811,7 +811,9 @@ class RestoreServer:
         runtime: int = 300,
         ramp: int = 60,
         bs: str = "4M",
-        poll_interval: float = 5.0,
+        # Once a second: a test is short and watched, and one small read per
+        # second over the open SSH connection costs the host nothing.
+        poll_interval: float = 1.0,
         progress_cb: Callable[[dict[str, Any]], None] | None = None,
         cancel_cb: Callable[[], bool] | None = None,
         now: Callable[[], float] = time.monotonic,
@@ -850,7 +852,7 @@ class RestoreServer:
                 # result is the rate the storage sustains — not the burst while
                 # its caches and write buffers are still empty.
                 f"--ramp_time={int(ramp)} "
-                f"--time_based=1 --group_reporting --eta=always --eta-newline=2 "
+                f"--time_based=1 --group_reporting --eta=always --eta-newline=1 "
                 f"--output-format=json --output={resfile}"
             )
             # fio's ETA stream goes to the .eta file; the JSON result to --output.
