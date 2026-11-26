@@ -214,6 +214,14 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
       text.textContent = bits.join(" · ");
     }
     if (rate) rate.textContent = p.rate_bps ? fmtRate(p.rate_bps) : "";
+    // The dot on the turtle-to-hare track of this storage follows the rate.
+    var row = box.closest("tr");
+    var race = row && row.querySelector(".race");
+    var dot = race && race.querySelector(".race-dot");
+    var scale = race ? parseFloat(race.dataset.scale) : 0;
+    if (dot && scale > 0 && p.rate_bps) {
+      dot.style.setProperty("--pct", Math.max(0, Math.min(100, (p.rate_bps / scale) * 100)).toFixed(1));
+    }
     if (spark) spark.setAttribute("points", sparkPoints(p.series));
   }
   // One poller per running test: updates the live box, reloads when it ends.

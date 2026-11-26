@@ -3767,6 +3767,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
   box-shadow: 0 0 0 1px var(--accent-fill, var(--accent));
 }
 .race-empty .race-animal, .race-empty .race-track { opacity: 0.45; }
+/* While the storage is being tested the dot follows the rate measured so far. */
+.race-dot { transition: left 0.8s ease; }
+@media (prefers-reduced-motion: reduce) { .race-dot { transition: none; } }
 .perf-value { color: var(--ink); font-weight: 600; white-space: nowrap; }
 .perf-value.muted { color: var(--muted); font-weight: 400; }
 .perf-test-btn { width: auto; margin-left: auto; padding: 2px 12px; font-size: 0.78rem; }
