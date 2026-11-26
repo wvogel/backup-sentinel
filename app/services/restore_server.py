@@ -565,6 +565,9 @@ class RestoreServer:
         self.pve_root = pve_root or pve
         self.ssh = ssh
         self._node: str | None = None
+        # What the helper agent's token is derived for besides its address: the
+        # run (restore_worker sets it). Empty: the address alone, as before v3.23.0.
+        self.agent_scope = ""
 
     # host identity / safety -------------------------------------------------
 
@@ -2047,15 +2050,27 @@ class RestoreServer:
         import urllib.request
 
         data = json.dumps(body).encode()
-        req = urllib.request.Request(
-            self._agent_url(mgmt_ip, path),
-            data=data,
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {agent_token(mgmt_ip)}"},
-            method="POST",
-        )
+
+        def request(token: str) -> urllib.request.Request:
+            return urllib.request.Request(
+                self._agent_url(mgmt_ip, path),
+                data=data,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+                method="POST",
+            )
+
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                raw = resp.read()
+            try:
+                with urllib.request.urlopen(request(agent_token(mgmt_ip, self.agent_scope)), timeout=timeout) as resp:
+                    raw = resp.read()
+            except urllib.error.HTTPError as exc:
+                if exc.code != 401 or not self.agent_scope:
+                    raise
+                # A helper started before v3.23.0 (a restore running through the
+                # update, a held environment) was claimed with the token of its
+                # address alone.
+                with urllib.request.urlopen(request(agent_token(mgmt_ip)), timeout=timeout) as resp:
+                    raw = resp.read()
         except urllib.error.HTTPError as exc:
             # The agent catches its own exceptions and returns {"error", "trace"}
             # with a 500. urllib turns that into a bare HTTPError whose str() is
@@ -2515,13 +2530,16 @@ class PveApi:
         )
 
 
-def agent_token(mgmt_ip: str) -> str:
+def agent_token(mgmt_ip: str, scope: str = "") -> str:
     """The bearer token for the helper agent at ``mgmt_ip``: derived from
     BSENTINEL_SECRET_KEY, so it needs no storage and is the same after an app
-    restart (a restore that resumes keeps talking to its helper)."""
+    restart (a restore that resumes keeps talking to its helper). ``scope`` is
+    the run the helper belongs to: the management addresses are reused from run
+    to run, the token is not — one read off the wire (the agent speaks plain
+    http) is worthless for every later helper at that address."""
     from app.services.crypto import keyed_digest
 
-    return keyed_digest("restore-helper-agent", mgmt_ip)
+    return keyed_digest("restore-helper-agent", f"{scope}|{mgmt_ip}" if scope else mgmt_ip)
 
 
 def _extract_json(text: str) -> dict[str, Any]:

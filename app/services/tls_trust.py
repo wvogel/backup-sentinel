@@ -178,7 +178,7 @@ def check(host: str, port: int, der: bytes, enforce: bool | None = None) -> None
     if verdict == "refuse":
         raise CertificateChanged(
             f"certificate of {host}:{port} changed: it now has the fingerprint {presented}. "
-            "If the certificate was renewed, accept it under Settings → Certificates."
+            "If the certificate was renewed, accept it under Settings → Clusters, below the host."
         )
 
 

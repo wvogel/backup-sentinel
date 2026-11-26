@@ -533,37 +533,31 @@ td .icon-button {
   grid-column: 1 / -1;
 }
 
-/* Pinned certificates, in a half-width box: one entry per host, the
-   fingerprint on its own lines (it breaks where the box ends). */
-.tls-list {
-  padding-left: 0;
-  list-style: none;
+/* TLS certificate of a host: a lock beside its PVE / PBS symbol, details on
+   hover. A changed certificate gets a line of its own with the decision. */
+.tls-icon {
+  flex: none;
+  display: inline-flex;
+  line-height: 0;
+  color: var(--muted);
 }
+.tls-icon svg { width: 16px; height: 16px; }
+.tls-icon.tls-ok { color: var(--ok); }
+.tls-icon.tls-changed { color: var(--critical); }
 
-.tls-list li {
-  display: block;
+div.tls-changed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  flex-basis: 100%;
+  margin-top: 8px;
+  font-size: 0.85rem;
 }
-
-.tls-list li + li {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
+.tls-changed-text { color: var(--critical); font-weight: 600; }
 .tls-fingerprint {
-  display: block;
-  margin: 2px 0;
   font-size: 0.72rem;
   overflow-wrap: anywhere;
-}
-
-.tls-changed {
-  margin-top: 8px;
-}
-
-.tls-changed form {
-  display: inline-block;
-  margin: 4px 6px 0 0;
 }
 
 .section-head {
@@ -2104,6 +2098,9 @@ button.log-dialog-btn svg { width: 18px; height: 18px; }
   gap: 4px;
   min-width: 0;
 }
+/* The remove button keeps its width when the row holds long text (a changed certificate). */
+.settings-subcard > form { flex: none; }
+.pbs-remove-btn { white-space: nowrap; }
 
 .settings-subcard-title,
 .settings-subcard-meta {

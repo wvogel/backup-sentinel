@@ -97,6 +97,7 @@ Your reverse proxy should forward traffic to the OAuth2-Proxy container on port 
 | `BSENTINEL_SECRET_KEY` | *(empty)* | **Required** — the app does not start without a valid key. Fernet key that encrypts the secrets in the database (PVE/PBS API tokens, enrollment secrets, restore-server credentials, SMTP password, Gotify token); it also keys the hash chain of the audit log. Keep a copy outside the server: without it the tokens cannot be read. Generate with: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `BSENTINEL_SECRET_KEY_OLD` | *(empty)* | Previous keys, comma-separated — only for changing the key. **Never just replace the key:** the stored tokens can only be read with the key they were encrypted with. To change it, put the new key into `BSENTINEL_SECRET_KEY` and the previous one here, then restart; the start re-encrypts everything with the new key, after which this line can go. If the key does not fit the stored secrets they are left untouched, the log names them (`BSENTINEL_SECRET_KEY does not fit …`), and the affected connections work again only with the right key. |
 | `BSENTINEL_ADMINS` | *(empty)* | Who may do everything: e-mail addresses, user names or IdP groups, comma-separated. See [Roles](#roles). |
+| `BSENTINEL_ALLOW_ANONYMOUS` | `false` | Only for running the app locally **without** a proxy. By default a request without the user OAuth2-Proxy forwards is refused with 401 (except `/healthz`, `/metrics` and the bootstrap endpoints), so the app's port gives nothing when reached past the proxy. |
 | `BSENTINEL_OPERATORS` | *(empty)* | Who runs day-to-day operation (start syncs and restore tests, record tests, create interim reports). See [Roles](#roles). |
 | `BACKUP_AGE_RECIPIENT` | *(empty)* | age public key (`age1…`) that `backup.sh` encrypts the database dump to. |
 | `BSENTINEL_DEFAULT_TIMEZONE` | `Europe/Berlin` | Timezone for display formatting and quiet-hour calculations. |
@@ -360,7 +361,7 @@ Proxmox hosts usually serve a self-signed certificate. Backup Sentinel does not 
 - Otherwise its SHA-256 fingerprint is remembered on first contact, per host and port. If it equals the one the bootstrap script read on the host itself, the origin says "confirmed by the bootstrap script", else "on first contact".
 - From then on only that certificate is accepted. If the host presents another one, the connection is dropped **before** an API token is sent; the sync fails with a message saying so.
 
-**Settings → Clusters → Certificates** lists all pinned fingerprints. After renewing a certificate on purpose, compare the new fingerprint shown there with the one on the host (`pvenode cert info` or `proxmox-backup-manager cert info`) and choose **Accept the new certificate**. Pinning, changes, accepting and dismissing are in the audit log.
+Under **Settings → Clusters** every PVE and PBS carries a lock beside its symbol (the restore host under **Restore server**, beside its API token): green once a certificate is remembered for it, grey before the first contact, red while it presents a different one. Hovering shows where the trust comes from, since when, and the fingerprint. A host with a red lock gets a line below it with the new fingerprint. After renewing a certificate on purpose, compare that fingerprint with the one on the host (`pvenode cert info` or `proxmox-backup-manager cert info`) and choose **Accept the new certificate**. Pinning, changes, accepting and dismissing are in the audit log.
 
 **Switching over from `BSENTINEL_INSECURE_SSL=true`:** with the variable set everything keeps working as before, but certificates are already pinned and changes reported. Once the list shows every host without a report, remove the variable and restart — from then on a change is refused. If a host keeps showing different certificates, several nodes answer under its address; point the API URL at one node, or use one CA-signed certificate for all.
 
@@ -539,7 +540,7 @@ The restore host is the most sensitive system of the installation: it holds a fu
 - Restored guests are attached only to the portless sandbox bridge; their traffic never leaves the host. The helper probes a guest only if the route goes out the sandbox leg (otherwise it aborts instead of reaching the production system).
 - After every test and at every start the reaper deletes everything that does not belong to a running operation, disks included.
 - The SSH host key is remembered on first connect; a changed key is refused. Token and SSH key are stored encrypted in the database.
-- The helper agent accepts only requests carrying the app's token.
+- The helper agent accepts only requests carrying the app's token, which is a different one for every run.
 
 **What operations must ensure:**
 

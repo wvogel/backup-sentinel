@@ -170,6 +170,9 @@ def _send_gotify_raw(title: str, message: str, priority: int) -> bool:
     token = decrypt(cfg.get("gotify_token", ""))
     if not url or not token:
         return False
+    if not url.lower().startswith(("https://", "http://")):
+        logger.warning("Gotify URL is not an http(s) URL, nothing sent")
+        return False
 
     payload = json.dumps(
         {
@@ -180,9 +183,10 @@ def _send_gotify_raw(title: str, message: str, priority: int) -> bool:
     ).encode()
 
     req = request.Request(
-        f"{url}/message?token={token}",
+        f"{url}/message",
         data=payload,
-        headers={"Content-Type": "application/json"},
+        # The token as a header, not in the URL: URLs end up in access logs.
+        headers={"Content-Type": "application/json", "X-Gotify-Key": token},
         method="POST",
     )
     try:
@@ -574,6 +578,10 @@ def _send_email_raw(
                     maintype = "application"
                 msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=path.name)
 
+    if tls_mode not in ("ssl", "starttls", "none"):
+        # Never fall back to an unencrypted login because of an unknown value.
+        logger.error("Sending e-mail failed: unknown encryption setting %r", tls_mode)
+        return False
     try:
         context = ssl.create_default_context()
         if tls_mode == "ssl":

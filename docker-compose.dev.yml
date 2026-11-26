@@ -13,6 +13,8 @@ services:
       BSENTINEL_SECRET_KEY: "dUwD46AT9M2L9EYpKahkU8mC7A5pvxjFTqX5hxBbdcQ="
       APP_URL: "http://localhost:8081"
       BSENTINEL_DEBUG: "true"
+      # No proxy in front here, so no signed-in user.
+      BSENTINEL_ALLOW_ANONYMOUS: "true"
     # Live-mount frontend so CSS/JS/template edits show on reload without a rebuild.
     volumes:
       - ./static:/app/static

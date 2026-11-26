@@ -97,6 +97,7 @@ Ihr Reverse Proxy sollte den Traffic an den OAuth2-Proxy-Container auf Port **41
 | `BSENTINEL_SECRET_KEY` | *(leer)* | **Pflicht** – ohne gültigen Schlüssel startet die Anwendung nicht. Fernet-Schlüssel, mit dem die Secrets in der Datenbank verschlüsselt werden (PVE-/PBS-API-Tokens, Enrollment-Secrets, Restore-Server-Zugang, SMTP-Passwort, Gotify-Token); er sichert außerdem die Prüfkette des Audit-Logs. Eine Kopie außerhalb des Servers aufbewahren: ohne ihn sind die Tokens nicht lesbar. Generieren mit: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `BSENTINEL_SECRET_KEY_OLD` | *(leer)* | Frühere Schlüssel, kommagetrennt – nur für einen Schlüsselwechsel. **Den Schlüssel nie einfach ersetzen:** Die gespeicherten Tokens lassen sich nur mit dem Schlüssel lesen, mit dem sie verschlüsselt wurden. Zum Wechseln den neuen Schlüssel in `BSENTINEL_SECRET_KEY` und den bisherigen hier eintragen und neu starten; der Start verschlüsselt alles mit dem neuen Schlüssel, danach kann die Zeile entfallen. Passt der Schlüssel nicht zu den gespeicherten Secrets, bleiben diese unangetastet, das Log nennt sie (`BSENTINEL_SECRET_KEY does not fit …`), und die betroffenen Verbindungen arbeiten erst wieder mit dem richtigen Schlüssel. |
 | `BSENTINEL_ADMINS` | *(leer)* | Wer alles darf: E-Mail-Adressen, Benutzernamen oder IdP-Gruppen, kommagetrennt. Siehe [Rollen](#rollen). |
+| `BSENTINEL_ALLOW_ANONYMOUS` | `false` | Nur, um die App lokal **ohne** Proxy zu betreiben. Standardmäßig wird eine Anfrage ohne den vom OAuth2-Proxy weitergereichten Benutzer mit 401 abgelehnt (außer `/healthz`, `/metrics` und den Bootstrap-Endpunkten); wer den Port der App am Proxy vorbei erreicht, bekommt also nichts. |
 | `BSENTINEL_OPERATORS` | *(leer)* | Wer den Betrieb führt (Syncs und Restore-Tests starten, Tests eintragen, Zwischenberichte erzeugen). Siehe [Rollen](#rollen). |
 | `BACKUP_AGE_RECIPIENT` | *(leer)* | Öffentlicher age-Schlüssel (`age1…`), an den `backup.sh` den Datenbank-Dump verschlüsselt. |
 | `BSENTINEL_DEFAULT_TIMEZONE` | `Europe/Berlin` | Zeitzone für Anzeigeformatierung und Ruhezeiten-Berechnung. |
@@ -360,7 +361,7 @@ Proxmox-Hosts liefern meist ein selbstsigniertes Zertifikat. Backup Sentinel sch
 - Sonst wird sein SHA-256-Fingerabdruck beim ersten Kontakt je Host und Port gemerkt. Stimmt er mit dem überein, den das Bootstrap-Skript auf dem Host selbst gelesen hat, steht als Herkunft „vom Bootstrap-Skript bestätigt", sonst „beim ersten Kontakt".
 - Danach wird nur noch dieses Zertifikat akzeptiert. Liefert der Host ein anderes, bricht die Verbindung ab, **bevor** ein API-Token gesendet wird; der Sync schlägt mit einer entsprechenden Meldung fehl.
 
-Unter **Einstellungen → Cluster → Zertifikate** stehen alle gemerkten Fingerabdrücke. Nach einer gewollten Erneuerung des Zertifikats den dort angezeigten neuen Fingerabdruck mit dem auf dem Host vergleichen (`pvenode cert info` bzw. `proxmox-backup-manager cert info`) und **Neues Zertifikat bestätigen**. Merken, Ändern, Bestätigen und Verwerfen stehen im Audit-Log.
+Unter **Einstellungen → Cluster** trägt jeder PVE und PBS ein Schloss neben seinem Symbol (der Restore-Host unter **Restore-Server**, neben seinem API-Token): grün, sobald ein Zertifikat für ihn gemerkt ist, grau vor dem ersten Kontakt, rot, solange er ein anderes liefert. Beim Überfahren stehen Herkunft, Zeitpunkt und Fingerabdruck. Unter einem Host mit rotem Schloss steht eine Zeile mit dem neuen Fingerabdruck. Nach einer gewollten Erneuerung des Zertifikats diesen Fingerabdruck mit dem auf dem Host vergleichen (`pvenode cert info` bzw. `proxmox-backup-manager cert info`) und **Neues Zertifikat bestätigen**. Merken, Ändern, Bestätigen und Verwerfen stehen im Audit-Log.
 
 **Umstellung von `BSENTINEL_INSECURE_SSL=true`:** Mit gesetzter Variable läuft alles weiter wie bisher, die Zertifikate werden aber schon gemerkt und Änderungen gemeldet. Zeigt die Liste alle Hosts ohne Meldung, die Variable entfernen und neu starten – ab dann wird abgelehnt. Zeigt ein Host ständig wechselnde Zertifikate, antworten unter seiner Adresse mehrere Nodes; dann die API-URL auf einen festen Node legen oder ein gemeinsames, von einer CA signiertes Zertifikat verwenden.
 
@@ -539,7 +540,7 @@ Der Restore-Host ist das empfindlichste System der Installation: Er hält eine v
 - Restaurierte Gäste hängen nur an der portlosen Sandbox-Bridge; ihr Traffic verlässt den Host nicht. Der Helper prüft einen Gast nur, wenn die Route über das Sandbox-Bein führt (sonst Abbruch statt Zugriff auf das Produktionssystem).
 - Nach jedem Test und bei jedem Start löscht der Reaper alles, was nicht zu einem laufenden Vorgang gehört, samt Disks.
 - Der SSH-Hostkey wird beim ersten Verbinden gemerkt; ein geänderter Key wird abgelehnt. Token und SSH-Schlüssel liegen verschlüsselt in der Datenbank.
-- Der Helper-Agent nimmt nur Anfragen mit dem Token der Anwendung an.
+- Der Helper-Agent nimmt nur Anfragen mit dem Token der Anwendung an; es ist für jeden Lauf ein anderes.
 
 **Was der Betrieb sicherstellen muss:**
 

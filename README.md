@@ -76,6 +76,7 @@ The most important variables are listed below. See [`.env.example`](.env.example
 | `DB_USER` | PostgreSQL user | `backup_reports` |
 | `DB_PASSWORD` | PostgreSQL password (also change `BSENTINEL_DATABASE_URL`) | `backup_reports` |
 | `BSENTINEL_SECRET_KEY` | Fernet key that encrypts the secrets in the database (API tokens, credentials); required | *(empty)* |
+| `BSENTINEL_ALLOW_ANONYMOUS` | Accept requests without a signed-in user — local development without a proxy only | `false` |
 | `BSENTINEL_ADMINS` / `BSENTINEL_OPERATORS` | Roles by e-mail, user name or IdP group; both empty: every signed-in user is admin | *(empty)* |
 | `BSENTINEL_DEFAULT_TIMEZONE` | Timezone for display | `Europe/Berlin` |
 | `BSENTINEL_SYNC_INTERVAL_MINUTES` | Auto-sync interval | `60` |

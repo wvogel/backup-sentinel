@@ -13,6 +13,7 @@ from starlette.requests import Request
 from app import db
 from app.config import APP_VERSION, DEBUG, SECRET_KEY
 from app.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, set_language
+from app.web import auth as auth_module
 from app.web.auth import RoleMiddleware
 from app.web.csrf import OriginCheckMiddleware
 from app.web.routes_bootstrap import router as bootstrap_router
@@ -46,6 +47,12 @@ def _validate_config() -> None:
 
 
 _validate_config()
+
+if auth_module.ALLOW_ANONYMOUS:
+    logging.getLogger(__name__).warning(
+        "BSENTINEL_ALLOW_ANONYMOUS is set: requests without a signed-in user are accepted. "
+        "For local development only — never behind a public address."
+    )
 
 
 @asynccontextmanager
@@ -171,5 +178,7 @@ def healthz() -> JSONResponse:
         with db.connect() as conn, conn.cursor() as cur:
             cur.execute("SELECT 1")
     except Exception as exc:
-        return JSONResponse({"status": "degraded", "version": APP_VERSION, "database": str(exc)}, status_code=503)
+        # Reached without a login: the reason (host, user, driver text) goes to the log only.
+        logging.getLogger(__name__).error("healthz: database check failed: %s", exc)
+        return JSONResponse({"status": "degraded", "version": APP_VERSION, "database": "unreachable"}, status_code=503)
     return JSONResponse({"status": "ok", "version": APP_VERSION})

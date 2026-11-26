@@ -182,7 +182,7 @@ class Nis2RoutesTestCase(Nis2DbTestCase):
 
         from app.main import app
 
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers={"x-forwarded-email": "tester@example.com"})
 
     def test_reports_page_and_preview(self) -> None:
         res = self.client.get("/reports")

@@ -42,13 +42,14 @@ class PBSFinalize(BaseModel):
 
 
 class BootstrapFinalize(BaseModel):
-    cluster_slug: str
-    enrollment_secret: str
-    proxmox_node: str
-    api_user: str
-    token_id: str
-    token_secret: str
-    fingerprint: str = ""
+    # Reached without a login: bounded like PBSFinalize.
+    cluster_slug: str = Field(max_length=80)
+    enrollment_secret: str = Field(max_length=200)
+    proxmox_node: str = Field(max_length=255)
+    api_user: str = Field(min_length=1, max_length=120)
+    token_id: str = Field(min_length=1, max_length=200)
+    token_secret: str = Field(min_length=1, max_length=400)
+    fingerprint: str = Field(default="", max_length=200)
 
 
 class RestoreTestCreate(BaseModel):

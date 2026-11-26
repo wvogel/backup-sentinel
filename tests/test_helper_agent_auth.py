@@ -48,3 +48,76 @@ def test_app_token_is_stable_per_helper_and_long_enough():
     assert agent_token("10.9.0.10") == agent_token("10.9.0.10")
     assert agent_token("10.9.0.10") != agent_token("10.9.0.11")
     assert len(agent_token("10.9.0.10")) >= 32
+
+
+def test_app_token_differs_from_run_to_run():
+    """The management addresses are reused; a token read off the wire is not."""
+    assert agent_token("10.9.0.10", "run-7") == agent_token("10.9.0.10", "run-7")
+    assert agent_token("10.9.0.10", "run-7") != agent_token("10.9.0.10", "run-8")
+    assert agent_token("10.9.0.10", "run-7") != agent_token("10.9.0.10")
+    assert agent_token("10.9.0.10", "") == agent_token("10.9.0.10")
+
+
+class _AgentCalls:
+    """Stands in for urlopen: records the tokens, refuses the ones not `claimed`."""
+
+    def __init__(self, claimed: str) -> None:
+        self.claimed, self.tokens = claimed, []
+
+    def __call__(self, req, timeout=None):
+        import io
+        import urllib.error
+
+        token = req.get_header("Authorization").removeprefix("Bearer ")
+        self.tokens.append(token)
+        if token != self.claimed:
+            raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", None, io.BytesIO(b"{}"))
+        return io.BytesIO(b'{"ok": true}')
+
+
+def _server(scope: str):
+    from app.services.restore_server import RestoreServer
+
+    server = RestoreServer({}, pve=None, ssh=None)
+    server.agent_scope = scope
+    return server
+
+
+def test_agent_is_called_with_the_token_of_its_run(monkeypatch):
+    import urllib.request
+
+    calls = _AgentCalls(agent_token("10.9.0.10", "run-7"))
+    monkeypatch.setattr(urllib.request, "urlopen", calls)
+    assert _server("run-7")._agent_post("10.9.0.10", "/probe", {}) == {"ok": True}
+    assert calls.tokens == [agent_token("10.9.0.10", "run-7")]
+
+
+def test_helper_from_before_the_update_still_answers(monkeypatch):
+    import urllib.request
+
+    calls = _AgentCalls(agent_token("10.9.0.10"))  # claimed with the address alone
+    monkeypatch.setattr(urllib.request, "urlopen", calls)
+    assert _server("run-7")._agent_post("10.9.0.10", "/probe", {}) == {"ok": True}
+    assert calls.tokens == [agent_token("10.9.0.10", "run-7"), agent_token("10.9.0.10")]
+
+
+def test_wrong_token_is_an_error_not_a_retry_loop(monkeypatch):
+    import urllib.request
+
+    from app.services.restore_server import RestoreTaskError
+
+    calls = _AgentCalls("someone-else")
+    monkeypatch.setattr(urllib.request, "urlopen", calls)
+    with pytest.raises(RestoreTaskError) as exc:
+        _server("run-7")._agent_post("10.9.0.10", "/probe", {})
+    assert "HTTP 401" in str(exc.value) and len(calls.tokens) == 2
+
+
+def test_worker_scopes_the_agent_to_its_run():
+    from types import SimpleNamespace
+
+    from app.services import restore_worker
+
+    server = SimpleNamespace()
+    restore_worker._scope_agent(server, 42)
+    assert server.agent_scope == "run-42"

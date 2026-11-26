@@ -3,6 +3,38 @@
 {% import "_storage_icons.html" as sicons with context %}
 {% block title %}{{ t('settings.title') }}{% endblock %}
 {% block content %}
+{#- The TLS certificate of a host as a lock: green once a certificate is
+    remembered for it, red while it presents another one, grey before the first
+    contact. Origin, date and fingerprint on hover. -#}
+{% macro tls_icon(tls) -%}
+{%- set state = 'changed' if tls.seen_fingerprint else ('ok' if tls.source else 'unknown') %}
+{%- set tip -%}
+{{ t('settings.tls_tip_title') }} · {{ tls.host }}:{{ tls.port }}
+{%- if tls.source %}&#10;{{ t('settings.tls_source_' ~ tls.source|replace('-', '_')) }} · {{ tls.pinned_at|datetime_local }}&#10;SHA-256{% for line in tls.fingerprint_lines %}&#10;{{ line }}{% endfor %}{% else %}&#10;{{ t('settings.tls_unknown') }}{% endif %}
+{%- if tls.seen_fingerprint %}&#10;{{ t('settings.tls_changed', time=tls.seen_at|datetime_local) }}{% endif %}
+{%- if not tls_enforced %}&#10;{{ t('settings.tls_report_only') }}{% endif %}
+{%- endset %}
+<span class="tls-icon tls-{{ state }}" data-tooltip="{{ tip }}" tabindex="0" role="img" aria-label="{{ t('settings.tls_tip_title') }}: {{ t('settings.tls_state_' ~ state) }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></span>
+{%- endmacro %}
+
+{#- A host that presents another certificate than the remembered one: the new
+    fingerprint to compare, and the decision. -#}
+{% macro tls_change(tls) -%}
+{% if tls.seen_fingerprint %}
+<div class="tls-changed">
+  <span class="tls-changed-text">⚠ {{ t('settings.tls_changed_host', host=tls.host ~ ':' ~ tls.port, time=tls.seen_at|datetime_local) }}</span>
+  <code class="tls-fingerprint">{{ tls.seen_fingerprint }}</code>
+  <form method="post" action="/settings/tls/accept" class="inline-form">
+    <input type="hidden" name="host" value="{{ tls.host }}"><input type="hidden" name="port" value="{{ tls.port }}">
+    <button type="submit" class="button-secondary">{{ t('settings.tls_accept') }}</button>
+  </form>
+  <form method="post" action="/settings/tls/dismiss" class="inline-form">
+    <input type="hidden" name="host" value="{{ tls.host }}"><input type="hidden" name="port" value="{{ tls.port }}">
+    <button type="submit" class="button-secondary">{{ t('settings.tls_dismiss') }}</button>
+  </form>
+</div>
+{% endif %}
+{%- endmacro %}
 {# Tabs: the active one is the URL hash, so redirects after saving land on it. #}
 <div class="node-filter-bar settings-tabs" role="tablist" aria-label="{{ t('header.settings') }}">
   <button type="button" class="node-filter-button" role="tab" id="tab-cluster" data-tab="cluster" aria-controls="panel-cluster">{{ t('settings.tab_clusters') }}</button>
@@ -32,6 +64,7 @@
             <button type="submit" class="icon-button js-sync-btn" title="{{ t('cluster.sync_now') }}"><svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></button>
           </form>
           {{ dots.pve_icon(cluster, prefix=pve_prefix) }}
+          {{ tls_icon(cluster.tls) }}
           <a href="/clusters/{{ cluster.slug }}" class="cluster-name-link js-cluster-name" data-cluster-slug="{{ cluster.slug }}">{{ cluster.name }}</a>
           <button type="button" class="icon-button js-rename-cluster-btn" data-cluster-slug="{{ cluster.slug }}" data-cluster-name="{{ cluster.name }}" title="{{ t('settings.rename') }}">✎</button>
         </div>
@@ -39,6 +72,7 @@
                 data-cluster-name="{{ cluster.name }}"
                 data-delete-url="/clusters/{{ cluster.slug }}/delete">{{ t('settings.delete_cluster') }}</button>
       </div>
+      {{ tls_change(cluster.tls) }}
 
       <form action="/clusters/{{ cluster.slug }}/report-since" method="post" class="inline-form pbs-namespace-form report-since-form">
         <label class="muted" title="{{ t('settings.report_since_hint') }}">
@@ -57,6 +91,7 @@
             <div class="settings-subcard-title">
               <span class="pbs-sync-arrow">&#x21B3;</span>
               {{ dots.pbs_icon(pbs, prefix=pbs_prefix) }}
+              {{ tls_icon(pbs.tls) }}
               <span class="pill ok-pill pbs-name-pill" title="PBS">{{ pbs.name }}</span>
             </div>
             <form action="/clusters/{{ cluster.slug }}/pbs/{{ pbs.id }}/settings" method="post" class="inline-form pbs-namespace-form">
@@ -70,6 +105,7 @@
               </label>
               <button type="submit" class="button-secondary">{{ t('common.save') }}</button>
             </form>
+            {{ tls_change(pbs.tls) }}
           </div>
           <form action="/clusters/{{ cluster.slug }}/pbs/{{ pbs.id }}/delete" method="post" class="inline-form js-pbs-remove-form">
             <button type="submit" class="button-danger pbs-remove-btn">{{ t('settings.pbs_remove') }}</button>
@@ -156,42 +192,7 @@
     </div>
   </fieldset>
 
-  <fieldset class="dash-section" id="certificates">
-    <legend>{{ t('settings.tls_title') }}</legend>
-    <p class="muted box-intro">
-      {{ t('settings.tls_desc') }}
-      {% if tls_enforced %}{{ t('settings.tls_enforced') }}{% else %}<strong>{{ t('settings.tls_report_only') }}</strong>{% endif %}
-    </p>
-    {% if not tls_pins %}
-    <p class="flush">✓ {{ t('settings.tls_none') }}</p>
-    {% else %}
-    <ul class="plain-list tls-list">
-      {% for pin in tls_pins %}
-      <li>
-        <strong>{{ pin.host }}:{{ pin.port }}</strong>{% if not pin.seen_fingerprint %} ✓{% endif %}
-        <code class="tls-fingerprint">{{ pin.fingerprint }}</code>
-        <span class="muted">{{ t('settings.tls_source_' ~ pin.source|replace('-', '_')) }} · {{ pin.pinned_at|datetime_local }}</span>
-        {% if pin.seen_fingerprint %}
-        <div class="tls-changed">
-          ⚠ {{ t('settings.tls_changed', time=pin.seen_at|datetime_local) }}
-          <code class="tls-fingerprint">{{ pin.seen_fingerprint }}</code>
-          <form method="post" action="/settings/tls/accept">
-            <input type="hidden" name="host" value="{{ pin.host }}"><input type="hidden" name="port" value="{{ pin.port }}">
-            <button type="submit" class="button-secondary">{{ t('settings.tls_accept') }}</button>
-          </form>
-          <form method="post" action="/settings/tls/dismiss">
-            <input type="hidden" name="host" value="{{ pin.host }}"><input type="hidden" name="port" value="{{ pin.port }}">
-            <button type="submit" class="button-secondary">{{ t('settings.tls_dismiss') }}</button>
-          </form>
-        </div>
-        {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-  </fieldset>
-
-  <fieldset class="dash-section panel-grid-wide">
+  <fieldset class="dash-section">
     <legend>{{ t('settings.nist_title') }}</legend>
     <ul class="plain-list">
       <li><strong>Identify:</strong> {{ t('settings.nist_identify') }}</li>
@@ -273,6 +274,8 @@
           <span>API:</span>
           {% if rc and rc.has_token_secret %}
           <span class="status-badge status-passed api-pill" data-tooltip="{{ rc.api_url }}">✓ {{ rc.api_user }}!{{ rc.token_id }}</span>
+          {{ tls_icon(restore_tls) }}
+          {{ tls_change(restore_tls) }}
           <button type="submit" name="reprovision" value="1" formnovalidate class="button-secondary push-right">{{ t('restore.reprovision_token') }}</button>
           {% else %}
           <span class="muted">{{ t('restore.api_auto_hint') }}</span>

@@ -38,6 +38,15 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # Reached without a login (oauth2-proxy skips them); each checks its own secret.
 PUBLIC_PATHS = frozenset({"/api/bootstrap/finalize", "/api/bootstrap/pbs-finalize"})
 
+# Read without a login as well: monitoring and the (public) bootstrap scripts.
+OPEN_PATHS = frozenset({"/healthz", "/metrics", "/bootstrap/proxmox-agent.sh", "/bootstrap/pbs-agent.sh"})
+
+# Everything else needs the identity the proxy forwards. A request without one
+# did not come through the proxy (the app's port reached directly, a proxy that
+# is misconfigured) and is refused — unless this is set, for local development
+# without a proxy.
+ALLOW_ANONYMOUS = os.getenv("BSENTINEL_ALLOW_ANONYMOUS", "").lower() in ("1", "true", "yes", "on")
+
 # Day-to-day operation: run things and record results. Everything else that
 # changes state — settings, targets, clusters, deleting evidence — is admin.
 OPERATOR_ROUTES = tuple(
@@ -72,6 +81,15 @@ def identities(headers: Mapping[str, str]) -> set[str]:
         names |= parse_names(headers.get(header, ""))
     names.discard("")
     return names
+
+
+def signed_in(headers: Mapping[str, str]) -> bool:
+    """Whether the proxy forwarded a user (groups alone are not an identity)."""
+    return any(headers.get(h, "").strip() for h in _USER_HEADERS)
+
+
+def needs_identity(path: str) -> bool:
+    return path not in PUBLIC_PATHS and path not in OPEN_PATHS
 
 
 def role_for(
@@ -109,6 +127,11 @@ def allowed(role: str, needed: str | None) -> bool:
 class RoleMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         headers = {key.lower(): value for key, value in request.headers.items()}
+        if not ALLOW_ANONYMOUS and needs_identity(request.url.path) and not signed_in(headers):
+            message = "Not signed in: this request did not come through the authenticating proxy."
+            if "application/json" in headers.get("accept", "") or request.url.path.startswith("/api/"):
+                return JSONResponse({"detail": message}, status_code=401)
+            return PlainTextResponse(message, status_code=401)
         role = role_for(headers)
         request.state.role = role
         needed = required_role(request.method, request.url.path)

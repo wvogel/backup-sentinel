@@ -18,12 +18,40 @@ from app.web.common import PREVIEW_CSP, common_context, mask_setting_value, sett
 router = APIRouter()
 
 
+def tls_state(api_url: str | None, pins: dict[tuple[str, int], dict]) -> dict:
+    """What the lock symbol of a host shows: its address and, once the host was
+    reached, the certificate remembered for it (app.services.tls_trust)."""
+    from urllib.parse import urlsplit
+
+    try:
+        parts = urlsplit(api_url or "")
+        host, port = parts.hostname or "", parts.port or 443
+    except ValueError:
+        host, port = "", 443
+    pin = pins.get((host, port)) or {}
+    fingerprint = pin.get("fingerprint") or ""
+    return {
+        "host": host,
+        "port": port,
+        "source": pin.get("source") or "",
+        "pinned_at": pin.get("pinned_at"),
+        # Two lines of 16 bytes: comparable by eye with what the host prints.
+        "fingerprint_lines": [fingerprint[:47], fingerprint[48:]] if len(fingerprint) > 48 else [fingerprint],
+        "seen_fingerprint": pin.get("seen_fingerprint") or "",
+        "seen_at": pin.get("seen_at"),
+    }
+
+
 @router.get("/settings", response_class=HTMLResponse)
 def settings(request: Request) -> HTMLResponse:
     clusters = sorted(db.list_clusters(), key=lambda c: c["name"].lower())
+    pins = {(pin["host"], pin["port"]): pin for pin in db.list_tls_pins()}
     for cluster in clusters:
         cluster["pbs_connections"] = db.list_pbs_connections(cluster["id"])
         cluster["enrollment_active"] = db.enrollment_active(cluster)
+        cluster["tls"] = tls_state(cluster.get("api_url"), pins)
+        for pbs in cluster["pbs_connections"]:
+            pbs["tls"] = tls_state(pbs.get("api_url"), pins)
     all_settings = db.get_settings_dict()
     all_settings["gotify_token"] = ""
     all_settings["email_password"] = ""
@@ -37,8 +65,8 @@ def settings(request: Request) -> HTMLResponse:
         "app_settings": all_settings,
         "settings_audit": db.list_settings_audit_entries(50),
         "audit_chain": db.verify_audit_log(),
-        "tls_pins": db.list_tls_pins(),
         "tls_enforced": tls_trust.ENFORCE,
+        "restore_tls": tls_state((restore_config.public_config() or {}).get("api_url"), pins),
         "enroll_open": int(request.query_params.get("enroll") or 0)
         if (request.query_params.get("enroll") or "").isdigit()
         else 0,
@@ -69,7 +97,7 @@ def tls_accept(request: Request, host: str = Form(...), port: int = Form(...)) -
     if accepted:
         tls_trust.forget(host, port)
         db.append_audit_event(settings_actor(request), "tls.accepted", f"{host}:{port}", accepted)
-    return RedirectResponse(url="/settings#certificates", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/settings#cluster", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/settings/tls/dismiss")
@@ -78,7 +106,7 @@ def tls_dismiss(request: Request, host: str = Form(...), port: int = Form(...)) 
     if db.dismiss_tls_change(host, port):
         tls_trust.forget(host, port)
         db.append_audit_event(settings_actor(request), "tls.dismissed", f"{host}:{port}")
-    return RedirectResponse(url="/settings#certificates", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/settings#cluster", status_code=status.HTTP_303_SEE_OTHER)
 
 
 def _load_restore_test(all_settings: dict[str, str]) -> dict | None:
@@ -226,7 +254,7 @@ def save_notification_settings(
         "email_port": email_port.strip(),
         "email_user": email_user.strip(),
         "email_password": encrypt(email_password_value) if email_password_value else existing.get("email_password", ""),
-        "email_tls": email_tls.strip(),
+        "email_tls": email_tls.strip().lower() if email_tls.strip().lower() in ("ssl", "starttls", "none") else "ssl",
         "email_from": email_from.strip(),
         "email_recipients": email_recipients.strip(),
         "notify_email_enabled": "true" if notify_email_enabled == "true" else "false",

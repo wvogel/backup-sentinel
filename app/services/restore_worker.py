@@ -57,6 +57,11 @@ class RunPlan:
     guest_type: str = "qemu"
 
 
+def _scope_agent(server: Any, run_id: int) -> None:
+    """Tie the helper agent's token to this run (restore_server.agent_token)."""
+    server.agent_scope = f"run-{run_id}"
+
+
 def owned_vmids() -> set[int]:
     out: set[int] = set()
     for r in db_restore.active_and_held_runs():
@@ -185,6 +190,7 @@ def execute(
 ) -> str:
     """Run the full pipeline for ``run_id`` and persist the outcome. Returns the
     final status (passed/limited/failed/error/held/cancelled)."""
+    _scope_agent(server, run_id)
     probe_fn = probe_fn or (lambda s, ip, t: s.probe(ip, t, plan.require_icmp))
     should_cancel = should_cancel or (lambda: db_restore.cancel_requested(run_id))
 
@@ -453,6 +459,7 @@ def _failure_diag(server: Any, plan: RunPlan) -> str | None:
 def retest_held(run_id: int, server: Any, plan: RunPlan, *, probe_fn=None, now=time.monotonic, sleep=time.sleep) -> str:
     """Re-probe a held environment (no new restore). Returns the new result; on
     'passed' the caller offers to promote."""
+    _scope_agent(server, run_id)
     probe_fn = probe_fn or (lambda s, ip, t: s.probe(ip, t, plan.require_icmp))
     result, checks = _probe_loop(server, plan, now=now, sleep=sleep, probe_fn=probe_fn, run_id=run_id)
     db_restore.update_run(run_id, checks=checks)
@@ -534,6 +541,7 @@ def resume_run(
       when the VM is not already running. So a deploy during a restore, or during
       its probe window, is a no-op instead of a teardown.
     """
+    _scope_agent(server, run_id)
     probe_fn = probe_fn or (lambda s, ip, t: s.probe(ip, t, plan.require_icmp))
     should_cancel = should_cancel or (lambda: db_restore.cancel_requested(run_id))
     start = now()

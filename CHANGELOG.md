@@ -5,6 +5,25 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.23.0] — 2026-11-26
+
+### Changed
+
+- **Certificates are a lock beside each host, not a list of their own.** Under Settings → Clusters every PVE and PBS (and the restore host, beside its API token) carries a lock: green once a certificate is remembered for it, grey before the first contact, red while it presents a different one. Hovering shows where the trust comes from, since when, and the fingerprint. A host that presents a different certificate gets a line below it with the new fingerprint and the two decisions. The "Certificates" box is gone; "New cluster" and the NIST box share its row.
+- **A request without a signed-in user is refused (401).** So far the app took whatever reached its port: without roles as admin. Now everything except the health check, the metrics and the bootstrap endpoints needs the user OAuth2-Proxy forwards (`X-Forwarded-Email` / `-User` / `-Preferred-Username`). Nothing changes behind the proxy as shipped. To run the app locally without a proxy set `BSENTINEL_ALLOW_ANONYMOUS=true` (`./scripts/dev.sh` does); the app logs a warning at the start while it is set.
+
+### Security
+
+- **The restore helper's token is a different one for every run.** It was derived from the helper's management address alone, and those addresses are reused — a token read off the management network (the agent speaks plain http) stayed valid for every later helper at that address. A restore test running through the update keeps working.
+- **The Gotify token is sent as a header** (`X-Gotify-Key`), no longer in the URL, where proxies and access logs keep it. A Gotify URL that is not `http(s)://` is not called.
+- **`/healthz` no longer says why the database is down.** The driver's message (host, user) went to anyone who asked; it is in the app log now, the response says `"database": "unreachable"`.
+- **An unknown mail encryption setting sends nothing** instead of falling back to an unencrypted login; the form stores only SSL/TLS, STARTTLS or none.
+- **The fields of the PVE onboarding call are bounded** like those of the PBS one.
+
+### Fixed
+
+- "Remove PBS" kept its width when the row beside it holds long text.
+
 ## [v3.22.2] — 2026-11-26
 
 ### Security
