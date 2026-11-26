@@ -1,4 +1,7 @@
-"""Garbage collections and verifications running on the PBS right now.
+"""Garbage collections and verifications running on the PBS right now, on the
+datastores that hold the cluster's backups (the ones in its diagram). What a
+PBS does on a datastore the cluster has nothing on is none of its business:
+such tasks are neither shown nor are their logs read.
 
 Nothing asks a PBS on its own: only an open page's poll does (`refresh`), each
 PBS at most every 30 s however many pages are open. Pages render from what
@@ -14,6 +17,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from app.services import topology_store
 from app.services.pbs import fetch_running_maintenance, last_run_seconds, maintenance_progress
 
 logger = logging.getLogger(__name__)
@@ -72,9 +76,25 @@ def _last_duration(conn: dict[str, Any], task: dict[str, Any]) -> int | None:
     return seconds
 
 
+def relevant_stores(conn: dict[str, Any]) -> set[str]:
+    """This PBS's datastores in its cluster's diagram: the ones PVE backs up
+    to and the ones holding synced copies of those backups."""
+    topology = topology_store.load(conn["cluster_id"])
+    return {
+        store["store"]
+        for column in topology["columns"]
+        for group in column
+        if group.get("conn_id") == conn["id"]
+        for store in group["stores"]
+    }
+
+
 def _look(conn: dict[str, Any]) -> None:
     try:
         found = fetch_running_maintenance(conn)
+        if found:
+            stores = relevant_stores(conn)
+            found = [task for task in found if task["store"] in stores]
     except Exception as exc:
         logger.warning("Running tasks of PBS %s unavailable: %s", conn.get("name"), exc)
         with _lock:

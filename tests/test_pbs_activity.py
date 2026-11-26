@@ -7,7 +7,7 @@ from app.services import pbs_activity
 from app.web import activity
 
 NOW = datetime(2026, 11, 26, 3, 24, tzinfo=UTC)
-CONN = {"id": 7, "name": "pbs-a"}
+CONN = {"id": 7, "name": "pbs-a", "cluster_id": 1}
 
 
 def task(kind="verify", worker_type="verificationjob", worker_id="store-a:v-daily", **extra):
@@ -27,6 +27,34 @@ class RefreshTests(unittest.TestCase):
     def setUp(self) -> None:
         pbs_activity.clear()
         self.addCleanup(pbs_activity.clear)
+        # The cluster's diagram: one datastore on this PBS, one on another.
+        topology = {
+            "columns": [
+                [
+                    {"conn_id": 7, "stores": [{"store": "store-a"}]},
+                    {"conn_id": 8, "stores": [{"store": "store-x"}]},
+                    {"conn_id": None, "stores": [{"store": "store-y"}]},
+                ]
+            ]
+        }
+        patcher = mock.patch.object(pbs_activity.topology_store, "load", return_value=topology)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_datastore_without_backups_of_the_cluster_is_ignored(self) -> None:
+        tasks = [
+            task(),
+            task(kind="gc", worker_type="garbage_collection", worker_id="store-other"),
+            task(kind="gc", worker_type="garbage_collection", worker_id="store-x"),  # another PBS's store
+        ]
+        with (
+            mock.patch.object(pbs_activity, "fetch_running_maintenance", return_value=tasks),
+            mock.patch.object(pbs_activity, "maintenance_progress", return_value={}) as progress,
+            mock.patch.object(pbs_activity, "last_run_seconds", return_value=None),
+        ):
+            pbs_activity.refresh([CONN])
+        self.assertEqual([t["store"] for t in pbs_activity.tasks(7)], ["store-a"])
+        self.assertEqual(progress.call_count, 1)  # the other logs are not even read
 
     def test_nothing_is_asked_without_a_poll_and_a_pbs_only_every_30_s(self) -> None:
         with (

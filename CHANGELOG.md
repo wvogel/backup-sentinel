@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.22.1] — 2026-11-26
+
+### Fixed
+
+- **A garbage collection or verify on a datastore that holds nothing of the cluster is no longer shown.** The PBS symbol moved, and its tooltip listed the task, for every datastore of the PBS — also for ones the cluster neither backs up to nor has synced copies on. Now only the datastores in the cluster's diagram count; tasks on other datastores are ignored and their logs are not read.
+
 ## [v3.22.0] — 2026-11-26
 
 ### Added
