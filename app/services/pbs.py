@@ -307,38 +307,183 @@ _SYNC_PERCENT_RE = re.compile(r"percentage done:\s*([\d.]+)\s*%")
 _SYNC_LOG_TAIL = 200
 
 
-def sync_task_state(conn: dict[str, Any], upid: str) -> tuple[float | None, bool]:
-    """(percent done, finished) of a sync task, from the end of its task log
-    ("percentage done: 45.31% (9/20 groups, …)"). Reads only the last lines:
-    a long sync's log has many thousands.
+def _task_log_tail(conn: dict[str, Any], upid: str, lines: int, **kwargs: Any) -> tuple[list[str], bool]:
+    """(last log lines, finished) of a PBS task. Reads only the end: a long
+    task's log has many thousands of lines.
 
     PBS's task log API answers with the line count ("total", lines numbered
     from 1, `start` skips lines below it) and, with test-status, whether the
     task is still "active"; the node in the path is not used (the UPID names it).
     """
     path = f"/api2/json/nodes/localhost/tasks/{parse.quote(upid, safe='')}/log"
-    head = _pbs_get_payload(conn, path, query={"start": "0", "limit": "1", "test-status": "1"}, retries=0)
+    head = _pbs_get_payload(conn, path, query={"start": "0", "limit": "1", "test-status": "1"}, retries=0, **kwargs)
     total = head.get("total")
     if isinstance(total, int):
-        start = max(0, total - _SYNC_LOG_TAIL)
-        rows = _pbs_get_payload(conn, path, query={"start": str(start), "limit": str(_SYNC_LOG_TAIL)}, retries=0).get(
+        start = max(0, total - lines)
+        rows = _pbs_get_payload(conn, path, query={"start": str(start), "limit": str(lines)}, retries=0, **kwargs).get(
             "data"
         )
     else:  # no line count reported: read it all
-        rows = _pbs_get_payload(conn, path, query={"start": "0", "limit": "100000"}, retries=0).get("data")
-    rows = rows if isinstance(rows, list) else []
+        rows = _pbs_get_payload(conn, path, query={"start": "0", "limit": "100000"}, retries=0, **kwargs).get("data")
+    texts = [str(row.get("t") or "") for row in rows] if isinstance(rows, list) else []
     active = head.get("active")
     # Older PBS without "active": a finished task's log ends with "TASK OK/ERROR".
-    finished = (
-        active is False
-        if isinstance(active, bool)
-        else (bool(rows) and str(rows[-1].get("t") or "").startswith("TASK "))
-    )
-    for row in reversed(rows):
-        match = _SYNC_PERCENT_RE.search(str(row.get("t") or ""))
+    finished = active is False if isinstance(active, bool) else (bool(texts) and texts[-1].startswith("TASK "))
+    return texts, finished
+
+
+def sync_task_state(conn: dict[str, Any], upid: str) -> tuple[float | None, bool]:
+    """(percent done, finished) of a sync task, from the end of its task log
+    ("percentage done: 45.31% (9/20 groups, …)")."""
+    texts, finished = _task_log_tail(conn, upid, _SYNC_LOG_TAIL)
+    for text in reversed(texts):
+        match = _SYNC_PERCENT_RE.search(text)
         if match:
             return round(float(match.group(1)), 2), finished
     return None, finished
+
+
+# Garbage collection and verification, as PBS names the tasks.
+MAINTENANCE_TYPES = {
+    "garbage_collection": "gc",
+    "verificationjob": "verify",
+    "verify": "verify",
+    "verify_group": "verify",
+    "verify_snapshot": "verify",
+}
+# Asked from an open page's poll: a PBS that does not answer must not hold it up.
+MAINTENANCE_TIMEOUT = 8.0
+
+_VERIFY_PERCENT_RE = re.compile(
+    r"percentage done:\s*([\d.]+)%\s*\((\d+)/(\d+) (groups|snapshots)(?:, (\d+)/(\d+) snapshots in group #\d+)?\)"
+)
+_VERIFY_GROUP_RE = re.compile(r"^verify group [^:\s]+:(\S+) \(\d+ snapshots?\)")
+_GC_PHASE_RE = re.compile(r"Start GC phase(\d)")
+_GC_MARKED_RE = re.compile(r"marked (\d+)% \((\d+) of (\d+) index files\)")
+_GC_PROCESSED_RE = re.compile(r"processed (\d+)% \((\d+) chunks\)")
+
+
+def fetch_running_maintenance(conn: dict[str, Any]) -> list[dict[str, Any]]:
+    """Garbage collections and verifications running on this PBS right now:
+    {"upid", "kind" ("gc"/"verify"), "worker_type", "worker_id", "store",
+    "target", "started"}.
+
+    The task's id starts with its datastore: "store" (GC, whole-store
+    verify), "store:job" (verification job), "store:ns/type/id[/time]"
+    (a single namespace, group or snapshot). Tasks of other users are listed
+    with Sys.Audit on /system/tasks, which the Audit role has.
+    """
+    payload = _pbs_get_payload(
+        conn,
+        "/api2/json/nodes/localhost/tasks",
+        query={"running": "1", "limit": "0"},
+        retries=0,
+        timeout=MAINTENANCE_TIMEOUT,
+    )
+    rows = payload.get("data")
+    tasks = []
+    for row in rows if isinstance(rows, list) else []:
+        kind = MAINTENANCE_TYPES.get(str(row.get("worker_type") or ""))
+        upid = str(row.get("upid") or "")
+        if not kind or not upid or row.get("endtime"):
+            continue
+        worker_id = str(row.get("worker_id") or "")
+        store, _, target = worker_id.partition(":")
+        tasks.append(
+            {
+                "upid": upid,
+                "kind": kind,
+                "worker_type": str(row["worker_type"]),
+                "worker_id": worker_id,
+                "store": store,
+                "target": target.strip("/"),
+                "started": _timestamp(row.get("starttime")) or _upid_start(upid),
+            }
+        )
+    return sorted(tasks, key=lambda task: (task["store"], task["kind"], str(task["started"])))
+
+
+def maintenance_progress(conn: dict[str, Any], upid: str, kind: str) -> dict[str, Any]:
+    """How far a running verification or garbage collection is, from the end
+    of its task log. Only what PBS itself logs:
+
+    verify: {"percent", "done", "total", "unit" ("groups"/"snapshots"), "group"}
+            from "percentage done: 42.00% (5/12 groups)" – a share of the
+            groups, not of the data – and the last "verify group store:vm/104".
+    gc:     {"phase", "percent", "done", "total"} from "marked 18% (2160 of
+            12000 index files)" in phase 1, {"phase", "percent", "chunks"}
+            from "processed 40% (1200000 chunks)" while sweeping. Each phase
+            counts from 0 to 100 on its own.
+    Plus "finished". Keys PBS has not logged yet are missing.
+    """
+    texts, finished = _task_log_tail(conn, upid, _SYNC_LOG_TAIL, timeout=MAINTENANCE_TIMEOUT)
+    state: dict[str, Any] = {"finished": finished}
+    if kind == "verify":
+        for text in reversed(texts):
+            match = _VERIFY_PERCENT_RE.search(text)
+            if match:
+                state |= {
+                    "percent": float(match.group(1)),
+                    "done": int(match.group(2)),
+                    "total": int(match.group(3)),
+                    "unit": match.group(4),
+                }
+                break
+        for text in reversed(texts):
+            match = _VERIFY_GROUP_RE.search(text)
+            if match:
+                state["group"] = match.group(1)
+                break
+        return state
+    for text in reversed(texts):
+        phase = _GC_PHASE_RE.search(text)
+        if phase:  # a phase that has not logged a percentage yet
+            state.setdefault("phase", int(phase.group(1)))
+            break
+        marked = _GC_MARKED_RE.search(text)
+        if marked:
+            state |= {
+                "phase": 1,
+                "percent": float(marked.group(1)),
+                "done": int(marked.group(2)),
+                "total": int(marked.group(3)),
+            }
+            break
+        processed = _GC_PROCESSED_RE.search(text)
+        if processed and "percent" not in state:
+            # Sweeping: phase 2, or phase 3 on an S3 datastore – the phase
+            # line further up says which.
+            state |= {"percent": float(processed.group(1)), "chunks": int(processed.group(2))}
+    if "percent" in state:
+        state.setdefault("phase", 2)
+    return state
+
+
+def last_run_seconds(conn: dict[str, Any], worker_type: str, worker_id: str) -> int | None:
+    """How long the last finished run of this task took (same type and id:
+    the same datastore's GC, the same verification job), or None."""
+    store = worker_id.partition(":")[0]
+    payload = _pbs_get_payload(
+        conn,
+        "/api2/json/nodes/localhost/tasks",
+        query={"typefilter": worker_type, "store": store, "limit": "50"},
+        retries=0,
+        timeout=MAINTENANCE_TIMEOUT,
+    )
+    rows = payload.get("data")
+    for row in rows if isinstance(rows, list) else []:  # newest first
+        status = str(row.get("status") or "")
+        if (
+            row.get("worker_type") == worker_type
+            and str(row.get("worker_id") or "") == worker_id
+            and row.get("endtime")
+            and (status == "OK" or status.startswith("WARNINGS"))
+        ):
+            try:
+                return max(0, int(row["endtime"]) - int(row["starttime"]))
+            except (KeyError, TypeError, ValueError):
+                return None
+    return None
 
 
 def fetch_pbs_sync_jobs(conn: dict[str, Any], retries: int = 2) -> list[dict[str, Any]]:

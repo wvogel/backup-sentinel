@@ -41,6 +41,9 @@
   --spark-failed: var(--critical);
   --shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
   --running: #0d9488;
+  /* PBS busy with itself: verification and garbage collection. */
+  --verify: #8b3fc7;
+  --gc: #2f6fbd;
   --running-soft: rgba(13, 148, 136, 0.1);
   --running-fill: rgba(13, 148, 136, 0.2);
   --btn-bg: #1e293b;
@@ -78,6 +81,8 @@ html[data-theme="dark"] {
   --spark-failed: #9b3a46;
   --shadow: none;
   --running: #62b9b2;
+  --verify: #cda4f2;
+  --gc: #8ab8ee;
   --running-soft: rgba(98, 185, 178, 0.1);
   --running-fill: rgba(98, 185, 178, 0.22);
   --btn-bg: #31425e;
@@ -3178,6 +3183,100 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .topo-ring.ring-warning { --ring: var(--warn); }
 .topo-ring.ring-critical { --ring: var(--critical); }
 .topo-ring.ring-unknown { --ring: var(--unknown); }
+
+/* A verification or garbage collection running on the datastore: a thin
+   progress ring each around the usage ring, pulsing like a running backup's.
+   Verify is solid and sits inside, GC is dashed (told apart without colour
+   too) and moves inside when it runs alone. */
+.topo-ring.has-verify,
+.topo-ring.has-gc { position: relative; }
+.topo-ring.has-verify::before,
+.topo-ring.has-gc::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  --cut: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  -webkit-mask: var(--cut);
+  mask: var(--cut);
+  animation: maintenance-breathe 1.6s ease-in-out infinite alternate;
+}
+/* Gentler than a running backup's: a thin ring must not fade away. */
+@keyframes maintenance-breathe { from { opacity: 1; } to { opacity: 0.5; } }
+.topo-ring.has-verify::before {
+  background: conic-gradient(var(--verify) calc(var(--pv, 0) * 1%), var(--line) 0);
+}
+.topo-ring.has-gc::after {
+  --dash: repeating-conic-gradient(#000 0 7deg, transparent 7deg 12deg);
+  background: conic-gradient(var(--gc) calc(var(--pg, 0) * 1%), var(--line) 0);
+  -webkit-mask: var(--cut), var(--dash);
+  -webkit-mask-composite: source-in;
+  mask: var(--cut), var(--dash);
+  mask-composite: intersect;
+}
+.topo-ring.has-verify.has-gc::after { inset: -11px; }
+/* No percentage logged yet: a quarter arc turning. */
+.topo-ring.verify-indeterminate::before {
+  background: conic-gradient(var(--verify) 0 25%, var(--line) 0);
+  animation: running-spin 2.4s linear infinite;
+}
+.topo-ring.gc-indeterminate::after {
+  background: conic-gradient(var(--gc) 0 25%, var(--line) 0);
+  animation: running-spin 2.4s linear infinite;
+}
+/* Room for the rings, so they do not touch the name beside them. */
+.topo-store:has(.has-verify, .has-gc) .topo-ring { margin: 6px; }
+.topo-store:has(.has-verify.has-gc) .topo-ring { margin: 11px; }
+
+/* The PBS symbol itself: its top disc turns while the PBS collects garbage,
+   a line scans down through it while it verifies. */
+.pbs-act { display: none; }
+.is-gc .pbs-act-gc,
+.is-verify .pbs-act-verify { display: inline; }
+.pbs-act-gc {
+  stroke: var(--gc);
+  stroke-dasharray: 3 3;
+  animation: pbs-disc-turn 1.2s linear infinite;
+}
+.pbs-act-verify {
+  stroke: var(--verify);
+  stroke-width: 2;
+  animation: pbs-scan 2.4s ease-in-out infinite;
+}
+@keyframes pbs-disc-turn { to { stroke-dashoffset: -12; } }
+@keyframes pbs-scan { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(12px); } }
+/* Overview: each PBS symbol in a wrapper that carries its own tooltip. */
+.sync-icon-wrap { display: inline-flex; }
+/* Seen at a glance even at 14 px: an arc per running kind circles the symbol. */
+[data-pbs-activity].is-gc,
+[data-pbs-activity].is-verify {
+  position: relative;
+  margin: 0 5px;
+  --halo-verify: transparent;
+  --halo-gc: transparent;
+}
+[data-pbs-activity].is-verify { --halo-verify: var(--verify); }
+[data-pbs-activity].is-gc { --halo-gc: var(--gc); }
+[data-pbs-activity].is-gc::after,
+[data-pbs-activity].is-verify::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: conic-gradient(var(--halo-verify) 0 28%, transparent 0 50%, var(--halo-gc) 0 78%, transparent 0);
+  --cut: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  -webkit-mask: var(--cut);
+  mask: var(--cut);
+  animation: running-spin 2.4s linear infinite;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .topo-ring.has-verify::before,
+  .topo-ring.has-gc::after,
+  [data-pbs-activity]::after,
+  .pbs-act-gc,
+  .pbs-act-verify { animation: none; }
+}
 
 /* May wrap (tag below the name) when the pipes need the room. */
 .topo-store-name {

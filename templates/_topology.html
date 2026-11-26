@@ -27,9 +27,15 @@
       </div>
       <div class="topo-stores">
         {%- for ds in group.stores %}
+        {%- set act = (pbs_activity(group.conn_id) or {}).get('stores', {}).get(ds.store) %}
+        {%- set store_tip %}{% if ds.pct is not none %}{{ t('cluster.datastore_tooltip', store=ds.store, used=ds.used_bytes|format_bytes, total=ds.total_bytes|format_bytes, pct=ds.pct) }}{% else %}{{ t('topology.no_usage', store=ds.store) }}{% endif %}{% if ds.estimated_full_at %}&#10;{{ t('cluster.datastore_full_at', date=ds.estimated_full_at|datetime_local('%d.%m.%Y')) }}{% endif %}{% endset %}
         <div class="topo-store" data-node="{{ ds.id }}"
-             data-tooltip="{% if ds.pct is not none %}{{ t('cluster.datastore_tooltip', store=ds.store, used=ds.used_bytes|format_bytes, total=ds.total_bytes|format_bytes, pct=ds.pct) }}{% else %}{{ t('topology.no_usage', store=ds.store) }}{% endif %}{% if ds.estimated_full_at %}&#10;{{ t('cluster.datastore_full_at', date=ds.estimated_full_at|datetime_local('%d.%m.%Y')) }}{% endif %}">
-          <div class="topo-ring ring-{{ ds.status }}" data-css-p="{{ ds.pct or 0 }}" role="img"
+             {%- if group.conn_id %} data-store-activity="{{ group.conn_id }}:{{ ds.store }}"{% endif %} data-tooltip-base="{{ store_tip }}"
+             data-tooltip="{{ store_tip }}{% if act %}&#10;{{ act.tooltip }}{% endif %}">
+          {#- Verify and garbage collection running on it: a thin ring each
+              around the usage ring (verify solid, GC dashed). #}
+          <div class="topo-ring ring-{{ ds.status }}{% if act %}{% for kind, pct in act.kinds.items() %} has-{{ kind }}{% if pct is none %} {{ kind }}-indeterminate{% endif %}{% endfor %}{% endif %}" data-css-p="{{ ds.pct or 0 }}"
+               {%- if act %}{% for kind, pct in act.kinds.items() if pct is not none %} data-css-{{ kind }}="{{ pct }}"{% endfor %}{% endif %} role="img"
                aria-label="{{ ds.store }}: {{ ds.pct ~ ' %' if ds.pct is not none else '?' }}">
             <span>{{ ds.pct ~ '%' if ds.pct is not none else '?' }}</span>
           </div>

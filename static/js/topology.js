@@ -440,7 +440,7 @@
         }
       })
       .catch(function () { /* keep the last state */ })
-      .then(function () { setTimeout(function () { pollSyncProgress(root); }, 30000); });
+      .then(function () { setTimeout(function () { whenVisible(function () { pollSyncProgress(root); }); }, 30000); });
   }
 
   document.addEventListener("backup-progress-updated", drawAll);
@@ -449,7 +449,7 @@
     document.querySelectorAll("[data-topology]").forEach(function (root) {
       // Without a live value yet (ring turning, no number): ask right away.
       var pending = root.querySelector("[data-sync-ring].is-indeterminate");
-      setTimeout(function () { pollSyncProgress(root); }, pending ? 100 : 2000);
+      setTimeout(function () { whenVisible(function () { pollSyncProgress(root); }); }, pending ? 100 : 2000);
     });
     if (window.ResizeObserver) {
       document.querySelectorAll("[data-topology]").forEach(function (root) {

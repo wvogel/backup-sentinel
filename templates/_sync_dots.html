@@ -12,16 +12,26 @@
 </button>
 {%- endmacro %}
 
+{#- The PBS symbol. While the PBS collects garbage its top disc turns, while
+    it verifies a line scans down through it (classes is-gc / is-verify on an
+    ancestor, kept current by static/js/pbs-activity.js). -#}
+{% macro pbs_svg(class='') -%}
+<svg{% if class %} class="{{ class }}"{% endif %} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/><ellipse class="pbs-act pbs-act-gc" cx="12" cy="6" rx="8" ry="3"/><path class="pbs-act pbs-act-verify" d="M5.5 7.5h13"/></svg>
+{%- endmacro %}
+
 {% macro pbs_icon(pbs, prefix='') -%}
 {%- set state = pbs_sync_state(pbs) %}
 {%- set line -%}
 {% if pbs.last_sync_ok is none %}{{ t('dashboard.pbs_sync_never', name=pbs.name) }}{% elif pbs.last_sync_ok %}{{ t('dashboard.pbs_sync_ok', name=pbs.name, time=pbs.last_sync_at|datetime_local) }}{% else %}{{ t('dashboard.pbs_sync_failed', name=pbs.name, time=pbs.last_sync_at|datetime_local) }}{% endif %}
 {%- endset %}
-<button type="button" class="sync-icon-btn sync-fresh-{{ state }}"
-  data-tooltip="{% if prefix %}{{ prefix }}&#10;{% endif %}{{ line }}&#10;{{ t('cluster.show_pbs_sync_log') }}"
+{%- set act = pbs_activity(pbs.id) %}
+{%- set base %}{% if prefix %}{{ prefix }}&#10;{% endif %}{{ line }}&#10;{{ t('cluster.show_pbs_sync_log') }}{% endset %}
+<button type="button" class="sync-icon-btn sync-fresh-{{ state }}{% for kind in act.kinds if act %} is-{{ kind }}{% endfor %}"
+  data-pbs-activity="{{ pbs.id }}" data-tooltip-base="{{ base }}"
+  data-tooltip="{{ base }}{% if act %}&#10;{{ act.tooltip }}{% endif %}"
   data-log-title="{{ t('cluster.pbs_sync_log_title', name=pbs.name) }}"
   data-log="{{ pbs.last_sync_log or t('common.no_log') }}"
   aria-label="{{ line }} – {{ t('cluster.show_pbs_sync_log') }}">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+  {{ pbs_svg() }}
 </button>
 {%- endmacro %}

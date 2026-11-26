@@ -342,3 +342,124 @@ class IsEncryptedTests(unittest.TestCase):
         self.assertTrue(pbs._is_encrypted([{"filename": "drive-scsi0.img.fidx", "crypt-mode": "encrypt"}]))
         self.assertFalse(pbs._is_encrypted([{"filename": "drive-scsi0.img.fidx", "crypt-mode": "none"}]))
         self.assertFalse(pbs._is_encrypted([{"filename": "drive-scsi0.img.fidx", "crypt-mode": "sign-only"}]))
+
+
+class MaintenanceTasksTests(unittest.TestCase):
+    def test_lists_only_running_gc_and_verify_with_their_datastore(self) -> None:
+        rows = [
+            {"upid": "UPID:a", "worker_type": "garbage_collection", "worker_id": "store-a", "starttime": 1_760_000_000},
+            {
+                "upid": "UPID:b",
+                "worker_type": "verificationjob",
+                "worker_id": "store-a:v-daily",
+                "starttime": 1_760_000_100,
+            },
+            {
+                "upid": "UPID:c",
+                "worker_type": "verify_group",
+                "worker_id": "store-b:/vm/104",
+                "starttime": 1_760_000_200,
+            },
+            {"upid": "UPID:d", "worker_type": "prune", "worker_id": "store-a", "starttime": 1_760_000_300},
+            {"upid": "UPID:e", "worker_type": "verify", "worker_id": "store-a", "starttime": 1, "endtime": 2},
+        ]
+        with mock.patch.object(pbs, "_pbs_get_payload", return_value={"data": rows}) as get:
+            tasks = pbs.fetch_running_maintenance(CONN)
+        self.assertEqual(get.call_args.kwargs["query"], {"running": "1", "limit": "0"})
+        self.assertEqual(get.call_args.kwargs["timeout"], pbs.MAINTENANCE_TIMEOUT)
+        self.assertEqual(
+            [(t["kind"], t["store"], t["target"]) for t in tasks],
+            [("gc", "store-a", ""), ("verify", "store-a", "v-daily"), ("verify", "store-b", "vm/104")],
+        )
+        self.assertEqual(tasks[0]["started"], datetime.fromtimestamp(1_760_000_000, UTC))
+
+    def progress(self, kind, lines):
+        tail = [{"n": i + 1, "t": text} for i, text in enumerate(lines)]
+
+        def fake(conn, path, **kwargs):
+            if kwargs["query"]["limit"] == "1":
+                return {"data": tail[:1], "total": len(tail), "active": True}
+            return {"data": tail}
+
+        with mock.patch.object(pbs, "_pbs_get_payload", side_effect=fake):
+            return pbs.maintenance_progress(CONN, "UPID:x", kind)
+
+    def test_verify_progress_counts_groups_and_names_the_current_one(self) -> None:
+        state = self.progress(
+            "verify",
+            [
+                "verify group store-a:vm/103 (2 snapshots)",
+                "percentage done: 41.67% (5/12 groups)",
+                "verify group store-a:vm/104 (3 snapshots)",
+                "verify store-a:vm/104/2026-10-16T20:00:01Z",
+            ],
+        )
+        self.assertEqual(
+            state,
+            {"finished": False, "percent": 41.67, "done": 5, "total": 12, "unit": "groups", "group": "vm/104"},
+        )
+
+    def test_verify_progress_within_a_group_and_of_a_single_group(self) -> None:
+        state = self.progress("verify", ["percentage done: 45.31% (9/20 groups, 3/10 snapshots in group #10)"])
+        self.assertEqual((state["percent"], state["done"], state["total"]), (45.31, 9, 20))
+        state = self.progress("verify", ["percentage done: 50.00% (1/2 snapshots)"])
+        self.assertEqual((state["done"], state["total"], state["unit"]), (1, 2, "snapshots"))
+
+    def test_verify_without_a_percentage_yet(self) -> None:
+        self.assertEqual(self.progress("verify", ["verify datastore store-a", "found 12 groups"]), {"finished": False})
+
+    def test_gc_phases_count_on_their_own(self) -> None:
+        marking = self.progress(
+            "gc",
+            [
+                "Start GC phase1 (mark used chunks)",
+                "marked 17% (2040 of 12000 index files)",
+                "marked 18% (2160 of 12000 index files)",
+            ],
+        )
+        self.assertEqual(marking, {"finished": False, "phase": 1, "percent": 18.0, "done": 2160, "total": 12000})
+        sweeping = self.progress(
+            "gc",
+            [
+                "marked 100% (12000 of 12000 index files)",
+                "Start GC phase2 (sweep unused chunks)",
+                "processed 39% (1170000 chunks)",
+                "processed 40% (1200000 chunks)",
+            ],
+        )
+        self.assertEqual(sweeping, {"finished": False, "percent": 40.0, "chunks": 1200000, "phase": 2})
+        just_switched = self.progress(
+            "gc", ["marked 100% (12000 of 12000 index files)", "Start GC phase2 (sweep unused chunks)"]
+        )
+        self.assertEqual(just_switched, {"finished": False, "phase": 2})
+        markers = self.progress("gc", ["Start GC phase3 (sweep unused chunk markers)", "processed 5% (10 chunks)"])
+        self.assertEqual(markers["phase"], 3)
+
+    def test_last_run_is_the_same_job_finished_well(self) -> None:
+        rows = [
+            {"worker_type": "verificationjob", "worker_id": "store-a:v-daily", "starttime": 500},  # running
+            {
+                "worker_type": "verificationjob",
+                "worker_id": "store-a:other",
+                "starttime": 1,
+                "endtime": 9,
+                "status": "OK",
+            },
+            {
+                "worker_type": "verificationjob",
+                "worker_id": "store-a:v-daily",
+                "starttime": 1,
+                "endtime": 5,
+                "status": "boom",
+            },
+            {
+                "worker_type": "verificationjob",
+                "worker_id": "store-a:v-daily",
+                "starttime": 100,
+                "endtime": 7900,
+                "status": "OK",
+            },
+        ]
+        with mock.patch.object(pbs, "_pbs_get_payload", return_value={"data": rows}):
+            self.assertEqual(pbs.last_run_seconds(CONN, "verificationjob", "store-a:v-daily"), 7800)
+            self.assertIsNone(pbs.last_run_seconds(CONN, "garbage_collection", "store-a"))

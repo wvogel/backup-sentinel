@@ -154,7 +154,7 @@
         running = table.querySelector("tr.is-running") !== null;
       }
     } catch { /* keep the last state */ }
-    setTimeout(poll, running ? POLL_RUNNING_MS : POLL_IDLE_MS);
+    setTimeout(() => whenVisible(poll), running ? POLL_RUNNING_MS : POLL_IDLE_MS);
   }
 
   banner.addEventListener("click", (event) => {
@@ -179,5 +179,5 @@
   layoutRows();
   // Rendered without live data (nothing cached yet): fetch it right away.
   const first = banner.dataset.pending ? 1500 : table.querySelector("tr.is-running") ? POLL_RUNNING_MS : POLL_IDLE_MS;
-  setTimeout(poll, first);
+  setTimeout(() => whenVisible(poll), first);
 })();

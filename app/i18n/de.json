@@ -887,5 +887,21 @@
   "nis2.recovery_full": "vollständiger Restore",
   "nis2.recovery_partial": "teilweiser Restore",
   "nis2.recovery_file": "Datei-Restore",
-  "nis2.rpo_month": "1 Monat"
+  "nis2.rpo_month": "1 Monat",
+  "activity.gc": "Garbage Collection",
+  "activity.verify": "Verify",
+  "activity.verify_job": "Verify-Job {job}",
+  "activity.verify_target": "Verify {target}",
+  "activity.since": "läuft seit {when} ({duration})",
+  "activity.verify_groups": "{pct} % · {done} von {total} Gruppen",
+  "activity.verify_snapshots": "{pct} % · {done} von {total} Snapshots",
+  "activity.current": "gerade: {group}",
+  "activity.eta": "voraussichtlich fertig ca. {when} (hochgerechnet)",
+  "activity.gc_phase_1": "Phase 1 (belegte Chunks markieren)",
+  "activity.gc_phase_2": "Phase 2 (unbenutzte Chunks entfernen)",
+  "activity.gc_phase_3": "Phase 3 (Chunk-Marker aufräumen)",
+  "activity.gc_marked": "{pct} % · {done} von {total} Indexdateien",
+  "activity.gc_processed": "{pct} % · {chunks} Chunks",
+  "activity.no_progress": "noch kein Fortschritt gemeldet",
+  "activity.last_duration": "letzter Lauf dauerte {duration}"
 }

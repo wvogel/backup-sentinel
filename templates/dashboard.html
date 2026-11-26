@@ -2,6 +2,7 @@
 {% block title %}{{ t('dashboard.title') }}{% endblock %}
 {% block content %}
 {% import "_nodes_tile.html" as tiles with context %}
+{% import "_sync_dots.html" as dots with context %}
 {% import "_storage_icons.html" as sicons with context %}
 {% import "_volume_bar.html" as vol with context %}
 {% import "_probe_countdown.html" as pc with context %}
@@ -94,7 +95,12 @@
         <span class="sync-icons" role="img" aria-label="{{ sync_lines|replace('&#10;', ' · ') }}" data-tooltip="{{ sync_lines }}">
           <svg class="sync-icon sync-fresh-{{ cluster.sync_freshness }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
           {%- for pbs in cluster.pbs_syncs %}
-          <svg class="sync-icon sync-fresh-{{ pbs.state }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+          {#- Garbage collection / verify running on it: the symbol moves and
+              gets a tooltip of its own (static/js/pbs-activity.js keeps it current). #}
+          {%- set act = pbs_activity(pbs.id) %}
+          {%- set pbs_line %}{% if pbs.ok is none %}{{ t('dashboard.pbs_sync_never', name=pbs.name) }}{% elif pbs.ok %}{{ t('dashboard.pbs_sync_ok', name=pbs.name, time=pbs.at|datetime_local) }}{% else %}{{ t('dashboard.pbs_sync_failed', name=pbs.name, time=pbs.at|datetime_local) }}{% endif %}{% endset %}
+          <span class="sync-icon-wrap{% for kind in act.kinds if act %} is-{{ kind }}{% endfor %}" data-pbs-activity="{{ pbs.id }}" data-tooltip-busy="{{ pbs_line }}"
+                {%- if act %} data-tooltip="{{ pbs_line }}&#10;{{ act.tooltip }}"{% endif %}>{{ dots.pbs_svg('sync-icon sync-fresh-' ~ pbs.state) }}</span>
           {%- endfor %}
         </span>
         {#- What is going on right now (the tiles show critical and warnings). #}

@@ -3,14 +3,15 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from app import db
 from app.config import SYNC_INTERVAL_MINUTES
-from app.services import sync_progress
+from app.services import pbs_activity, sync_progress
 from app.services.backup_status import pbs_sync_state, sync_freshness
 from app.services.proxmox_progress import cached_running_backups
 from app.services.reporting import build_compliance_summary
+from app.web import activity
 from app.web.common import common_context, templates, theme_css
 from app.web.sync import refresh_sync_job_states_soon
 
@@ -111,6 +112,7 @@ def dashboard(request: Request) -> HTMLResponse:
         cid = id_by_slug.get(summary["cluster_slug"])
         summary["pbs_syncs"] = [
             {
+                "id": conn["id"],
                 "name": conn["name"],
                 "state": pbs_sync_state(conn, now, SYNC_INTERVAL_MINUTES),
                 "at": conn.get("last_sync_at"),
@@ -131,3 +133,16 @@ def dashboard(request: Request) -> HTMLResponse:
         "restore_panel": _restore_dashboard_panel(),
     }
     return templates.TemplateResponse(request, "dashboard.html", common_context(request) | context)
+
+
+@router.get("/api/pbs-activity")
+def get_pbs_activity(ids: str = "") -> JSONResponse:
+    """Garbage collections and verifications running on the given PBS, for the
+    symbols and datastore rings of an open page. This poll is the only thing
+    that asks the PBS about them (each at most every 30 s): with no page open
+    nothing is asked."""
+    wanted = {int(part) for part in ids.split(",") if part.isdigit()}
+    conns = [conn for conn in db.list_pbs_connections() if conn["id"] in wanted]
+    pbs_activity.refresh(conns)
+    views = {str(conn["id"]): activity.view(conn["id"]) for conn in conns}
+    return JSONResponse({pbs_id: view for pbs_id, view in views.items() if view})

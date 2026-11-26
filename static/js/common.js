@@ -10,8 +10,12 @@ const DATA_CSS = {
   cssPct: (el, v) => el.style.setProperty("--pct", v),
   cssFill: (el, v) => el.style.setProperty("--fill", v + "%"),
   cssFlex: (el, v) => { el.style.flex = v; },
+  // Progress of a verify / garbage collection around a datastore's ring.
+  cssVerify: (el, v) => el.style.setProperty("--pv", v),
+  cssGc: (el, v) => el.style.setProperty("--pg", v),
 };
-const DATA_CSS_SELECTOR = "[data-css-width],[data-css-p],[data-css-pct],[data-css-fill],[data-css-flex]";
+const DATA_CSS_SELECTOR = 
+  "[data-css-width],[data-css-p],[data-css-pct],[data-css-fill],[data-css-flex],[data-css-verify],[data-css-gc]";
 function applyDataCss(root) {
   const els = [...root.querySelectorAll(DATA_CSS_SELECTOR)];
   if (root.matches && root.matches(DATA_CSS_SELECTOR)) els.push(root);
@@ -23,6 +27,21 @@ function applyDataCss(root) {
   }
 }
 applyDataCss(document);
+
+// Run `fn` now, or as soon as someone looks at the page again: a tab in the
+// background asks the server (and through it PVE and PBS) nothing.
+function whenVisible(fn) {
+  if (!document.hidden) {
+    fn();
+    return;
+  }
+  document.addEventListener("visibilitychange", function wake() {
+    if (document.hidden) return;
+    document.removeEventListener("visibilitychange", wake);
+    fn();
+  });
+}
+window.whenVisible = whenVisible;
 new MutationObserver((mutations) => {
   for (const mutation of mutations) {
     for (const node of mutation.addedNodes) {

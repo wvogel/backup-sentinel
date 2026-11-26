@@ -5,6 +5,18 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.22.0] — 2026-11-26
+
+### Added
+
+- **Garbage collection and verify running on a PBS are visible.** The PBS symbol moves while its PBS is busy with itself — the top disc turns during a garbage collection, a line scans through it during a verify, and an arc per running kind circles the symbol — in the cluster diagram and on the overview. In the diagram the datastore concerned gets a thin progress ring around its usage ring: solid for verify, dashed for garbage collection, each in a colour of its own (`--verify`, `--gc`; override them in your own CSS if they clash with your theme). The tooltip gives start and running time, the progress as PBS logs it (verify: percentage, finished out of all groups, the group being checked; garbage collection: phase, percentage, index files or chunks) and how long the last run of the same job took. Shown are verification jobs, manually started verifications of a datastore, namespace, group or snapshot, and garbage collections; prune jobs are not.
+- The expected end of a verify is extrapolated from the pace so far and marked as such. It is rough: PBS counts groups, not data, and skips recently verified snapshots. A garbage collection gets no estimate — each of its phases counts from 0 to 100 % on its own — only the last run's duration.
+- No new rights are needed: the `Audit` role the PBS token already has covers the task list and the task logs.
+
+### Changed
+
+- **Nothing is polled for a page nobody looks at.** The new display asks the PBS only from an open, visible page: every 30 s, each PBS once at most however many pages are open, nothing during page rendering (pages draw from the last known state), and nothing at all without an open page. A PBS that does not answer is left alone for five minutes. The existing live polls — running backups and running replications — now pause in a background tab as well and resume when the tab is shown again.
+
 ## [v3.21.6] — 2026-11-25
 
 ### Fixed
