@@ -56,3 +56,10 @@ def test_time_per_terabyte():
     assert time_per_tb(1024**4 / 600) == "10 min"
     assert time_per_tb(1024**4 / 3900) == "1 h 05 min"
     assert time_per_tb(0) == "" and time_per_tb(None) == ""
+
+
+def test_warmup_stretch_of_the_curve_is_drawn_dashed():
+    assert "stroke-dasharray" in Path("static/style.css").read_text().split("polyline.perf-spark-warm")[1][:60]
+    html = Path("templates/settings.html").read_text()
+    assert 'class="perf-spark-warm js-perf-warm"' in html and 'class="perf-spark-line js-perf-line"' in html
+    assert "function sparkParts" in Path("static/js/settings.js").read_text()

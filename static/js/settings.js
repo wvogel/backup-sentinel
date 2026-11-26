@@ -199,11 +199,25 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     return SPARK_ZERO - (max > 0 ? Math.max(0, v) / max : 0) * (SPARK_ZERO - SPARK_TOP);
   }
   function sparkPoints(series) {
-    if (!series || series.length < 2) return "";
+    if (!series || series.length < 2) return [];
     var max = Math.max.apply(null, series), n = series.length;
     return series.map(function (v, i) {
       return ((i / (n - 1)) * 100).toFixed(1) + "," + sparkY(v, max).toFixed(1);
-    }).join(" ");
+    });
+  }
+  // The curve in two stretches: the warm-up (the first warmN samples, dashed)
+  // and what is measured (solid, with the area under it). They share the point
+  // where one ends and the other begins, so the line has no gap.
+  function sparkParts(series, warmN) {
+    var pts = sparkPoints(series), n = pts.length;
+    var cut = Math.max(0, Math.min(n, warmN || 0));
+    var warm = cut > 0 ? pts.slice(0, Math.min(n, cut + 1)) : [];
+    var main = cut < n ? pts.slice(cut) : [];
+    var area = "";
+    if (main.length > 1) {
+      area = main[0].split(",")[0] + "," + SPARK_ZERO + " " + main.join(" ") + " " + main[main.length - 1].split(",")[0] + "," + SPARK_ZERO;
+    }
+    return { warm: warm.length > 1 ? warm.join(" ") : "", main: main.length > 1 ? main.join(" ") : "", area: area };
   }
   function meanRate(series) {
     if (!series || !series.length) return 0;
@@ -235,15 +249,12 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
   function renderProgress(box, p) {
     var fill = box.querySelector(".perf-bar-fill");
     var text = box.querySelector(".js-perf-text");
-    var spark = box.querySelector(".js-perf-spark polyline");
     var pct = Math.max(0, Math.min(100, p.pct || 0));
     box._series = p.series || [];
-    // The samples of the warm-up stand at the start of the series: shaded in
+    // The samples of the warm-up stand at the start of the series: dashed in
     // the curve, named under the pointer, and not part of the average.
     var n = box._series.length;
     var warmN = (box._warmupN = Math.max(0, Math.min(n, p.warmup_n || 0)));
-    var warm = box.querySelector(".js-perf-warm");
-    if (warm) warm.setAttribute("width", n > 1 && warmN > 0 ? ((Math.min(warmN, n - 1) / (n - 1)) * 100).toFixed(1) : "0");
     if (fill) fill.style.width = pct.toFixed(1) + "%";
     if (text) {
       var bits = [Math.round(pct) + " %"];
@@ -263,12 +274,11 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     if (bar && scale > 0 && avg) {
       bar.style.width = Math.max(0, Math.min(100, (avg / scale) * 100)).toFixed(1) + "%";
     }
-    if (spark) {
-      var pts = sparkPoints(p.series);
-      spark.setAttribute("points", pts);
-      var area = box.querySelector(".js-perf-spark .perf-spark-area");
-      if (area) area.setAttribute("points", pts ? "0," + SPARK_ZERO + " " + pts + " 100," + SPARK_ZERO : "");
-    }
+    var parts = sparkParts(box._series, warmN);
+    var set = function (sel, points) { var el = box.querySelector(sel); if (el) el.setAttribute("points", points); };
+    set(".js-perf-warm", parts.warm);
+    set(".js-perf-line", parts.main);
+    set(".js-perf-spark .perf-spark-area", parts.area);
   }
   // One poller per running test: updates the live box, reloads when it ends.
   function trackRun(box, storage) {

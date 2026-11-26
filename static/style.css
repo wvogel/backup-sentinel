@@ -3817,9 +3817,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .perf-spark-wrap { position: relative; flex: 1 1 auto; min-width: 0; min-height: 56px; cursor: crosshair; }
 .perf-spark { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--running); }
 .perf-spark polyline { fill: none; stroke: currentColor; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+/* The warm-up at the start of the test: written, but not measured — dashed. */
+.perf-spark polyline.perf-spark-warm { stroke-dasharray: 4 3; }
 .perf-spark-area { fill: currentColor; fill-opacity: 0.14; stroke: none; }
-/* The warm-up at the start of the test: written, but not measured. */
-.perf-spark-warm { fill: var(--warn); fill-opacity: 0.16; stroke: none; }
 .perf-spark-zero { stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .perf-spark-cursor {
   position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px;
