@@ -261,7 +261,6 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     if (text) {
       var bits = [Math.round(pct) + " %"];
       if (p.warming) bits.unshift(T("restore.perf_warmup"));
-      if (p.rate_bps) bits.push(fmtRate(p.rate_bps));
       if (p.eta) bits.push("eta " + p.eta);
       text.textContent = bits.join(" · ");
     }

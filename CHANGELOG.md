@@ -5,6 +5,12 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.26.4] — 2026-11-26
+
+### Changed
+
+- Settings → Restore server: the line under the progress bar of a running test holds percentage and remaining time only, so "Cancel" fits beside it. The rate is in the average under the performance bar and under the pointer in the curve.
+
 ## [v3.26.3] — 2026-11-26
 
 ### Changed
