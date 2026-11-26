@@ -3773,6 +3773,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .perf-value { color: var(--ink); font-weight: 600; white-space: nowrap; }
 .perf-value.muted { color: var(--muted); font-weight: 400; }
 .perf-test-btn { width: auto; margin-left: auto; padding: 2px 12px; font-size: 0.78rem; }
+/* Not available while another test runs (or a restore writes there): nearly gone. */
+.perf-test-btn:disabled, .perf-test-btn:disabled:hover { opacity: 0.22; cursor: not-allowed; transform: none; box-shadow: none; }
 .perf-nofio { font-size: 0.78rem; color: var(--muted); }
 .perf-nofio a { color: var(--accent); }
 
@@ -3784,15 +3786,10 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* As wide as the card, and no wider: the two meters of each storage share
    what the two narrow columns leave. */
 .restore-storage-table { width: 100%; table-layout: fixed; }
-/* A running test: a second pair of meters under the storage's own, set off
-   by a line at the left so it reads as belonging to that storage. The bar is
-   as long as the capacity bar above it, the rate curve as wide as the track. */
-.perf-run {
-  /* The line stands in the gutter: bar and curve start and end exactly
-     where the meters above them do. */
-  margin: 10px 0 0 -14px; padding: 2px 0 0 12px;
-  border-left: 2px solid var(--running);
-}
+/* A running test: a second pair of meters under the storage's own, exactly
+   as wide — the bar as long as the capacity bar above it, the rate curve as
+   wide as the track. */
+.perf-run { margin-top: 10px; }
 .perf-bar {
   flex: 1 1 auto; height: 8px; border-radius: 999px; overflow: hidden;
   background: var(--chip); border: 1px solid var(--chip-border);
@@ -3802,11 +3799,41 @@ html[data-theme="dark"] .node-filter-button.is-active {
   background: var(--running); border-radius: 999px;
   transition: width 0.6s ease;
 }
-.perf-spark {
-  flex: 1 1 auto; min-width: 0; width: 100%; height: 22px;
-  color: var(--running); opacity: 0.9;
+/* While the test runs a light sweeps along the bar: something is happening
+   even when the percentage stands still for a while. */
+.perf-run .perf-bar { position: relative; }
+.perf-run .perf-bar::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 55%, transparent), transparent) no-repeat;
+  background-size: 70px 100%;
+  animation: perf-sweep 1.8s linear infinite;
 }
+@keyframes perf-sweep {
+  from { background-position-x: -70px; }
+  to { background-position-x: calc(100% + 70px); }
+}
+@media (prefers-reduced-motion: reduce) { .perf-run .perf-bar::after { animation: none; background: none; } }
+/* Rate over the test so far, standing on its zero line. */
+.perf-spark-wrap { position: relative; flex: 1 1 auto; min-width: 0; height: 30px; cursor: crosshair; }
+.perf-spark { display: block; width: 100%; height: 100%; color: var(--running); }
 .perf-spark polyline { fill: none; stroke: currentColor; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.perf-spark-area { fill: currentColor; fill-opacity: 0.14; stroke: none; }
+.perf-spark-zero { stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.perf-spark-cursor {
+  position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px;
+  background: var(--muted); pointer-events: none;
+}
+.perf-spark-dot {
+  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
+  background: var(--running); border: 2px solid var(--panel); pointer-events: none;
+}
+.perf-spark-tip {
+  position: absolute; bottom: calc(100% + 4px); transform: translateX(-50%);
+  padding: 2px 8px; border-radius: var(--radius-box); white-space: nowrap; pointer-events: none;
+  font-size: 0.72rem; font-variant-numeric: tabular-nums;
+  color: #f1f5f9; background: #1e293b; border: 1px solid #334155;
+}
+.perf-spark-cursor[hidden], .perf-spark-dot[hidden], .perf-spark-tip[hidden] { display: none; }
 .perf-cancel {
   flex: 0 0 auto; width: auto; margin-left: auto; padding: 2px 11px; font-size: 0.76rem;
   color: var(--critical); background: transparent;

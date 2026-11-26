@@ -755,6 +755,16 @@ class RestoreServer:
             raise RestoreTaskError(f"could not allocate a benchmark volume on '{storage}': {out.strip()[:300]}")
         return m.group(1)
 
+    def abort_benchmarks(self, storage: str) -> None:
+        """Stop every benchmark fio still running on the host and free the
+        benchmark volumes on ``storage`` — for a test whose app process died
+        before its own cleanup ran. Best-effort; one test runs at a time."""
+        try:
+            self.ssh.run("pkill -f 'fio --name=bstest-' 2>/dev/null; sleep 2; rm -f /tmp/bsentinel-fio-*; true")
+        except Exception as exc:
+            logger.debug("stopping leftover benchmark fio failed: %s", exc)
+        self._free_bench_volumes(storage)
+
     def _free_bench_volumes(self, storage: str) -> None:
         """Best-effort removal of every sentinel-VMID benchmark volume left on
         ``storage`` — clears leaks from a run whose host or app died mid-benchmark

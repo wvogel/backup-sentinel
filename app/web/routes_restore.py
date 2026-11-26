@@ -217,6 +217,7 @@ def benchmark_status(request: Request) -> JSONResponse:
     page to poll while a test runs."""
     from app.services import restore_perf
 
+    restore_perf.recover_orphaned()  # a test the last restart cut off: the page then reloads
     return JSONResponse(
         {
             "running": restore_perf.running_storage(),

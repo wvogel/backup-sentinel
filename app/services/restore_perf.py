@@ -7,6 +7,11 @@ background thread (~5 min); results, live progress (percent / current rate /
 ETA / a short rate history for the sparkline) and the "currently running" and
 "cancel requested" markers live in ``app_settings`` so every worker sees them
 and they survive a restart.
+
+The thread does not survive one: a test running when the app stops (a deploy)
+is gone, while its "running" marker stays. ``recover_orphaned`` releases such a
+marker — at the start, before a new test, when the page asks for the state and
+when the operator cancels — and stops what the test left on the host.
 """
 
 from __future__ import annotations
@@ -99,6 +104,41 @@ def _reset_live() -> None:
     save_settings({_RUNNING_KEY: "", _PROGRESS_KEY: "", _CANCEL_KEY: ""})
 
 
+_worker: threading.Thread | None = None  # the test this process runs, if any
+
+
+def _worker_alive() -> bool:
+    return _worker is not None and _worker.is_alive()
+
+
+def _cleanup_host(storage: str) -> None:
+    """Stop the fio a dead test left running on the host and free its volume."""
+    from app.services import restore_config, restore_orchestrator
+
+    try:
+        config = restore_config.load()
+        if not config:
+            return
+        config = restore_orchestrator.ensure_host_key_pinned(config)
+        restore_orchestrator.build_server(config).abort_benchmarks(storage)
+    except Exception as exc:
+        logger.warning("perf benchmark %s: cleaning up the host failed: %s", storage, exc)
+
+
+def recover_orphaned() -> str:
+    """Release a test that is marked running but that no thread of this process
+    runs (the app restarted under it). Returns the storage released, or "".
+    No result is stored — the last measurement stays — and the host is cleaned
+    up in the background. One app process is assumed, as everywhere here."""
+    storage = running_storage()
+    if not storage or _worker_alive():
+        return ""
+    logger.warning("perf benchmark %s: no worker runs it any more (app restarted?) — released", storage)
+    _reset_live()
+    threading.Thread(target=_cleanup_host, args=(storage,), name=f"perf-cleanup-{storage}", daemon=True).start()
+    return storage
+
+
 def involved_storages() -> set[str]:
     """Storages the currently running restore writes to (its target storages) —
     their test buttons are disabled so a benchmark never fights a live restore.
@@ -113,6 +153,8 @@ def involved_storages() -> set[str]:
 def start(storage: str) -> tuple[bool, str]:
     """Kick a background benchmark for ``storage``. Returns ``(started, reason)``;
     refuses when another benchmark runs or the storage is in a live restore."""
+    global _worker
+    recover_orphaned()  # a marker left by a restart must not block a new test
     if running_storage():
         return False, "another performance test is already running"
     if storage in involved_storages():
@@ -132,7 +174,8 @@ def start(storage: str) -> tuple[bool, str]:
             ),
         }
     )
-    threading.Thread(target=_run, args=(storage,), name=f"perf-{storage}", daemon=True).start()
+    _worker = threading.Thread(target=_run, args=(storage,), name=f"perf-{storage}", daemon=True)
+    _worker.start()
     return True, ""
 
 
@@ -141,6 +184,8 @@ def cancel(storage: str) -> tuple[bool, str]:
     its next poll (~5 s), then frees the scratch volume."""
     if running_storage() != storage:
         return False, "no performance test is running for this storage"
+    if recover_orphaned():  # nobody is left to hear the request: end it here
+        return True, ""
     save_settings({_CANCEL_KEY: storage})
     return True, ""
 

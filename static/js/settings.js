@@ -190,16 +190,43 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     var dec = v >= 100 || i === 0 ? 0 : 1;
     return v.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: dec }) + " " + u[i];
   }
-  // Normalise a rate series into an SVG polyline over the 100×24 viewBox.
+  // A rate series as an SVG polyline over the 100×24 viewBox. The y-axis
+  // starts at 0 — the curve stands on its zero line (y = 23.5), the highest
+  // rate reaches the top; never scaled between the lowest and highest sample,
+  // which turns a ripple into a cliff.
+  var SPARK_TOP = 1.5, SPARK_ZERO = 23.5;
+  function sparkY(v, max) {
+    return SPARK_ZERO - (max > 0 ? Math.max(0, v) / max : 0) * (SPARK_ZERO - SPARK_TOP);
+  }
   function sparkPoints(series) {
     if (!series || series.length < 2) return "";
-    var max = Math.max.apply(null, series), min = Math.min.apply(null, series);
-    var span = max - min || 1, n = series.length;
+    var max = Math.max.apply(null, series), n = series.length;
     return series.map(function (v, i) {
-      var x = (i / (n - 1)) * 100;
-      var y = 23 - ((v - min) / span) * 22; // 1px padding top/bottom
-      return x.toFixed(1) + "," + y.toFixed(1);
+      return ((i / (n - 1)) * 100).toFixed(1) + "," + sparkY(v, max).toFixed(1);
     }).join(" ");
+  }
+  // The value under the pointer: a line and a dot on the curve, the rate above.
+  function initSparkHover(box) {
+    var wrap = box.querySelector(".js-perf-spark-wrap");
+    if (!wrap) return;
+    var cursor = wrap.querySelector(".js-perf-cursor"), dot = wrap.querySelector(".js-perf-dot");
+    var tip = wrap.querySelector(".js-perf-tip");
+    function hide() { cursor.hidden = dot.hidden = tip.hidden = true; }
+    wrap.addEventListener("mousemove", function (e) {
+      var series = box._series;
+      if (!series || series.length < 2) { hide(); return; }
+      var r = wrap.getBoundingClientRect(), n = series.length;
+      var i = Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width) * (n - 1))));
+      var x = (i / (n - 1)) * 100;
+      var y = (sparkY(series[i], Math.max.apply(null, series)) / 24) * 100;
+      cursor.style.left = dot.style.left = x + "%";
+      dot.style.top = y + "%";
+      tip.textContent = fmtRate(series[i]);
+      // Keep the label inside the graph at both ends.
+      tip.style.left = Math.max(12, Math.min(88, x)) + "%";
+      cursor.hidden = dot.hidden = tip.hidden = false;
+    });
+    wrap.addEventListener("mouseleave", hide);
   }
   function renderProgress(box, p) {
     var fill = box.querySelector(".perf-bar-fill");
@@ -222,7 +249,13 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     if (dot && scale > 0 && p.rate_bps) {
       dot.style.setProperty("--pct", Math.max(0, Math.min(100, (p.rate_bps / scale) * 100)).toFixed(1));
     }
-    if (spark) spark.setAttribute("points", sparkPoints(p.series));
+    box._series = p.series || [];
+    if (spark) {
+      var pts = sparkPoints(p.series);
+      spark.setAttribute("points", pts);
+      var area = box.querySelector(".js-perf-spark .perf-spark-area");
+      if (area) area.setAttribute("points", pts ? "0," + SPARK_ZERO + " " + pts + " 100," + SPARK_ZERO : "");
+    }
   }
   // One poller per running test: updates the live box, reloads when it ends.
   function trackRun(box, storage) {
@@ -236,6 +269,7 @@ document.querySelectorAll(".js-save-status").forEach((el) => {
     tick();
   }
   document.querySelectorAll(".js-perf-run").forEach(function (box) {
+    initSparkHover(box);
     trackRun(box, box.dataset.storage);
   });
   document.querySelectorAll(".js-perf-cancel").forEach(function (btn) {

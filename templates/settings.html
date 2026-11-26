@@ -353,7 +353,16 @@
                   <div class="store-meter-text"><span class="js-perf-text">{{ t('restore.perf_running') }}</span></div>
                 </div>
                 <div class="store-meter">
-                  <div class="store-meter-graph"><svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg></div>
+                  <div class="store-meter-graph">
+                    {#- Rate over the test so far. The curve stands on its zero
+                        line (drawn); the pointer reads the value under it. -#}
+                    <div class="perf-spark-wrap js-perf-spark-wrap">
+                      <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polygon class="perf-spark-area" points="" /><line class="perf-spark-zero" x1="0" y1="23.5" x2="100" y2="23.5" /><polyline points="" /></svg>
+                      <span class="perf-spark-cursor js-perf-cursor" hidden></span>
+                      <span class="perf-spark-dot js-perf-dot" hidden></span>
+                      <span class="perf-spark-tip js-perf-tip" hidden></span>
+                    </div>
+                  </div>
                   <div class="store-meter-text">
                     <span class="perf-value js-perf-rate"></span>
                     <button type="button" class="perf-cancel js-perf-cancel" data-storage="{{ s.storage }}" data-tooltip="{{ t('restore.perf_cancel_hint') }}">{{ t('restore.perf_cancel') }}</button>

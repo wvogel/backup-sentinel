@@ -73,6 +73,14 @@ async def lifespan(app: FastAPI):
         await asyncio.get_event_loop().run_in_executor(None, seal_archived_reports)
     except Exception as exc:
         logging.getLogger(__name__).error("recording report hashes on startup failed: %s", exc)
+    # A performance test of a restore storage runs in a thread of the app: one
+    # that was running when the app stopped is gone, only its marker is left.
+    try:
+        from app.services import restore_perf
+
+        await asyncio.get_event_loop().run_in_executor(None, restore_perf.recover_orphaned)
+    except Exception as exc:
+        logging.getLogger(__name__).error("releasing an interrupted performance test failed: %s", exc)
     sync_task = asyncio.create_task(auto_sync_loop())
     restore_queue_task = asyncio.create_task(restore_queue_loop())
     yield

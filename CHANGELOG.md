@@ -5,6 +5,17 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.24.4] — 2026-11-26
+
+### Fixed
+
+- **A performance test cut off by an app restart stayed "running" for ever.** The test runs in a thread of the app; after a restart (an update) the thread was gone but its marker was not: the page showed the last percentage, "Cancel" did nothing — it only asked that thread to stop — and no other test could be started. Such a test is now released at the start of the app, when the page asks for its state, before a new test and on "Cancel"; the fio it left on the restore host is stopped and its test volume freed. The last measured rate stays.
+- **The throughput curve of a running test starts at 0.** It was scaled between its lowest and highest sample, so a dip of a few percent looked like a collapse. It now stands on its zero line, which is drawn, with the area below filled.
+
+### Changed
+
+- Settings → Restore server, while a test runs: a light sweeps along the progress bar, so it shows that something is happening when the percentage stands still; the pointer over the throughput curve shows the rate at that point; the "Test" buttons of the other storages are nearly invisible while they cannot be used; the line at the left of the running test is gone.
+
 ## [v3.24.3] — 2026-11-26
 
 ### Changed

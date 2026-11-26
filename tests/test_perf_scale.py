@@ -30,6 +30,17 @@ def test_storage_rows_render_with_both_meters_and_a_test_button():
         "restore.st_used_free",
         "js-perf-rate",
         "race-running",
+        "perf-spark-zero",
+        "js-perf-tip",
         "data-scale",
     ):
         assert needle in macro_source
+
+
+def test_rate_curve_starts_at_zero():
+    """The y-axis of the throughput curve starts at 0: never scaled between the
+    lowest and the highest sample."""
+    js = Path("static/js/settings.js").read_text()
+    spark = js[js.index("function sparkY") : js.index("function renderProgress")]
+    assert "Math.min.apply" not in spark and "- min" not in spark
+    assert "SPARK_ZERO" in spark
