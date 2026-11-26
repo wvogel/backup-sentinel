@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.24.0] — 2026-11-26
+
+### Changed
+
+- **Settings → Restore server: the target storages take two lines each, and the write performance is a race between turtle and hare.** The table had seven columns in half a row and ran out of its box. Now the first line holds the name, what the storage takes (VM / CT) and the disk type; below it two equally wide meters, each with its figures underneath: how full the storage is (used · free), and how fast it writes — a track from the turtle at 0 to the hare at the end of the scale, with a dot where the storage stands. The scale is the same for every storage (0 to 1 GB/s, further only when one is faster), so the positions compare. The test is a button labelled "Test" beside the measured rate again, no longer a small gauge symbol. In a narrow window the two meters go one below the other instead of running out of the card.
+
+### Fixed
+
+- The target storages no longer stick out of their box on the right.
+
 ## [v3.23.0] — 2026-11-26
 
 ### Changed

@@ -3727,22 +3727,49 @@ html[data-theme="dark"] .node-filter-button.is-active {
   padding: 6px 28px 6px 10px;
   font-size: 0.85rem;
 }
-.store-perf-cell { white-space: nowrap; }
-/* Idle: a small test icon (hover = last-tested date) directly before the
-   measured rate value (or "unbekannt", which may ellipsis if space is tight). */
-.perf-value {
-  font-variant-numeric: tabular-nums; vertical-align: middle;
-  display: inline-block; max-width: 100%; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap;
+/* Two lines per storage. Line 1: name, what it holds, disk type. Line 2: how
+   full it is and how fast it writes — two equally wide meters, each a graph
+   with its figures underneath. */
+.restore-storage-table .store-main { padding-top: 10px; padding-bottom: 12px; }
+/* Handle and tick stand beside the name (line 1), not between the lines. */
+.restore-storage-table .drag-handle { width: 24px; padding: 17px 0 0; vertical-align: top; }
+.restore-storage-table .store-use-cell { width: 34px; padding: 18px 4px 0; vertical-align: top; }
+.store-line {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap;
 }
-.perf-icon {
-  width: auto; margin-right: 5px; padding: 1px; vertical-align: middle;
-  color: var(--muted); background: transparent; border: 0; cursor: pointer;
+/* Side by side and equally wide; one below the other where the card is narrow. */
+.store-meters {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px 28px;
+  margin-top: 8px;
 }
-.perf-icon svg { display: block; width: 17px; height: 17px; }
-.perf-icon:hover { color: var(--accent); background: transparent; }
-.perf-icon:disabled { opacity: 0.4; cursor: not-allowed; }
-.perf-icon:disabled:hover { color: var(--muted); }
+.store-meter { min-width: 0; }
+.store-meter-graph { display: flex; align-items: center; gap: 10px; height: 30px; }
+.store-meter-text {
+  display: flex; align-items: center; gap: 10px; min-height: 26px;
+  font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.store-cap-bar {
+  flex: 1 1 auto; height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--chip); border: 1px solid var(--chip-border);
+}
+.store-cap-bar > span { display: block; height: 100%; width: 0; background: var(--running); border-radius: 999px; }
+/* Write performance as a race track: turtle at 0, hare at the end of the scale
+   (the same for every storage), the dot where this storage stands. */
+.race-animal { flex: none; width: 30px; height: 30px; color: var(--muted); }
+.race-track {
+  position: relative; flex: 1 1 auto; height: 4px; border-radius: 999px;
+  background: var(--chip-border, var(--line));
+}
+.race-dot {
+  position: absolute; top: 50%; left: calc(var(--pct, 0) * 1%);
+  width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: var(--accent-fill, var(--accent)); border: 2px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--accent-fill, var(--accent));
+}
+.race-empty .race-animal, .race-empty .race-track { opacity: 0.45; }
+.perf-value { color: var(--ink); font-weight: 600; white-space: nowrap; }
+.perf-value.muted { color: var(--muted); font-weight: 400; }
+.perf-test-btn { width: auto; margin-left: auto; padding: 2px 12px; font-size: 0.78rem; }
 .perf-nofio { font-size: 0.78rem; color: var(--muted); }
 .perf-nofio a { color: var(--accent); }
 
@@ -3751,12 +3778,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
    stretches the table across the whole card (shaded header + rules running to
    the edge). Plain block → the table is its own (content) width, left-aligned. */
 .restore-config-form .restore-storage-fieldset { display: block; }
-/* Content width, left-aligned — not the global table{width:100%}, which would
-   stretch it across the half-width card (empty Performance column, header band
-   and row rules running to the edge). */
-.restore-storage-table { width: auto; }
-/* No shaded/sticky header here — it is a short, non-scrolling config table. */
-.restore-storage-table thead th { position: static; background: transparent; }
+/* As wide as the card, and no wider: the two meters of each storage share
+   what the two narrow columns leave. */
+.restore-storage-table { width: 100%; table-layout: fixed; }
 /* A running test gets its OWN full-width row below the storage row (there is
    room below, not beside): laid out horizontally across all columns — the bar
    grows to fill, then the throughput sparkline, live rate/ETA and cancel. */

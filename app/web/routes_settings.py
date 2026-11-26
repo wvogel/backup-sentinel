@@ -18,6 +18,17 @@ from app.web.common import PREVIEW_CSP, common_context, mask_setting_value, sett
 router = APIRouter()
 
 
+PERF_SCALE_MIN = 1024**3  # shown as "1 GB/s" (sizes scale binary, like the Proxmox GUI)
+
+
+def perf_scale(rows: list[dict]) -> int:
+    """Right end of the turtle-to-hare track, in bytes/s: the same for every
+    storage so the positions compare, starting at 0 and reaching 1 GB/s at
+    least — further only when a storage is faster than that."""
+    rates = [int((row.get("perf") or {}).get("bps") or 0) for row in rows]
+    return max([PERF_SCALE_MIN, *rates])
+
+
 def tls_state(api_url: str | None, pins: dict[tuple[str, int], dict]) -> dict:
     """What the lock symbol of a host shows: its address and, once the host was
     reached, the certificate remembered for it (app.services.tls_trust)."""
@@ -72,6 +83,7 @@ def settings(request: Request) -> HTMLResponse:
         else 0,
         "rc": restore_config.public_config(),
         "restore_storages": _rs.get("rows", []),
+        "restore_perf_scale": perf_scale(_rs.get("rows", [])),
         "restore_storage_error": _rs.get("error"),
         "restore_storage_note": _rs.get("note"),
         "restore_fio_available": _rs.get("fio_available", False),

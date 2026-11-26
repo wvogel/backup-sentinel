@@ -293,51 +293,62 @@
       {% elif not restore_storages %}
       <p class="warn-text">{{ t('restore.storage_none') }}</p>
       {% else %}
+      {#- Two lines per storage: what it is and its disk type, below that how
+          full it is and how fast it writes — both equally wide, each with its
+          figures underneath. -#}
       <table class="data-table restore-storage-table">
-        <thead><tr>
-          <th></th><th>{{ t('restore.st_use') }}</th><th>{{ t('restore.st_name') }}</th>
-          <th class="num">{{ t('restore.st_used') }}</th>
-          <th class="num">{{ t('restore.st_free') }}</th><th>{{ t('restore.st_class') }}</th>
-          <th>{{ t('restore.st_perf') }}</th>
-        </tr></thead>
         <tbody data-reorder data-autosave="/settings/restore-server/target-storages">
         {% for s in restore_storages %}
+          {%- set total = (s.used or 0) + (s.free or 0) %}
+          {%- set bps = (s.perf.bps if s.perf and s.perf.bps else 0) %}
           <tr draggable="true">
             <td class="drag-handle" data-tooltip="{{ t('restore.st_drag') }}" aria-hidden="true">⠿</td>
-            <td><input type="checkbox" name="ts_use" value="{{ s.storage }}" {% if s.use %}checked{% endif %}></td>
-            <td class="store-name-cell">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class) }}<span class="store-name">{{ s.storage }}</span>{% if s.images or s.rootdir %}<span class="cap-badges">{% if s.images %}<span class="cap-badge cap-vm" data-tooltip="{{ t('restore.cap_vm') }}">VM</span>{% endif %}{% if s.rootdir %}<span class="cap-badge cap-ct" data-tooltip="{{ t('restore.cap_ct') }}">CT</span>{% endif %}</span>{% endif %}<input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</td>
-            <td class="num">{{ s.used | size_coarse if s.used is not none else '–' }}</td>
-            <td class="num">{{ s.free | size_coarse if s.free is not none else '–' }}</td>
-            <td>
-              <select name="ts_class" class="js-disk-class">
-                {% for cls in disk_classes %}<option value="{{ cls }}" {% if s.disk_class == cls %}selected{% endif %}>{{ t('restore.class_short_' ~ cls) }}</option>{% endfor %}
-              </select>
-            </td>
-            <td class="store-perf-cell">
-              {%- if not s.benchmarkable %}<span class="muted">–</span>
-              {%- elif not restore_fio_available %}<span class="perf-nofio" data-tooltip="{{ t('restore.perf_nofio_hint') }}">{{ t('restore.perf_nofio') }} · <a href="#" class="js-install-fio">{{ t('restore.perf_install_fio') }}</a></span>
-              {%- elif restore_perf_running == s.storage -%}
-                <span class="perf-value muted">{{ t('restore.perf_running') }}…</span>
-              {%- else -%}
-                {# measured rate as a value (or "unbekannt") + a test icon whose
-                   hover shows when it was last measured #}
-                {%- set _disabled = s.busy or (restore_perf_running and restore_perf_running != s.storage) -%}
-                <button type="button" class="perf-icon js-perf-test" data-storage="{{ s.storage }}"{% if _disabled %} disabled{% endif %} aria-label="{{ t('restore.perf_test') }}" data-tooltip="
-                  {%- if s.busy %}{{ t('restore.perf_busy') }}
-                  {%- elif restore_perf_running %}{{ t('restore.perf_running_other') }}
-                  {%- elif s.perf and s.perf.bps %}{{ t('restore.perf_last_tested') }}: {{ (s.perf.at or '')[:16]|replace('T', ' ') }}
-                  {%- elif s.perf and s.perf.error %}{{ t('restore.perf_last_error') }}: {{ s.perf.error }}
-                  {%- else %}{{ t('restore.perf_test_hint') }}{% endif -%}">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15a9 9 0 0 1 18 0"/><path d="M12 15l5-3.5"/><circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none"/></svg>
-                </button>{% if s.perf and s.perf.bps %}<span class="perf-value">{{ s.perf.bps | size_coarse }}/s</span>{% else %}<span class="perf-value muted">{{ t('restore.perf_unknown') }}</span>{% endif %}
-              {%- endif %}
+            <td class="store-use-cell"><input type="checkbox" name="ts_use" value="{{ s.storage }}" {% if s.use %}checked{% endif %} aria-label="{{ t('restore.st_use') }}: {{ s.storage }}" data-tooltip="{{ t('restore.st_use') }}"></td>
+            <td class="store-main">
+              <div class="store-line">
+                <span class="store-name-cell">{{ sicons.conn_icon(s.type) }}{{ sicons.disk_icon(s.disk_class) }}<span class="store-name">{{ s.storage }}</span>{% if s.images or s.rootdir %}<span class="cap-badges">{% if s.images %}<span class="cap-badge cap-vm" data-tooltip="{{ t('restore.cap_vm') }}">VM</span>{% endif %}{% if s.rootdir %}<span class="cap-badge cap-ct" data-tooltip="{{ t('restore.cap_ct') }}">CT</span>{% endif %}</span>{% endif %}<input type="hidden" name="ts_name" value="{{ s.storage }}">{% if s.missing %} <span class="muted">({{ t('restore.st_missing') }})</span>{% endif %}</span>
+                <select name="ts_class" class="js-disk-class" aria-label="{{ t('restore.st_class') }}" data-tooltip="{{ t('restore.st_class') }}">
+                  {% for cls in disk_classes %}<option value="{{ cls }}" {% if s.disk_class == cls %}selected{% endif %}>{{ t('restore.class_short_' ~ cls) }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="store-meters">
+                <div class="store-meter">
+                  <div class="store-meter-graph"><div class="store-cap-bar"><span data-css-width="{{ (100 * (s.used or 0) / total)|round(1) if total else 0 }}"></span></div></div>
+                  <div class="store-meter-text">
+                    {%- if s.used is none and s.free is none %}<span class="muted">–</span>
+                    {%- else %}{{ t('restore.st_used_free', used=(s.used | size_coarse if s.used is not none else '–'), free=(s.free | size_coarse if s.free is not none else '–')) }}{% endif -%}
+                  </div>
+                </div>
+                <div class="store-meter store-perf-cell">
+                  <div class="store-meter-graph race{% if not bps %} race-empty{% endif %}" data-tooltip="{{ t('restore.perf_scale', max=(restore_perf_scale | size_coarse)) }}">
+                    {{ sicons.turtle_icon() }}
+                    <span class="race-track">{% if bps %}<span class="race-dot" data-css-pct="{{ (100 * bps / restore_perf_scale)|round(1) }}"></span>{% endif %}</span>
+                    {{ sicons.hare_icon() }}
+                  </div>
+                  <div class="store-meter-text">
+                    {%- if not s.benchmarkable %}<span class="muted">{{ t('restore.perf_not_measurable') }}</span>
+                    {%- elif not restore_fio_available %}<span class="perf-nofio" data-tooltip="{{ t('restore.perf_nofio_hint') }}">{{ t('restore.perf_nofio') }} · <a href="#" class="js-install-fio">{{ t('restore.perf_install_fio') }}</a></span>
+                    {%- elif restore_perf_running == s.storage %}<span class="perf-value muted">{{ t('restore.perf_running') }}</span>
+                    {%- else %}
+                    {%- set _disabled = s.busy or (restore_perf_running and restore_perf_running != s.storage) %}
+                    {% if bps %}<span class="perf-value">{{ bps | size_coarse }}/s</span>{% else %}<span class="perf-value muted">{{ t('restore.perf_unknown') }}</span>{% endif %}
+                    <button type="button" class="button-secondary perf-test-btn js-perf-test" data-storage="{{ s.storage }}"{% if _disabled %} disabled{% endif %} data-tooltip="
+                      {%- if s.busy %}{{ t('restore.perf_busy') }}
+                      {%- elif restore_perf_running %}{{ t('restore.perf_running_other') }}
+                      {%- elif s.perf and s.perf.bps %}{{ t('restore.perf_last_tested') }}: {{ (s.perf.at or '')[:16]|replace('T', ' ') }}&#10;{{ t('restore.perf_test_hint') }}
+                      {%- elif s.perf and s.perf.error %}{{ t('restore.perf_last_error') }}: {{ s.perf.error }}
+                      {%- else %}{{ t('restore.perf_test_hint') }}{% endif -%}">{{ t('restore.perf_test') }}</button>
+                    {%- endif %}
+                  </div>
+                </div>
+              </div>
             </td>
           </tr>
           {%- if restore_fio_available and restore_perf_running == s.storage %}
           {# Running test gets its own full-width row below — bar, throughput
              sparkline, live rate/ETA and cancel spread across all columns. #}
           <tr class="perf-progress-row js-perf-run" data-storage="{{ s.storage }}">
-            <td colspan="7">
+            <td colspan="3">
               <div class="perf-run">
                 <div class="perf-bar"><span class="perf-bar-fill" data-css-width="{{ (restore_perf_progress.pct or 0) }}"></span></div>
                 <svg class="perf-spark js-perf-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="" /></svg>
