@@ -16,6 +16,16 @@ from app.config import API_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
+# Tests talk to a local http server; the app never does.
+ALLOW_PLAIN_HTTP = False
+
+
+def _require_https(base_url: str, label: str) -> None:
+    """Refuse to send an API token anywhere but over https (a cluster stored
+    with an http:// URL before the form checked it)."""
+    if not ALLOW_PLAIN_HTTP and parse.urlsplit(base_url).scheme.lower() != "https":
+        raise APIError(f"{label} API URL {base_url} is not https:// — the API token is not sent over plain http")
+
 
 def _https(host: str, port: int | None, timeout: float) -> http.client.HTTPSConnection:
     """HTTPS to a PVE/PBS: CA-verified, or pinned to the host's certificate
@@ -115,6 +125,7 @@ def api_send(
     """Authenticated POST/PUT/DELETE with a form-encoded body. Returns the parsed
     JSON 'data' field (e.g. a task UPID). No retries — write calls are not
     blindly repeatable."""
+    _require_https(base_url, label)
     url = f"{base_url}{path}"
     headers = {
         "Authorization": auth_header,
@@ -152,6 +163,7 @@ def api_upload(
     parsed JSON 'data' field (the upload task's UPID)."""
     import secrets
 
+    _require_https(base_url, label)
     boundary = "----bsentinel" + secrets.token_hex(16)
     pre = (
         f'--{boundary}\r\nContent-Disposition: form-data; name="content"\r\n\r\n{content}\r\n'
@@ -220,6 +232,7 @@ def api_get_payload(
     fields such as 'total'). Retries transient network errors and 5xx/429
     responses with exponential backoff; `retries=0` for calls whose failure
     is expected or has a fallback (no waiting for the same answer)."""
+    _require_https(base_url, label)
     query_string = f"?{parse.urlencode(query)}" if query else ""
     url = f"{base_url}{path}{query_string}"
     headers = {"Authorization": auth_header, "Accept": "application/json"}

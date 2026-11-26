@@ -190,7 +190,7 @@ OAuth2-Proxy decides who may sign in; Backup Sentinel decides what a signed-in u
 | Operator (`BSENTINEL_OPERATORS`) | Also: start a sync, start, cancel and reorder restore tests, record manual restore tests, create interim reports. |
 | Admin (`BSENTINEL_ADMINS`) | Everything: settings (the page itself too), add and delete clusters and PBS, change targets and intervals, delete archived reports. |
 
-The lists hold e-mail addresses, user names or groups, comma-separated and case-insensitive, e.g. `BSENTINEL_ADMINS=it-admins,alice@example.com`. Groups come from the `X-Forwarded-Groups` header, so OAuth2-Proxy must receive them from the IdP (scope or `OAUTH2_PROXY_OIDC_GROUPS_CLAIM`; Entra ID sends group IDs). With **both lists empty** there are no roles and every signed-in user is admin. Every state-changing route not explicitly open to operators needs admin.
+The lists hold e-mail addresses, user names or groups, comma-separated and case-insensitive, e.g. `BSENTINEL_ADMINS=it-admins,alice@example.com`. The user comes from `X-Forwarded-Email`, `X-Forwarded-User` and `X-Forwarded-Preferred-Username`, groups from `X-Forwarded-Groups` — the headers OAuth2-Proxy sets itself; `X-Auth-Request-*` headers are not read. For groups OAuth2-Proxy must receive them from the IdP (scope or `OAUTH2_PROXY_OIDC_GROUPS_CLAIM`; Entra ID sends group IDs). With **both lists empty** there are no roles and every signed-in user is admin. Every state-changing route not explicitly open to operators needs admin.
 
 ---
 
@@ -356,7 +356,7 @@ OAuth2-Proxy sets `OAUTH2_PROXY_REVERSE_PROXY=true`, so it trusts `X-Forwarded-*
 
 Proxmox hosts usually serve a self-signed certificate. Backup Sentinel does not switch verification off for that; it remembers the certificate, as SSH does with a host key:
 
-- If a system certificate authority vouches for the certificate (right name, not expired), it is trusted as it is.
+- If a system certificate authority vouches for the certificate (right name, not expired), it is trusted as it is. The host is then listed as "verified by a certificate authority", with the fingerprint of that certificate; renewals update it by themselves. If such a host later presents a certificate **no** authority vouches for, that is a changed certificate (see below), not a first contact — otherwise anyone in the network path could present a self-signed certificate and receive the API token.
 - Otherwise its SHA-256 fingerprint is remembered on first contact, per host and port. If it equals the one the bootstrap script read on the host itself, the origin says "confirmed by the bootstrap script", else "on first contact".
 - From then on only that certificate is accepted. If the host presents another one, the connection is dropped **before** an API token is sent; the sync fails with a message saying so.
 

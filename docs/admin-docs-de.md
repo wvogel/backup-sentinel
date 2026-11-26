@@ -190,7 +190,7 @@ Der OAuth2-Proxy entscheidet, wer sich anmelden darf; Backup Sentinel entscheide
 | Betrieb (`BSENTINEL_OPERATORS`) | Zusätzlich: Sync starten, Restore-Tests starten, abbrechen und umsortieren, manuelle Restore-Tests eintragen, Zwischenberichte erzeugen. |
 | Admin (`BSENTINEL_ADMINS`) | Alles: Einstellungen (auch die Seite selbst), Cluster und PBS anlegen und löschen, Sollwerte und Intervalle ändern, archivierte Berichte löschen. |
 
-Die Listen enthalten E-Mail-Adressen, Benutzernamen oder Gruppen, kommagetrennt, Groß-/Kleinschreibung egal, z. B. `BSENTINEL_ADMINS=it-admins,alice@example.com`. Gruppen kommen aus dem Header `X-Forwarded-Groups`; dafür muss der OAuth2-Proxy sie vom IdP erhalten (Scope bzw. `OAUTH2_PROXY_OIDC_GROUPS_CLAIM`; Entra ID liefert Gruppen-IDs). Sind **beide Listen leer**, gibt es keine Rollen und jeder angemeldete Benutzer ist Admin. Jede ändernde Route, die nicht ausdrücklich dem Betrieb erlaubt ist, verlangt Admin.
+Die Listen enthalten E-Mail-Adressen, Benutzernamen oder Gruppen, kommagetrennt, Groß-/Kleinschreibung egal, z. B. `BSENTINEL_ADMINS=it-admins,alice@example.com`. Der Benutzer kommt aus `X-Forwarded-Email`, `X-Forwarded-User` und `X-Forwarded-Preferred-Username`, Gruppen aus `X-Forwarded-Groups` – den Headern, die der OAuth2-Proxy selbst setzt; `X-Auth-Request-*`-Header werden nicht gelesen. Für Gruppen muss der OAuth2-Proxy sie vom IdP erhalten (Scope bzw. `OAUTH2_PROXY_OIDC_GROUPS_CLAIM`; Entra ID liefert Gruppen-IDs). Sind **beide Listen leer**, gibt es keine Rollen und jeder angemeldete Benutzer ist Admin. Jede ändernde Route, die nicht ausdrücklich dem Betrieb erlaubt ist, verlangt Admin.
 
 ---
 
@@ -356,7 +356,7 @@ OAuth2-Proxy setzt `OAUTH2_PROXY_REVERSE_PROXY=true`, sodass es `X-Forwarded-*`-
 
 Proxmox-Hosts liefern meist ein selbstsigniertes Zertifikat. Backup Sentinel schaltet die Prüfung dafür nicht ab, sondern merkt sich das Zertifikat – wie SSH einen Hostkey:
 
-- Bürgt eine Zertifizierungsstelle des Systems für das Zertifikat (richtiger Name, nicht abgelaufen), gilt es ohne Weiteres.
+- Bürgt eine Zertifizierungsstelle des Systems für das Zertifikat (richtiger Name, nicht abgelaufen), gilt es ohne Weiteres. Der Host steht dann als „von einer Zertifizierungsstelle bestätigt“ in der Liste, mit dem Fingerabdruck dieses Zertifikats; Verlängerungen aktualisieren ihn von selbst. Liefert ein solcher Host später ein Zertifikat, für das **keine** Stelle bürgt, ist das ein geändertes Zertifikat (siehe unten) und kein erster Kontakt – sonst könnte jeder im Netzwerkpfad ein selbstsigniertes Zertifikat vorzeigen und den API-Token erhalten.
 - Sonst wird sein SHA-256-Fingerabdruck beim ersten Kontakt je Host und Port gemerkt. Stimmt er mit dem überein, den das Bootstrap-Skript auf dem Host selbst gelesen hat, steht als Herkunft „vom Bootstrap-Skript bestätigt", sonst „beim ersten Kontakt".
 - Danach wird nur noch dieses Zertifikat akzeptiert. Liefert der Host ein anderes, bricht die Verbindung ab, **bevor** ein API-Token gesendet wird; der Sync schlägt mit einer entsprechenden Meldung fehl.
 

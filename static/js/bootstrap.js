@@ -44,7 +44,9 @@ async function createCluster(event) {
 
   if (!response.ok) {
     const problem = await response.json().catch(() => ({ detail: T('js.cluster_create_error') }));
-    alert(problem.detail || T('js.cluster_create_error'));
+    // A validation error (422) carries a list of problems, not a text.
+    const detail = Array.isArray(problem.detail) ? problem.detail.map((d) => d.msg).join("\n") : problem.detail;
+    alert(detail || T('js.cluster_create_error'));
     return;
   }
 

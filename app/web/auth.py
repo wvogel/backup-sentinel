@@ -22,15 +22,16 @@ from starlette.requests import Request
 ROLES = ("viewer", "operator", "admin")
 _RANK = {role: rank for rank, role in enumerate(ROLES)}
 
+# Only the request headers oauth2-proxy removes from what the client sent and
+# sets itself. The X-Auth-Request-* names are RESPONSE headers of the proxy (for
+# nginx auth_request): on a request they pass through untouched, so a signed-in
+# user could send "X-Auth-Request-Groups: <admin group>" and be admin.
 _USER_HEADERS = (
     "x-forwarded-email",
-    "x-auth-request-email",
     "x-forwarded-user",
-    "x-auth-request-user",
     "x-forwarded-preferred-username",
-    "x-auth-request-preferred-username",
 )
-_GROUP_HEADERS = ("x-forwarded-groups", "x-auth-request-groups")
+_GROUP_HEADERS = ("x-forwarded-groups",)
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 

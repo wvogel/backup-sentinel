@@ -313,12 +313,8 @@ def theme_css() -> str:
 
 def _forwarded_user(request: Request) -> str:
     """The signed-in user as oauth2-proxy passes it on; empty without a proxy."""
-    return (
-        request.headers.get("x-forwarded-email")
-        or request.headers.get("x-auth-request-email")
-        or request.headers.get("x-forwarded-user")
-        or ""
-    )
+    # Not X-Auth-Request-*: the proxy does not strip those from a request (app.web.auth).
+    return request.headers.get("x-forwarded-email") or request.headers.get("x-forwarded-user") or ""
 
 
 def _restore_queue_state() -> dict | None:

@@ -12,6 +12,15 @@ class ClusterCreate(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     api_url: str = Field(min_length=8, max_length=255)
 
+    @field_validator("api_url")
+    @classmethod
+    def _https_only(cls, v: str) -> str:
+        # The API token travels with every request: never over plain http.
+        v = v.strip()
+        if not v.lower().startswith("https://"):
+            raise ValueError("api_url must be an https:// URL")
+        return v
+
 
 class BootstrapPayload(BaseModel):
     cluster_slug: str = Field(min_length=2, max_length=80)

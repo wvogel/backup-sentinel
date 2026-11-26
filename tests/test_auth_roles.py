@@ -23,6 +23,19 @@ def test_role_by_email_group_and_default():
     assert role_for({}, ADMINS, OPERATORS) == "viewer"
 
 
+def test_headers_the_proxy_does_not_strip_are_ignored():
+    # X-Auth-Request-* are response headers of oauth2-proxy: on a request they are
+    # whatever the client sent.
+    forged = {
+        "x-forwarded-email": "bob@example.com",
+        "x-auth-request-groups": "it-admins",
+        "x-auth-request-email": "alice@example.com",
+        "x-auth-request-user": "alice@example.com",
+        "x-auth-request-preferred-username": "alice@example.com",
+    }
+    assert role_for(forged, ADMINS, OPERATORS) == "viewer"
+
+
 def test_admin_wins_over_operator():
     headers = {"x-forwarded-email": "alice@example.com", "x-forwarded-groups": "it-operations"}
     assert role_for(headers, ADMINS, OPERATORS) == "admin"

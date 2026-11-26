@@ -88,8 +88,10 @@ class KeepAliveTests(unittest.TestCase):
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
         api_client._local.__dict__.pop("pool", None)
+        api_client.ALLOW_PLAIN_HTTP = True  # the test server speaks plain http
 
     def tearDown(self) -> None:
+        api_client.ALLOW_PLAIN_HTTP = False
         api_client._local.__dict__.pop("pool", None)
         self.server.shutdown()
         self.server.server_close()
@@ -132,3 +134,28 @@ class KeepAliveTests(unittest.TestCase):
             port = probe.getsockname()[1]
         with self.assertRaises(api_client.APIError):
             api_client.api_get_json(f"http://127.0.0.1:{port}", "/a", "x", retries=0)
+
+
+class PlainHttpTests(unittest.TestCase):
+    """The API token is never sent over http://."""
+
+    def test_reads_and_writes_refuse_an_http_url(self) -> None:
+        _Handler.connections = 0
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        try:
+            for call in (
+                lambda: api_client.api_get_json(base, "/a", "PVEAPIToken=u!t=secret", retries=0),
+                lambda: api_client.api_send("POST", base, "/a", "PVEAPIToken=u!t=secret"),
+                lambda: api_client.api_upload(
+                    base, "/a", "PVEAPIToken=u!t=secret", content="x", filename="f", data=b""
+                ),
+            ):
+                with self.assertRaises(api_client.APIError) as ctx:
+                    call()
+                self.assertIn("not https", str(ctx.exception))
+            self.assertEqual(_Handler.connections, 0)  # nothing was sent
+        finally:
+            server.shutdown()
+            server.server_close()

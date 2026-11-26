@@ -53,13 +53,13 @@ Out of scope:
 
 Backup Sentinel follows these practices:
 
-- **Authentication** is delegated entirely to OAuth2-Proxy — the app trusts the `X-Forwarded-Email`, `X-Auth-Request-Email` and `X-Forwarded-User` headers it sets
+- **Authentication** is delegated entirely to OAuth2-Proxy — the app trusts the request headers the proxy strips from what the client sent and sets itself (`X-Forwarded-Email`, `X-Forwarded-User`, `X-Forwarded-Preferred-Username`, `X-Forwarded-Groups`), and no others: `X-Auth-Request-*` are response headers of the proxy and reach the app as the client sent them
 - **CSRF protection** by origin check (`app/web/csrf.py`): a state-changing request whose `Origin` / `Referer` names another site is rejected; requests without either header (non-browser clients such as the bootstrap scripts) pass
 - **Authorization** by role (`app/web/auth.py`): viewer, operator, admin, from the e-mail, user name or groups the proxy forwards. Every state-changing route needs admin unless it is listed for operators; with no role lists configured every signed-in user is admin
 - **Secrets** (PVE/PBS API tokens, enrollment secrets, restore-server credentials, Gotify token, SMTP password) are encrypted at rest using Fernet (AES-128-CBC + HMAC-SHA256); a secret that cannot be encrypted is not stored, and one that cannot be decrypted is never sent out in its place
 - **Audit log** is append-only (a database trigger refuses UPDATE / DELETE / TRUNCATE) and carries a hash chain keyed with `BSENTINEL_SECRET_KEY`; archived reports carry SHA-256 checksums that are checked on every download
 - **Restore helper agent** accepts only requests with the bearer token the app derives for it, and builds its DHCP config itself from validated addresses
-- **TLS to PVE/PBS** is verified against the system CAs or, for self-signed certificates, pinned to the certificate's SHA-256 fingerprint; a changed certificate is refused before any token is sent
+- **TLS to PVE/PBS** is verified against the system CAs or, for self-signed certificates, pinned to the certificate's SHA-256 fingerprint; a changed certificate is refused before any token is sent, and so is a certificate no CA vouches for from a host a CA vouched for before. API URLs must be `https://`; a token is never sent over plain http
 - **Security headers** (CSP, X-Frame-Options, Referrer-Policy, etc.) are applied by middleware on every response
 - **The Content-Security-Policy allows no inline code**: scripts and styles come from the app's own files only (`script-src 'self'; style-src 'self'`, no `unsafe-inline`), so markup injected into a page cannot run. The only exception are the two standalone previews (report, weekly mail), whose styles must be inline for PDF and mail clients; their policy forbids scripts altogether
 - **Dependencies** are pinned to exact versions in `requirements.txt`, the base images by digest; `pip-audit` runs in the pipeline and CodeQL on GitHub

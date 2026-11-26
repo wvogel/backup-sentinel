@@ -25,3 +25,9 @@ class BootstrapScriptRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/x-shellscript", response.headers["content-type"])
         self.assertIn("acl update / Audit", response.text)
+
+    def test_cluster_with_an_http_url_is_refused(self) -> None:
+        # The API token would travel in the clear. Refused by validation, before the database.
+        response = self.client.post("/api/clusters", json={"name": "Main", "api_url": "http://pve.example:8006"})
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("https://", response.text)

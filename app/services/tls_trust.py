@@ -5,7 +5,11 @@ vouches for. Instead of switching verification off, the app pins such a
 certificate like SSH pins a host key:
 
 * A certificate a system CA vouches for (right host name, not expired) is
-  trusted as it is — nothing is pinned.
+  trusted as it is. The host is remembered as CA-verified, with the
+  fingerprint of that certificate: if it later presents one no CA vouches for,
+  that is a changed certificate (below), not a first contact — otherwise
+  anyone in the path could present a self-signed certificate, have it pinned
+  and receive the API token.
 * Otherwise the SHA-256 fingerprint of the certificate is remembered on first
   contact, per host and port. If the host installed the fingerprint the
   bootstrap script reported, the pin is marked as coming from there.
@@ -37,6 +41,7 @@ _lock = threading.Lock()
 _pins: dict[tuple[str, int], str] = {}  # what the database holds, read once per host
 _reported: set[tuple[str, int, str]] = set()  # changes already recorded by this process
 _not_ca_valid: set[tuple[str, int]] = set()  # hosts whose certificate no CA vouches for
+_ca_seen: dict[tuple[str, int], str] = {}  # CA-verified hosts: the certificate recorded for them
 
 
 class CertificateChanged(ssl.SSLError):
@@ -80,6 +85,19 @@ def _save_pin(host: str, port: int, presented: str) -> None:
     _audit("tls.pinned", host, port, f"{presented} ({source})")
 
 
+def _save_ca(host: str, port: int, presented: str) -> None:
+    """Remember that a CA vouched for this host (source "ca") and with which
+    certificate. Renewals just update the fingerprint; the audit log gets an
+    entry only when the host becomes CA-verified."""
+    from app import db
+
+    was_ca = db.tls_pin_source(host, port) == "ca"
+    db.save_tls_pin(host, port, presented, "ca")
+    if not was_ca:
+        logger.info("TLS: %s:%s is CA-verified (%s)", host, port, presented)
+        _audit("tls.ca_verified", host, port, presented)
+
+
 def _save_change(host: str, port: int, presented: str) -> None:
     from app import db
 
@@ -100,11 +118,32 @@ def forget(host: str, port: int) -> None:
     """Drop what this process remembers about a host (after a change in the settings)."""
     with _lock:
         _pins.pop((host, port), None)
+        _ca_seen.pop((host, port), None)
         for entry in [e for e in _reported if e[:2] == (host, port)]:
             _reported.discard(entry)
 
 
 # ── the check ────────────────────────────────────────────────────────────────
+
+
+def note_ca_verified(host: str, port: int, der: bytes) -> None:
+    """Record a host whose certificate a CA just vouched for. From then on a
+    certificate no CA vouches for is judged against this record by check()
+    instead of being pinned as a first contact. Never fails the connection."""
+    presented = fingerprint(der)
+    key = (host, port)
+    with _lock:
+        if _ca_seen.get(key) == presented:
+            return
+        try:
+            _save_ca(host, port, presented)
+        except Exception as exc:
+            logger.error("TLS: recording %s:%s as CA-verified failed: %s", host, port, exc)
+            return
+        _ca_seen[key] = presented
+        _pins[key] = presented
+        for entry in [e for e in _reported if e[:2] == key]:
+            _reported.discard(entry)
 
 
 def check(host: str, port: int, der: bytes, enforce: bool | None = None) -> None:
@@ -167,10 +206,14 @@ class PinnedHTTPSConnection(http.client.HTTPSConnection):
             self._context = verifying
             try:
                 super().connect()
-                return
             except ssl.SSLCertVerificationError:
                 self._drop_socket()
                 _not_ca_valid.add(key)
+            else:
+                verified: Any = self.sock.getpeercert(binary_form=True) if self.sock else None
+                if verified:
+                    note_ca_verified(self.host, self.port, verified)
+                return
         self._context = unverified
         super().connect()
         der: Any = self.sock.getpeercert(binary_form=True) if self.sock else None

@@ -15,9 +15,17 @@ def get_tls_pin(host: str, port: int) -> str | None:
         return row["fingerprint"] if row else None
 
 
+def tls_pin_source(host: str, port: int) -> str | None:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT source FROM tls_pins WHERE host = %s AND port = %s", (host, port))
+        row = cur.fetchone()
+        return row["source"] if row else None
+
+
 def save_tls_pin(host: str, port: int, fingerprint: str, source: str) -> None:
     """Pin a certificate. `source`: "bootstrap" (matches what the bootstrap script
-    reported), "first-use" or "accepted" (by an admin, after a change)."""
+    reported), "first-use", "accepted" (by an admin, after a change) or "ca" (a
+    system CA vouched for the host; the fingerprint is the certificate seen then)."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             """

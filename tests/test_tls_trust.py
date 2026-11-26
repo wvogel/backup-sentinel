@@ -6,6 +6,7 @@ dict in place of the database.
 
 import datetime
 import http.server
+import ipaddress
 import ssl
 import threading
 from typing import ClassVar
@@ -101,7 +102,11 @@ def store(monkeypatch):
 
     monkeypatch.setattr(tls_trust, "_load_pin", lambda host, port: (state["pins"].get((host, port)) or (None,))[0])
     monkeypatch.setattr(tls_trust, "_save_pin", save_pin)
+    monkeypatch.setattr(
+        tls_trust, "_save_ca", lambda host, port, fp: state["pins"].__setitem__((host, port), (fp, "ca"))
+    )
     monkeypatch.setattr(tls_trust, "_save_change", lambda host, port, fp: state["changes"].append((host, port, fp)))
+    monkeypatch.setattr(tls_trust, "_ca_seen", {})
     monkeypatch.setattr(tls_trust, "_pins", {})
     monkeypatch.setattr(tls_trust, "_reported", set())
     monkeypatch.setattr(tls_trust, "_not_ca_valid", set())
@@ -191,6 +196,135 @@ def test_report_only_mode_lets_the_change_through_but_records_it(store, server, 
     assert _get(server) == {"ok": True}
     assert store["changes"] == [("127.0.0.1", server.port, server.second[2])]
     assert store["pins"][("127.0.0.1", server.port)][0] == server.first[2]  # not re-pinned by itself
+
+
+def _ca_signed(tmp_path):
+    """A CA and a certificate for 127.0.0.1 it vouches for: (ca file, cert file, key file, fingerprint)."""
+    now = datetime.datetime.now(datetime.UTC)
+    ca_key = ec.generate_private_key(ec.SECP256R1())
+    ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Test CA")])
+    ca = (
+        x509.CertificateBuilder()
+        .subject_name(ca_name)
+        .issuer_name(ca_name)
+        .public_key(ca_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=30))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                key_cert_sign=True,
+                crl_sign=True,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()), critical=False)
+        .sign(ca_key, hashes.SHA256())
+    )
+    key = ec.generate_private_key(ec.SECP256R1())
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "pve.example")]))
+        .issuer_name(ca_name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=30))
+        .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]), critical=False)
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()), critical=False)
+        .sign(ca_key, hashes.SHA256())
+    )
+    ca_file, cert_file, key_file = tmp_path / "ca.crt", tmp_path / "signed.crt", tmp_path / "signed.key"
+    ca_file.write_bytes(ca.public_bytes(serialization.Encoding.PEM))
+    cert_file.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    key_file.write_bytes(
+        key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    )
+    return ca_file, cert_file, key_file, tls_trust.fingerprint(cert.public_bytes(serialization.Encoding.DER))
+
+
+@pytest.fixture
+def ca_server(tmp_path, server, monkeypatch):
+    """The server presents a certificate the app's CA store vouches for."""
+    ca_file, cert_file, key_file, fp = _ca_signed(tmp_path)
+    monkeypatch.setattr(tls_trust, "_verifying", ssl.create_default_context(cafile=str(ca_file)))
+    monkeypatch.setattr(tls_trust, "_unverified", ssl._create_unverified_context())
+    server.use(cert_file, key_file)
+    server.signed = (cert_file, key_file, fp)
+    return server
+
+
+def test_ca_verified_host_is_remembered(store, ca_server, monkeypatch):
+    monkeypatch.setattr(tls_trust, "ENFORCE", True)
+    assert _get(ca_server) == {"ok": True}
+    assert store["pins"][("127.0.0.1", ca_server.port)] == (ca_server.signed[2], "ca")
+    assert store["changes"] == []
+
+
+def test_ca_verified_host_is_not_downgraded_to_first_contact(store, ca_server, monkeypatch):
+    """Someone in the path presents a self-signed certificate for a host a CA
+    vouched for: refused like any changed certificate, never pinned afresh."""
+    monkeypatch.setattr(tls_trust, "ENFORCE", True)
+    _get(ca_server)
+    sent_before = len(_Handler.requests_seen)
+    ca_server.use(ca_server.first[0], ca_server.first[1])
+    _fresh_connection()
+    with pytest.raises(APIError) as exc:
+        _get(ca_server)
+    assert "certificate of 127.0.0.1" in str(exc.value)
+    assert len(_Handler.requests_seen) == sent_before  # the token did not go out
+    assert store["pins"][("127.0.0.1", ca_server.port)] == (ca_server.signed[2], "ca")
+    assert store["changes"] == [("127.0.0.1", ca_server.port, ca_server.first[2])]
+
+
+def test_ca_verified_host_stays_protected_after_a_restart(store, ca_server, monkeypatch):
+    monkeypatch.setattr(tls_trust, "ENFORCE", True)
+    _get(ca_server)
+    for name in ("_pins", "_ca_seen"):  # a new process knows only what the database holds
+        monkeypatch.setattr(tls_trust, name, {})
+    monkeypatch.setattr(tls_trust, "_not_ca_valid", set())
+    ca_server.use(ca_server.first[0], ca_server.first[1])
+    _fresh_connection()
+    with pytest.raises(APIError):
+        _get(ca_server)
+
+
+def test_renewed_ca_certificate_just_works(store, ca_server, tmp_path, monkeypatch):
+    monkeypatch.setattr(tls_trust, "ENFORCE", True)
+    _get(ca_server)
+    renewed = tmp_path / "renewed"
+    renewed.mkdir()
+    ca_file, cert_file, key_file, fp = _ca_signed(renewed)
+    monkeypatch.setattr(tls_trust, "_verifying", ssl.create_default_context(cafile=str(ca_file)))
+    ca_server.use(cert_file, key_file)
+    _fresh_connection()
+    assert _get(ca_server) == {"ok": True}
+    assert store["pins"][("127.0.0.1", ca_server.port)] == (fp, "ca")
+    assert store["changes"] == []
+
+
+def test_self_signed_host_that_gets_a_ca_certificate_is_upgraded(store, server, tmp_path, monkeypatch):
+    monkeypatch.setattr(tls_trust, "ENFORCE", True)
+    _get(server)  # pinned on first contact
+    ca_file, cert_file, key_file, fp = _ca_signed(tmp_path)
+    monkeypatch.setattr(tls_trust, "_verifying", ssl.create_default_context(cafile=str(ca_file)))
+    monkeypatch.setattr(tls_trust, "_unverified", ssl._create_unverified_context())
+    server.use(cert_file, key_file)
+    _fresh_connection()
+    with pytest.raises(APIError):
+        _get(server)  # first seen as a change (the process skipped the CA check for this host) …
+    _fresh_connection()
+    assert _get(server) == {"ok": True}  # … then the CA check is tried again and vouches for it
+    assert store["pins"][("127.0.0.1", server.port)] == (fp, "ca")
 
 
 def test_fingerprint_format():

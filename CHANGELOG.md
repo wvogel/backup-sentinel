@@ -5,6 +5,18 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.22.2] — 2026-11-26
+
+### Security
+
+- **A signed-in user could make themselves admin when roles are in use.** The app read the user and the groups from the `X-Forwarded-*` headers and from `X-Auth-Request-*`. OAuth2-Proxy removes and sets only the former on a request; `X-Auth-Request-*` are its response headers and reached the app as the client sent them — so `X-Auth-Request-Groups: <an admin group>` was enough. Only `X-Forwarded-Email`, `X-Forwarded-User`, `X-Forwarded-Preferred-Username` and `X-Forwarded-Groups` are read now, also for the name in the audit log. Affected: installations with `BSENTINEL_ADMINS` / `BSENTINEL_OPERATORS` set; without roles every signed-in user is admin anyway. If you put something other than OAuth2-Proxy in front that passes the identity only as `X-Auth-Request-*`, have it set the `X-Forwarded-*` headers.
+- **A host with a CA-signed certificate could be impersonated with a self-signed one.** Nothing was remembered for a host a certificate authority vouched for, so a certificate no authority vouches for counted as a first contact: it was pinned and the API token sent. Such hosts are now remembered as "verified by a certificate authority" (Settings → Certificates, with the fingerprint; renewals update it by themselves), and a certificate without a CA behind it is refused like any changed certificate until an admin accepts it. The hosts are recorded on the first sync after the update.
+- **The API token is never sent over plain http.** A cluster could be created with an `http://` API URL (a PBS could not). The form refuses that now, and a URL stored earlier is refused at the request, before the token goes out.
+
+### Fixed
+
+- A refused cluster form shows the reason instead of `[object Object]`.
+
 ## [v3.22.1] — 2026-11-26
 
 ### Fixed
