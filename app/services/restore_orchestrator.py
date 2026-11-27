@@ -781,7 +781,13 @@ def ui_target_storages() -> dict[str, Any]:
                     # Capability is unknown while the host does not return the storage.
                     "images": None,
                     "rootdir": None,
+                    # Every field the Settings table reads, as "unknown" — a row
+                    # without them broke the page for a storage removed on the host.
+                    "used": None,
+                    "free": None,
                     "benchmarkable": False,
+                    "busy": False,
+                    "perf": perf.get(name),
                 }
             )
     rows.sort(key=lambda r: (not r["use"], r["order"], r["storage"]))

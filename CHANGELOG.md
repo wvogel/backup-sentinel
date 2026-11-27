@@ -5,6 +5,16 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.27.3] — 2026-11-27
+
+### Fixed
+
+- Settings failed to open (HTTP 500) when a selected target storage had been removed on the restore host: the row kept for it lacked the usage figures the two-line storage table reads (since v3.25.0). Such a storage is listed again as "not visible right now".
+
+### Added
+
+- Settings → Restore server: a storage the host no longer has can be taken out of the list with "Remove".
+
 ## [v3.27.2] — 2026-11-26
 
 ### Changed

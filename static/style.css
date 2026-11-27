@@ -3846,6 +3846,7 @@ html[data-theme="dark"] .node-filter-button.is-active {
 .perf-cancel:hover { background: color-mix(in srgb, var(--critical) 14%, transparent); }
 .perf-cancel:disabled { opacity: 0.55; cursor: not-allowed; }
 .store-name-cell { white-space: nowrap; }
+.store-remove { margin-left: 10px; }
 .store-name-cell .conn-icon,
 .store-name-cell .disk-icon { margin-right: 4px; }
 .store-name-cell .store-name { vertical-align: middle; }

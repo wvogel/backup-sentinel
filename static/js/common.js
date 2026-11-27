@@ -438,6 +438,14 @@ function saveTargetStorages(tbody) {
     })
     .catch(() => {});
 }
+// A storage the host no longer has: its row goes, and the list is saved without it.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".js-store-remove");
+  const tbody = btn && btn.closest("tbody[data-autosave]");
+  if (!tbody) return;
+  btn.closest("tr").remove();
+  saveTargetStorages(tbody);
+});
 document.addEventListener("change", (e) => {
   const tbody = e.target.closest("tbody[data-autosave]");
   if (tbody && (e.target.name === "ts_use" || e.target.name === "ts_class")) saveTargetStorages(tbody);

@@ -730,6 +730,8 @@
   "restore.perf_nofio_hint": "fio ist auf dem Restore-Host nicht installiert — ohne fio kein Performance-Test.",
   "restore.perf_install_fio": "fio installieren",
   "restore.st_missing": "derzeit nicht sichtbar",
+  "restore.st_remove": "Entfernen",
+  "restore.st_remove_hint": "Der Restore-Host hat dieses Storage nicht mehr. Aus der Liste entfernen.",
   "restore.cap_vm": "Kann VM-Disks aufnehmen (content=images)",
   "restore.cap_ct": "Kann Container-Rootfs aufnehmen (content=rootdir)",
   "restore.test_connection": "Verbindung testen",
