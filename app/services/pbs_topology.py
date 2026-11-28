@@ -47,8 +47,18 @@ def _map_ns(data_ns: str, source_ns: str, target_ns: str) -> str | None:
 
 
 def _natural(text: str) -> list[Any]:
-    """Sort key putting "volume2" before "volume10"."""
-    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", text)]
+    """Sort key putting "volume2" before "volume10" — and a plain name before
+    its numbered sibling ("nas-pbs-site", then "nas-pbs2-site"): at the first
+    difference a separator comes first, then a number, then a letter."""
+    key: list[Any] = []
+    for part in re.findall(r"\d+|\D", text):
+        if part.isdigit():
+            key.append((1, int(part), ""))
+        elif part.isalpha():
+            key.append((2, 0, part.lower()))
+        else:
+            key.append((0, 0, part))
+    return key
 
 
 def _job_state(job: Mapping[str, Any]) -> str:

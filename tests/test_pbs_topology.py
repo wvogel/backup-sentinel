@@ -280,6 +280,21 @@ class TopologyStoreTests(unittest.TestCase):
         topo = build_topology(10, targets, [BERLIN], [], [], now=NOW, vms_by_storage=vms)
         self.assertEqual(names(topo), [[("pbs-berlin", ["nas-b0-volume1", "nas-b0-volume2", "nas-b0-volume10"])]])
 
+    def test_a_numbered_name_follows_the_plain_one(self) -> None:
+        from app.services.pbs_topology import _natural
+
+        stores = ["nas-pbs2-pano", "nas-pbs-pano", "nas-pbs10-pano", "nas-pbs"]
+        self.assertEqual(sorted(stores, key=_natural), ["nas-pbs", "nas-pbs-pano", "nas-pbs2-pano", "nas-pbs10-pano"])
+        sources = ["pbs-a/nas-pbs2-pano", "pbs-a/nas-pbs-pano"]
+        self.assertEqual(sorted(sources, key=_natural), ["pbs-a/nas-pbs-pano", "pbs-a/nas-pbs2-pano"])
+
+    def test_rings_of_a_box_stay_in_line_while_one_has_a_task_ring(self) -> None:
+        from pathlib import Path
+
+        css = Path("static/style.css").read_text()
+        self.assertIn(".topo-stores:has(.has-verify, .has-gc) .topo-ring { margin-inline: 6px; }", css)
+        self.assertIn(".topo-stores:has(.has-verify.has-gc) .topo-ring { margin-inline: 11px; }", css)
+
 
 class DirectTargetTests(unittest.TestCase):
     def test_configured_storage_without_backup_job_has_no_pve_line(self) -> None:

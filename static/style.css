@@ -3224,6 +3224,9 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* Room for the rings, so they do not touch the name beside them. */
 .topo-store:has(.has-verify, .has-gc) .topo-ring { margin: 6px; }
 .topo-store:has(.has-verify.has-gc) .topo-ring { margin: 11px; }
+/* The other rings of the same box move in by as much: all stay in one line. */
+.topo-stores:has(.has-verify, .has-gc) .topo-ring { margin-inline: 6px; }
+.topo-stores:has(.has-verify.has-gc) .topo-ring { margin-inline: 11px; }
 
 /* The PBS symbol itself: its top disc turns while the PBS collects garbage,
    a line scans down through it while it verifies. */

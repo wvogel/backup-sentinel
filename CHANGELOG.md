@@ -5,6 +5,13 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.27.4] — 2026-11-28
+
+### Fixed
+
+- Backup diagram: a datastore with a number in its name no longer stands before its plain sibling ("nas-pbs-site" now comes before "nas-pbs2-site"), in the box of the PBS and in the list of sync sources alike.
+- Backup diagram: while a verification or garbage collection draws its ring around one datastore, the rings of the other datastores in the same box stay in line with it.
+
 ## [v3.27.3] — 2026-11-27
 
 ### Fixed
