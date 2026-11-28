@@ -261,6 +261,47 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        17,
+        "Snapshots per PBS datastore and what their backup tasks uploaded",
+        [
+            # Which snapshots exist (app.services.pbs_space): refreshed with every
+            # sync, per datastore and namespace listed.
+            """
+            CREATE TABLE IF NOT EXISTS pbs_snapshots (
+                pbs_id BIGINT NOT NULL REFERENCES pbs_connections(id) ON DELETE CASCADE,
+                store TEXT NOT NULL,
+                ns TEXT NOT NULL,
+                backup_type TEXT NOT NULL,
+                backup_id TEXT NOT NULL,
+                backup_time BIGINT NOT NULL,
+                guest_name TEXT,
+                PRIMARY KEY (pbs_id, store, ns, backup_type, backup_id, backup_time)
+            )
+            """,
+            # One row per backup task whose log was read, with the snapshot it made
+            # and its upload (all NULL when the log named none): read once only.
+            """
+            CREATE TABLE IF NOT EXISTS pbs_backup_tasks (
+                pbs_id BIGINT NOT NULL REFERENCES pbs_connections(id) ON DELETE CASCADE,
+                upid TEXT NOT NULL,
+                started_at BIGINT NOT NULL,
+                store TEXT,
+                ns TEXT,
+                backup_type TEXT,
+                backup_id TEXT,
+                backup_time BIGINT,
+                upload_bytes BIGINT,
+                stored_bytes BIGINT,
+                PRIMARY KEY (pbs_id, upid)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS pbs_backup_tasks_snapshot
+                ON pbs_backup_tasks (pbs_id, store, ns, backup_type, backup_id, backup_time)
+            """,
+        ],
+    ),
 ]
 
 

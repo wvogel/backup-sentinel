@@ -10,7 +10,7 @@ CONN = {"api_url": "https://pbs", "api_token_id": "id", "api_token_secret": "sec
 
 class FetchAllPBSBackupsTests(unittest.TestCase):
     def test_failed_datastore_marks_result_incomplete(self) -> None:
-        def fake_backups(conn, vmids, cutoff, datastore="", extra_namespaces=()):
+        def fake_backups(conn, vmids, cutoff, datastore="", extra_namespaces=(), listing=None):
             if datastore == "broken":
                 raise pbs.PBSSyncError("timeout")
             return [{"vmid": 100}]

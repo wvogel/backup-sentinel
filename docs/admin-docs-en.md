@@ -237,6 +237,10 @@ The script creates the user `backup-reports@pbs` and the API token `<cluster-slu
 - `--api-url URL` -- use this API URL instead of `https://<fqdn>:8007`, e.g. when Backup Sentinel reaches the PBS under another name.
 - `--namespace NS` -- limit the connection to this namespace and its children (e.g. the target of a pull sync); without it only the root namespace is read. A re-run without `--namespace` keeps the namespace set in the UI.
 
+**Space per guest.** A click on a datastore's ring in the backup diagram lists the guests with backups there and what their remaining backups take. PBS has no such figure (chunks are shared between all backups of a datastore), so this is an estimate from the backup task logs: per backup the uploaded data, after compression and without the chunks the server already had, summed over the snapshots that still exist. Data several guests share counts with the guest that wrote it first; the total therefore does not equal the datastore's usage. A snapshot a sync job copied counts with what it took where it was backed up to. Snapshots older than the PBS's task log have no figure; the list says for how many backups one is known.
+
+Each sync reads the logs of the backup tasks not seen yet (one short API call each, at most 150 per PBS and sync, so a newly registered PBS is caught up over several syncs). No index file and no chunk is read: the storage behind the datastore sees nothing of it.
+
 ---
 
 ## Appearance

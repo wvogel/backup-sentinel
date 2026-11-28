@@ -7,8 +7,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from app import db
 from app.config import SYNC_INTERVAL_MINUTES
-from app.services import pbs_activity, sync_progress
+from app.services import pbs_activity, pbs_space, sync_progress
 from app.services.backup_status import pbs_sync_state, sync_freshness
+from app.services.human_format import format_size_coarse
 from app.services.proxmox_progress import cached_running_backups
 from app.services.reporting import build_compliance_summary
 from app.web import activity
@@ -146,3 +147,18 @@ def get_pbs_activity(ids: str = "") -> JSONResponse:
     pbs_activity.refresh(conns)
     views = {str(conn["id"]): activity.view(conn["id"]) for conn in conns}
     return JSONResponse({pbs_id: view for pbs_id, view in views.items() if view})
+
+
+@router.get("/api/pbs-space")
+def get_pbs_space(pbs: int, store: str) -> JSONResponse:
+    """What each guest's backups take on a datastore (app.services.pbs_space),
+    for the list a click on its ring opens. Read from the database only: the
+    PBS is asked during a sync, never here."""
+    result = pbs_space.usage(pbs, store)
+    largest = max((group["stored_bytes"] for group in result["groups"]), default=0)
+    for group in result["groups"]:
+        group["size"] = format_size_coarse(group["stored_bytes"]) if group["known"] else "–"
+        # Bar from 0 to the largest guest.
+        group["share"] = round(100 * group["stored_bytes"] / largest, 1) if largest else 0
+    result["size"] = format_size_coarse(result["stored_bytes"])
+    return JSONResponse(result)

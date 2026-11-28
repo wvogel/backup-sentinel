@@ -35,8 +35,10 @@
           {#- Verify and garbage collection running on it: a thin ring each
               around the usage ring (verify solid, GC dashed). #}
           <div class="topo-ring ring-{{ ds.status }}{% if act %}{% for kind, pct in act.kinds.items() %} has-{{ kind }}{% if pct is none %} {{ kind }}-indeterminate{% endif %}{% endfor %}{% endif %}" data-css-p="{{ ds.pct or 0 }}"
-               {%- if act %}{% for kind, pct in act.kinds.items() if pct is not none %} data-css-{{ kind }}="{{ pct }}"{% endfor %}{% endif %} role="img"
-               aria-label="{{ ds.store }}: {{ ds.pct ~ ' %' if ds.pct is not none else '?' }}">
+               {%- if act %}{% for kind, pct in act.kinds.items() if pct is not none %} data-css-{{ kind }}="{{ pct }}"{% endfor %}{% endif %}
+               {#- A click lists what each guest's backups take here (static/js/pbs-space.js). #}
+               {%- if group.conn_id %} data-pbs-space="{{ group.conn_id }}" data-store="{{ ds.store }}" role="button" tabindex="0"{% else %} role="img"{% endif %}
+               aria-label="{{ ds.store }}: {{ ds.pct ~ ' %' if ds.pct is not none else '?' }}{% if group.conn_id %} – {{ t('space.open') }}{% endif %}">
             <span>{{ ds.pct ~ '%' if ds.pct is not none else '?' }}</span>
           </div>
           <div class="topo-store-text">

@@ -136,14 +136,37 @@ def fetch_pbs_namespaces(conn: dict[str, Any], datastore: str, extra: Iterable[s
     return sorted(wanted)
 
 
+def _guest_snapshots(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The finished VM and container snapshots of a namespace listing."""
+    result: list[dict[str, Any]] = []
+    for snap in rows:
+        try:
+            row = {
+                "backup_type": str(snap["backup-type"]),
+                "backup_id": str(snap["backup-id"]),
+                "backup_time": int(snap["backup-time"]),
+                "guest_name": guest_name_from_notes(snap.get("comment")),
+            }
+        except (KeyError, TypeError, ValueError):
+            continue
+        # No size yet: still being written (see below).
+        if row["backup_type"] in ("vm", "ct") and snap.get("size") is not None:
+            result.append(row)
+    return result
+
+
 def fetch_pbs_backups(
     conn: dict[str, Any],
     vmids: set[int],
     cutoff: datetime | None = None,
     datastore: str = "",
     extra_namespaces: Iterable[str] = (),
+    listing: dict[tuple[str, str], list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Query PBS directly for backup snapshots in a specific datastore."""
+    """Query PBS directly for backup snapshots in a specific datastore.
+
+    `listing` receives, per (datastore, namespace) read, every finished guest
+    snapshot there — of any cluster, however old (app.services.pbs_space)."""
     base_url = conn["api_url"].rstrip("/")
     token_id = conn["api_token_id"]
     token_secret = conn["api_token_secret"]
@@ -160,6 +183,8 @@ def fetch_pbs_backups(
                 query={"ns": namespace} if namespace else None,
             )
             snapshots.extend((namespace, snap) for snap in rows)
+            if listing is not None:
+                listing[(datastore, namespace)] = _guest_snapshots(rows)
     except PBSSyncError as exc:
         logger.error("PBS fetch failed for %s: %s", conn_label, exc)
         raise
@@ -250,6 +275,7 @@ def fetch_all_pbs_backups(
     vmids: set[int],
     cutoff: datetime | None = None,
     extra_namespaces: Mapping[str, Iterable[str]] | None = None,
+    listing: dict[tuple[str, str], list[dict[str, Any]]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str], bool]:
     """Fetch backups from all datastores on this PBS.
 
@@ -269,7 +295,12 @@ def fetch_all_pbs_backups(
     for ds in datastores:
         try:
             events = fetch_pbs_backups(
-                conn, vmids, cutoff, datastore=ds, extra_namespaces=(extra_namespaces or {}).get(ds, ())
+                conn,
+                vmids,
+                cutoff,
+                datastore=ds,
+                extra_namespaces=(extra_namespaces or {}).get(ds, ()),
+                listing=listing,
             )
             all_events.extend(events)
             log_lines.append(ts("synclog.pbs_datastore_done", ds=ds, count=len(events)))

@@ -19,7 +19,7 @@ from app.config import (
     SYNC_INTERVAL_MINUTES,
 )
 from app.i18n import ts
-from app.services import email_assets, topology_store, weekly_report
+from app.services import email_assets, pbs_space, topology_store, weekly_report
 from app.services.backup_location import CachedLookups, assign_pbs_servers, match_pbs_connection
 from app.services.backup_status import assess_slow_backup
 from app.services.notifications import (
@@ -235,8 +235,13 @@ def sync_cluster_backups(cluster: dict) -> None:
                 logger.info("  %s", ts("synclog.pbs_start", name=conn.get("name")))
                 try:
                     with step(ts("synclog.step_pbs_backups", name=conn.get("name"))):
+                        listing: dict[tuple[str, str], list[dict]] = {}
                         events, ds_logs, pbs_complete = fetch_all_pbs_backups(
-                            conn, vmids, cutoff, extra_namespaces=sync_target_namespaces.get(conn["id"])
+                            conn,
+                            vmids,
+                            cutoff,
+                            extra_namespaces=sync_target_namespaces.get(conn["id"]),
+                            listing=listing,
                         )
                     if not pbs_complete:
                         pbs_ok = False
@@ -258,6 +263,8 @@ def sync_cluster_backups(cluster: dict) -> None:
                         record_datastore_usage(cluster, conn, pbs_log)
                     with step(ts("synclog.step_pbs_jobs", name=conn.get("name"))):
                         record_sync_jobs(conn, pbs_log, lookups)
+                    with step(ts("synclog.step_pbs_space", name=conn.get("name"))):
+                        record_backup_space(conn, listing, pbs_log)
                 except PBSSyncError as exc:
                     pbs_ok = False
                     pbs_log.append(ts("synclog.error", error=exc))
@@ -383,6 +390,19 @@ def notify_failed_verifies(cluster: dict) -> None:
     for row in db.vm_governance_rows(cluster["id"]):
         if row["verify_status"] == "critical" and row["verify_failed_at"]:
             notify_verify_failed(cluster["name"], row["vm_name"], row["vmid"], row["verify_failed_at"])
+
+
+def record_backup_space(conn: dict, listing: dict[tuple[str, str], list[dict]], pbs_log: list[str]) -> None:
+    """Remember the snapshots listed and read the task logs of new backups, for
+    the space per guest (best effort: the sync does not depend on it)."""
+    try:
+        read = pbs_space.collect(conn, listing)
+    except Exception as exc:
+        pbs_log.append(ts("synclog.pbs_space_failed", error=exc))
+        logger.warning("Backup space failed for PBS %s: %s", conn.get("name"), exc)
+        return
+    if read:
+        pbs_log.append(ts("synclog.pbs_space", count=read))
 
 
 def record_datastore_usage(cluster: dict, conn: dict, pbs_log: list[str]) -> None:

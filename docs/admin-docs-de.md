@@ -237,6 +237,10 @@ Das Skript legt den Benutzer `backup-reports@pbs` und den API-Token `<cluster-sl
 - `--api-url URL` -- diese API-URL statt `https://<fqdn>:8007` verwenden, z. B. wenn Backup Sentinel den PBS unter einem anderen Namen erreicht.
 - `--namespace NS` -- die Verbindung auf diesen Namespace samt Unter-Namespaces beschränken (z. B. das Ziel eines Pull-Syncs); ohne ihn wird nur der Root-Namespace gelesen. Ein erneuter Lauf ohne `--namespace` behält den in der Oberfläche gesetzten Namespace.
 
+**Platzbedarf je Gast.** Ein Klick auf den Ring eines Datastores im Backup-Diagramm listet die Gäste mit Sicherungen dort und was ihre noch vorhandenen Sicherungen belegen. PBS kennt dafür keine Zahl (Chunks werden zwischen allen Sicherungen eines Datastores geteilt), deshalb ist es eine Schätzung aus den Backup-Task-Logs: je Sicherung die hochgeladenen Daten, nach Kompression und ohne die Chunks, die der Server schon hatte, summiert über die noch vorhandenen Snapshots. Daten, die sich mehrere Gäste teilen, zählen bei dem Gast, der sie zuerst geschrieben hat; die Summe entspricht deshalb nicht der Belegung des Datastores. Ein per Sync-Job kopierter Snapshot zählt mit dem Wert von dort, wohin er gesichert wurde. Snapshots, die älter sind als das Task-Log des PBS, haben keinen Wert; die Liste nennt, für wie viele Sicherungen einer bekannt ist.
+
+Jeder Sync liest die Logs der noch nicht gesehenen Backup-Tasks (je ein kurzer API-Aufruf, höchstens 150 je PBS und Sync – ein neu registrierter PBS wird also über mehrere Syncs nachgeholt). Dabei wird keine Index-Datei und kein Chunk gelesen: Der Speicher hinter dem Datastore merkt davon nichts.
+
 ---
 
 ## Erscheinungsbild
