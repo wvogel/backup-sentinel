@@ -305,6 +305,10 @@ def test_the_ring_of_a_registered_pbs_opens_the_list():
     assert "/static/js/pbs-space.js" in Path("templates/base.html").read_text()
     script = Path("static/js/pbs-space.js").read_text()
     assert "/api/pbs-space?" in script and ".innerHTML" not in script
+    # Headings sort, and what the figures mean stands behind the title as a "?".
+    assert 'el("div", ("sortable "' in script and "aria-sort" in script
+    assert 'el("span", "help-dot", "?")' in script and "space-note" not in script
+    assert 'el.closest("dialog") || document.body' in Path("static/js/common.js").read_text()
     for key in ("space.col_exclusive", "space.denied", "space.note_size", "space.note_raw"):
         assert key in script
         for lang in ("de", "en"):

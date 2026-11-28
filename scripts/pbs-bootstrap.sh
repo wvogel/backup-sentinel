@@ -10,7 +10,8 @@ Usage:
 Run this script on a Proxmox Backup Server node (as root).
 --namespace limits the cluster to that namespace and its children, e.g. the
 target of a pull sync; without it only the root namespace is read.
-The user and token receive read-only access (role Audit on /).
+The user and token receive read-only access: role Audit on / and role
+DatastoreReader on /datastore (to read the snapshots' index files).
 EOF
 }
 
@@ -84,14 +85,18 @@ fi
 
 TOKEN_ID="${API_USER}!${TOKEN_NAME}"
 
-# ── Grant read-only access (Audit) for user AND token ────────────────────────
+# ── Grant read-only access for user AND token ────────────────────────────────
 # PBS uses privilege separation: effective perms = user perms ∩ token perms
 # Both need the role, otherwise the intersection is empty. Audit covers all
 # that Backup Sentinel reads: datastores, namespaces, snapshots, usage, sync
-# jobs, remotes and task logs. Earlier versions granted Admin; a re-run takes
-# it back.
+# jobs, remotes and task logs. DatastoreReader on the datastores adds the one
+# thing Audit does not allow: downloading a snapshot's index files, from which
+# the space per guest is counted (it also allows downloading backup contents).
+# Earlier versions granted Admin; a re-run takes it back.
 for AUTH_ID in "${API_USER}" "${TOKEN_ID}"; do
   proxmox-backup-manager acl update / Audit \
+    --auth-id "${AUTH_ID}" --propagate 1
+  proxmox-backup-manager acl update /datastore DatastoreReader \
     --auth-id "${AUTH_ID}" --propagate 1
   proxmox-backup-manager acl update / Admin \
     --auth-id "${AUTH_ID}" --delete true >/dev/null 2>&1 || true

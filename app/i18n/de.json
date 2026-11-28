@@ -170,7 +170,7 @@
   "settings.pbs_bootstrap": "PBS-Bootstrap",
   "settings.pbs_add": "+ PBS hinzufügen",
   "settings.pbs_remove": "PBS entfernen",
-  "settings.pbs_note": "Auf dem PBS-Node als root ausführen. Der Token erhält nur Leserechte (Rolle <strong>Audit</strong>).",
+  "settings.pbs_note": "Auf dem PBS-Node als root ausführen. Der Token erhält nur Leserechte (Rollen <strong>Audit</strong> und, auf den Datastores, <strong>DatastoreReader</strong>).",
   "settings.pbs_created": "erstellt",
   "settings.report_since": "NIS2-Nachweis ab",
   "settings.report_since_hint": "Erster Monat, den der NIS2-Bericht für diesen Cluster misst – z. B. wenn die VMs erst später eingezogen sind und ältere Snapshots mitgebracht haben. Leer: ab Aufnahme in Backup Sentinel. Eine Änderung erstellt die Monatsberichte im Archiv neu.",

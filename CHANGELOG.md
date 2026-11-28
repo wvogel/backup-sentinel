@@ -5,6 +5,15 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.29.1] - 2026-11-28
+
+### Changed
+- **Space per guest: sortable, tighter.** A click on a heading sorts the list by guest, size, the guest's own share or number of backups. The bar is narrower so long guest names fit on one line, and the explanation moved behind the title as a "?".
+- **The PBS bootstrap grants `DatastoreReader` on `/datastore`** next to `Audit` on `/`, so the space per guest works on a newly registered PBS. On a PBS set up earlier, run the script again or grant the role by hand.
+
+### Fixed
+- Tooltips inside an open dialog were drawn behind it.
+
 ## [v3.29.0] - 2026-11-28
 
 ### Changed

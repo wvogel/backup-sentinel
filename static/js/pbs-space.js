@@ -44,36 +44,65 @@
     return group.name ? group.name + " (" + kind + " " + group.backup_id + ")" : kind + " " + group.backup_id;
   }
 
-  function render(body, data) {
-    body.replaceChildren();
-    if (data.denied && !data.known) {
-      body.append(el("p", "critical-text space-empty", T("space.denied")));
-      return;
-    }
-    if (!data.known) {
-      body.append(el("p", "muted space-empty", T("space.empty")));
-      return;
-    }
-    const summary = el(
-      "p",
-      "space-summary",
-      fill("space.summary", { guests: data.groups.length, snapshots: data.snapshots }),
-    );
-    if (data.known < data.snapshots) {
-      summary.append(" ", el("span", "muted", fill("space.partial", { known: data.known, snapshots: data.snapshots })));
-    }
-    const list = el("div", "space-list");
+  // Columns the list sorts by: a click on a heading sorts by it, a second
+  // one turns the order. Sizes and counts start with the largest.
+  const COLUMNS = [
+    { key: "name", label: "space.col_guest", className: "", value: (g) => guestLabel(g).toLowerCase(), first: "asc" },
+    { key: "bytes", label: "space.col_size", className: "space-size", value: (g) => g.bytes ?? -1, first: "desc" },
+    {
+      key: "exclusive",
+      label: "space.col_exclusive",
+      className: "space-size",
+      value: (g) => g.exclusive_bytes ?? -1,
+      first: "desc",
+    },
+    { key: "snapshots", label: "space.col_snapshots", className: "space-count", value: (g) => g.snapshots, first: "desc" },
+  ];
+  let order = { key: "bytes", direction: "desc" };
+
+  function sorted(groups) {
+    const column = COLUMNS.find((c) => c.key === order.key);
+    const sign = order.direction === "asc" ? 1 : -1;
+    return groups.slice().sort((a, b) => {
+      const x = column.value(a);
+      const y = column.value(b);
+      if (x === y) return guestLabel(a).localeCompare(guestLabel(b));
+      return (typeof x === "string" ? x.localeCompare(y) : x - y) * sign;
+    });
+  }
+
+  function heading(column, redraw) {
+    const cell = el("div", ("sortable " + column.className).trim(), T(column.label));
+    cell.setAttribute("role", "button");
+    cell.tabIndex = 0;
+    const active = order.key === column.key;
+    if (active) cell.dataset.direction = order.direction;
+    cell.setAttribute("aria-sort", active ? (order.direction === "asc" ? "ascending" : "descending") : "none");
+    const sort = () => {
+      const turned = order.direction === "asc" ? "desc" : "asc";
+      order = { key: column.key, direction: active ? turned : column.first };
+      redraw(column.key);
+    };
+    cell.addEventListener("click", sort);
+    cell.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        sort();
+      }
+    });
+    return cell;
+  }
+
+  function draw(list, data, focusKey) {
+    list.replaceChildren();
     const head = el("div", "space-row space-head");
-    head.append(
-      el("div", "", T("space.col_guest")),
-      el("div"),
-      el("div", "space-size", T("space.col_size")),
-      el("div", "space-size", T("space.col_exclusive")),
-      el("div", "space-count", T("space.col_snapshots")),
-    );
+    const cells = COLUMNS.map((column) => heading(column, (key) => draw(list, data, key)));
+    head.append(cells[0], el("div"), ...cells.slice(1));
     list.append(head);
+    if (focusKey) cells[COLUMNS.findIndex((c) => c.key === focusKey)].focus();
     const namespaces = new Set(data.groups.map((group) => group.ns));
-    data.groups.forEach((group) => {
+    sorted(data.groups).forEach((group) => {
       const row = el("div", "space-row");
       const name = el("div", "space-name", guestLabel(group));
       if (namespaces.size > 1 && group.ns) name.append(" ", el("span", "muted", group.ns));
@@ -93,8 +122,35 @@
       row.append(name, bar, el("div", "space-size", group.size), el("div", "space-size space-own", group.exclusive_size), count);
       list.append(row);
     });
+  }
+
+  function render(body, data) {
+    body.replaceChildren();
+    if (data.denied && !data.known) {
+      body.append(el("p", "critical-text space-empty", T("space.denied")));
+      return;
+    }
+    if (!data.known) {
+      body.append(el("p", "muted space-empty", T("space.empty")));
+      return;
+    }
+    // What the figures mean: behind the heading, as a "?".
     const size = data.chunk_size ? fill("space.note_size", { chunk: data.chunk_size }) : T("space.note_raw");
-    body.append(summary, list, el("p", "muted space-note", T("space.note") + " " + size));
+    const help = el("span", "help-dot", "?");
+    help.tabIndex = 0;
+    help.dataset.tooltip = T("space.note") + "\n\n" + size;
+    dialog.querySelector("h3").append(" ", help);
+    const summary = el(
+      "p",
+      "space-summary",
+      fill("space.summary", { guests: data.groups.length, snapshots: data.snapshots }),
+    );
+    if (data.known < data.snapshots) {
+      summary.append(" ", el("span", "muted", fill("space.partial", { known: data.known, snapshots: data.snapshots })));
+    }
+    const list = el("div", "space-list");
+    draw(list, data);
+    body.append(summary, list);
   }
 
   async function open(trigger) {

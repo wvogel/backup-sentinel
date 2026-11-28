@@ -506,7 +506,10 @@ window.copyText = copyText;
     current = el;
     render(text);
     tip.hidden = false;
-    if (!tip.isConnected) document.body.append(tip);
+    // Inside an open modal dialog the tooltip has to live there too: the
+    // dialog is in the top layer and covers everything in the body.
+    const host = el.closest("dialog") || document.body;
+    if (tip.parentNode !== host) host.append(tip);
     const r = el.getBoundingClientRect();
     const w = tip.offsetWidth;
     const h = tip.offsetHeight;
