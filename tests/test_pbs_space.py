@@ -1,70 +1,99 @@
-"""Space per guest on a PBS datastore, from the backup task logs."""
+"""Space per guest on a PBS datastore, counted from the snapshots' index files."""
+
+import json
+import struct
+from pathlib import Path
 
 import pytest
 
 from app.services import pbs_space
-
-# As PBS writes it (src/api2/backup/environment.rs, log_upload_stat).
-LOG = """starting new backup on datastore 'nas-b1' from ::ffff:10.0.0.5: "ns/berlin/vm/104/2026-11-27T02:00:03Z"
-download 'index.json.blob' from previous backup 'vm/104/2026-11-26T02:00:02Z'.
-register chunks in 'drive-scsi0.img.fidx' from previous backup 'vm/104/2026-11-26T02:00:02Z'.
-created new fixed index 1 ("ns/berlin/vm/104/2026-11-27T02:00:03Z/drive-scsi0.img.fidx")
-add blob "/mnt/datastore/nas-b1/ns/berlin/vm/104/2026-11-27T02:00:03Z/qemu-server.conf.blob" (410 bytes, comp: 410)
-Upload statistics for 'drive-scsi0.img.fidx'
-UUID: 0123456789abcdef0123456789abcdef
-Checksum: 00
-Size: 107374182400
-Chunk count: 25600
-Upload size: 4194304000 (3%)
-Duplicates: 24600+100 (96%)
-Compression: 50%
-successfully closed fixed index 1
-Upload statistics for 'drive-scsi1.img.fidx'
-Size: 0
-Chunk count: 0
-successfully finished backup
-TASK OK""".split("\n")
+from app.services.pbs import PBSSyncError, _guest_snapshots
 
 
-def test_the_log_of_a_backup_task_tells_what_it_stored():
-    stats = pbs_space.parse_backup_log(LOG)
-    assert stats["store"] == "nas-b1" and stats["ns"] == "berlin"
-    assert (stats["backup_type"], stats["backup_id"]) == ("vm", "104")
-    assert stats["backup_time"] == 1795744803
-    assert stats["upload_bytes"] == 4194304000
-    # Half of it after compression, and 100 of the 1000 chunks sent were there already.
-    assert stats["stored_bytes"] == 4194304000 // 2 * 900 // 1000
+def fidx(*chunks: int) -> bytes:
+    """A fixed index as PBS writes it: 4096 bytes header, 32 bytes per chunk."""
+    header = pbs_space.FIDX_MAGIC + bytes(56) + struct.pack("<QQ", len(chunks) * 4194304, 4194304)
+    return header.ljust(4096, b"\0") + b"".join(struct.pack("<Q", c) + bytes(24) for c in chunks)
 
 
-@pytest.mark.parametrize(
-    ("path", "ns"),
-    [
-        ("vm/104/2026-11-27T02:00:03Z", ""),
-        ("ns/a/ns/b/ct/104/2026-11-27T02:00:03Z", "a/b"),
-        ("/mnt/datastore/store/ns/a/vm/104/2026-11-27T02:00:03Z", "a"),
-    ],
-)
-def test_snapshot_paths(path, ns):
-    assert pbs_space.parse_snapshot_path(path)["ns"] == ns
+def didx(*chunks: int) -> bytes:
+    """A dynamic index: per chunk its end offset, then the digest."""
+    body = b"".join(struct.pack("<QQ", (i + 1) * 1000, c) + bytes(24) for i, c in enumerate(chunks))
+    return (pbs_space.DIDX_MAGIC + bytes(56)).ljust(4096, b"\0") + body
 
 
-def test_a_log_without_a_snapshot_tells_nothing():
-    assert pbs_space.parse_backup_log(["starting something", "TASK ERROR: nope"]) is None
-    assert pbs_space.parse_snapshot_path("vm/104/not-a-time") is None
+def test_an_index_file_lists_its_chunks_once():
+    assert pbs_space.index_digests(fidx(7, 8, 7, 9)) == {7, 8, 9}
+    # In a dynamic index the offsets are not taken for digests.
+    assert pbs_space.index_digests(didx(1000, 5, 5)) == {1000, 5}
+    assert pbs_space.index_digests(fidx()) == set()
 
 
-def test_a_backup_without_upload_statistics_stored_nothing():
-    stats = pbs_space.parse_backup_log([*LOG[:1], "successfully finished backup"])
-    assert stats["stored_bytes"] == 0 and stats["upload_bytes"] == 0
+@pytest.mark.parametrize("data", [b"", b"x" * 5000, fidx(1)[:-1]])
+def test_what_is_no_index_is_refused(data):
+    with pytest.raises(ValueError):
+        pbs_space.index_digests(data)
+
+
+def test_the_listing_names_the_index_files_of_a_snapshot():
+    rows = [
+        {
+            "backup-type": "vm",
+            "backup-id": "104",
+            "backup-time": 100,
+            "size": 1,
+            "files": [
+                {"filename": "drive-scsi0.img.fidx"},
+                {"filename": "qemu-server.conf.blob"},
+                {"filename": "index.json.blob"},
+            ],
+        }
+    ]
+    assert _guest_snapshots(rows)[0]["archives"] == ["drive-scsi0.img.fidx"]
+
+
+def test_a_pruned_snapshot_takes_its_own_chunks_with_it():
+    chunks = pbs_space.GroupChunks()
+    chunks.add(100, {1, 2, 3})
+    chunks.add(200, {2, 3, 4})
+    chunks.add(300, {3, 4, 5})
+    digests, count, bitmaps = chunks.stored()
+    assert count == 5
+
+    # As read back from the database, without the oldest snapshot.
+    del bitmaps[100]
+    later = pbs_space.GroupChunks(digests, bitmaps)
+    later.compact()
+    digests, count, bitmaps = later.stored()
+    assert count == 4 and 1 not in pbs_space.GroupChunks(digests).digests
+    # The snapshots left still name their chunks.
+    again = pbs_space.GroupChunks(digests, bitmaps)
+    again.bitmaps.pop(200)
+    again.compact()
+    assert sorted(again.digests) == [3, 4, 5]
+
+
+def test_chunks_no_other_guest_has_are_a_guests_own(monkeypatch):
+    from array import array
+
+    def raw(*values):
+        return array("Q", values).tobytes()
+
+    top = 2**64 - 1
+    groups = {"a": raw(1, 2, 3, top), "b": raw(3, 4, 2**63), "c": raw(3, 2**63)}
+    assert pbs_space.exclusive_counts(groups) == {"a": 3, "b": 1, "c": 0}
+    # The same when counted in slices of the digest range.
+    monkeypatch.setattr(pbs_space, "_COUNT_AT_ONCE", 2)
+    assert pbs_space.exclusive_counts(groups) == {"a": 3, "b": 1, "c": 0}
+    assert pbs_space.exclusive_counts({}) == {}
 
 
 @pytest.fixture
 def tables(monkeypatch):
-    """pbs_snapshots / pbs_backup_tasks in memory."""
-    snapshots: dict[tuple, dict] = {}
-    tasks: dict[tuple, dict] = {}
+    """The tables of app.db_pbs_space in memory, and a PBS serving index files."""
+    state = {"snapshots": {}, "groups": {}, "bitmaps": {}, "space": {}, "files": {}, "requests": [], "gc": {}}
     conns = [{"id": 1, "api_url": "https://pbs-a:8007"}, {"id": 2, "api_url": "https://pbs-b:8007"}]
-    jobs: list[dict] = []
+    snapshots, groups, bitmaps = state["snapshots"], state["groups"], state["bitmaps"]
 
     def replace(pbs_id, listed):
         for (store, ns), rows in listed.items():
@@ -73,197 +102,230 @@ def tables(monkeypatch):
             for row in rows:
                 snapshots[(pbs_id, store, ns, row["backup_type"], row["backup_id"], row["backup_time"])] = row
 
-    def stats_of(key):
-        return next((t for t in tasks.values() if t.get("key") == key), None)
+    def forget(pbs_id):
+        lost = set()
+        for key in [k for k in bitmaps if k[0] == pbs_id and k not in snapshots]:
+            del bitmaps[key]
+            lost.add(key[1:5])
+        for key in [k for k in groups if k[0] == pbs_id and not any(s[:5] == k for s in snapshots)]:
+            del groups[key]
+            lost.add(key[1:])
+        return lost
 
-    def listing(pbs_id, store, ns=None):
-        return [
-            {
-                "ns": key[2],
-                "backup_type": key[3],
-                "backup_id": key[4],
-                "backup_time": key[5],
-                "guest_name": row.get("guest_name"),
-                "stored_bytes": (stats_of(key) or {}).get("stored_bytes"),
-            }
-            for key, row in snapshots.items()
-            if key[:2] == (pbs_id, store) and (ns is None or key[2] == ns)
-        ]
+    def load(pbs_id, group):
+        key = (pbs_id, *group)
+        return groups.get(key, {}).get("digests", b""), {k[5]: v for k, v in bitmaps.items() if k[:5] == key}
 
-    def without(pbs_id):
-        return [
-            {"store": k[1], "backup_type": k[3], "backup_id": k[4], "backup_time": k[5]}
-            for k in snapshots
-            if k[0] == pbs_id and not stats_of(k)
-        ]
+    def save(pbs_id, group, digests, chunks, maps):
+        key = (pbs_id, *group)
+        for old in [k for k in bitmaps if k[:5] == key]:
+            del bitmaps[old]
+        groups.pop(key, None)
+        if maps:
+            groups[key] = {"digests": digests, "chunks": chunks, "exclusive": None}
+            bitmaps.update({(*key, time): raw for time, raw in maps.items()})
 
-    def save(pbs_id, upid, started, stats):
-        key = None
-        if stats:
-            key = (pbs_id, stats["store"], stats["ns"], stats["backup_type"], stats["backup_id"], stats["backup_time"])
-        tasks[(pbs_id, upid)] = {"key": key, "stored_bytes": (stats or {}).get("stored_bytes")}
+    def exclusive(pbs_id, counts):
+        for group, count in counts.items():
+            groups[(pbs_id, *group)]["exclusive"] = count
+
+    def store_space(pbs_id, store, disk_bytes, disk_chunks, denied):
+        row = state["space"].setdefault((pbs_id, store), {"disk_bytes": None, "disk_chunks": None, "denied": False})
+        row["disk_bytes"] = disk_bytes if disk_bytes is not None else row["disk_bytes"]
+        row["disk_chunks"] = disk_chunks if disk_chunks is not None else row["disk_chunks"]
+        row["denied"] = denied if denied is not None else row["denied"]
+
+    def space_groups(pbs_id, store):
+        found = {}
+        for key, row in snapshots.items():
+            if key[:2] != (pbs_id, store):
+                continue
+            group = found.setdefault(
+                key[:5],
+                {"ns": key[2], "backup_type": key[3], "backup_id": key[4], "snapshots": 0, "known": 0, "name": None},
+            )
+            group["snapshots"] += 1
+            group["known"] += key in bitmaps
+            group["name"] = row.get("guest_name") or group["name"]
+            group["chunks"] = groups.get(key[:5], {}).get("chunks")
+            group["exclusive"] = groups.get(key[:5], {}).get("exclusive")
+        return list(found.values())
 
     db = pbs_space.db
     monkeypatch.setattr(db, "list_pbs_connections", lambda *a: conns)
-    monkeypatch.setattr(db, "list_pbs_sync_jobs", lambda: jobs)
-    monkeypatch.setattr(db, "replace_pbs_snapshots", replace, raising=False)
-    monkeypatch.setattr(db, "list_pbs_snapshots", listing, raising=False)
-    monkeypatch.setattr(db, "pbs_snapshots_without_stats", without, raising=False)
-    monkeypatch.setattr(db, "pbs_backup_tasks_read", lambda pbs_id: {u for p, u in tasks if p == pbs_id}, raising=False)
-    monkeypatch.setattr(db, "save_pbs_backup_task", save, raising=False)
-    monkeypatch.setattr(db, "forget_pbs_backup_tasks", lambda pbs_id: None, raising=False)
-    return {"snapshots": snapshots, "tasks": tasks, "conns": conns, "jobs": jobs}
+    monkeypatch.setattr(db, "replace_pbs_snapshots", replace)
+    monkeypatch.setattr(db, "forget_pbs_chunks", forget)
+    monkeypatch.setattr(db, "pbs_indexed_snapshots", lambda pbs_id: {k[1:] for k in bitmaps if k[0] == pbs_id})
+    monkeypatch.setattr(db, "load_pbs_group_chunks", load)
+    monkeypatch.setattr(db, "save_pbs_group_chunks", save)
+    monkeypatch.setattr(
+        db,
+        "pbs_store_digests",
+        lambda pbs_id, store: {k[1:]: v["digests"] for k, v in groups.items() if k[:2] == (pbs_id, store)},
+    )
+    monkeypatch.setattr(db, "save_pbs_exclusive_chunks", exclusive)
+    monkeypatch.setattr(db, "save_pbs_store_space", store_space)
+    monkeypatch.setattr(db, "get_pbs_store_space", lambda pbs_id, store: state["space"].get((pbs_id, store)))
+    monkeypatch.setattr(db, "pbs_space_groups", space_groups)
+
+    def get_bytes(conn, path, query=None):
+        state["requests"].append((path, dict(query)))
+        key = (query.get("ns", ""), query["backup-id"], int(query["backup-time"]), query["file-name"])
+        if state.get("refuse"):
+            error = PBSSyncError("PBS API returned HTTP 403")
+            error.status = 403
+            raise error
+        if key not in state["files"]:
+            error = PBSSyncError("PBS API returned HTTP 400: no such file")
+            error.status = 400
+            raise error
+        return state["files"][key]
+
+    monkeypatch.setattr(pbs_space, "_pbs_get_bytes", get_bytes)
+    monkeypatch.setattr(pbs_space, "_pbs_get_payload", lambda conn, path, **kw: {"data": state["gc"]})
+    return state
 
 
-def snap(vmid, time, name=None):
-    return {"backup_type": "vm", "backup_id": str(vmid), "backup_time": time, "guest_name": name}
+def snap(vmid, time, name=None, archives=("drive-scsi0.img.fidx",)):
+    return {
+        "backup_type": "vm",
+        "backup_id": str(vmid),
+        "backup_time": time,
+        "guest_name": name,
+        "archives": list(archives),
+    }
 
 
-T = 1795744803  # the snapshot of LOG
+CONN = {"id": 1, "name": "pbs-a"}
 
 
-def test_each_task_log_is_read_once_and_only_for_guests_that_miss_it(tables, monkeypatch):
-    asked: list[str] = []
-    task_rows = [
-        {
-            "upid": "U1",
-            "worker_type": "backup",
-            "worker_id": "nas-b1:vm/104",
-            "starttime": T - 2,
-            "endtime": T + 60,
-            "status": "OK",
-        },
-        {
-            "upid": "U2",
-            "worker_type": "backup",
-            "worker_id": "nas-b1:vm/999",
-            "starttime": T - 2,
-            "endtime": T + 60,
-            "status": "OK",
-        },
-        {
-            "upid": "U3",
-            "worker_type": "backup",
-            "worker_id": "nas-b1:vm/104",
-            "starttime": T - 2,
-            "endtime": None,
-            "status": "",
-        },
-    ]
-
-    def payload(conn, path, **kwargs):
-        if path.endswith("/tasks"):
-            return {"data": task_rows}
-        asked.append(path)
-        return {"data": [{"n": i, "t": line} for i, line in enumerate(LOG, 1)]}
-
-    monkeypatch.setattr(pbs_space, "_pbs_get_payload", payload)
-    listed = {("nas-b1", "berlin"): [snap(104, T, "APP02")]}
-    assert pbs_space.collect(tables["conns"][0], listed) == 1
-    assert len(asked) == 1 and "U1" in asked[0]
-    assert pbs_space.collect(tables["conns"][0], listed) == 0  # known now
-    assert len(asked) == 1
+def test_each_index_is_read_once_and_guests_are_counted(tables):
+    tables["gc"] = {"disk-bytes": 2000, "disk-chunks": 2}  # a chunk takes 1000 bytes on disk
+    tables["files"] = {
+        ("berlin", "104", 100, "drive-scsi0.img.fidx"): fidx(1, 2, 3),
+        ("berlin", "104", 200, "drive-scsi0.img.fidx"): fidx(2, 3, 4),
+        ("berlin", "104", 200, "drive-scsi1.img.fidx"): fidx(9),
+        ("berlin", "105", 100, "drive-scsi0.img.fidx"): fidx(3, 4, 5, 6),
+    }
+    listed = {
+        ("nas-b1", "berlin"): [
+            snap(104, 100, "web"),
+            snap(104, 200, "web", ["drive-scsi0.img.fidx", "drive-scsi1.img.fidx"]),
+            snap(105, 100, "db"),
+        ]
+    }
+    assert pbs_space.collect(CONN, listed) == 3
+    path, query = tables["requests"][0]
+    assert path == "/api2/json/admin/datastore/nas-b1/download"
+    assert query == {
+        "backup-type": "vm",
+        "backup-id": "104",
+        "backup-time": "100",
+        "file-name": "drive-scsi0.img.fidx",
+        "ns": "berlin",
+    }
 
     result = pbs_space.usage(1, "nas-b1")
-    assert result["groups"] == [
-        {
-            "ns": "berlin",
-            "backup_type": "vm",
-            "backup_id": "104",
-            "name": "APP02",
-            "snapshots": 1,
-            "known": 1,
-            "stored_bytes": 4194304000 // 2 * 900 // 1000,
-        }
-    ]
+    web, db_guest = result["groups"]
+    # web needs the chunks 1 2 3 4 9; 3 and 4 it shares with db.
+    assert (web["name"], web["chunks"], web["bytes"], web["exclusive_bytes"]) == ("web", 5, 5000, 3000)
+    assert (db_guest["chunks"], db_guest["exclusive_bytes"]) == (4, 2000)
+    assert (result["snapshots"], result["known"], result["chunk_bytes"], result["denied"]) == (3, 3, 1000, False)
+
+    # The next sync reads nothing again.
+    before = len(tables["requests"])
+    assert pbs_space.collect(CONN, listed) == 0
+    assert len(tables["requests"]) == before
 
 
 def test_a_pruned_snapshot_no_longer_counts(tables):
-    pbs_space.db.replace_pbs_snapshots(1, {("nas-b1", ""): [snap(104, 100), snap(104, 200)]})
-    pbs_space.db.save_pbs_backup_task(
-        1,
-        "U1",
-        100,
-        {"store": "nas-b1", "ns": "", "backup_type": "vm", "backup_id": "104", "backup_time": 100, "stored_bytes": 70},
-    )
-    pbs_space.db.save_pbs_backup_task(
-        1,
-        "U2",
-        200,
-        {"store": "nas-b1", "ns": "", "backup_type": "vm", "backup_id": "104", "backup_time": 200, "stored_bytes": 5},
-    )
-    assert pbs_space.usage(1, "nas-b1")["stored_bytes"] == 75
-    pbs_space.db.replace_pbs_snapshots(1, {("nas-b1", ""): [snap(104, 200)]})
-    assert pbs_space.usage(1, "nas-b1")["stored_bytes"] == 5
+    tables["files"] = {
+        ("", "104", 100, "drive-scsi0.img.fidx"): fidx(1, 2, 3),
+        ("", "104", 200, "drive-scsi0.img.fidx"): fidx(3, 4),
+        ("", "105", 100, "drive-scsi0.img.fidx"): fidx(1),
+    }
+    pbs_space.collect(CONN, {("nas-b1", ""): [snap(104, 100), snap(104, 200), snap(105, 100)]})
+    assert [g["chunks"] for g in pbs_space.usage(1, "nas-b1")["groups"]] == [4, 1]
+
+    pbs_space.collect(CONN, {("nas-b1", ""): [snap(104, 200), snap(105, 100)]})
+    first, second = pbs_space.usage(1, "nas-b1")["groups"]
+    assert (first["chunks"], first["snapshots"], first["known"]) == (2, 1, 1)
+    # Chunk 1 is now the other guest's alone.
+    assert second["exclusive_bytes"] == pbs_space._FIXED_CHUNK
+
+    # A guest whose backups are all gone leaves the list.
+    pbs_space.collect(CONN, {("nas-b1", ""): [snap(105, 100)]})
+    assert [g["backup_id"] for g in pbs_space.usage(1, "nas-b1")["groups"]] == ["105"]
+    assert not [key for key in tables["groups"] if key[4] == "104"]
 
 
-def test_a_synced_copy_counts_with_what_it_took_at_its_source(tables):
-    """Pulled from pbs-a/nas-b1 (namespace berlin) into pbs-b/nas-off/copies/berlin."""
-    tables["jobs"].append(
-        {
-            "pbs_id": 2,
-            "direction": "pull",
-            "store": "nas-off",
-            "ns": "copies",
-            "remote_name": "a",
-            "remote_pbs_id": 1,
-            "remote_store": "nas-b1",
-            "remote_ns": "",
-        }
-    )
-    pbs_space.db.replace_pbs_snapshots(1, {("nas-b1", "berlin"): [snap(104, 100)]})
-    pbs_space.db.save_pbs_backup_task(
-        1,
-        "U1",
-        100,
-        {
-            "store": "nas-b1",
-            "ns": "berlin",
-            "backup_type": "vm",
-            "backup_id": "104",
-            "backup_time": 100,
-            "stored_bytes": 70,
-        },
-    )
-    pbs_space.db.replace_pbs_snapshots(
-        2, {("nas-off", "copies/berlin"): [snap(104, 100), snap(104, 50)], ("nas-off", "other"): [snap(104, 100)]}
-    )
-    groups = {g["ns"]: g for g in pbs_space.usage(2, "nas-off")["groups"]}
-    assert (groups["copies/berlin"]["known"], groups["copies/berlin"]["stored_bytes"]) == (1, 70)
-    # The same guest id and time elsewhere is another cluster's guest: no figure.
-    assert (groups["other"]["known"], groups["other"]["stored_bytes"]) == (0, 0)
+def test_without_a_garbage_collection_a_chunk_counts_uncompressed(tables):
+    tables["files"] = {("", "104", 100, "drive-scsi0.img.fidx"): fidx(1, 2)}
+    pbs_space.collect(CONN, {("nas-b1", ""): [snap(104, 100)]})
+    result = pbs_space.usage(1, "nas-b1")
+    assert result["chunk_bytes"] is None and result["groups"][0]["bytes"] == 2 * 4194304
+
+
+def test_a_token_that_may_not_read_is_named_and_not_asked_again_this_sync(tables):
+    tables["refuse"] = True
+    listed = {("nas-b1", ""): [snap(104, 100), snap(104, 200), snap(105, 100)]}
+    assert pbs_space.collect(CONN, listed) == 0
+    assert len(tables["requests"]) == 1
+    result = pbs_space.usage(1, "nas-b1")
+    assert result["denied"] is True and result["known"] == 0
+    assert result["groups"][0]["bytes"] is None
+
+    # Once it may, the note goes.
+    tables["refuse"] = False
+    tables["files"] = {("", "104", 100, "drive-scsi0.img.fidx"): fidx(1)}
+    assert pbs_space.collect(CONN, listed) == 1  # the other two are not there (any more)
+    assert pbs_space.usage(1, "nas-b1")["denied"] is False
+
+
+def test_the_backlog_of_a_new_pbs_is_spread_over_several_syncs(tables, monkeypatch):
+    tables["files"] = {("", str(vm), 100, "drive-scsi0.img.fidx"): fidx(vm) for vm in (101, 102, 103)}
+    listed = {("nas-b1", ""): [snap(vm, 100) for vm in (101, 102, 103)]}
+    monkeypatch.setattr(pbs_space, "INDEX_BYTES_PER_SYNC", len(fidx(1)) + 1)
+    assert pbs_space.collect(CONN, listed) == 2
+    assert pbs_space.usage(1, "nas-b1")["known"] == 2
+    assert pbs_space.collect(CONN, listed) == 1
 
 
 def test_a_pbs_registered_for_two_clusters_is_kept_once(tables):
-    tables["conns"].append({"id": 7, "api_url": "https://PBS-A:8007/"})
+    tables["conns"] = None
+    pbs_space.db.list_pbs_connections().append({"id": 7, "api_url": "https://PBS-A:8007/"})
     pbs_space.db.replace_pbs_snapshots(1, {("nas-b1", ""): [snap(104, 100)]})
-    assert pbs_space.canonical_ids(tables["conns"])[7] == 1
+    assert pbs_space.canonical_ids(pbs_space.db.list_pbs_connections())[7] == 1
     assert pbs_space.usage(7, "nas-b1")["snapshots"] == 1
 
 
 def test_the_ring_of_a_registered_pbs_opens_the_list():
-    from pathlib import Path
-
     topology = Path("templates/_topology.html").read_text()
     assert 'data-pbs-space="{{ group.conn_id }}" data-store="{{ ds.store }}"' in topology
     assert "/static/js/pbs-space.js" in Path("templates/base.html").read_text()
     script = Path("static/js/pbs-space.js").read_text()
     assert "/api/pbs-space?" in script and ".innerHTML" not in script
+    for key in ("space.col_exclusive", "space.denied", "space.note_size", "space.note_raw"):
+        assert key in script
+        for lang in ("de", "en"):
+            assert key in json.loads(Path(f"app/i18n/{lang}.json").read_text())
 
 
-def test_the_api_adds_sizes_and_a_bar_from_zero(monkeypatch):
+def test_the_api_adds_sizes_and_bars_from_zero(monkeypatch):
     from app.web import routes_dashboard
 
+    gib = 1024**3
     groups = [
-        {"stored_bytes": 200 * 1024**3, "known": 3, "snapshots": 3},
-        {"stored_bytes": 50 * 1024**3, "known": 1, "snapshots": 2},
-        {"stored_bytes": 0, "known": 0, "snapshots": 4},
+        {"bytes": 200 * gib, "exclusive_bytes": 50 * gib, "known": 3, "snapshots": 3},
+        {"bytes": 50 * gib, "exclusive_bytes": None, "known": 1, "snapshots": 2},
+        {"bytes": None, "exclusive_bytes": None, "known": 0, "snapshots": 4},
     ]
-    result = {"groups": groups, "stored_bytes": 250 * 1024**3, "snapshots": 9, "known": 4}
+    result = {"groups": groups, "snapshots": 9, "known": 4, "chunk_bytes": 2 * 1024**2, "denied": False}
     monkeypatch.setattr(routes_dashboard.pbs_space, "usage", lambda pbs, store: result)
-    import json
 
     data = json.loads(routes_dashboard.get_pbs_space(1, "nas-b1").body)
     assert [g["share"] for g in data["groups"]] == [100.0, 25.0, 0]
-    assert data["groups"][2]["size"] == "–"  # nothing known is not "0"
-    assert data["size"].startswith("250")
+    assert [g["exclusive_share"] for g in data["groups"]] == [25.0, 0, 0]
+    assert data["groups"][0]["size"].startswith("200") and data["groups"][0]["exclusive_size"].startswith("50")
+    assert data["groups"][2]["size"] == "–" and data["groups"][1]["exclusive_size"] == "–"  # unknown is not "0"
+    assert data["chunk_size"].startswith("2")

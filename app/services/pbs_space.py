@@ -1,263 +1,278 @@
-"""How much room each guest's backups take on a PBS datastore — an estimate.
+"""How much room each guest's backups take on a PBS datastore.
 
 PBS has no figure for it: chunks are shared between all backups of a
-datastore. What it does log, per backup task, is how much the backup
-uploaded and how well that compressed ("Upload size", "Compression",
-"Duplicates"). Summed over a guest's snapshots that still exist, this is the
-data its backups newly wrote — after compression, and without the chunks the
-server already had. Chunks a later backup of *another* guest shares are still
-counted with the one that wrote them first.
+datastore. What says which chunks a snapshot consists of are its index files
+(.fidx for a disk image, .didx for a file archive) — a header and one digest
+per chunk. Read once per snapshot, they tell per guest
 
-Reading it costs the PBS one short task log per backup, once: no index file
-is opened and no chunk is touched, so the disks behind the datastore see
-nothing of it.
+- how many different chunks its snapshots need (what they take), and
+- how many of those no other guest of the datastore uses (what is freed
+  when its backups go).
+
+The counts are exact. The size is not: how large a chunk is on disk stands
+only at the chunk itself, so a count is multiplied with the mean chunk size
+the datastore's last garbage collection found.
+
+Cost on the PBS: one download of each snapshot's index files (about 800 KB
+per 100 GB of disk), once. No chunk is opened. It needs the right to read the
+datastore (role DatastoreReader); with Audit alone PBS refuses the download.
 """
 
 from __future__ import annotations
 
 import logging
-import re
-from datetime import UTC, datetime
+from array import array
+from bisect import bisect_left
+from collections import Counter
+from itertools import compress
 from typing import Any
 from urllib import parse
 
 from app import db
-from app.services.pbs import _pbs_get_payload
+from app.services.pbs import PBSSyncError, _pbs_get_bytes, _pbs_get_payload
 
 logger = logging.getLogger(__name__)
 
-# Task logs read per PBS and sync: the backlog of a newly registered PBS is
-# worked off over several syncs instead of in one burst.
-LOGS_PER_SYNC = 150
-_TASK_PAGE = 500
-_TASK_PAGES = 20
-_LOG_LINES = 5000
+Group = tuple[str, str, str, str]  # store, namespace, backup type, backup id
 
-_START_RE = re.compile(r"starting new backup on datastore '(?P<store>[^']+)'.*?: \"(?P<path>[^\"]+)\"")
-_ARCHIVE_RE = re.compile(r"Upload statistics for '(?P<name>[^']+)'")
-_CHUNKS_RE = re.compile(r"Chunk count: (?P<n>\d+)")
-_UPLOAD_RE = re.compile(r"Upload size: (?P<bytes>\d+) \(")
-_DUP_RE = re.compile(r"Duplicates: (?P<client>\d+)\+(?P<server>\d+) \(")
-_COMP_RE = re.compile(r"Compression: (?P<pct>\d+)%")
-_TIME_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+# Index bytes downloaded per PBS and sync: the snapshots of a newly registered
+# PBS are worked off over several syncs instead of in one burst.
+INDEX_BYTES_PER_SYNC = 256 * 1024 * 1024
+# Digests counted at a time when looking for shared chunks (bounds memory).
+_COUNT_AT_ONCE = 400_000
 
+# pbs-datastore/src/file_formats.rs
+FIDX_MAGIC = bytes([47, 127, 65, 237, 145, 253, 15, 205])
+DIDX_MAGIC = bytes([28, 145, 78, 165, 25, 186, 179, 205])
+_HEADER = 4096
+_FIXED_CHUNK = 4 * 1024 * 1024
 
-def parse_snapshot_path(path: str) -> dict[str, Any] | None:
-    """Namespace, type, id and time of a snapshot from its directory as PBS
-    logs it: ``[ns/<a>/ns/<b>/]<type>/<id>/<time>``, possibly below the
-    datastore's own path."""
-    parts = [p for p in path.split("/") if p]
-    if len(parts) < 3 or not _TIME_RE.match(parts[-1]):
-        return None
-    backup_time = int(datetime.strptime(parts[-1], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC).timestamp())
-    rest = parts[:-3]
-    namespace: list[str] = []
-    while len(rest) >= 2 and rest[-2] == "ns":
-        namespace.insert(0, rest[-1])
-        rest = rest[:-2]
-    return {"ns": "/".join(namespace), "backup_type": parts[-3], "backup_id": parts[-2], "backup_time": backup_time}
+_FLAGS = bytes.maketrans(b"01", b"\x00\x01")
 
 
-def parse_backup_log(lines: list[str]) -> dict[str, Any] | None:
-    """What one backup task wrote, from its log: the snapshot it made, the
-    bytes it uploaded and — the estimate — the bytes that took on disk.
-    None when the log names no snapshot."""
-    snapshot: dict[str, Any] | None = None
-    archives: list[dict[str, int]] = []
-    current: dict[str, int] | None = None
-    for line in lines:
-        if snapshot is None and (match := _START_RE.search(line)):
-            snapshot = parse_snapshot_path(match.group("path"))
-            if snapshot is None:
-                return None
-            snapshot["store"] = match.group("store")
-        elif _ARCHIVE_RE.search(line):
-            current = {}
-            archives.append(current)
-        elif current is not None:
-            if match := _CHUNKS_RE.search(line):
-                current["chunks"] = int(match.group("n"))
-            elif match := _UPLOAD_RE.search(line):
-                current["upload"] = int(match.group("bytes"))
-            elif match := _DUP_RE.search(line):
-                current["client_dup"] = int(match.group("client"))
-                current["server_dup"] = int(match.group("server"))
-            elif match := _COMP_RE.search(line):
-                current["comp"] = int(match.group("pct"))
-    if snapshot is None:
-        return None
-    upload = stored = 0
-    for archive in archives:
-        size = archive.get("upload", 0)
-        upload += size
-        compressed = size * archive.get("comp", 100) / 100
-        # Chunks the client sent although the server had them already: sent,
-        # but not written. PBS logs their number, not their size.
-        sent = archive.get("chunks", 0) - archive.get("client_dup", 0)
-        if sent > 0:
-            compressed *= max(0, sent - archive.get("server_dup", 0)) / sent
-        stored += int(compressed)
-    return snapshot | {"upload_bytes": upload, "stored_bytes": stored}
+def index_digests(data: bytes) -> set[int]:
+    """The chunks an index file lists, each as the first 8 bytes of its digest.
+
+    .fidx: 4096 bytes header, then 32 bytes digest per chunk.
+    .didx: 4096 bytes header, then per chunk 8 bytes end offset + 32 bytes digest.
+    """
+    if len(data) < _HEADER:
+        raise ValueError("index file shorter than its header")
+    body = memoryview(data)[_HEADER:]
+    if data[:8] == FIDX_MAGIC and len(body) % 32 == 0:
+        return set(body.cast("Q")[::4])
+    if data[:8] == DIDX_MAGIC and len(body) % 40 == 0:
+        return set(body.cast("Q")[1::5])
+    raise ValueError("not a PBS chunk index")
 
 
-def _task_log(conn: dict[str, Any], upid: str) -> list[str]:
-    path = f"/api2/json/nodes/localhost/tasks/{parse.quote(upid, safe='')}/log"
-    rows = _pbs_get_payload(conn, path, query={"start": "0", "limit": str(_LOG_LINES)}, retries=0).get("data")
-    return [str(row.get("t") or "") for row in rows] if isinstance(rows, list) else []
+def _marks(bitmap: int, length: int) -> bytes:
+    """A bitmap as one byte ("0"/"1") per position, lowest first."""
+    return bin(bitmap)[2:].zfill(length)[::-1].encode()
 
 
-def _backup_tasks(conn: dict[str, Any], oldest: int) -> list[dict[str, Any]]:
-    """Finished, successful backup tasks back to `oldest` (epoch), newest first."""
-    tasks: list[dict[str, Any]] = []
-    for page in range(_TASK_PAGES):
-        rows = _pbs_get_payload(
-            conn,
-            "/api2/json/nodes/localhost/tasks",
-            query={"typefilter": "backup", "start": str(page * _TASK_PAGE), "limit": str(_TASK_PAGE)},
-            retries=0,
-        ).get("data")
-        if not isinstance(rows, list) or not rows:
-            break
-        for row in rows:
-            status = str(row.get("status") or "")
-            if row.get("worker_type") == "backup" and row.get("endtime") and (status == "OK" or "WARNINGS" in status):
-                tasks.append(row)
-        if len(rows) < _TASK_PAGE or int(rows[-1].get("starttime") or 0) < oldest:
-            break
-    return tasks
+class GroupChunks:
+    """The chunks of one guest: every digest once, and per snapshot a bitmap
+    of the ones it uses — so a pruned snapshot can be taken out again."""
+
+    def __init__(self, digests: bytes = b"", bitmaps: dict[int, bytes] | None = None) -> None:
+        self.digests = array("Q")
+        self.digests.frombytes(digests)
+        self.bitmaps = {time: int.from_bytes(raw, "little") for time, raw in (bitmaps or {}).items()}
+        self._position: dict[int, int] | None = None
+
+    def add(self, backup_time: int, digests: set[int]) -> None:
+        if self._position is None:
+            self._position = {digest: i for i, digest in enumerate(self.digests)}
+        for digest in digests - self._position.keys():
+            self._position[digest] = len(self.digests)
+            self.digests.append(digest)
+        marks = bytearray(b"0" * len(self.digests))
+        for digest in digests:
+            marks[self._position[digest]] = 49  # "1"
+        self.bitmaps[backup_time] = int(bytes(marks[::-1]), 2) if marks else 0
+
+    def compact(self) -> None:
+        """Drop the chunks no snapshot uses any more."""
+        length = len(self.digests)
+        used = 0
+        for bitmap in self.bitmaps.values():
+            used |= bitmap
+        if used.bit_count() == length:
+            return
+        keep = _marks(used, length).translate(_FLAGS)
+        self.digests = array("Q", compress(self.digests, keep))
+        self._position = None
+        for backup_time, bitmap in self.bitmaps.items():
+            marks = bytes(compress(_marks(bitmap, length), keep))
+            self.bitmaps[backup_time] = int(marks[::-1], 2) if marks else 0
+
+    def stored(self) -> tuple[bytes, int, dict[int, bytes]]:
+        size = (len(self.digests) + 7) // 8
+        return (
+            self.digests.tobytes(),
+            len(self.digests),
+            {time: bitmap.to_bytes(size, "little") for time, bitmap in self.bitmaps.items()},
+        )
+
+
+def exclusive_counts(groups: dict[Any, bytes]) -> dict[Any, int]:
+    """Per guest how many of its chunks no other guest has. Counted in slices
+    of the digest range, so memory stays bounded on a large datastore."""
+    digests: dict[Any, array] = {}
+    for key, raw in groups.items():
+        values = array("Q")
+        values.frombytes(raw)
+        digests[key] = array("Q", sorted(values))
+    slices = max(1, sum(len(values) for values in digests.values()) // _COUNT_AT_ONCE)
+    start = dict.fromkeys(digests, 0)
+    result = dict.fromkeys(digests, 0)
+    for number in range(1, slices + 1):
+        bound = (number << 64) // slices
+        part: dict[Any, array] = {}
+        for key, values in digests.items():
+            end = len(values) if number == slices else bisect_left(values, bound, start[key])
+            part[key] = values[start[key] : end]
+            start[key] = end
+        seen: Counter[int] = Counter()
+        for values in part.values():
+            seen.update(values)
+        once = {digest for digest, count in seen.items() if count == 1}
+        for key, values in part.items():
+            result[key] += sum(map(once.__contains__, values))
+    return result
 
 
 def canonical_ids(conns: list[dict[str, Any]]) -> dict[int, int]:
     """A PBS registered for several clusters is one PBS: every registration's
     id mapped to the lowest one, under which its snapshots are kept — so its
-    task logs are read once, not once per cluster."""
+    index files are read once, not once per cluster."""
     by_url: dict[str, int] = {}
     for conn in sorted(conns, key=lambda c: c["id"]):
         by_url.setdefault(str(conn.get("api_url") or "").rstrip("/").lower(), conn["id"])
     return {conn["id"]: by_url[str(conn.get("api_url") or "").rstrip("/").lower()] for conn in conns}
 
 
+def _download(conn: dict[str, Any], group: Group, backup_time: int, archive: str) -> bytes:
+    store, ns, backup_type, backup_id = group
+    query = {"backup-type": backup_type, "backup-id": backup_id, "backup-time": str(backup_time), "file-name": archive}
+    if ns:
+        query["ns"] = ns
+    return _pbs_get_bytes(conn, f"/api2/json/admin/datastore/{parse.quote(store, safe='')}/download", query=query)
+
+
+def _gc_counts(conn: dict[str, Any], store: str) -> tuple[int | None, int | None]:
+    """Bytes and number of the chunks on disk, as the last garbage collection
+    counted them (None: never ran, or not readable)."""
+    try:
+        data = _pbs_get_payload(conn, f"/api2/json/admin/datastore/{parse.quote(store, safe='')}/gc", retries=0).get(
+            "data"
+        )
+    except PBSSyncError:
+        return None, None
+    if not isinstance(data, dict):
+        return None, None
+    try:
+        disk_bytes, disk_chunks = int(data.get("disk-bytes") or 0), int(data.get("disk-chunks") or 0)
+    except (TypeError, ValueError):
+        return None, None
+    return (disk_bytes, disk_chunks) if disk_bytes > 0 and disk_chunks > 0 else (None, None)
+
+
 def collect(conn: dict[str, Any], listed: dict[tuple[str, str], list[dict[str, Any]]]) -> int:
     """Remember the snapshots just listed on this PBS (`listed`: per datastore
-    and namespace read in full) and read the task logs of those whose upload
-    is not known yet. Returns how many logs were read."""
+    and namespace read in full) and read the index files of those not read
+    yet. Returns how many snapshots were read."""
     pbs_id = canonical_ids(db.list_pbs_connections()).get(conn["id"], conn["id"])
     db.replace_pbs_snapshots(pbs_id, listed)
-    missing = db.pbs_snapshots_without_stats(pbs_id)
-    if not missing:
-        return 0
-    # worker_id of a backup task: "<store>:<type>/<id>" — no namespace, no time.
-    wanted = {f"{row['store']}:{row['backup_type']}/{row['backup_id']}" for row in missing}
-    # The task starts shortly before the time its snapshot carries.
-    oldest = min(row["backup_time"] for row in missing) - 3600
-    read_before = db.pbs_backup_tasks_read(pbs_id)
+    recount = db.forget_pbs_chunks(pbs_id)  # guests a snapshot was pruned from
+    indexed = db.pbs_indexed_snapshots(pbs_id)
+    pending: dict[Group, list[dict[str, Any]]] = {}
+    for (store, ns), rows in listed.items():
+        for row in rows:
+            group = (store, ns, row["backup_type"], row["backup_id"])
+            if row.get("archives") and (*group, row["backup_time"]) not in indexed:
+                pending.setdefault(group, []).append(row)
+
+    budget = INDEX_BYTES_PER_SYNC
     read = 0
-    for task in _backup_tasks(conn, oldest):
-        upid = str(task.get("upid") or "")
-        started = int(task.get("starttime") or 0)
-        if not upid or upid in read_before or started < oldest or str(task.get("worker_id") or "") not in wanted:
+    denied: set[str] = set()
+    readable: set[str] = set()
+    changed = {group[0] for group in recount}
+    for group in sorted(set(pending) | recount):
+        store = group[0]
+        if group not in recount and (budget <= 0 or store in denied):
             continue
-        if read >= LOGS_PER_SYNC:
-            break
-        read += 1
-        db.save_pbs_backup_task(pbs_id, upid, started, parse_backup_log(_task_log(conn, upid)))
-    db.forget_pbs_backup_tasks(pbs_id)
+        chunks = GroupChunks(*db.load_pbs_group_chunks(pbs_id, group))
+        added = False
+        for row in sorted(pending.get(group, []), key=lambda r: r["backup_time"]):
+            if budget <= 0 or store in denied:
+                break
+            try:
+                digests: set[int] = set()
+                for archive in row["archives"]:
+                    data = _download(conn, group, row["backup_time"], archive)
+                    budget -= len(data)
+                    digests |= index_digests(data)
+            except PBSSyncError as exc:
+                if exc.status in (401, 403):
+                    denied.add(store)
+                    logger.info("PBS %s: reading index files of %s refused", conn.get("name"), store)
+                else:  # e.g. pruned since it was listed
+                    logger.info("PBS %s: index of %s/%s not read: %s", conn.get("name"), group, row["backup_time"], exc)
+                continue
+            except ValueError as exc:
+                logger.warning("PBS %s: index of %s/%s: %s", conn.get("name"), group, row["backup_time"], exc)
+                continue
+            chunks.add(row["backup_time"], digests)
+            readable.add(store)
+            added = True
+            read += 1
+        if added or group in recount:
+            chunks.compact()
+            db.save_pbs_group_chunks(pbs_id, group, *chunks.stored())
+            changed.add(store)
+
+    for store in sorted(changed):
+        db.save_pbs_exclusive_chunks(pbs_id, exclusive_counts(db.pbs_store_digests(pbs_id, store)))
+    for store in sorted({store for store, _ns in listed}):
+        state = True if store in denied else (False if store in readable else None)
+        db.save_pbs_store_space(pbs_id, store, *_gc_counts(conn, store), state)
     return read
 
 
-def _under(ns: str, root: str) -> str | None:
-    """`ns` relative to the namespace `root`, or None when it is not below it."""
-    if not root:
-        return ns
-    if ns == root:
-        return ""
-    return ns[len(root) + 1 :] if ns.startswith(root + "/") else None
-
-
-def _sources(
-    pbs_id: int, store: str, ns: str, jobs: list[dict[str, Any]], canon: dict[int, int]
-) -> list[tuple[int, str, str]]:
-    """Where a sync job copies the snapshots of this datastore namespace from:
-    (PBS, datastore, namespace)."""
-    found: list[tuple[int, str, str]] = []
-    for job in jobs:
-        local = canon.get(job["pbs_id"], job["pbs_id"])
-        remote_id = job.get("remote_pbs_id")
-        # No remote named: a job between two datastores of the same PBS.
-        remote = canon.get(remote_id, remote_id) if remote_id else (None if job.get("remote_name") else local)
-        if job.get("direction") == "push":
-            target, t_store, t_ns = remote, job.get("remote_store") or "", job.get("remote_ns") or ""
-            source, s_store, s_ns = local, job["store"], job.get("ns") or ""
-        else:
-            target, t_store, t_ns = local, job["store"], job.get("ns") or ""
-            source, s_store, s_ns = remote, job.get("remote_store") or "", job.get("remote_ns") or ""
-        rest = _under(ns, t_ns)
-        if source is None or target != pbs_id or t_store != store or rest is None:
-            continue
-        found.append((source, s_store, "/".join(filter(None, (s_ns, rest)))))
-    return found
-
-
 def usage(pbs_id: int, store: str) -> dict[str, Any]:
-    """The guests with backups on this datastore and what their snapshots
-    took, largest first. A snapshot a sync job copied here has no upload of
-    its own: it counts with what it took where it was backed up to."""
-    canon = canonical_ids(db.list_pbs_connections())
-    pbs_id = canon.get(pbs_id, pbs_id)
-    jobs = db.list_pbs_sync_jobs()
-    rows = db.list_pbs_snapshots(pbs_id, store)
-
-    cache: dict[tuple[int, str, str], dict[tuple[str, str, int], int]] = {}
-
-    def known(source: tuple[int, str, str]) -> dict[tuple[str, str, int], int]:
-        if source not in cache:
-            cache[source] = {
-                (r["backup_type"], r["backup_id"], r["backup_time"]): r["stored_bytes"]
-                for r in db.list_pbs_snapshots(*source)
-                if r["stored_bytes"] is not None
-            }
-        return cache[source]
-
-    def from_source(key: tuple[str, str, int], at: tuple[int, str, str], depth: int = 0) -> int | None:
-        for source in _sources(*at, jobs, canon):
-            value = known(source).get(key)
-            if value is None and depth < 3:  # a copy of a copy
-                value = from_source(key, source, depth + 1)
-            if value is not None:
-                return value
-        return None
-
-    groups: dict[tuple[str, str, str], dict[str, Any]] = {}
-    for row in rows:
-        group = groups.setdefault(
-            (row["ns"], row["backup_type"], row["backup_id"]),
+    """The guests with backups on this datastore and what they take, largest
+    first: `bytes` for all chunks their snapshots need, `exclusive_bytes` for
+    those no other guest shares (None while not counted)."""
+    pbs_id = canonical_ids(db.list_pbs_connections()).get(pbs_id, pbs_id)
+    space = db.get_pbs_store_space(pbs_id, store) or {}
+    disk_bytes, disk_chunks = space.get("disk_bytes"), space.get("disk_chunks")
+    # Mean size of a chunk on disk; before the first garbage collection only
+    # the uncompressed size of a chunk is known.
+    chunk_bytes = disk_bytes / disk_chunks if disk_bytes and disk_chunks else None
+    per_chunk = chunk_bytes or _FIXED_CHUNK
+    groups: list[dict[str, Any]] = []
+    for row in db.pbs_space_groups(pbs_id, store):
+        chunks, exclusive = row["chunks"], row["exclusive"]
+        groups.append(
             {
                 "ns": row["ns"],
                 "backup_type": row["backup_type"],
                 "backup_id": row["backup_id"],
-                "name": "",
-                "snapshots": 0,
-                "known": 0,
-                "stored_bytes": 0,
-                "latest": 0,
-            },
+                "name": row["name"] or "",
+                "snapshots": row["snapshots"],
+                "known": row["known"],
+                "chunks": chunks,
+                "bytes": int(chunks * per_chunk) if chunks is not None else None,
+                "exclusive_bytes": int(exclusive * per_chunk) if exclusive is not None else None,
+            }
         )
-        group["snapshots"] += 1
-        if row["backup_time"] >= group["latest"]:
-            group["latest"] = row["backup_time"]
-            group["name"] = row.get("guest_name") or group["name"]
-        stored = row["stored_bytes"]
-        if stored is None:
-            stored = from_source((row["backup_type"], row["backup_id"], row["backup_time"]), (pbs_id, store, row["ns"]))
-        if stored is not None:
-            group["known"] += 1
-            group["stored_bytes"] += stored
-    ordered = sorted(groups.values(), key=lambda g: (-g["stored_bytes"], g["ns"], g["backup_id"]))
-    for group in ordered:
-        del group["latest"]
+    groups.sort(key=lambda g: (-(g["bytes"] or 0), g["ns"], g["backup_id"]))
     return {
-        "groups": ordered,
-        "stored_bytes": sum(g["stored_bytes"] for g in ordered),
-        "snapshots": sum(g["snapshots"] for g in ordered),
-        "known": sum(g["known"] for g in ordered),
+        "groups": groups,
+        "snapshots": sum(g["snapshots"] for g in groups),
+        "known": sum(g["known"] for g in groups),
+        "chunk_bytes": int(chunk_bytes) if chunk_bytes else None,
+        "denied": bool(space.get("denied")),
     }

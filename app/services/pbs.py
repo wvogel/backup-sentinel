@@ -11,7 +11,7 @@ from typing import Any
 from urllib import parse
 
 from app.i18n import ts
-from app.services.api_client import APIError, api_get_json, api_get_payload
+from app.services.api_client import APIError, api_get_bytes, api_get_json, api_get_payload
 from app.services.backup_location import connection_location
 from app.services.vzdump_log import guest_name_from_notes
 
@@ -28,6 +28,17 @@ def _pbs_get_payload(conn: dict[str, Any], path: str, **kwargs: Any) -> dict[str
         return api_get_payload(conn["api_url"].rstrip("/"), path, auth_header, label="PBS", **kwargs)
     except APIError as exc:
         raise PBSSyncError(str(exc)) from exc
+
+
+def _pbs_get_bytes(conn: dict[str, Any], path: str, **kwargs: Any) -> bytes:
+    """A file from the PBS as it lies there (e.g. a snapshot's index file)."""
+    auth_header = f"PBSAPIToken={conn['api_token_id']}:{conn['api_token_secret']}"
+    try:
+        return api_get_bytes(conn["api_url"].rstrip("/"), path, auth_header, label="PBS", **kwargs)
+    except APIError as exc:
+        failure = PBSSyncError(str(exc))
+        failure.status = exc.status
+        raise failure from exc
 
 
 def _pbs_get_json(
@@ -146,6 +157,12 @@ def _guest_snapshots(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "backup_id": str(snap["backup-id"]),
                 "backup_time": int(snap["backup-time"]),
                 "guest_name": guest_name_from_notes(snap.get("comment")),
+                # The index files: which chunks the snapshot consists of.
+                "archives": [
+                    name
+                    for name in (str(f.get("filename") or "") for f in snap.get("files") or [] if isinstance(f, dict))
+                    if name.endswith((".fidx", ".didx"))
+                ],
             }
         except (KeyError, TypeError, ValueError):
             continue

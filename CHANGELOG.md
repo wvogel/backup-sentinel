@@ -5,6 +5,15 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.29.0] - 2026-11-28
+
+### Changed
+- **Space per guest is counted from the index files.** The list behind a datastore's ring summed what the remaining backups had uploaded (from the PBS task logs). That left out everything written by backups pruned since, so the figures were far too low: what it showed was growth, not usage. Now Backup Sentinel downloads each snapshot's index files once and counts per guest the chunks its snapshots need ("takes") and those no other guest of the datastore shares ("this guest alone", freed when its backups go). Counts are exact; sizes use the mean chunk on disk from the datastore's last garbage collection. No chunk is read; at most 256 MB of index files per PBS and sync.
+- **New optional permission:** downloading index files needs the role `DatastoreReader` on the datastore for the PBS user and token (`Audit` is not enough). Without it the list says so; nothing else changes. See the admin docs, "Space per guest".
+
+### Removed
+- Reading backup task logs for the space per guest (table `pbs_backup_tasks`).
+
 ## [v3.28.0] — 2026-11-28
 
 ### Added

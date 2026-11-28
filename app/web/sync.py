@@ -393,7 +393,7 @@ def notify_failed_verifies(cluster: dict) -> None:
 
 
 def record_backup_space(conn: dict, listing: dict[tuple[str, str], list[dict]], pbs_log: list[str]) -> None:
-    """Remember the snapshots listed and read the task logs of new backups, for
+    """Remember the snapshots listed and read the index files of new ones, for
     the space per guest (best effort: the sync does not depend on it)."""
     try:
         read = pbs_space.collect(conn, listing)

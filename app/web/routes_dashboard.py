@@ -155,10 +155,14 @@ def get_pbs_space(pbs: int, store: str) -> JSONResponse:
     for the list a click on its ring opens. Read from the database only: the
     PBS is asked during a sync, never here."""
     result = pbs_space.usage(pbs, store)
-    largest = max((group["stored_bytes"] for group in result["groups"]), default=0)
+    largest = max((group["bytes"] or 0 for group in result["groups"]), default=0)
     for group in result["groups"]:
-        group["size"] = format_size_coarse(group["stored_bytes"]) if group["known"] else "–"
-        # Bar from 0 to the largest guest.
-        group["share"] = round(100 * group["stored_bytes"] / largest, 1) if largest else 0
-    result["size"] = format_size_coarse(result["stored_bytes"])
+        size, own = group["bytes"], group["exclusive_bytes"]
+        group["size"] = format_size_coarse(size) if size is not None else "–"
+        group["exclusive_size"] = format_size_coarse(own) if own is not None else "–"
+        # Bar from 0 to the largest guest; its solid part is the guest's own.
+        group["share"] = round(100 * (size or 0) / largest, 1) if largest else 0
+        group["exclusive_share"] = round(100 * (own or 0) / largest, 1) if largest else 0
+    chunk = result["chunk_bytes"]
+    result["chunk_size"] = format_size_coarse(chunk) if chunk else None
     return JSONResponse(result)

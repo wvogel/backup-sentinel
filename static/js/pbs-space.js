@@ -1,8 +1,8 @@
 // ── Space per guest on a PBS datastore ───────────────────────────────────────
 // A click on a datastore's ring ([data-pbs-space="<pbs id>"] data-store="…")
-// lists what each guest's backups take there: an estimate the server keeps
-// from the PBS's backup task logs (/api/pbs-space). The dialog is built here,
-// once, so every page with a backup diagram has it.
+// lists what each guest's backups take there, counted by the server from the
+// snapshots' index files (/api/pbs-space). The dialog is built here, once, so
+// every page with a backup diagram has it.
 (function () {
   let dialog = null;
 
@@ -46,36 +46,55 @@
 
   function render(body, data) {
     body.replaceChildren();
-    if (!data.groups.length) {
+    if (data.denied && !data.known) {
+      body.append(el("p", "critical-text space-empty", T("space.denied")));
+      return;
+    }
+    if (!data.known) {
       body.append(el("p", "muted space-empty", T("space.empty")));
       return;
     }
     const summary = el(
       "p",
       "space-summary",
-      fill("space.summary", { guests: data.groups.length, snapshots: data.snapshots, size: data.size }),
+      fill("space.summary", { guests: data.groups.length, snapshots: data.snapshots }),
     );
     if (data.known < data.snapshots) {
       summary.append(" ", el("span", "muted", fill("space.partial", { known: data.known, snapshots: data.snapshots })));
     }
     const list = el("div", "space-list");
+    const head = el("div", "space-row space-head");
+    head.append(
+      el("div", "", T("space.col_guest")),
+      el("div"),
+      el("div", "space-size", T("space.col_size")),
+      el("div", "space-size", T("space.col_exclusive")),
+      el("div", "space-count", T("space.col_snapshots")),
+    );
+    list.append(head);
     const namespaces = new Set(data.groups.map((group) => group.ns));
     data.groups.forEach((group) => {
       const row = el("div", "space-row");
       const name = el("div", "space-name", guestLabel(group));
       if (namespaces.size > 1 && group.ns) name.append(" ", el("span", "muted", group.ns));
+      // The bar runs from 0 to the largest guest: solid for the chunks that
+      // are this guest's alone, light for those it shares.
       const bar = el("div", "space-bar");
-      const fillBar = el("span");
-      fillBar.style.width = group.share + "%";
-      bar.append(fillBar);
-      const count =
-        group.snapshots === 1 ? T("space.snapshots_one") : fill("space.snapshots_other", { count: group.snapshots });
-      const detail = el("div", "space-count muted", count);
-      if (group.known < group.snapshots) detail.append(" · " + fill("space.known", { known: group.known }));
-      row.append(name, bar, el("div", "space-size", group.size), detail);
+      const all = el("span", "space-bar-all");
+      all.style.width = group.share + "%";
+      const own = el("span", "space-bar-own");
+      own.style.width = group.exclusive_share + "%";
+      bar.append(all, own);
+      const count = el("div", "space-count", String(group.snapshots));
+      if (group.known < group.snapshots) {
+        count.textContent = fill("space.known", { known: group.known, count: group.snapshots });
+        count.classList.add("muted");
+      }
+      row.append(name, bar, el("div", "space-size", group.size), el("div", "space-size space-own", group.exclusive_size), count);
       list.append(row);
     });
-    body.append(summary, list, el("p", "muted space-note", T("space.note")));
+    const size = data.chunk_size ? fill("space.note_size", { chunk: data.chunk_size }) : T("space.note_raw");
+    body.append(summary, list, el("p", "muted space-note", T("space.note") + " " + size));
   }
 
   async function open(trigger) {

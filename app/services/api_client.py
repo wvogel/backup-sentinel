@@ -192,6 +192,8 @@ def api_upload(
 class APIError(RuntimeError):
     """Base error for Proxmox/PBS API calls."""
 
+    status: int | None = None  # the HTTP code, where the caller needs to tell them apart
+
 
 _MAX_RETRIES = 2  # 1 initial + 2 retries = 3 attempts total
 _RETRY_BACKOFF = 1.5  # seconds; doubled on each retry
@@ -289,6 +291,31 @@ def api_get_payload(
 
     # Should be unreachable, but satisfy type checker
     raise APIError(f"{label} API request failed for {path}") from last_exc
+
+
+def api_get_bytes(
+    base_url: str,
+    path: str,
+    auth_header: str,
+    *,
+    timeout: float = API_TIMEOUT,
+    query: dict[str, str] | None = None,
+    label: str = "API",
+) -> bytes:
+    """Authenticated GET of a file as it is (no JSON, no retries). The
+    APIError of an HTTP error carries its code as `.status`."""
+    _require_https(base_url, label)
+    query_string = f"?{parse.urlencode(query)}" if query else ""
+    headers = {"Authorization": auth_header, "Accept": "application/octet-stream"}
+    try:
+        return _send(f"{base_url}{path}{query_string}", headers, timeout)
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        failure = APIError(f"{label} API returned HTTP {exc.code} for {path}: {detail}")
+        failure.status = exc.code
+        raise failure from exc
+    except error.URLError as exc:
+        raise APIError(f"{label} API request failed for {path}: {exc.reason}") from exc
 
 
 def api_get_json(

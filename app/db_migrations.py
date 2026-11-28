@@ -302,6 +302,58 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        18,
+        "Chunks per guest on a PBS datastore, from the snapshots' index files",
+        [
+            # The task logs told only what a backup newly uploaded, not what a
+            # guest's backups take: replaced by counting the chunks themselves.
+            "DROP TABLE IF EXISTS pbs_backup_tasks",
+            # Per guest (backup group) the chunks its indexed snapshots consist
+            # of: 8 bytes of each digest, one after the other. `chunks` is
+            # their number, `exclusive` how many no other guest of the
+            # datastore shares (NULL until counted).
+            """
+            CREATE TABLE IF NOT EXISTS pbs_group_chunks (
+                pbs_id BIGINT NOT NULL REFERENCES pbs_connections(id) ON DELETE CASCADE,
+                store TEXT NOT NULL,
+                ns TEXT NOT NULL,
+                backup_type TEXT NOT NULL,
+                backup_id TEXT NOT NULL,
+                digests BYTEA NOT NULL,
+                chunks BIGINT NOT NULL,
+                exclusive BIGINT,
+                PRIMARY KEY (pbs_id, store, ns, backup_type, backup_id)
+            )
+            """,
+            # Per indexed snapshot which of its group's chunks it uses: one bit
+            # per position in pbs_group_chunks.digests.
+            """
+            CREATE TABLE IF NOT EXISTS pbs_snapshot_chunks (
+                pbs_id BIGINT NOT NULL REFERENCES pbs_connections(id) ON DELETE CASCADE,
+                store TEXT NOT NULL,
+                ns TEXT NOT NULL,
+                backup_type TEXT NOT NULL,
+                backup_id TEXT NOT NULL,
+                backup_time BIGINT NOT NULL,
+                bitmap BYTEA NOT NULL,
+                PRIMARY KEY (pbs_id, store, ns, backup_type, backup_id, backup_time)
+            )
+            """,
+            # Per datastore what its last garbage collection counted (the mean
+            # size of a chunk on disk) and whether the token may read indexes.
+            """
+            CREATE TABLE IF NOT EXISTS pbs_store_space (
+                pbs_id BIGINT NOT NULL REFERENCES pbs_connections(id) ON DELETE CASCADE,
+                store TEXT NOT NULL,
+                disk_bytes BIGINT,
+                disk_chunks BIGINT,
+                denied BOOLEAN NOT NULL DEFAULT FALSE,
+                PRIMARY KEY (pbs_id, store)
+            )
+            """,
+        ],
+    ),
 ]
 
 
