@@ -322,6 +322,10 @@ def test_the_ring_of_a_registered_pbs_opens_the_list():
     assert 'el.closest("dialog") || document.body' in Path("static/js/common.js").read_text()
     # The circle over the list marks the rows of the part under the pointer.
     assert "space-top" in script and "createElementNS" in script and 'classList.toggle("is-hot"' in script
+    # No figure twice: the guests are named in the list only, the counted total ends it.
+    assert 'if (part.kind === "guest" || part.kind === "rest") return;' in script
+    assert "space-sums" not in script and "space.summary" not in script
+    assert "width: fit-content" in Path("static/style.css").read_text()
     for key in (
         "space.col_shared",
         "space.denied",

@@ -3185,7 +3185,8 @@ html[data-theme="dark"] .node-filter-button.is-active {
 /* Space per guest: one line each — name, bar from 0 to the largest guest
    (solid: the guest's own chunks, light: shared ones), what it takes, what
    is its own alone, number of backups. A click on a heading sorts. */
-.space-dialog { width: min(980px, calc(100vw - 32px)); }
+/* As wide as its content needs, so no column is stretched over empty room. */
+.space-dialog { width: fit-content; min-width: min(560px, calc(100vw - 32px)); max-width: min(980px, calc(100vw - 32px)); }
 .space-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 16px 16px; }
 .space-body:focus { outline: none; }
 /* Over the list, not scrolling with it: the circle (the datastore's whole
@@ -3206,14 +3207,12 @@ html[data-theme="dark"] .space-dialog {
 .space-figure-middle { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; line-height: 1.2; }
 .space-figure-middle strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .space-figure-middle span { font-size: 0.72rem; }
-.space-legend { flex: 1 1 auto; min-width: 0; display: grid; grid-template-rows: repeat(5, auto); grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px 28px; font-size: 0.85rem; }
+.space-legend { flex: 0 1 auto; min-width: 0; display: grid; gap: 5px; font-size: 0.9rem; }
 .space-legend-line { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 1px 6px; border-radius: 6px; }
 .space-legend-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.space-legend-size { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.space-legend-size { margin-left: 18px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .space-dot { flex: 0 0 auto; display: inline-block; width: 9px; height: 9px; border-radius: 3px; background: currentColor; }
 .space-name .space-dot { margin-right: 8px; }
-.space-sums { flex: 0 0 auto; display: grid; grid-template-columns: auto auto; gap: 4px 14px; margin: 0; font-size: 0.9rem; }
-.space-sums dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 .space-part-1 { color: var(--space-1); stroke: var(--space-1); }
 .space-part-2 { color: var(--space-2); stroke: var(--space-2); }
 .space-part-3 { color: var(--space-3); stroke: var(--space-3); }
@@ -3232,11 +3231,11 @@ html[data-theme="dark"] .space-dialog {
 .space-legend-line.is-hot { background: var(--chip); }
 .space-row.is-hot > div:not(.space-bar) { background: var(--chip); box-shadow: -11px 0 0 4px var(--chip), 11px 0 0 4px var(--chip); }
 .space-row.is-hot > .space-bar { box-shadow: -11px 0 0 6px var(--chip), 11px 0 0 6px var(--chip); }
-.space-total > div { padding-top: 9px; border-top: 1px solid var(--line); font-weight: 600; }
-.space-summary { margin: 0 0 12px; font-weight: 600; }
-.space-summary .muted { font-weight: 400; }
+.space-rule { grid-column: 1 / -1; border-top: 1px solid var(--line); margin-top: 2px; }
+.space-total > div { font-weight: 600; }
+.space-summary { margin: 0 0 12px; font-size: 0.85rem; }
 .space-empty { margin: 0; }
-.space-list { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto auto auto; gap: 8px 22px; align-items: center; }
+.space-list { display: grid; grid-template-columns: minmax(0, auto) 140px auto auto auto; gap: 8px 22px; align-items: center; }
 .space-row { display: contents; }
 .space-head > div { font-size: 0.8rem; font-weight: 400; color: var(--muted); white-space: nowrap; }
 .space-dialog .log-dialog-head h3 { overflow: visible; }
@@ -3250,7 +3249,6 @@ html[data-theme="dark"] .space-dialog {
 .space-count { text-align: right; font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 @media (max-width: 620px) {
   .space-top { flex-wrap: wrap; }
-  .space-legend { grid-template-rows: none; grid-auto-flow: row; }
   .space-list { grid-template-columns: minmax(0, 1fr) auto auto auto; }
   .space-bar { grid-column: 1 / -1; order: 3; }
   .space-head > div:nth-child(2) { display: none; }

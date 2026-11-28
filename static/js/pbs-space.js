@@ -151,6 +151,9 @@
     return svg;
   }
 
+  // Each figure once: the circle's middle says what the datastore has in
+  // use, the lines next to it name the parts that are no guest's (the guests'
+  // slices are named by the dots in the list), the counted total ends the list.
   function overview(top, data) {
     top.replaceChildren();
     top.hidden = !data.parts.length;
@@ -160,30 +163,22 @@
     });
     const figure = el("div", "space-figure");
     const middle = el("div", "space-figure-middle");
-    middle.append(el("strong", "", data.counted_size), el("span", "muted", T("space.sum_counted")));
+    if (data.used_size) middle.append(el("strong", "", data.used_size), el("span", "muted", T("space.sum_used")));
     figure.append(circle(data), middle);
 
     const legend = el("div", "space-legend");
     data.parts.forEach((part, index) => {
+      if (part.kind === "guest" || part.kind === "rest") return;
       const line = el("div", "space-legend-line");
       line.append(
         el("span", "space-dot " + partClass(part, index)),
         el("span", "space-legend-name", partLabel(part, data)),
         el("span", "space-legend-size", part.size),
       );
-      watch(line, part, true);
+      watch(line, part, false);
       legend.append(line);
     });
-
-    const sums = el("dl", "space-sums");
-    [
-      ["space.sum_counted", data.counted_size],
-      ["space.sum_used", data.used_size],
-      ["space.sum_free", data.avail_size],
-    ].forEach(([label, value]) => {
-      if (value) sums.append(el("dt", "muted", T(label)), el("dd", "", value));
-    });
-    top.append(figure, legend, sums);
+    top.append(figure, legend);
   }
 
   function draw(list, data, focusKey) {
@@ -227,13 +222,13 @@
       const total = el("div", "space-row space-total");
       const shared = data.parts.find((p) => p.kind === "shared");
       total.append(
-        el("div", "", T("space.total")),
+        el("div", "", fill("space.total", { guests: data.groups.length })),
         el("div"),
         el("div", "space-size", data.counted_size),
         el("div", "space-size space-own", shared ? shared.size : "–"),
         el("div", "space-count", String(data.snapshots)),
       );
-      list.append(total);
+      list.append(el("div", "space-rule"), total);
     }
   }
 
@@ -256,17 +251,12 @@
     help.dataset.tooltip = T("space.note") + "\n\n" + size;
     dialog.querySelector("h3").append(" ", help);
     overview(top, data);
-    const summary = el(
-      "p",
-      "space-summary",
-      fill("space.summary", { guests: data.groups.length, snapshots: data.snapshots }),
-    );
     if (data.known < data.snapshots) {
-      summary.append(" ", el("span", "muted", fill("space.partial", { known: data.known, snapshots: data.snapshots })));
+      body.append(el("p", "muted space-summary", fill("space.partial", { known: data.known, snapshots: data.snapshots })));
     }
     const list = el("div", "space-list");
     draw(list, data);
-    body.append(summary, list);
+    body.append(list);
   }
 
   async function open(trigger) {

@@ -5,6 +5,11 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.30.2] - 2026-11-28
+
+### Changed
+- **Space per guest: every figure once, no empty middle.** The legend no longer repeats the guests (the coloured dots in the list name the slices) and the separate totals are gone: the circle's middle shows what the datastore has in use, next to it stand only shared, other use and free, and the counted total ends the list together with the number of guests. The dialog is as wide as its content, so the name column is no longer stretched.
+
 ## [v3.30.1] - 2026-11-28
 
 ### Changed
