@@ -149,6 +149,49 @@ def get_pbs_activity(ids: str = "") -> JSONResponse:
     return JSONResponse({pbs_id: view for pbs_id, view in views.items() if view})
 
 
+_SPACE_SLICES = 6  # guests with a slice of their own in the circle
+
+
+def _space_parts(result: dict) -> list[dict]:
+    """The circle over the list: the datastore's whole size split into the
+    largest guests (what is theirs alone), the other guests, what guests
+    share, what else is in use, and free room. Without the datastore's size
+    the circle is the counted chunks alone."""
+    counted = result["counted_bytes"]
+    if not counted:
+        return []
+    known = [g for g in result["groups"] if g["exclusive_bytes"]]
+    known.sort(key=lambda g: -g["exclusive_bytes"])
+    parts = [{"kind": "guest", "key": g["key"], "bytes": g["exclusive_bytes"]} for g in known[:_SPACE_SLICES]]
+    rest = known[_SPACE_SLICES:]
+    if rest:
+        parts.append(
+            {
+                "kind": "rest",
+                "keys": [g["key"] for g in rest],
+                "count": len(rest),
+                "bytes": sum(g["exclusive_bytes"] for g in rest),
+            }
+        )
+    own = sum(g["exclusive_bytes"] for g in known)
+    parts.append({"kind": "shared", "bytes": max(0, counted - own)})
+    used, avail = result["used_bytes"], result["avail_bytes"]
+    if used is not None and avail is not None:
+        # In use but not counted here: other namespaces, what a garbage
+        # collection has yet to remove, the file system itself.
+        parts.append({"kind": "other", "bytes": max(0, used - counted)})
+        parts.append({"kind": "free", "bytes": avail})
+    whole = sum(part["bytes"] for part in parts)
+    parts = [part for part in parts if part["bytes"] > 0]
+    for part in parts:
+        part["size"] = format_size_coarse(part["bytes"])
+        part["share"] = round(100 * part["bytes"] / whole, 2) if whole else 0
+    result["counted_size"] = format_size_coarse(counted)
+    result["used_size"] = format_size_coarse(used) if used is not None else None
+    result["avail_size"] = format_size_coarse(avail) if avail is not None else None
+    return parts
+
+
 @router.get("/api/pbs-space")
 def get_pbs_space(pbs: int, store: str) -> JSONResponse:
     """What each guest's backups take on a datastore (app.services.pbs_space),
@@ -156,13 +199,18 @@ def get_pbs_space(pbs: int, store: str) -> JSONResponse:
     PBS is asked during a sync, never here."""
     result = pbs_space.usage(pbs, store)
     largest = max((group["bytes"] or 0 for group in result["groups"]), default=0)
-    for group in result["groups"]:
+    for number, group in enumerate(result["groups"]):
         size, own = group["bytes"], group["exclusive_bytes"]
+        group["key"] = f"g{number}"
         group["size"] = format_size_coarse(size) if size is not None else "–"
-        group["exclusive_size"] = format_size_coarse(own) if own is not None else "–"
+        # What the guest shares with others: nothing shared is "–", not "0".
+        shared = size - own if size is not None and own is not None else None
+        group["shared_bytes"] = shared
+        group["shared_size"] = format_size_coarse(shared) if shared else "–"
         # Bar from 0 to the largest guest; its solid part is the guest's own.
         group["share"] = round(100 * (size or 0) / largest, 1) if largest else 0
         group["exclusive_share"] = round(100 * (own or 0) / largest, 1) if largest else 0
     chunk = result["chunk_bytes"]
     result["chunk_size"] = format_size_coarse(chunk) if chunk else None
+    result["parts"] = _space_parts(result)
     return JSONResponse(result)

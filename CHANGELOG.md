@@ -5,6 +5,14 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.30.0] - 2026-11-28
+
+### Added
+- **Space per guest: a circle and totals over the list.** The circle is the datastore's whole size, split into the six largest guests (what is theirs alone), the other guests, what guests share, other use and free room. Next to it: the counted total (every chunk once), what the PBS reports as in use, and free. Pointing at a slice or a legend line marks the guest's row in the list, pointing at a row marks its slice. The circle and totals stay in place while the list scrolls; the list ends with a total row.
+
+### Changed
+- The column "this guest alone" became "shared": with little shared between guests the two columns showed the same figures. It now shows only what a guest shares with others.
+
 ## [v3.29.3] - 2026-11-28
 
 ### Fixed

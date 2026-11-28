@@ -320,7 +320,16 @@ def test_the_ring_of_a_registered_pbs_opens_the_list():
     assert 'el("div", ("sortable "' in script and "aria-sort" in script
     assert 'el("span", "help-dot", "?")' in script and "space-note" not in script
     assert 'el.closest("dialog") || document.body' in Path("static/js/common.js").read_text()
-    for key in ("space.col_exclusive", "space.denied", "space.note_size", "space.note_raw"):
+    # The circle over the list marks the rows of the part under the pointer.
+    assert "space-top" in script and "createElementNS" in script and 'classList.toggle("is-hot"' in script
+    for key in (
+        "space.col_shared",
+        "space.denied",
+        "space.note_size",
+        "space.note_raw",
+        "space.total",
+        "space.sum_used",
+    ):
         assert key in script
         for lang in ("de", "en"):
             assert key in json.loads(Path(f"app/i18n/{lang}.json").read_text())
@@ -331,16 +340,46 @@ def test_the_api_adds_sizes_and_bars_from_zero(monkeypatch):
 
     gib = 1024**3
     groups = [
-        {"bytes": 200 * gib, "exclusive_bytes": 50 * gib, "known": 3, "snapshots": 3},
-        {"bytes": 50 * gib, "exclusive_bytes": None, "known": 1, "snapshots": 2},
+        {"bytes": 200 * gib, "exclusive_bytes": 150 * gib, "known": 3, "snapshots": 3},
+        {"bytes": 50 * gib, "exclusive_bytes": 50 * gib, "known": 1, "snapshots": 2},
         {"bytes": None, "exclusive_bytes": None, "known": 0, "snapshots": 4},
     ]
-    result = {"groups": groups, "snapshots": 9, "known": 4, "chunk_bytes": 2 * 1024**2, "denied": False}
+    result = {
+        "groups": groups,
+        "snapshots": 9,
+        "known": 4,
+        "chunk_bytes": 2 * 1024**2,
+        "denied": False,
+        "counted_bytes": 220 * gib,
+        "used_bytes": 300 * gib,
+        "avail_bytes": 700 * gib,
+    }
     monkeypatch.setattr(routes_dashboard.pbs_space, "usage", lambda pbs, store: result)
 
     data = json.loads(routes_dashboard.get_pbs_space(1, "nas-b1").body)
     assert [g["share"] for g in data["groups"]] == [100.0, 25.0, 0]
-    assert [g["exclusive_share"] for g in data["groups"]] == [25.0, 0, 0]
-    assert data["groups"][0]["size"].startswith("200") and data["groups"][0]["exclusive_size"].startswith("50")
-    assert data["groups"][2]["size"] == "–" and data["groups"][1]["exclusive_size"] == "–"  # unknown is not "0"
+    assert [g["exclusive_share"] for g in data["groups"]] == [75.0, 25.0, 0]
+    assert data["groups"][0]["size"].startswith("200") and data["groups"][0]["shared_size"].startswith("50")
+    # Nothing shared and nothing known are "–", not "0".
+    assert data["groups"][1]["shared_size"] == "–" and data["groups"][2]["size"] == "–"
     assert data["chunk_size"].startswith("2")
+
+    # The circle is the datastore's whole size: guests' own, shared, other use, free.
+    parts = {part["kind"] + part.get("key", ""): part for part in data["parts"]}
+    assert set(parts) == {"guestg0", "guestg1", "shared", "other", "free"}
+    assert parts["shared"]["bytes"] == 20 * gib and parts["other"]["bytes"] == 80 * gib
+    assert parts["free"]["share"] == 70.0 and round(sum(p["share"] for p in data["parts"])) == 100
+    assert (data["counted_size"][:3], data["used_size"][:3], data["avail_size"][:3]) == ("220", "300", "700")
+
+
+def test_small_guests_share_one_slice_and_no_size_means_no_free_part(monkeypatch):
+    from app.web import routes_dashboard
+
+    groups = [{"bytes": 10 * n, "exclusive_bytes": 10 * n, "known": 1, "snapshots": 1} for n in range(9, 0, -1)]
+    result = {"groups": groups, "snapshots": 9, "known": 9, "chunk_bytes": None, "denied": False}
+    result |= {"counted_bytes": 450, "used_bytes": None, "avail_bytes": None}
+    monkeypatch.setattr(routes_dashboard.pbs_space, "usage", lambda pbs, store: result)
+    data = json.loads(routes_dashboard.get_pbs_space(1, "nas-b1").body)
+    kinds = [part["kind"] for part in data["parts"]]
+    assert kinds == ["guest"] * 6 + ["rest"]  # nothing shared: no empty slice
+    assert data["parts"][-1]["count"] == 3 and data["parts"][-1]["keys"] == ["g6", "g7", "g8"]

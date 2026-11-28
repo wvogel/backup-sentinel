@@ -29,9 +29,12 @@
     close.setAttribute("aria-label", T("common.close"));
     close.addEventListener("click", () => dialog.close());
     head.append(title, close);
+    // The circle and the totals stay put; only the list below them scrolls.
+    const top = el("div", "space-top");
+    top.hidden = true;
     const body = el("div", "space-body");
     body.tabIndex = 0;
-    dialog.append(head, body);
+    dialog.append(head, top, body);
     // A click on the backdrop (outside the box) closes it; Esc does natively.
     dialog.addEventListener("click", (event) => {
       if (event.target === dialog) dialog.close();
@@ -49,13 +52,7 @@
   const COLUMNS = [
     { key: "name", label: "space.col_guest", className: "", value: (g) => guestLabel(g).toLowerCase(), first: "asc" },
     { key: "bytes", label: "space.col_size", className: "space-size", value: (g) => g.bytes ?? -1, first: "desc" },
-    {
-      key: "exclusive",
-      label: "space.col_exclusive",
-      className: "space-size",
-      value: (g) => g.exclusive_bytes ?? -1,
-      first: "desc",
-    },
+    { key: "shared", label: "space.col_shared", className: "space-size", value: (g) => g.shared_bytes ?? -1, first: "desc" },
     { key: "snapshots", label: "space.col_snapshots", className: "space-count", value: (g) => g.snapshots, first: "desc" },
   ];
   let order = { key: "bytes", direction: "desc" };
@@ -94,6 +91,101 @@
     return cell;
   }
 
+  // ── The circle: the datastore's whole size, split into its parts ──────────
+  // Guests with a slice of their own get a colour (also the dot before their
+  // name in the list); what a part is called and which list rows belong to it.
+  function partLabel(part, data) {
+    if (part.kind === "guest") return guestLabel(data.groups.find((g) => g.key === part.key));
+    if (part.kind === "rest") return fill("space.part_rest", { count: part.count });
+    return T("space.part_" + part.kind);
+  }
+
+  function partClass(part, index) {
+    return "space-part-" + (part.kind === "guest" ? index + 1 : part.kind);
+  }
+
+  // Hovering a part (slice or legend line) marks it and its rows in the list;
+  // hovering a row marks its part. `keys` are the list rows of a part.
+  function highlight(part, on, scroll) {
+    dialog.classList.toggle("space-hot", on);
+    dialog.querySelectorAll('[data-part="' + part.id + '"]').forEach((node) => node.classList.toggle("is-hot", on));
+    const keys = part.key ? [part.key] : part.keys || [];
+    keys.forEach((key, number) => {
+      const row = dialog.querySelector('.space-row[data-key="' + key + '"]');
+      if (!row) return;
+      row.classList.toggle("is-hot", on);
+      if (on && scroll && number === 0) row.firstElementChild.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  function watch(node, part, scroll) {
+    node.dataset.part = part.id;
+    node.addEventListener("mouseenter", () => highlight(part, true, scroll));
+    node.addEventListener("mouseleave", () => highlight(part, false, scroll));
+  }
+
+  function circle(data) {
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 120 120");
+    svg.setAttribute("class", "space-circle");
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", T("space.title"));
+    let start = 0;
+    data.parts.forEach((part, index) => {
+      const arc = document.createElementNS(NS, "circle");
+      arc.setAttribute("cx", "60");
+      arc.setAttribute("cy", "60");
+      arc.setAttribute("r", "46");
+      arc.setAttribute("pathLength", "100");
+      arc.setAttribute("class", "space-arc " + partClass(part, index));
+      // A small gap of surface between neighbours, where the slice has room.
+      const length = part.share > 1.2 ? part.share - 0.5 : part.share;
+      arc.setAttribute("stroke-dasharray", length + " " + (100 - length));
+      arc.setAttribute("stroke-dashoffset", String(-start));
+      arc.dataset.tooltip = partLabel(part, data) + " · " + part.size;
+      watch(arc, part, true);
+      svg.append(arc);
+      start += part.share;
+    });
+    return svg;
+  }
+
+  function overview(top, data) {
+    top.replaceChildren();
+    top.hidden = !data.parts.length;
+    if (top.hidden) return;
+    data.parts.forEach((part, index) => {
+      part.id = "p" + index;
+    });
+    const figure = el("div", "space-figure");
+    const middle = el("div", "space-figure-middle");
+    middle.append(el("strong", "", data.counted_size), el("span", "muted", T("space.sum_counted")));
+    figure.append(circle(data), middle);
+
+    const legend = el("div", "space-legend");
+    data.parts.forEach((part, index) => {
+      const line = el("div", "space-legend-line");
+      line.append(
+        el("span", "space-dot " + partClass(part, index)),
+        el("span", "space-legend-name", partLabel(part, data)),
+        el("span", "space-legend-size", part.size),
+      );
+      watch(line, part, true);
+      legend.append(line);
+    });
+
+    const sums = el("dl", "space-sums");
+    [
+      ["space.sum_counted", data.counted_size],
+      ["space.sum_used", data.used_size],
+      ["space.sum_free", data.avail_size],
+    ].forEach(([label, value]) => {
+      if (value) sums.append(el("dt", "muted", T(label)), el("dd", "", value));
+    });
+    top.append(figure, legend, sums);
+  }
+
   function draw(list, data, focusKey) {
     list.replaceChildren();
     const head = el("div", "space-row space-head");
@@ -104,7 +196,11 @@
     const namespaces = new Set(data.groups.map((group) => group.ns));
     sorted(data.groups).forEach((group) => {
       const row = el("div", "space-row");
-      const name = el("div", "space-name", guestLabel(group));
+      row.dataset.key = group.key;
+      const name = el("div", "space-name");
+      const index = data.parts.findIndex((p) => p.key === group.key);
+      const part = index >= 0 ? data.parts[index] : data.parts.find((p) => (p.keys || []).includes(group.key));
+      name.append(el("span", "space-dot " + (part ? partClass(part, index) : "space-part-none")), guestLabel(group));
       if (namespaces.size > 1 && group.ns) name.append(" ", el("span", "muted", group.ns));
       // The bar runs from 0 to the largest guest: solid for the chunks that
       // are this guest's alone, light for those it shares.
@@ -119,13 +215,32 @@
         count.textContent = fill("space.known", { known: group.known, count: group.snapshots });
         count.classList.add("muted");
       }
-      row.append(name, bar, el("div", "space-size", group.size), el("div", "space-size space-own", group.exclusive_size), count);
+      row.append(name, bar, el("div", "space-size", group.size), el("div", "space-size space-own", group.shared_size), count);
+      if (part) {
+        row.addEventListener("mouseenter", () => highlight(part, true, false));
+        row.addEventListener("mouseleave", () => highlight(part, false, false));
+      }
       list.append(row);
     });
+    // Every chunk once: less than the column added up where guests share.
+    if (data.counted_size) {
+      const total = el("div", "space-row space-total");
+      const shared = data.parts.find((p) => p.kind === "shared");
+      total.append(
+        el("div", "", T("space.total")),
+        el("div"),
+        el("div", "space-size", data.counted_size),
+        el("div", "space-size space-own", shared ? shared.size : "–"),
+        el("div", "space-count", String(data.snapshots)),
+      );
+      list.append(total);
+    }
   }
 
   function render(body, data) {
     body.replaceChildren();
+    const top = dialog.querySelector(".space-top");
+    top.hidden = true;
     if (data.denied && !data.known) {
       body.append(el("p", "critical-text space-empty", T("space.denied")));
       return;
@@ -140,6 +255,7 @@
     help.tabIndex = 0;
     help.dataset.tooltip = T("space.note") + "\n\n" + size;
     dialog.querySelector("h3").append(" ", help);
+    overview(top, data);
     const summary = el(
       "p",
       "space-summary",
@@ -158,6 +274,7 @@
     const body = dialog.querySelector(".space-body");
     dialog.querySelector("h3").textContent = T("space.title") + " · " + trigger.dataset.store;
     body.replaceChildren(el("p", "muted space-empty", "…"));
+    dialog.querySelector(".space-top").hidden = true;
     if (!dialog.open) dialog.showModal();
     try {
       const query = "pbs=" + encodeURIComponent(trigger.dataset.pbsSpace) + "&store=" + encodeURIComponent(trigger.dataset.store);
