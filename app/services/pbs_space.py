@@ -116,9 +116,10 @@ class GroupChunks:
         )
 
 
-def exclusive_counts(groups: dict[Any, bytes]) -> dict[Any, int]:
-    """Per guest how many of its chunks no other guest has. Counted in slices
-    of the digest range, so memory stays bounded on a large datastore."""
+def exclusive_counts(groups: dict[Any, bytes]) -> tuple[dict[Any, int], int]:
+    """Per guest how many of its chunks no other guest has, and how many
+    different chunks all guests use together. Counted in slices of the digest
+    range, so memory stays bounded on a large datastore."""
     digests: dict[Any, array] = {}
     for key, raw in groups.items():
         values = array("Q")
@@ -127,6 +128,7 @@ def exclusive_counts(groups: dict[Any, bytes]) -> dict[Any, int]:
     slices = max(1, sum(len(values) for values in digests.values()) // _COUNT_AT_ONCE)
     start = dict.fromkeys(digests, 0)
     result = dict.fromkeys(digests, 0)
+    different = 0
     for number in range(1, slices + 1):
         bound = (number << 64) // slices
         part: dict[Any, array] = {}
@@ -137,10 +139,11 @@ def exclusive_counts(groups: dict[Any, bytes]) -> dict[Any, int]:
         seen: Counter[int] = Counter()
         for values in part.values():
             seen.update(values)
+        different += len(seen)
         once = {digest for digest, count in seen.items() if count == 1}
         for key, values in part.items():
             result[key] += sum(map(once.__contains__, values))
-    return result
+    return result, different
 
 
 def canonical_ids(conns: list[dict[str, Any]]) -> dict[int, int]:
@@ -233,11 +236,15 @@ def collect(conn: dict[str, Any], listed: dict[tuple[str, str], list[dict[str, A
             db.save_pbs_group_chunks(pbs_id, group, *chunks.stored())
             changed.add(store)
 
-    for store in sorted(changed):
-        db.save_pbs_exclusive_chunks(pbs_id, exclusive_counts(db.pbs_store_digests(pbs_id, store)))
-    for store in sorted({store for store, _ns in listed}):
+    stores = sorted({store for store, _ns in listed})
+    for store in stores:
         state = True if store in denied else (False if store in readable else None)
         db.save_pbs_store_space(pbs_id, store, *_gc_counts(conn, store), state)
+        # Counted again when a guest's chunks changed — or never were in full.
+        if store in changed or (db.get_pbs_store_space(pbs_id, store) or {}).get("counted_chunks") is None:
+            own, different = exclusive_counts(db.pbs_store_digests(pbs_id, store))
+            db.save_pbs_exclusive_chunks(pbs_id, own)
+            db.save_pbs_counted_chunks(pbs_id, store, different)
     return read
 
 
@@ -245,7 +252,8 @@ def usage(pbs_id: int, store: str) -> dict[str, Any]:
     """The guests with backups on this datastore and what they take, largest
     first: `bytes` for all chunks their snapshots need, `exclusive_bytes` for
     those no other guest shares (None while not counted)."""
-    pbs_id = canonical_ids(db.list_pbs_connections()).get(pbs_id, pbs_id)
+    canon = canonical_ids(db.list_pbs_connections())
+    pbs_id = canon.get(pbs_id, pbs_id)
     space = db.get_pbs_store_space(pbs_id, store) or {}
     disk_bytes, disk_chunks = space.get("disk_bytes"), space.get("disk_chunks")
     # Mean size of a chunk on disk; before the first garbage collection only
@@ -269,8 +277,14 @@ def usage(pbs_id: int, store: str) -> dict[str, Any]:
             }
         )
     groups.sort(key=lambda g: (-(g["bytes"] or 0), g["ns"], g["backup_id"]))
+    counted = space.get("counted_chunks")
+    capacity = db.pbs_store_capacity([conn_id for conn_id, same in canon.items() if same == pbs_id], store) or {}
     return {
         "groups": groups,
+        # Every chunk of these guests once: what they take together.
+        "counted_bytes": int(counted * per_chunk) if counted is not None else None,
+        "used_bytes": capacity.get("used_bytes"),
+        "avail_bytes": capacity.get("avail_bytes"),
         "snapshots": sum(g["snapshots"] for g in groups),
         "known": sum(g["known"] for g in groups),
         "chunk_bytes": int(chunk_bytes) if chunk_bytes else None,

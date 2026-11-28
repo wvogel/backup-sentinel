@@ -5,6 +5,11 @@ All notable changes to Backup Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.29.3] - 2026-11-28
+
+### Fixed
+- **The PBS bootstrap grants `RemoteAudit` on `/remote`.** With the role `Audit` alone PBS lists neither the sync jobs that use a remote nor the remotes, so on a PBS bootstrapped since the switch from `Admin` to `Audit` the copies were missing from the backup diagram. On such a PBS run the onboarding command again, or grant the role by hand to user and token: `proxmox-backup-manager acl update /remote RemoteAudit --auth-id '<user or token>'`.
+
 ## [v3.29.2] - 2026-11-28
 
 ### Changed

@@ -78,9 +78,18 @@ class PbsSpaceDbTestCase(unittest.TestCase):
         db.save_pbs_store_space(self.pbs, "nas-b1", 2000, 2, True)
         db.save_pbs_store_space(self.pbs, "nas-b1", None, None, None)  # not readable this time: kept
         self.assertEqual(
-            dict(db.get_pbs_store_space(self.pbs, "nas-b1")), {"disk_bytes": 2000, "disk_chunks": 2, "denied": True}
+            dict(db.get_pbs_store_space(self.pbs, "nas-b1")),
+            {"disk_bytes": 2000, "disk_chunks": 2, "denied": True, "counted_chunks": None},
         )
+        db.save_pbs_counted_chunks(self.pbs, "nas-b1", 7)
+        self.assertIsNone(db.pbs_store_capacity([self.pbs], "nas-b1"))
+        db.replace_datastore_usage(
+            self.pbs,
+            [{"store": "nas-b1", "total_bytes": 100, "used_bytes": 40, "avail_bytes": 60, "estimated_full_at": None}],
+        )
+        self.assertEqual(db.pbs_store_capacity([self.pbs, 999], "nas-b1")["used_bytes"], 40)
         db.save_pbs_store_space(self.pbs, "nas-b1", 3000, 3, False)
         self.assertEqual(
-            dict(db.get_pbs_store_space(self.pbs, "nas-b1")), {"disk_bytes": 3000, "disk_chunks": 3, "denied": False}
+            dict(db.get_pbs_store_space(self.pbs, "nas-b1")),
+            {"disk_bytes": 3000, "disk_chunks": 3, "denied": False, "counted_chunks": 7},
         )

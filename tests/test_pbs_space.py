@@ -81,11 +81,12 @@ def test_chunks_no_other_guest_has_are_a_guests_own(monkeypatch):
 
     top = 2**64 - 1
     groups = {"a": raw(1, 2, 3, top), "b": raw(3, 4, 2**63), "c": raw(3, 2**63)}
-    assert pbs_space.exclusive_counts(groups) == {"a": 3, "b": 1, "c": 0}
+    # Six different chunks in all: 1, 2, 3, top, 4 and 2**63.
+    assert pbs_space.exclusive_counts(groups) == ({"a": 3, "b": 1, "c": 0}, 6)
     # The same when counted in slices of the digest range.
     monkeypatch.setattr(pbs_space, "_COUNT_AT_ONCE", 2)
-    assert pbs_space.exclusive_counts(groups) == {"a": 3, "b": 1, "c": 0}
-    assert pbs_space.exclusive_counts({}) == {}
+    assert pbs_space.exclusive_counts(groups) == ({"a": 3, "b": 1, "c": 0}, 6)
+    assert pbs_space.exclusive_counts({}) == ({}, 0)
 
 
 @pytest.fixture
@@ -130,7 +131,9 @@ def tables(monkeypatch):
             groups[(pbs_id, *group)]["exclusive"] = count
 
     def store_space(pbs_id, store, disk_bytes, disk_chunks, denied):
-        row = state["space"].setdefault((pbs_id, store), {"disk_bytes": None, "disk_chunks": None, "denied": False})
+        row = state["space"].setdefault(
+            (pbs_id, store), {"disk_bytes": None, "disk_chunks": None, "denied": False, "counted_chunks": None}
+        )
         row["disk_bytes"] = disk_bytes if disk_bytes is not None else row["disk_bytes"]
         row["disk_chunks"] = disk_chunks if disk_chunks is not None else row["disk_chunks"]
         row["denied"] = denied if denied is not None else row["denied"]
@@ -167,6 +170,12 @@ def tables(monkeypatch):
     monkeypatch.setattr(db, "save_pbs_store_space", store_space)
     monkeypatch.setattr(db, "get_pbs_store_space", lambda pbs_id, store: state["space"].get((pbs_id, store)))
     monkeypatch.setattr(db, "pbs_space_groups", space_groups)
+    monkeypatch.setattr(
+        db,
+        "save_pbs_counted_chunks",
+        lambda pbs_id, store, chunks: state["space"][(pbs_id, store)].update(counted_chunks=chunks),
+    )
+    monkeypatch.setattr(db, "pbs_store_capacity", lambda pbs_ids, store: state.get("capacity"))
 
     def get_bytes(conn, path, query=None):
         state["requests"].append((path, dict(query)))
@@ -231,6 +240,8 @@ def test_each_index_is_read_once_and_guests_are_counted(tables):
     assert (web["name"], web["chunks"], web["bytes"], web["exclusive_bytes"]) == ("web", 5, 5000, 3000)
     assert (db_guest["chunks"], db_guest["exclusive_bytes"]) == (4, 2000)
     assert (result["snapshots"], result["known"], result["chunk_bytes"], result["denied"]) == (3, 3, 1000, False)
+    # Together they need 1 2 3 4 5 6 9: each chunk once.
+    assert result["counted_bytes"] == 7000 and result["used_bytes"] is None
 
     # The next sync reads nothing again.
     before = len(tables["requests"])

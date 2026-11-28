@@ -131,6 +131,33 @@ def save_pbs_exclusive_chunks(pbs_id: int, counts: dict[Group, int]) -> None:
         conn.commit()
 
 
+def save_pbs_counted_chunks(pbs_id: int, store: str, chunks: int) -> None:
+    """How many different chunks all guests of a datastore use together."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO pbs_store_space (pbs_id, store, counted_chunks) VALUES (%s, %s, %s)
+            ON CONFLICT (pbs_id, store) DO UPDATE SET counted_chunks = EXCLUDED.counted_chunks
+            """,
+            (pbs_id, store, chunks),
+        )
+        conn.commit()
+
+
+def pbs_store_capacity(pbs_ids: list[int], store: str) -> dict[str, Any] | None:
+    """Size, use and free room of a datastore as last read (under any of the
+    ids its PBS is registered with)."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT total_bytes, used_bytes, avail_bytes FROM pbs_datastore_usage
+            WHERE pbs_id = ANY(%s) AND store = %s ORDER BY updated_at DESC LIMIT 1
+            """,
+            (pbs_ids, store),
+        )
+        return cur.fetchone()
+
+
 def save_pbs_store_space(
     pbs_id: int, store: str, disk_bytes: int | None, disk_chunks: int | None, denied: bool | None
 ) -> None:
@@ -154,7 +181,7 @@ def save_pbs_store_space(
 def get_pbs_store_space(pbs_id: int, store: str) -> dict[str, Any] | None:
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT disk_bytes, disk_chunks, denied FROM pbs_store_space WHERE pbs_id = %s AND store = %s",
+            "SELECT disk_bytes, disk_chunks, denied, counted_chunks FROM pbs_store_space WHERE pbs_id = %s AND store = %s",
             (pbs_id, store),
         )
         return cur.fetchone()

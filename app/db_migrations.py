@@ -354,6 +354,15 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        19,
+        "Chunks counted per datastore, each once",
+        [
+            # All guests' chunks of a datastore, a shared one counted once: the
+            # total to hold against what the datastore has in use.
+            "ALTER TABLE pbs_store_space ADD COLUMN IF NOT EXISTS counted_chunks BIGINT",
+        ],
+    ),
 ]
 
 
