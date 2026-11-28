@@ -48,7 +48,7 @@ if ! command -v openssl >/dev/null 2>&1; then
   exit 1
 fi
 
-API_USER="backup-reports@pve"
+API_USER="backup-sentinel@pve"
 TOKEN_NAME="${CLUSTER_SLUG}-collector"
 PROXMOX_NODE="$(hostname -s)"
 FINGERPRINT="$(openssl x509 -in /etc/pve/local/pve-ssl.pem -noout -fingerprint -sha256 | cut -d= -f2)"

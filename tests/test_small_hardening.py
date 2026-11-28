@@ -79,7 +79,7 @@ def test_bootstrap_finalize_fields_are_bounded():
         "cluster_slug": "main",
         "enrollment_secret": "s" * 32,
         "proxmox_node": "pve1",
-        "api_user": "backup-reports@pve",
+        "api_user": "backup-sentinel@pve",
         "token_id": "collector",
         "token_secret": "t" * 36,
     }
