@@ -27,6 +27,7 @@ class BootstrapScriptRouteTests(unittest.TestCase):
         self.assertIn("acl update / Audit", response.text)
         # Index files (space per guest) need read access to the datastores.
         self.assertIn("acl update /datastore DatastoreReader", response.text)
+        self.assertIn('API_USER="backup-sentinel@pbs"', response.text)
 
     def test_cluster_with_an_http_url_is_refused(self) -> None:
         # The API token would travel in the clear. Refused by validation, before the database.

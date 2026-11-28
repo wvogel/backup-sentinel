@@ -48,7 +48,7 @@ if ! command -v openssl >/dev/null 2>&1; then
   exit 1
 fi
 
-API_USER="backup-reports@pbs"
+API_USER="backup-sentinel@pbs"
 TOKEN_NAME="${CLUSTER_SLUG}-collector"
 PBS_HOST="$(hostname -f)"
 if [[ -n "$API_URL_OVERRIDE" ]]; then
